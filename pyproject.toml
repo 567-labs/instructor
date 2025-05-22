@@ -7,11 +7,11 @@ dependencies = [
     "pydantic<3.0.0,>=2.8.0",
     "docstring-parser<1.0,>=0.16",
     "typer<1.0.0,>=0.9.0",
-    "rich<14.0.0,>=13.7.0",
+    "rich>=13.7.0,<15.0.0",
     "aiohttp<4.0.0,>=3.9.1",
     "tenacity<10.0.0,>=9.0.0",
     "pydantic-core<3.0.0,>=2.18.0",
-    "jiter<0.9,>=0.6.1",
+    "jiter>=0.6.1,<0.11",
     "jinja2<4.0.0,>=3.1.4",
     "requests<3.0.0,>=2.32.3",
 ]
@@ -49,7 +49,7 @@ pythonPlatform = "Linux"
 [project.optional-dependencies]
 test-docs = [
     "fastapi<0.116.0,>=0.109.2",
-    "redis<6.0.0,>=5.0.1",
+    "redis>=5.0.1,<7.0.0",
     "diskcache<6.0.0,>=5.6.3",
     "pandas<3.0.0,>=2.2.0",
     "tabulate<1.0.0,>=0.9.0",
@@ -57,8 +57,8 @@ test-docs = [
     "litellm<2.0.0,>=1.35.31",
     "mistralai<2.0.0,>=1.5.1",
 ]
-anthropic = ["anthropic==0.48.0", "xmltodict<0.15,>=0.13"]
-groq = ["groq<0.14.0,>=0.4.2"]
+anthropic = ["anthropic==0.52.0", "xmltodict<0.15,>=0.13"]
+groq = ["groq>=0.4.2,<0.26.0"]
 cohere = ["cohere<6.0.0,>=5.1.8"]
 google-generativeai = [
     "google-generativeai<1.0.0,>=0.8.2",
@@ -98,18 +98,18 @@ docs = [
     "mkdocs-redirects<2.0.0,>=1.2.1",
     "material>=0.1",
 ]
-anthropic = ["anthropic==0.48.0"]
+anthropic = ["anthropic==0.52.0"]
 test-docs = [
     "fastapi<0.116.0,>=0.109.2",
-    "redis<6.0.0,>=5.0.1",
+    "redis>=5.0.1,<7.0.0",
     "diskcache<6.0.0,>=5.6.3",
     "pandas<3.0.0,>=2.2.0",
     "tabulate<1.0.0,>=0.9.0",
     "pydantic-extra-types<3.0.0,>=2.6.0",
     "litellm<2.0.0,>=1.35.31",
-    "anthropic==0.48.0",
+    "anthropic==0.52.0",
     "xmltodict<0.15,>=0.13",
-    "groq<0.14.0,>=0.4.2",
+    "groq>=0.4.2,<0.26.0",
     "phonenumbers<9.0.0,>=8.13.33",
     "cohere<6.0.0,>=5.1.8",
     "mistralai<2.0.0,>=1.5.1",
@@ -131,7 +131,7 @@ vertexai = ["google-cloud-aiplatform<2.0.0,>=1.53.0", "jsonref<2.0.0,>=1.1.0"]
 bedrock = ["boto3<2.0.0,>=1.34.0"]
 mistral = ["mistralai<2.0.0,>=1.5.1"]
 perplexity = ["openai<2.0.0,>=1.52.0"]
-groq = ["groq<0.14.0,>=0.4.2"]
+groq = ["groq>=0.4.2,<0.26.0"]
 cohere = ["cohere<6.0.0,>=5.1.8"]
 cerebras_cloud_sdk = ["cerebras-cloud-sdk<2.0.0,>=1.5.0"]
 fireworks-ai = ["fireworks-ai<1.0.0,>=0.15.4"]
