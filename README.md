@@ -27,6 +27,11 @@ Install Instructor with a single command:
 pip install -U instructor
 ```
 
+# Optional: Install with CLI support
+```bash
+pip install -U "instructor[cli]"
+```
+
 Now, let's see Instructor in action with a simple example:
 
 ```python
