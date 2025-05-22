@@ -1,11 +1,11 @@
 from __future__ import annotations
-from typing import Any, Union, Literal, overload
+from typing import Any, Literal, overload
 from instructor.client import AsyncInstructor, Instructor
 import instructor
 from instructor.models import KnownModelName
 
 # Type alias for the return type
-InstructorType = Union[Instructor, AsyncInstructor]
+InstructorType = Instructor | AsyncInstructor
 
 
 # List of supported providers
@@ -30,6 +30,8 @@ supported_providers = [
 def from_provider(
     model: KnownModelName,
     async_client: Literal[True] = True,
+    mode: instructor.Mode | None = None,
+    api_key: str | None = None,
     **kwargs: Any,
 ) -> AsyncInstructor: ...
 
@@ -38,28 +40,33 @@ def from_provider(
 def from_provider(
     model: KnownModelName,
     async_client: Literal[False] = False,
+    mode: instructor.Mode | None = None,
+    api_key: str | None = None,
     **kwargs: Any,
 ) -> Instructor: ...
 
 
 @overload
 def from_provider(
-    model: str, async_client: Literal[True] = True, **kwargs: Any
+    model: str, async_client: Literal[True] = True, mode: instructor.Mode | None = None,
+    api_key: str | None = None, **kwargs: Any
 ) -> AsyncInstructor: ...
 
 
 @overload
 def from_provider(
-    model: str, async_client: Literal[False] = False, **kwargs: Any
+    model: str, async_client: Literal[False] = False, mode: instructor.Mode | None = None,
+    api_key: str | None = None, **kwargs: Any
 ) -> Instructor: ...
 
 
 def from_provider(
-    model: Union[str, KnownModelName],  # noqa: UP007
+    model: str | KnownModelName,
     async_client: bool = False,
-    mode: Union[instructor.Mode, None] = None,  # noqa: ARG001, UP007
+    mode: instructor.Mode | None = None,  # noqa: ARG001
+    api_key: str | None = None,
     **kwargs: Any,
-) -> Union[Instructor, AsyncInstructor]:  # noqa: UP007
+) -> Instructor | AsyncInstructor:
     """Create an Instructor client from a model string.
 
     Args:
@@ -68,6 +75,8 @@ def from_provider(
         async_client: Whether to return an async client
         mode: Override the default mode for the provider. If not specified, uses the
               recommended default mode for each provider.
+        api_key: API key to use for the provider. If not specified, falls back to
+                environment variables or API key passed directly to the client.
         **kwargs: Additional arguments passed to the client constructor
 
     Returns:
@@ -100,7 +109,11 @@ def from_provider(
             import openai
             from instructor import from_openai
 
-            client = openai.AsyncOpenAI() if async_client else openai.OpenAI()
+            if api_key:
+                client = openai.AsyncOpenAI(api_key=api_key) if async_client else openai.OpenAI(api_key=api_key)
+            else:
+                client = openai.AsyncOpenAI() if async_client else openai.OpenAI()
+                
             return from_openai(
                 client,
                 model=model_name,
@@ -120,9 +133,15 @@ def from_provider(
             import anthropic
             from instructor import from_anthropic
 
-            client = (
-                anthropic.AsyncAnthropic() if async_client else anthropic.Anthropic()
-            )
+            if api_key:
+                client = (
+                    anthropic.AsyncAnthropic(api_key=api_key) if async_client else anthropic.Anthropic(api_key=api_key)
+                )
+            else:
+                client = (
+                    anthropic.AsyncAnthropic() if async_client else anthropic.Anthropic()
+                )
+                
             max_tokens = kwargs.pop("max_tokens", 4096)
             return from_anthropic(
                 client,
@@ -143,6 +162,9 @@ def from_provider(
             import google.genai as genai  # type: ignore
             from instructor import from_genai
 
+            if api_key and "api_key" not in kwargs:
+                kwargs["api_key"] = api_key
+                
             client = genai.Client(
                 vertexai=False
                 if kwargs.get("vertexai") is None
@@ -166,12 +188,14 @@ def from_provider(
             from instructor import from_mistral
             import os
 
-            if os.environ.get("MISTRAL_API_KEY"):
-                client = Mistral(api_key=os.environ.get("MISTRAL_API_KEY"))
+            mistral_api_key = api_key or os.environ.get("MISTRAL_API_KEY")
+            
+            if mistral_api_key:
+                client = Mistral(api_key=mistral_api_key)
             else:
                 raise ValueError(
                     "MISTRAL_API_KEY is not set. "
-                    "Set it with `export MISTRAL_API_KEY=<your-api-key>`."
+                    "Set it with `export MISTRAL_API_KEY=<your-api-key>` or provide it via api_key parameter."
                 )
 
             if async_client:
@@ -190,7 +214,11 @@ def from_provider(
             import cohere
             from instructor import from_cohere
 
-            client = cohere.AsyncClient() if async_client else cohere.Client()
+            if api_key:
+                client = cohere.AsyncClient(api_key=api_key) if async_client else cohere.Client(api_key=api_key)
+            else:
+                client = cohere.AsyncClient() if async_client else cohere.Client()
+                
             return from_cohere(client, **kwargs)
         except ImportError:
             import_err = ImportError(
@@ -205,14 +233,16 @@ def from_provider(
             from instructor import from_perplexity
             import os
 
-            if os.environ.get("PERPLEXITY_API_KEY"):
-                api_key = os.environ.get("PERPLEXITY_API_KEY")
+            if api_key:
+                perplexity_api_key = api_key
+            elif os.environ.get("PERPLEXITY_API_KEY"):
+                perplexity_api_key = os.environ.get("PERPLEXITY_API_KEY")
             elif kwargs.get("api_key"):
-                api_key = kwargs.get("api_key")
+                perplexity_api_key = kwargs.get("api_key")
             else:
                 raise ValueError(
                     "PERPLEXITY_API_KEY is not set. "
-                    "Set it with `export PERPLEXITY_API_KEY=<your-api-key>` or pass it as a kwarg api_key=<your-api-key>"
+                    "Set it with `export PERPLEXITY_API_KEY=<your-api-key>` or pass it as api_key parameter."
                 )
 
             client = (
@@ -237,7 +267,11 @@ def from_provider(
             import groq
             from instructor import from_groq
 
-            client = groq.AsyncGroq() if async_client else groq.Groq()
+            if api_key:
+                client = groq.AsyncGroq(api_key=api_key) if async_client else groq.Groq(api_key=api_key)
+            else:
+                client = groq.AsyncGroq() if async_client else groq.Groq()
+                
             return from_groq(client, model=model_name, **kwargs)
         except ImportError:
             import_err = ImportError(
@@ -251,7 +285,11 @@ def from_provider(
             from writerai import AsyncWriter, Writer
             from instructor import from_writer
 
-            client = AsyncWriter() if async_client else Writer()
+            if api_key:
+                client = AsyncWriter(api_key=api_key) if async_client else Writer(api_key=api_key)
+            else:
+                client = AsyncWriter() if async_client else Writer()
+                
             return from_writer(client, model=model_name, **kwargs)
         except ImportError:
             import_err = ImportError(
@@ -279,7 +317,11 @@ def from_provider(
             from cerebras.cloud.sdk import AsyncCerebras, Cerebras
             from instructor import from_cerebras
 
-            client = AsyncCerebras() if async_client else Cerebras()
+            if api_key:
+                client = AsyncCerebras(api_key=api_key) if async_client else Cerebras(api_key=api_key)
+            else:
+                client = AsyncCerebras() if async_client else Cerebras()
+                
             return from_cerebras(client, model=model_name, **kwargs)
         except ImportError:
             import_err = ImportError(
@@ -293,7 +335,11 @@ def from_provider(
             from fireworks.client import AsyncFireworks, Fireworks
             from instructor import from_fireworks
 
-            client = AsyncFireworks() if async_client else Fireworks()
+            if api_key:
+                client = AsyncFireworks(api_key=api_key) if async_client else Fireworks(api_key=api_key)
+            else:
+                client = AsyncFireworks() if async_client else Fireworks()
+                
             return from_fireworks(client, model=model_name, **kwargs)
         except ImportError:
             import_err = ImportError(
@@ -321,7 +367,11 @@ def from_provider(
             from google.generativeai import GenerativeModel
             from instructor import from_gemini
 
-            client = GenerativeModel(model_name=model_name)
+            if api_key:
+                client = GenerativeModel(model_name=model_name, api_key=api_key)
+            else:
+                client = GenerativeModel(model_name=model_name)
+                
             if async_client:
                 return from_gemini(client, use_async=True, **kwargs)  # type: ignore
             else:
