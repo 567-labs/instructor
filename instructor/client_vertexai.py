@@ -139,6 +139,7 @@ def from_vertexai(
     client: gm.GenerativeModel,
     mode: instructor.Mode = instructor.Mode.VERTEXAI_TOOLS,
     _async: bool = False,
+    use_async: bool | None = None,
     **kwargs: Any,
 ) -> instructor.Instructor:
     valid_modes = {
@@ -164,7 +165,26 @@ def from_vertexai(
             f"Got: {type(client).__name__}"
         )
 
-    create = client.generate_content_async if _async else client.generate_content
+    if use_async is not None and _async != False:
+        from instructor.exceptions import ConfigurationError
+        
+        raise ConfigurationError(
+            "Cannot provide both '_async' and 'use_async'. Use 'use_async' instead."
+        )
+        
+    if _async and use_async is None:
+        import warnings
+        
+        warnings.warn(
+            "'_async' is deprecated. Use 'use_async' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        use_async = _async
+    
+    is_async = use_async if use_async is not None else _async
+
+    create = client.generate_content_async if is_async else client.generate_content
 
     return instructor.Instructor(
         client=client,

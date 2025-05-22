@@ -308,7 +308,7 @@ def from_provider(
             from instructor import from_vertexai
 
             client = gm.GenerativeModel(model_name=model_name)
-            return from_vertexai(client, _async=async_client, **kwargs)
+            return from_vertexai(client, use_async=async_client, **kwargs)
         except ImportError:
             import_err = ImportError(
                 "The google-cloud-aiplatform package is required to use the VertexAI provider. "
