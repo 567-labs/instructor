@@ -29,6 +29,7 @@ supported_providers = [
 @overload
 def from_provider(
     model: KnownModelName,
+    api_key: str | None = None,
     async_client: Literal[True] = True,
     **kwargs: Any,
 ) -> AsyncInstructor: ...
@@ -37,6 +38,7 @@ def from_provider(
 @overload
 def from_provider(
     model: KnownModelName,
+    api_key: str | None = None,
     async_client: Literal[False] = False,
     **kwargs: Any,
 ) -> Instructor: ...
@@ -44,18 +46,25 @@ def from_provider(
 
 @overload
 def from_provider(
-    model: str, async_client: Literal[True] = True, **kwargs: Any
+    model: str,
+    api_key: str | None = None,
+    async_client: Literal[True] = True,
+    **kwargs: Any,
 ) -> AsyncInstructor: ...
 
 
 @overload
 def from_provider(
-    model: str, async_client: Literal[False] = False, **kwargs: Any
+    model: str,
+    api_key: str | None = None,
+    async_client: Literal[False] = False,
+    **kwargs: Any,
 ) -> Instructor: ...
 
 
 def from_provider(
     model: Union[str, KnownModelName],  # noqa: UP007
+    api_key: str | None = None,
     async_client: bool = False,
     mode: Union[instructor.Mode, None] = None,  # noqa: ARG001, UP007
     **kwargs: Any,
@@ -65,6 +74,9 @@ def from_provider(
     Args:
         model: String in format "provider/model-name"
               (e.g., "openai/gpt-4", "anthropic/claude-3-sonnet", "google/gemini-pro")
+        api_key: API key for the provider. If not provided, it will be fetched from
+                 environment variables or configuration files (implemented natively
+                 in the packages).
         async_client: Whether to return an async client
         mode: Override the default mode for the provider. If not specified, uses the
               recommended default mode for each provider.
@@ -100,7 +112,15 @@ def from_provider(
             import openai
             from instructor import from_openai
 
-            client = openai.AsyncOpenAI() if async_client else openai.OpenAI()
+            if api_key:
+                client = (
+                    openai.AsyncOpenAI(api_key=api_key)
+                    if async_client
+                    else openai.OpenAI(api_key=api_key)
+                )
+            else:
+                client = openai.AsyncOpenAI() if async_client else openai.OpenAI()
+
             return from_openai(
                 client,
                 model=model_name,
@@ -120,9 +140,19 @@ def from_provider(
             import anthropic
             from instructor import from_anthropic
 
-            client = (
-                anthropic.AsyncAnthropic() if async_client else anthropic.Anthropic()
-            )
+            if api_key:
+                client = (
+                    anthropic.AsyncAnthropic(api_key=api_key)
+                    if async_client
+                    else anthropic.Anthropic(api_key=api_key)
+                )
+            else:
+                client = (
+                    anthropic.AsyncAnthropic()
+                    if async_client
+                    else anthropic.Anthropic()
+                )
+
             max_tokens = kwargs.pop("max_tokens", 4096)
             return from_anthropic(
                 client,
@@ -143,12 +173,22 @@ def from_provider(
             import google.genai as genai  # type: ignore
             from instructor import from_genai
 
-            client = genai.Client(
-                vertexai=False
-                if kwargs.get("vertexai") is None
-                else kwargs.get("vertexai"),
-                **kwargs,
-            )  # type: ignore
+            if api_key:
+                client = genai.Client(
+                    vertexai=False
+                    if kwargs.get("vertexai") is None
+                    else kwargs.get("vertexai"),
+                    api_key=api_key,
+                    **kwargs,
+                )  # type: ignore
+            else:
+                client = genai.Client(
+                    vertexai=False
+                    if kwargs.get("vertexai") is None
+                    else kwargs.get("vertexai"),
+                    **kwargs,
+                )
+
             if async_client:
                 return from_genai(client, use_async=True, model=model_name, **kwargs)  # type: ignore
             else:
@@ -166,12 +206,15 @@ def from_provider(
             from instructor import from_mistral
             import os
 
-            if os.environ.get("MISTRAL_API_KEY"):
-                client = Mistral(api_key=os.environ.get("MISTRAL_API_KEY"))
+            mistral_api_key = api_key or os.environ.get("MISTRAL_API_KEY")
+
+            if mistral_api_key:
+                client = Mistral(api_key=mistral_api_key)
             else:
                 raise ValueError(
                     "MISTRAL_API_KEY is not set. "
-                    "Set it with `export MISTRAL_API_KEY=<your-api-key>`."
+                    "Set it with `export MISTRAL_API_KEY=<your-api-key>`"
+                    "or pass it as api_key=<your-api-key> in from_provider()."
                 )
 
             if async_client:
@@ -190,7 +233,15 @@ def from_provider(
             import cohere
             from instructor import from_cohere
 
-            client = cohere.AsyncClient() if async_client else cohere.Client()
+            if api_key:
+                client = (
+                    cohere.AsyncClient(api_key=api_key)
+                    if async_client
+                    else cohere.Client(api_key=api_key)
+                )
+            else:
+                client = cohere.AsyncClient() if async_client else cohere.Client()
+
             return from_cohere(client, **kwargs)
         except ImportError:
             import_err = ImportError(
@@ -205,14 +256,13 @@ def from_provider(
             from instructor import from_perplexity
             import os
 
-            if os.environ.get("PERPLEXITY_API_KEY"):
-                api_key = os.environ.get("PERPLEXITY_API_KEY")
-            elif kwargs.get("api_key"):
-                api_key = kwargs.get("api_key")
-            else:
+            perplexity_api_key = api_key or os.environ.get("PERPLEXITY_API_KEY")
+
+            if perplexity_api_key is None:
                 raise ValueError(
                     "PERPLEXITY_API_KEY is not set. "
-                    "Set it with `export PERPLEXITY_API_KEY=<your-api-key>` or pass it as a kwarg api_key=<your-api-key>"
+                    "Set it with `export PERPLEXITY_API_KEY=<your-api-key>`"
+                    "or pass it as api_key=<your-api-key> in from_provider()."
                 )
 
             client = (
@@ -237,7 +287,15 @@ def from_provider(
             import groq
             from instructor import from_groq
 
-            client = groq.AsyncGroq() if async_client else groq.Groq()
+            if api_key:
+                client = (
+                    groq.AsyncGroq(api_key=api_key)
+                    if async_client
+                    else groq.Groq(api_key=api_key)
+                )
+            else:
+                client = groq.AsyncGroq() if async_client else groq.Groq()
+
             return from_groq(client, model=model_name, **kwargs)
         except ImportError:
             import_err = ImportError(
@@ -251,7 +309,15 @@ def from_provider(
             from writerai import AsyncWriter, Writer
             from instructor import from_writer
 
-            client = AsyncWriter() if async_client else Writer()
+            if api_key:
+                client = (
+                    AsyncWriter(api_key=api_key)
+                    if async_client
+                    else Writer(api_key=api_key)
+                )
+            else:
+                client = AsyncWriter() if async_client else Writer()
+
             return from_writer(client, model=model_name, **kwargs)
         except ImportError:
             import_err = ImportError(
@@ -265,7 +331,18 @@ def from_provider(
             import boto3
             from instructor import from_bedrock
 
-            client = boto3.client("bedrock-runtime")
+            aws_access_key_id = kwargs.pop("aws_access_key_id", None)
+            aws_secret_access_key = kwargs.pop("aws_secret_access_key", None)
+
+            if aws_access_key_id and aws_secret_access_key:
+                client = boto3.client(
+                    "bedrock-runtime",
+                    aws_access_key_id=aws_access_key_id,
+                    aws_secret_access_key=aws_secret_access_key,
+                )
+            else:
+                client = boto3.client("bedrock-runtime")
+
             return from_bedrock(client, **kwargs)
         except ImportError:
             import_err = ImportError(
@@ -279,7 +356,15 @@ def from_provider(
             from cerebras.cloud.sdk import AsyncCerebras, Cerebras
             from instructor import from_cerebras
 
-            client = AsyncCerebras() if async_client else Cerebras()
+            if api_key:
+                client = (
+                    AsyncCerebras(api_key=api_key)
+                    if async_client
+                    else Cerebras(api_key=api_key)
+                )
+            else:
+                client = AsyncCerebras() if async_client else Cerebras()
+
             return from_cerebras(client, model=model_name, **kwargs)
         except ImportError:
             import_err = ImportError(
@@ -293,7 +378,15 @@ def from_provider(
             from fireworks.client import AsyncFireworks, Fireworks
             from instructor import from_fireworks
 
-            client = AsyncFireworks() if async_client else Fireworks()
+            if api_key:
+                client = (
+                    AsyncFireworks(api_key=api_key)
+                    if async_client
+                    else Fireworks(api_key=api_key)
+                )
+            else:
+                client = AsyncFireworks() if async_client else Fireworks()
+
             return from_fireworks(client, model=model_name, **kwargs)
         except ImportError:
             import_err = ImportError(
@@ -318,10 +411,14 @@ def from_provider(
 
     elif provider == "generative-ai":
         try:
-            from google.generativeai import GenerativeModel
+            import google.generativeai as genai
             from instructor import from_gemini
 
-            client = GenerativeModel(model_name=model_name)
+            if api_key:
+                genai.configure(api_key=api_key)
+
+            client = genai.GenerativeModel(model_name=model_name)
+
             if async_client:
                 return from_gemini(client, use_async=True, **kwargs)  # type: ignore
             else:
