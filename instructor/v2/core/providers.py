@@ -36,6 +36,7 @@ class Provider(Enum):
     BEDROCK = "bedrock"
     PERPLEXITY = "perplexity"
     OPENROUTER = "openrouter"
+    REQUESTY = "requesty"
 
 
 def provider_from_mode(mode: Mode, default: Provider = Provider.OPENAI) -> Provider:
@@ -117,6 +118,7 @@ def get_provider(base_url: str) -> Provider:
         ("localhost:11434", Provider.OLLAMA),
         ("litellm", Provider.LITELLM),
         ("openrouter", Provider.OPENROUTER),
+        ("requesty", Provider.REQUESTY),
         ("x.ai", Provider.XAI),
         ("xai", Provider.XAI),
     )

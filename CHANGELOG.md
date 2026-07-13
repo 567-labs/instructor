@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- **Requesty**: Add [Requesty](https://requesty.ai) as a provider (`from_requesty` / `from_provider("requesty/...")`), an OpenAI-compatible LLM router, mirroring the existing OpenRouter provider.
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes

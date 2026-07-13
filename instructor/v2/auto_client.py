@@ -1484,6 +1484,70 @@ def _build_openrouter(
         raise
 
 
+def _build_requesty(
+    *,
+    provider: str,
+    model_name: str,
+    async_client: bool,
+    mode: Mode | None,
+    api_key: str | None,
+    kwargs: dict[str, Any],
+    provider_info: dict[str, str],
+) -> InstructorType:
+    try:
+        import openai
+        from instructor.v2.providers.requesty.client import from_requesty
+        import os
+
+        # Get API key from kwargs or environment
+        api_key = api_key or os.environ.get("REQUESTY_API_KEY")
+
+        if not api_key:
+            from instructor.v2.core.errors import ConfigurationError
+
+            raise ConfigurationError(
+                "REQUESTY_API_KEY is not set. "
+                "Set it with `export REQUESTY_API_KEY=<your-api-key>` or pass it as kwarg api_key=<your-api-key>"
+            )
+
+        # Requesty uses an OpenAI-compatible API
+        base_url = kwargs.pop("base_url", "https://router.requesty.ai/v1")
+
+        client = (
+            openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
+            if async_client
+            else openai.OpenAI(api_key=api_key, base_url=base_url)
+        )
+
+        result = from_requesty(
+            client,
+            model=model_name,
+            mode=mode if mode else Mode.TOOLS,
+            **kwargs,
+        )
+        logger.info(
+            "Client initialized",
+            extra={**provider_info, "status": "success"},
+        )
+        return result
+    except ImportError:
+        from instructor.v2.core.errors import ConfigurationError
+
+        raise ConfigurationError(
+            "The openai package is required to use the Requesty provider. "
+            "Install it with `pip install openai`."
+        ) from None
+    except Exception as e:
+        logger.error(
+            "Error initializing %s client: %s",
+            provider,
+            e,
+            exc_info=True,
+            extra={**provider_info, "status": "error"},
+        )
+        raise
+
+
 def _build_litellm(
     *,
     provider: str,
@@ -1552,5 +1616,6 @@ _PROVIDER_BUILDERS: dict[str, ProviderBuilder] = {
     "deepseek": _build_deepseek,
     "xai": _build_xai,
     "openrouter": _build_openrouter,
+    "requesty": _build_requesty,
     "litellm": _build_litellm,
 }
