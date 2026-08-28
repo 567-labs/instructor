@@ -58,6 +58,7 @@ Our cookbooks demonstrate how to use Instructor to solve real-world problems wit
 | [Citation Extraction](exact_citations.md) | Accurately extract formatted citations | Academic research |
 | [Action Items](action_items.md) | Extract tasks from text | Meeting follow-ups |
 | [Search Query Processing](search.md) | Structure complex search queries | Search enhancement |
+| [Medication Adherence Triage](medication_adherence.md) | Convert pharmacist call notes into typed triage records with Claude | Medication management |
 
 ### Document Processing
 
