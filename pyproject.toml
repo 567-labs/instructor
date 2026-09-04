@@ -10,17 +10,17 @@ maintainers = [
 license = { text = "MIT" }
 requires-python = "<4.0,>=3.9"
 dependencies = [
-    "openai>=2.0.0,<3.0.0",
+    "openai>=2.0.0,<4.0.0",
     "pydantic<3.0.0,>=2.8.0",
     "eval-type-backport>=0.2.2 ; python_version < '3.10'",
     "docstring-parser<1.0,>=0.16",
     "typer<1.0.0,>=0.9.0",
-    "rich<15.0.0,>=13.7.0",
+    "rich>=13.7.0,<16.0.0",
     "aiohttp<3.14.0,>=3.9.1 ; python_version < '3.10'",
     "aiohttp<4.0.0,>=3.14.3 ; python_version >= '3.10'",
     "tenacity<10.0.0,>=8.2.3",
     "pydantic-core<3.0.0,>=2.18.0",
-    "jiter>=0.6.1,<0.15",
+    "jiter>=0.6.1,<0.17",
     "jinja2<4.0.0,>=3.1.4",
     "requests<2.33.0,>=2.32.3 ; python_version < '3.10'",
     "requests<3.0.0,>=2.33.0 ; python_version >= '3.10'",
@@ -53,7 +53,7 @@ markers = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest<9.0.0,>=8.3.3",
+    "pytest>=8.3.3,<10.0.0",
     "pytest-asyncio>=0.24.0,<2.0.0",
     "coverage<8.0.0,>=7.3.2",
     "jsonref<2.0.0,>=1.1.0",
@@ -61,15 +61,15 @@ dev = [
     "python-dotenv>=1.0.1",
     "pytest-xdist>=3.8.0",
     "pre-commit>=4.2.0",
-    "ty==0.0.44",
-    "anthropic==0.93.0",
+    "ty==0.0.75",
+    "anthropic==1.2.0",
     "xmltodict>=0.13,<1.1",
 ]
 docs = [
     "mkdocs<2.0.0,>=1.6.1",
     "mkdocs-material[imaging]<10.0.0,>=9.5.9",
-    "mkdocstrings>=0.27.1,<0.31.0",
-    "mkdocstrings-python<2.0.0,>=1.12.2",
+    "mkdocstrings>=0.27.1,<1.1.0",
+    "mkdocstrings-python>=1.12.2,<3.0.0",
     "pytest-examples>=0.0.15",
     "mkdocs-jupyter>=0.24.6,<0.27.0",
     "mkdocs-rss-plugin<2.0.0,>=1.12.0",
@@ -80,27 +80,27 @@ docs = [
     "mkdocs-material>=9.6.14",
 ]
 test-docs = [
-    "fastapi>=0.109.2,<0.129.0",
-    "redis>=5.0.1,<8.0.0",
+    "fastapi>=0.109.2,<0.142.0",
+    "redis>=5.0.1,<9.0.0",
     "diskcache<6.0.0,>=5.6.3",
     "pandas<3.0.0,>=2.2.0",
     "tabulate<1.0.0,>=0.9.0",
     "pydantic-extra-types<3.0.0,>=2.6.0",
-    "litellm>=1.35.31,<=1.83.7",
+    "litellm>=1.35.31,<=1.98.0",
     "mistralai<3.0.0,>=1.5.1",
 ]
-anthropic = ["anthropic==0.93.0", "xmltodict>=0.13,<1.1"]
-groq = ["groq>=0.4.2,<1.1.0"]
-cohere = ["cohere<6.0.0,>=5.1.8"]
-vertexai = ["google-cloud-aiplatform<2.0.0,>=1.53.0", "jsonref<2.0.0,>=1.1.0"]
+anthropic = ["anthropic==1.2.0", "xmltodict>=0.13,<1.1"]
+groq = ["groq>=0.4.2,<1.8.0"]
+cohere = ["cohere>=5.1.8,<8.0.0"]
+vertexai = ["google-cloud-aiplatform>=1.53.0,<3.0.0", "jsonref<2.0.0,>=1.1.0"]
 cerebras_cloud_sdk = ["cerebras-cloud-sdk<2.0.0,>=1.5.0"]
-fireworks-ai = ["fireworks-ai<1.0.0,>=0.15.4"]
-writer = ["writer-sdk<3.0.0,>=2.2.0"]
+fireworks-ai = ["fireworks-ai>=0.15.4,<2.0.0"]
+writer = ["writer-sdk>=2.2.0,<4.0.0"]
 bedrock = ["boto3<2.0.0,>=1.42.42"]
 mistral = ["mistralai<3.0.0,>=1.5.1"]
-perplexity = ["openai>=2.0.0,<3.0.0"]
+perplexity = ["openai>=2.0.0,<4.0.0"]
 google-genai = ["google-genai>=1.5.0","jsonref<2.0.0,>=1.1.0"]
-litellm = ["litellm>=1.35.31,<=1.83.7"]
+litellm = ["litellm>=1.35.31,<=1.98.0"]
 xai = ["xai-sdk>=0.2.0 ; python_version >= '3.10'"]
 phonenumbers = ["phonenumbers>=8.13.33,<10.0.0"]
 graphviz = ["graphviz<1.0.0,>=0.20.3"]
@@ -108,7 +108,7 @@ sqlmodel = ["sqlmodel<1.0.0,>=0.0.22"]
 diskcache = ["diskcache<6.0.0,>=5.6.3"]
 trafilatura = ["trafilatura<3.0.0,>=1.12.2"]
 pydub = ["pydub<1.0.0,>=0.25.1"]
-datasets = ["datasets>=3.0.1,<5.0.0"]
+datasets = ["datasets>=3.0.1,<6.0.0"]
 
 [project.scripts]
 instructor = "instructor.cli.cli:app"

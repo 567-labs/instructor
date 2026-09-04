@@ -23,7 +23,7 @@ certifi==2026.7.22
     #   requests
 charset-normalizer==3.5.1
     # via requests
-click==8.4.2
+click==8.5.0
     # via instructor (pyproject.toml)
 distro==1.9.0
     # via openai
@@ -48,7 +48,7 @@ idna==3.19
     #   yarl
 jinja2==3.1.6
     # via instructor (pyproject.toml)
-jiter==0.14.0
+jiter==0.16.0
     # via
     #   instructor (pyproject.toml)
     #   openai
@@ -62,17 +62,17 @@ multidict==6.7.1
     # via
     #   aiohttp
     #   yarl
-openai==2.54.0
+openai==3.5.0
     # via instructor (pyproject.toml)
 propcache==0.5.2
     # via
     #   aiohttp
     #   yarl
-pydantic==2.13.4
+pydantic==2.13.5
     # via
     #   instructor (pyproject.toml)
     #   openai
-pydantic-core==2.46.4
+pydantic-core==2.48.0
     # via
     #   instructor (pyproject.toml)
     #   pydantic
@@ -82,7 +82,7 @@ regex==2026.7.19
     # via instructor (pyproject.toml)
 requests==2.34.2
     # via instructor (pyproject.toml)
-rich==14.3.4
+rich==15.0.0
     # via
     #   instructor (pyproject.toml)
     #   typer
@@ -94,7 +94,7 @@ tenacity==9.1.4
     # via instructor (pyproject.toml)
 tqdm==4.70.0
     # via openai
-typer==0.27.1
+typer==0.27.2
     # via instructor (pyproject.toml)
 typing-extensions==4.16.0
     # via
