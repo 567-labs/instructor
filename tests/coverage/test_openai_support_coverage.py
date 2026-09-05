@@ -6,6 +6,10 @@ import runpy
 from pathlib import Path
 from typing import Any, cast
 
+# These tests inject an HTTP client into the OpenAI SDK, which performs an
+# `isinstance(http_client, httpx.Client)` guard. We deliberately pin the real
+# httpx here so the guard passes against `openai<3`; the migration to httpx2
+# is handled in the production code path (`instructor.v2.auto_client`).
 import httpx
 import openai
 import pytest

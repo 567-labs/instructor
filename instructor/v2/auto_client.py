@@ -183,13 +183,16 @@ def _build_openai(
 ) -> InstructorType:
     try:
         import openai
-        import httpx
+        try:
+            import httpx2 as httpx
+        except ModuleNotFoundError:
+            import httpx
         from openai import DEFAULT_MAX_RETRIES, NotGiven, Timeout, not_given
         from collections.abc import Mapping
         from typing import cast
     except ImportError as err:
         missing_root = (getattr(err, "name", "") or "").split(".")[0]
-        if missing_root not in {"openai", "httpx"}:
+        if missing_root not in {"openai", "httpx2", "httpx"}:
             raise
 
         from instructor.v2.core.errors import ConfigurationError

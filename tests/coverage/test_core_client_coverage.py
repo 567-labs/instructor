@@ -4,6 +4,10 @@ import inspect
 from collections.abc import AsyncIterable, Iterable
 from typing import Any, cast, get_args, get_origin
 
+# These tests pass an `httpx.Client`/transport into the OpenAI SDK, which
+# performs an `isinstance(http_client, httpx.Client)` guard. We pin the real
+# httpx here so the guard passes; the migration to httpx2 is handled in the
+# production code path (`instructor.v2.auto_client`).
 import httpx
 import openai
 import pytest

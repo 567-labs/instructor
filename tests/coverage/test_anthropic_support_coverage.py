@@ -11,8 +11,13 @@ from types import SimpleNamespace
 from typing import Any, Union, cast
 
 import anthropic
-import httpx
 import pytest
+
+# These tests inject an HTTP client into the Anthropic SDK, which performs an
+# `isinstance(http_client, httpx.Client)` guard. We pin the real httpx here
+# so the guard passes against the pinned anthropic 0.93; the migration to
+# httpx2 is handled in the production code path (`instructor.v2.auto_client`).
+import httpx
 from anthropic.types import Usage
 from anthropic.types.cache_creation import CacheCreation
 from anthropic.types.server_tool_usage import ServerToolUsage

@@ -12,8 +12,13 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
 
 import cohere
-import httpx
 import pytest
+
+# These tests pass an `httpx.Client`/transport into the Cohere SDK, which
+# performs an `isinstance(http_client, httpx.Client)` guard. We pin the real
+# httpx here so the guard passes; the migration to httpx2 is handled in the
+# production code path (`instructor.v2.auto_client`).
+import httpx
 import pytest_asyncio
 from pydantic import BaseModel
 

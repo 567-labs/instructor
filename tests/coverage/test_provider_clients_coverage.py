@@ -9,6 +9,11 @@ from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import pytest
+
+# These tests pass an `httpx.Client`/transport into provider SDKs, which
+# perform an `isinstance(http_client, httpx.Client)` guard. We pin the real
+# httpx here so the guards pass; the migration to httpx2 is handled in the
+# production code path (`instructor.v2.auto_client`).
 import httpx
 from openai.types.chat import ChatCompletion
 from pydantic import BaseModel
