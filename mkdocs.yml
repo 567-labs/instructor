@@ -227,6 +227,7 @@ nav:
     - "Action Items Extraction": 'examples/action_items.md'
     - "Contact Information Extraction": 'examples/extract_contact_info.md'
     - "Knowledge Graph Building": 'examples/building_knowledge_graphs.md'
+    - "Persistent Memory with Dakera": 'examples/persistent_memory_dakera.md'
     - "Tracing with Langfuse": 'examples/tracing_with_langfuse.md'
     - "Multiple Classification Tasks": 'examples/multiple_classification.md'
     - "Pandas DataFrame Integration": 'examples/pandas_df.md'
