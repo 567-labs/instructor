@@ -205,6 +205,7 @@ nav:
     - "Structured Outputs with Ollama": 'examples/ollama.md'
     - "Multi-Modal Data with Gemini": 'examples/multi_modal_gemini.md'
     - "Exact Citations for RAG": 'examples/exact_citations.md'
+    - "Product Fact Extraction with Provenance": 'examples/product_fact_provenance.md'
     - "Extracting Knowledge Graphs": 'examples/knowledge_graph.md'
     - "Table Extraction with GPT-4 Vision": 'examples/extracting_tables.md'
     - "User-Defined Bulk Classification": 'examples/bulk_classification.md'
