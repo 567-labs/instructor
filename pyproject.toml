@@ -10,7 +10,7 @@ maintainers = [
 license = { text = "MIT" }
 requires-python = "<4.0,>=3.9"
 dependencies = [
-    "openai>=2.0.0,<3.0.0",
+    "openai>=2.0.0,<4.0.0",
     "pydantic<3.0.0,>=2.8.0",
     "eval-type-backport>=0.2.2 ; python_version < '3.10'",
     "docstring-parser<1.0,>=0.16",
@@ -30,7 +30,7 @@ dependencies = [
     "regex>=2023.0.0,<2027.0.0",
 ]
 name = "instructor"
-version = "1.16.1"
+version = "1.17.0"
 description = "structured outputs for llm"
 readme = "README.md"
 
@@ -98,7 +98,7 @@ fireworks-ai = ["fireworks-ai<1.0.0,>=0.15.4"]
 writer = ["writer-sdk<3.0.0,>=2.2.0"]
 bedrock = ["boto3<2.0.0,>=1.42.42"]
 mistral = ["mistralai<3.0.0,>=1.5.1"]
-perplexity = ["openai>=2.0.0,<3.0.0"]
+perplexity = ["openai>=2.0.0,<4.0.0"]
 google-genai = ["google-genai>=1.5.0","jsonref<2.0.0,>=1.1.0"]
 litellm = ["litellm>=1.35.31,<=1.83.7"]
 xai = ["xai-sdk>=0.2.0 ; python_version >= '3.10'"]

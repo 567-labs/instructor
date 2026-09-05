@@ -37,7 +37,8 @@ import google.generativeai as genai
 from pydantic import BaseModel
 
 
-client = instructor.from_provider("google/gemini-2.5-flash"),
+client = instructor.from_provider(
+    "google/gemini-2.5-flash",
     mode=instructor.Mode.JSON,  # (1)!
 )
 
@@ -88,11 +89,11 @@ Secondly, we can also pass in a audio segment as a normal message as an inline o
 
 ```python
 import instructor
-import google.generativeai as genai
 from pydantic import BaseModel
 from pydub import AudioSegment
 
-client = instructor.from_provider("google/gemini-2.5-flash"),
+client = instructor.from_provider(
+    "google/gemini-2.5-flash",
     mode=instructor.Mode.JSON,  # (1)!
 )
 
@@ -158,7 +159,8 @@ import google.generativeai as genai
 from pydantic import BaseModel
 
 
-client = instructor.from_provider("google/gemini-2.5-flash"),
+client = instructor.from_provider(
+    "google/gemini-2.5-flash",
     mode=instructor.Mode.JSON,  # (1)!
 )
 

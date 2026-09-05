@@ -19,6 +19,7 @@
 - **Factory pattern**: `from_provider()` for automatic provider detection
 - **DSL**: `dsl/` directory with Partial, Iterable, Maybe, Citation extensions
 - **Key modules**: `patch.py` (patching), `process_response.py` (parsing), `function_calls.py` (schemas)
+- **GenAI request ownership**: `_clone_kwargs` copies nested `generation_config` before either mode handler merges and translates sampling options. Keep caller-owned configurations reusable; regression tests are in `tests/v2/test_genai_config_reuse.py`.
 
 ## Code Style
 - **Typing**: Strict type annotations, use `BaseModel` for structured outputs

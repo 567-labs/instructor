@@ -68,8 +68,7 @@ LLM-based validation can also be plugged into the same Pydantic model. Here, if 
 import instructor
 from instructor import llm_validator
 from pydantic import BaseModel, ValidationError, BeforeValidator
-from typing_extensions import Annotated
-
+from typing import Annotated
 
 # Apply the patch to the OpenAI client
 client = instructor.from_provider("openai/gpt-4.1-mini")
@@ -183,7 +182,6 @@ Behind the scenes, the `instructor.from_provider()` method adds a `max_retries` 
 
 ```python
 from pydantic import ValidationError
-
 
 try:
     ...

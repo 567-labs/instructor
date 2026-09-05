@@ -11,7 +11,6 @@ import logging
 
 from pydantic import BaseModel
 
-
 # Set logging to DEBUG
 logging.basicConfig(level=logging.DEBUG)
 

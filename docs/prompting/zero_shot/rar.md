@@ -1,22 +1,22 @@
 ---
-description: "To help the model better infer human intention from ambigious prompts, we can ask the model to rephrase and respond (RaR)."
+description: "To help the model better infer human intention from ambiguous prompts, we can ask the model to rephrase and respond (RaR)."
 ---
 
-How can we identify and clarify ambigious information in the prompt?
+How can we identify and clarify ambiguous information in the prompt?
 
 Let's say we are given the query: *Was Ed Sheeran born on an odd month?*
 
 There are many ways a model might interpret an *odd month*:
 
-- Februray is *odd* because of an irregular number of days.
+- February is *odd* because of an irregular number of days.
 - A month is *odd* if it has an odd number of days.
-- A month is *odd* if its numberical order in the year is odd (i.e. Janurary is the 1st month).
+- A month is *odd* if its numerical order in the year is odd (i.e. January is the 1st month).
 
 !!! note
 
     Ambiguities might not always be so obvious!
 
-To help the model better infer human intention from ambigious prompts, we can ask the model to rephrase and respond (RaR).
+To help the model better infer human intention from ambiguous prompts, we can ask the model to rephrase and respond (RaR).
 
 ## Implementation
 
@@ -45,7 +45,7 @@ def rephrase_and_respond(query):
 
 
 if __name__ == "__main__":
-    query = "Take the last letters of the words in 'Edgar Bob' and concatinate them."
+    query = "Take the last letters of the words in 'Edgar Bob' and concatenate them."
 
     response = rephrase_and_respond(query)
 

@@ -449,7 +449,7 @@ print(completion.usage.cache_creation_input_tokens)
 
 ### Using Files
 
-We also provide a convinient wrapper around the Files API - allowing you to use both uploaded files and to block the main thread while your file is uploading.
+We also provide a convenient wrapper around the Files API - allowing you to use both uploaded files and to block the main thread while your file is uploading.
 
 In this example below, we download the sample PDF and then upload it using the `Files` api provided by the `google.genai` sdk.
 

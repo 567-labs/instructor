@@ -163,7 +163,7 @@ If you need the original completion object from OpenAI, you can do so with the `
 
 ### Iterable Creation
 
-If you're interested in extracting multiple instances of the same object, we provide a convinient wrapper to be able to do so.
+If you're interested in extracting multiple instances of the same object, we provide a convenient wrapper to be able to do so.
 
 === "Sync"
 

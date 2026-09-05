@@ -32,7 +32,7 @@ def test_reask_genai_tools_preserves_thought_signature():
     assert result["contents"][-2].parts[0].thought_signature == b"sig"
 
     tool_content = result["contents"][-1]
-    assert tool_content.role == "tool"
+    assert tool_content.role == "user"
     assert tool_content.parts[0].function_response.name == "test_fn"
 
 
@@ -55,7 +55,7 @@ def test_reask_genai_tools_finds_function_call_part_when_not_first():
     )
 
     assert result["contents"][-2] is model_content
-    assert result["contents"][-1].role == "tool"
+    assert result["contents"][-1].role == "user"
 
 
 def test_reask_genai_tools_handles_none_response():

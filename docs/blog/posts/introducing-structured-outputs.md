@@ -117,7 +117,7 @@ with client.beta.chat.completions.stream(
     for event in stream:
         if event.type == "content.delta":
             print(event.snapshot, flush=True, end="\n")
-            #> 
+            # >
             #> {"
             #> {"name
             #> {"name":"

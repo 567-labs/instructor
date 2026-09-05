@@ -115,7 +115,6 @@ async def main():
 
 
 asyncio.run(main())
-
 ```
 
 Here's a [public link](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/0da3f599-b807-4e14-9888-cf68fa53d976?timestamp=2025-03-31T16:12:40.076Z&display=details) to the trace that we generated which you can view in Langfuse.

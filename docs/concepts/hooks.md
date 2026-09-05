@@ -51,7 +51,7 @@ import instructor
 client = instructor.from_provider("openai/gpt-4.1-mini")
 
 
-def log_kwargs(*args, **kwargs):
+def log_kwargs(**kwargs):
     print(f"Model: {kwargs.get('model')}")
 
 
@@ -85,7 +85,7 @@ You can use enum values or strings for hook names:
 from instructor.hooks import HookName
 
 client.on(HookName.COMPLETION_KWARGS, log_kwargs)  # Using enum
-client.on("completion:kwargs", log_kwargs)          # Using string
+client.on("completion:kwargs", log_kwargs)  # Using string
 ```
 
 ## Retry Metadata
@@ -98,7 +98,13 @@ import instructor
 client = instructor.from_provider("openai/gpt-4.1-mini")
 
 
-def on_error(error: Exception, *, attempt_number: int, max_attempts: int | None, is_last_attempt: bool):
+def on_error(
+    error: Exception,
+    *,
+    attempt_number: int,
+    max_attempts: int | None,
+    is_last_attempt: bool,
+):
     print(f"Attempt {attempt_number}/{max_attempts or '?'} failed: {error}")
     if is_last_attempt:
         print("No more retries.")
@@ -194,10 +200,10 @@ from instructor.core.hooks import Hooks
 
 # Create specialized hook sets
 logging_hooks = Hooks()
-logging_hooks.on("completion:kwargs", lambda **kw: print("Logging kwargs"))
+logging_hooks.on("completion:kwargs", lambda **_kw: print("Logging kwargs"))
 
 metrics_hooks = Hooks()
-metrics_hooks.on("completion:response", lambda resp: print("Recording metrics"))
+metrics_hooks.on("completion:response", lambda _resp: print("Recording metrics"))
 
 # Combine hooks
 combined = logging_hooks + metrics_hooks
@@ -225,13 +231,13 @@ class User(BaseModel):
 
 # Client with standard hooks
 client_hooks = Hooks()
-client_hooks.on("completion:kwargs", lambda **kw: print("Standard logging"))
+client_hooks.on("completion:kwargs", lambda **_kw: print("Standard logging"))
 
 client = instructor.from_provider("openai/gpt-4.1-mini", hooks=client_hooks)
 
 # Debug hooks for specific calls
 debug_hooks = Hooks()
-debug_hooks.on("parse:error", lambda err: print(f"Debug: {err}"))
+debug_hooks.on("parse:error", lambda _err: print(f"Debug: {_err}"))
 
 # Per-call hooks combine with client hooks
 user = client.create(

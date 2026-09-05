@@ -65,6 +65,6 @@ if __name__ == "__main__":
 
 ## References
 
-<sup id="ref-1">1</sup>: [RoleLLM: Benchmarking, Eliciting, and Enhancing Role-Playing Abilities of Large Lanuage Models](https://arxiv.org/abs/2310.00746)
+<sup id="ref-1">1</sup>: [RoleLLM: Benchmarking, Eliciting, and Enhancing Role-Playing Abilities of Large Language Models](https://arxiv.org/abs/2310.00746)
 <sup id="ref-2">2</sup>: [Is "A Helpful Assistant" the Best Role for Large Language Models? A Systematic Evaluation of Social Roles in System Prompts ](https://arxiv.org/abs/2311.10054)
-<sup id="ref-4">3</sup>: [Unleashing the Emergent Cognitive Synergy in Large Lanuage Models: A Task-Solving Agent through Multi-Persona Self-Collaboration ](https://arxiv.org/abs/2307.05300)
+<sup id="ref-4">3</sup>: [Unleashing the Emergent Cognitive Synergy in Large Language Models: A Task-Solving Agent through Multi-Persona Self-Collaboration ](https://arxiv.org/abs/2307.05300)

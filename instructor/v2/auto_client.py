@@ -183,13 +183,12 @@ def _build_openai(
 ) -> InstructorType:
     try:
         import openai
-        import httpx
         from openai import DEFAULT_MAX_RETRIES, NotGiven, Timeout, not_given
         from collections.abc import Mapping
         from typing import cast
     except ImportError as err:
         missing_root = (getattr(err, "name", "") or "").split(".")[0]
-        if missing_root not in {"openai", "httpx"}:
+        if missing_root != "openai":
             raise
 
         from instructor.v2.core.errors import ConfigurationError
@@ -225,13 +224,12 @@ def _build_openai(
         default_query = cast(
             Optional[Mapping[str, object]], kwargs.pop("default_query", None)
         )
-        http_client_raw = kwargs.pop("http_client", None)
+        http_client = kwargs.pop("http_client", None)
         strict_response_validation = bool(
             kwargs.pop("_strict_response_validation", False)
         )
 
         if async_client:
-            http_client = cast(Optional[httpx.AsyncClient], http_client_raw)
             client = openai.AsyncOpenAI(
                 api_key=api_key,
                 base_url=base_url,
@@ -244,7 +242,6 @@ def _build_openai(
                 _strict_response_validation=strict_response_validation,
             )
         else:
-            http_client = cast(Optional[httpx.Client], http_client_raw)
             client = openai.OpenAI(
                 api_key=api_key,
                 base_url=base_url,

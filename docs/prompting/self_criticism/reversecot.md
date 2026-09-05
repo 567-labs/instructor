@@ -2,7 +2,7 @@
 description: "Reverse Chain Of Thought is a method to help identify logical inconsistencies in the reasoning steps of a large language model's response"
 ---
 
-We can use a method called Reverse Chain Of Thought<sup><a href="https://arxiv.org/pdf/2305.11499">1</a></sup> to reverse engineer a problem given a solution. This helps us to find specific inconsistencies in the reasoning steps taken by our model and to give targetted feedback which can improve the quality of the solution.
+We can use a method called Reverse Chain Of Thought<sup><a href="https://arxiv.org/pdf/2305.11499">1</a></sup> to reverse engineer a problem given a solution. This helps us to find specific inconsistencies in the reasoning steps taken by our model and to give targeted feedback which can improve the quality of the solution.
 
 This is done through a 3 step process
 
@@ -115,7 +115,7 @@ def deconstruct_prompt_into_condition_list(prompt: str):
                 Please list the conditions of the problem given
                 below. There might be multiple conditions in the
                 problem so make sure to navigate through the
-                prompt incrementally, indentifying and extracting
+                prompt incrementally, identifying and extracting
                 the conditions necessary to answer the question
                 in your final response.
                 """,
@@ -147,7 +147,7 @@ def generate_feedback(
                 {formatted_final_conditions}
 
                 Determine if the two condition lists are roughly
-                equivalent. If they are not, give targetted
+                equivalent. If they are not, give targeted
                 feedback on what is missing from the reconstructed
                 condition list as compared to the original condition
                 list and how it can be fixed.

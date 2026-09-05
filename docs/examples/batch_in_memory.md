@@ -188,7 +188,7 @@ batch_id = processor.submit_batch(buffer)
 import json
 
 
-def lambda_handler(event, context):
+def lambda_handler(event, _context):
     """AWS Lambda function using in-memory batch processing."""
 
     # Extract data from event

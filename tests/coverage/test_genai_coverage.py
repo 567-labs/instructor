@@ -251,12 +251,13 @@ def test_reask_tools_preserves_model_turn_and_adds_function_error() -> None:
 
     assert result["contents"][0] is original_contents[0]
     assert result["contents"][1] is model_content
-    tool_turn = result["contents"][2]
-    assert tool_turn.role == "tool"
-    assert tool_turn.parts[0].function_response.name == "Answer"
+    function_response_turn = result["contents"][2]
+    assert function_response_turn.role == "user"
+    assert function_response_turn.role != "tool"
+    assert function_response_turn.parts[0].function_response.name == "Answer"
     assert (
         "answer must be an int"
-        in tool_turn.parts[0].function_response.response["error"]
+        in function_response_turn.parts[0].function_response.response["error"]
     )
     assert len(original_contents) == 1
 

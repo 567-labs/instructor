@@ -14,6 +14,25 @@ For more details on caching concepts, see our [blog](../blog/posts/caching.md).
 
 ## Built-in Caching (v1.9.1 and later)
 
+### Cache isolation in 1.17
+
+Each patched client has its own cache namespace by default. Repeated calls through
+that client can reuse entries; a newly constructed client gets a separate namespace,
+even when it uses the same disk cache. This prevents accidental reuse across
+endpoints or accounts that use the same model name.
+
+For intentional reuse across client instances or process restarts, pass a stable
+`cache_namespace` string alongside `cache` when calling `client.create`. Choose a
+namespace that identifies the endpoint, account or tenant, and application policy.
+Never use credentials as namespace values or share one namespace between tenants.
+Change the namespace when switching endpoints, accounts, or validation policy.
+
+Provider identity and prepared generation settings also contribute to cache keys.
+Cached models are revalidated using the current call's context and strictness.
+Opaque request objects are rejected with a `TypeError` when a cache key cannot be
+constructed. Use serializable request settings or disable caching for that call;
+arbitrary object string representations are not reliable cache identities.
+
 Instructor supports caching for every client. Pass a cache adapter when you create the client. The cache parameter flows through to all provider implementations via **kwargs:
 
 ```python

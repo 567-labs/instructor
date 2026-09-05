@@ -53,7 +53,7 @@ colors:
   - brown
 ```
 
-By using this taxonomy, we can ensure that our model is able to extract metadata that is consistent with the products we sell. In this example, we'll analyze style photos from a fitness influencer to understand their fashion preferences and possibily see what products we can recommend from our own catalog to him.
+By using this taxonomy, we can ensure that our model is able to extract metadata that is consistent with the products we sell. In this example, we'll analyze style photos from a fitness influencer to understand their fashion preferences and possibly see what products we can recommend from our own catalog to him.
 
 We're using some photos from a fitness influencer called [Jpgeez](https://www.instagram.com/jpgeez/) which you can see below.
 

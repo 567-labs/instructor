@@ -95,19 +95,13 @@ import instructor
 from instructor import Mode
 
 # Override the default mode for a provider
-client = instructor.from_provider(
-    "anthropic/claude-3-sonnet", mode=Mode.TOOLS
-)
+client = instructor.from_provider("anthropic/claude-3-sonnet", mode=Mode.TOOLS)
 
 # Use JSON mode instead of the default tools mode
-client = instructor.from_provider(
-    "mistral/mistral-large", mode=Mode.JSON_SCHEMA
-)
+client = instructor.from_provider("mistral/mistral-large", mode=Mode.JSON_SCHEMA)
 
 # Use reasoning tools instead of regular tools for Anthropic
-client = instructor.from_provider(
-    "anthropic/claude-3-opus", mode=Mode.TOOLS
-)
+client = instructor.from_provider("anthropic/claude-3-opus", mode=Mode.TOOLS)
 ```
 
 If not specified, each provider will use its recommended default mode:

@@ -35,7 +35,7 @@ async def generate_response(query: str, options: dict[str, str]):
                 "role": "system",
                 "content": dedent(
                     f"""
-                You are a a world class AI who excels at answering
+                You are a world class AI who excels at answering
                 complex questions. Choose one of the options below
                 that best answers the question you are about to be
                 asked

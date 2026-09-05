@@ -296,7 +296,7 @@ The Service Provider will deliver the software product to the Client 30 days aft
 Article 2: Payment Terms
 
 The total payment for the service is $50,000.
-An initial payment of $10,000 will be made within 7 days of the the signed date.
+An initial payment of $10,000 will be made within 7 days of the signed date.
 The final payment will be due 45 days after [SignDate].
 
 Article 3: Confidentiality

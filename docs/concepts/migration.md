@@ -105,7 +105,7 @@ import anthropic
 from instructor import from_anthropic
 
 client = from_anthropic(anthropic.Anthropic())
-user = client.messages.create(model="claude-3-5-sonnet", ...)
+user = client.messages.create(..., model="claude-3-5-sonnet")
 
 # After
 client = instructor.from_provider("anthropic/claude-3-5-sonnet")

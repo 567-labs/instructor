@@ -215,26 +215,26 @@ other of their daughters...
 client = instructor.from_provider("anthropic/claude-3-5-sonnet-20240620")
 
 resp, completion = client.create_with_completion(
-        model="claude-3-5-sonnet-20240620",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "<book>" + book + "</book>",
-                        "cache_control": {"type": "ephemeral"},  # (1)!
-                    },
-                    {
-                        "type": "text",
-                        "text": "Extract a character from the text given above",
-                    },
-                ],
-            },
-        ],
-        response_model=Character,
-        max_tokens=1000,
-    )
+    model="claude-3-5-sonnet-20240620",
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "<book>" + book + "</book>",
+                    "cache_control": {"type": "ephemeral"},  # (1)!
+                },
+                {
+                    "type": "text",
+                    "text": "Extract a character from the text given above",
+                },
+            ],
+        },
+    ],
+    response_model=Character,
+    max_tokens=1000,
+)
 
 print(completion)
 # Message(

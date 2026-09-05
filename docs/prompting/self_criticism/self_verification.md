@@ -20,7 +20,7 @@ Backward verification involves three steps.
 
 Rewrite the original question and its solution as a declarative.
 
-!!! example "Rewritten Declaritive Example"
+!!! example "Rewritten Declarative Example"
     **original question**: Jackie has 10 apples. Adam has 8 apples. How many more apples does Jackie have than Adam?
     **response candidate**: Jackie has 10 apples. so Jackie has 10-8=2 more apples than Adam, and the answer is 2.
     **rewritten declarative**: Jackie has 10 apples. Adam has 8 apples. Jackie has 2 more apples than Adam.

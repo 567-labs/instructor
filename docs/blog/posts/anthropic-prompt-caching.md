@@ -188,7 +188,6 @@ Let's first initialize our Anthropic client, this will be the same as what we've
 from instructor import Instructor, Mode, patch
 from anthropic import Anthropic
 
-
 client = Instructor(
     client=Anthropic(),
     create=patch(

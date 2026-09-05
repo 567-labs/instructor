@@ -97,7 +97,6 @@ import instructor
 from llama_cpp.llama_speculative import LlamaPromptLookupDecoding
 from pydantic import BaseModel
 
-
 llama = llama_cpp.Llama(
     model_path="../../models/OpenHermes-2.5-Mistral-7B-GGUF/openhermes-2.5-mistral-7b.Q4_K_M.gguf",
     n_gpu_layers=-1,
@@ -151,7 +150,6 @@ from pydantic import BaseModel
 import groq
 import instructor
 
-
 client = groq.Groq(
     api_key=os.environ.get("GROQ_API_KEY"),
 )
@@ -196,7 +194,6 @@ from pydantic import BaseModel
 
 import instructor
 import openai
-
 
 client = openai.OpenAI(
     base_url="https://api.together.xyz/v1",

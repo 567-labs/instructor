@@ -29,7 +29,7 @@ Replace `http://localhost:8000` with the actual URL of your FastAPI app if it's 
 ## Bring your own API key
 
 If you have your own api key but dont want to try deploying it yourself you're welcome to use my 
-modal isntance here, this code is public and I do not store your key.
+modal instance here, this code is public and I do not store your key.
 
 ```bash
 curl -X 'POST' \

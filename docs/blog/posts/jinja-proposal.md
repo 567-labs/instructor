@@ -119,6 +119,7 @@ Here's an example demonstrating this concept using Pydantic validators:
 ```python
 from pydantic import BaseModel, ValidationInfo, field_validator
 
+
 class Response(BaseModel):
     text: str
 
@@ -128,9 +129,13 @@ class Response(BaseModel):
         context = info.context
         if context:
             banned_words = context.get('banned_words', set())
-            banned_words_found = [word for word in banned_words if word.lower() in v.lower()]
+            banned_words_found = [
+                word for word in banned_words if word.lower() in v.lower()
+            ]
             if banned_words_found:
-                raise ValueError(f"Banned words found in text: {', '.join(banned_words_found)}, rewrite it but just without the banned words")
+                raise ValueError(
+                    f"Banned words found in text: {', '.join(banned_words_found)}, rewrite it but just without the banned words"
+                )
         return v
 
     @field_validator('text')
@@ -142,6 +147,7 @@ class Response(BaseModel):
             for pattern in redact_patterns:
                 v = re.sub(pattern, '****', v)
         return v
+
 
 response = client.create(
     model="gpt-4o",
@@ -161,22 +167,22 @@ response = client.create(
                 {% endfor %}
                 </banned_words>
                 {% endif %}
-              """
+              """,
         },
     ],
     context={
-        "topic": "jason and now his phone number is 123-456-7890"
+        "topic": "jason and now his phone number is 123-456-7890",
         "banned_words": ["jason"],
         "redact_patterns": [
             r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b",  # Phone number pattern
-            r"\b\d{3}-\d{2}-\d{4}\b",          # SSN pattern
+            r"\b\d{3}-\d{2}-\d{4}\b",  # SSN pattern
         ],
     },
     max_retries=3,
 )
 
 print(response.text)
-# > While i can't say his name anymore, his phone number is ****
+#> While i can't say his name anymore, his phone number is ****
 ```
 
 ## Better Versioning and Logging

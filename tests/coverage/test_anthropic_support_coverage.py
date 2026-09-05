@@ -21,6 +21,7 @@ from pydantic import BaseModel, ValidationInfo, field_validator
 from instructor.v2.core.client import AsyncInstructor, Instructor
 from instructor.v2.core.errors import ClientError, ModeError
 from instructor.v2.core.mode import Mode
+from instructor.v2.core.multimodal import PDF
 from instructor.v2.core.providers import Provider
 from instructor.v2.providers import anthropic as anthropic_provider
 from instructor.v2.providers.anthropic import client as anthropic_client
@@ -93,10 +94,18 @@ def test_anthropic_factory_validates_mode_and_client() -> None:
     client.close()
 
 
+@pytest.mark.parametrize("source", [None, object(), "x" * 5000])
+def test_unusable_local_pdf_sources_return_none(source: Any) -> None:
+    assert multimodal._read_local_pdf(source) is None
+
+
 @pytest.mark.asyncio
 async def test_anthropic_factory_uses_beta_sync_and_regular_async_create(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from instructor.v2.core.mode import reset_deprecated_mode_warnings
+
+    reset_deprecated_mode_warnings()
     regular_sync = lambda **_kwargs: {"source": "sync"}
     beta_sync = lambda **_kwargs: {"source": "beta"}
 
@@ -164,7 +173,7 @@ async def test_anthropic_factory_uses_beta_sync_and_regular_async_create(
 
 
 def test_anthropic_multimodal_encodes_remote_image_and_local_pdf(
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     image_calls: list[str] = []
     image = SimpleNamespace(
@@ -184,17 +193,11 @@ def test_anthropic_multimodal_encodes_remote_image_and_local_pdf(
     assert image_calls == ["https://example.test/diagram.png"]
     assert image.data == "aW1hZ2U="
 
-    requests: list[tuple[str, int]] = []
-
-    def fake_get(url: str, *, timeout: int) -> Any:
-        requests.append((url, timeout))
-        return SimpleNamespace(content=b"%PDF-1.7\nexample")
-
-    monkeypatch.setattr(multimodal.requests, "get", fake_get)
-    pdf = SimpleNamespace(
-        source=Path("/tmp/example.pdf"), media_type="application/pdf", data=None
-    )
-    expected = base64.b64encode(b"%PDF-1.7\nexample").decode()
+    pdf_bytes = b"%PDF-1.7\nexample"
+    pdf_path = tmp_path / "example.pdf"
+    pdf_path.write_bytes(pdf_bytes)
+    pdf = SimpleNamespace(source=pdf_path, media_type="application/pdf", data=None)
+    expected = base64.b64encode(pdf_bytes).decode()
     assert multimodal.pdf_to_anthropic(pdf) == {
         "type": "document",
         "source": {
@@ -203,8 +206,43 @@ def test_anthropic_multimodal_encodes_remote_image_and_local_pdf(
             "data": expected,
         },
     }
-    assert requests == [("/tmp/example.pdf", 30)]
     assert pdf.data == expected
+
+
+def test_anthropic_pdf_reads_local_path_without_network(tmp_path: Path) -> None:
+    """Local PDF sources are read from disk, not fetched over HTTP.
+
+    ``PDF`` accepts a filesystem path as its source, and ``data`` is only
+    pre-populated by the ``from_path``/``autodetect`` constructors. A ``PDF``
+    built directly from a path therefore reaches the encoder with no data and
+    must be read from disk.
+    """
+    pdf_bytes = b"%PDF-1.7\nlocal\n%%EOF\n"
+    pdf_path = tmp_path / "local.pdf"
+    pdf_path.write_bytes(pdf_bytes)
+
+    pdf = PDF(source=pdf_path, media_type="application/pdf")
+    assert pdf.data is None
+
+    assert multimodal.pdf_to_anthropic(pdf) == {
+        "type": "document",
+        "source": {
+            "type": "base64",
+            "media_type": "application/pdf",
+            "data": base64.b64encode(pdf_bytes).decode(),
+        },
+    }
+
+
+def test_anthropic_pdf_without_data_raises_clear_error(tmp_path: Path) -> None:
+    """A source that is neither data, a URL, nor a readable file errors clearly."""
+    missing = SimpleNamespace(
+        source=tmp_path / "does-not-exist.pdf",
+        media_type="application/pdf",
+        data=None,
+    )
+    with pytest.raises(ValueError, match="PDF data is missing"):
+        multimodal.pdf_to_anthropic(missing)
 
 
 def test_anthropic_multimodal_handles_pdf_urls_cache_control_and_audio() -> None:

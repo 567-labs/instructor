@@ -169,17 +169,20 @@ class AssumptionBasedAnswer(BaseModel):
     logic_flow: str
     answer: int
 
+
 class ErrorAwareCalculation(BaseModel):
     key_steps: list[str]
     potential_pitfalls: list[str]
     intermediate_results: list[str]
     answer: int
 
- lass AnswerWithIntermediateCalculations(BaseModel):
+
+class AnswerWithIntermediateCalculations(BaseModel):
     assumptions: list[str]
     intermediate_calculations: list[str]
     chain_of_thought: str
     final_answer: int
+
 
 class AssumptionBasedAnswerWithExtraFields(BaseModel):
     assumptions: list[str]

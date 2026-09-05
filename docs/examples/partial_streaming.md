@@ -5,7 +5,7 @@ description: Stream partial responses with Instructor for real-time UI updates. 
 
 # Streaming Partial Responses
 
-Field level streaming provides incremental snapshots of the current state of the response model that are immediately useable. This approach is particularly relevant in contexts like rendering UI components.
+Field level streaming provides incremental snapshots of the current state of the response model that are immediately usable. This approach is particularly relevant in contexts like rendering UI components.
 
 Instructor supports this pattern by making use of `Partial[T]`. This lets us dynamically create a new class that treats all of the original model's fields as `Optional`.
 

@@ -24,7 +24,8 @@ In this post, we'll explore how to use Google's Gemini model with Instructor to 
 
 First, let's set up our environment with the necessary libraries:
 
-```python
+```bash
+pip install "instructor[google-genai]"
 ```
 
 <!-- more -->
@@ -34,6 +35,9 @@ First, let's set up our environment with the necessary libraries:
 We'll use Pydantic to define our data models for tourist destinations and recommendations:
 
 ```python
+from pydantic import BaseModel
+
+
 class TouristDestination(BaseModel):
     name: str
     description: str
@@ -52,7 +56,6 @@ Next, we'll set up our Gemini client using Instructor:
 
 ```python
 client = instructor.from_provider("google/gemini-2.5-flash")
-)
 ```
 
 ## Uploading and Processing the Video
@@ -81,8 +84,8 @@ print(resp)
 
 ??? note "Expand to see Raw Results"
 
-    ```python
-    Recomendations(
+    ```text
+    Recommendations(
         chain_of_thought='The video recommends visiting Takayama city, in the Hida Region, Gifu Prefecture. The
     video suggests visiting the Miyagawa Morning Market, to try the Sarubobo good luck charms, and to enjoy the
     cookie cup espresso, made by Koma Coffee. Then, the video suggests visiting a traditional Japanese Cafe,

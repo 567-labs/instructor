@@ -2,7 +2,7 @@
 description: "Universal Self Consistency aims to extend Self-Consistency by using Large Language Models themselves to select the most consistent answer among multiple candidates"
 ---
 
-Universal Self Consistency<sup><a href="https://arxiv.org/pdf/2311.17311">1</a></sup> aims to extend self-consistency by using a second LLM model to judge the quality of individual responses. Therefore instead of choosing the final answer based on the most frequently occuring value among each reasoning chain, we instead prompt the model to choose the most consistent answer for us relative to the prompt.
+Universal Self Consistency<sup><a href="https://arxiv.org/pdf/2311.17311">1</a></sup> aims to extend self-consistency by using a second LLM model to judge the quality of individual responses. Therefore instead of choosing the final answer based on the most frequently occurring value among each reasoning chain, we instead prompt the model to choose the most consistent answer for us relative to the prompt.
 
 ![](../../img/universal_self_consistency.png)
 

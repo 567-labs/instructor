@@ -1,11 +1,11 @@
 ---
 title: "Style Prompting"
-description: "To contrain a model's response to fit the boundaries of our task, we can specify a style."
+description: "To constrain a model's response to fit the boundaries of our task, we can specify a style."
 ---
 
 How can we constrain model outputs through prompting alone?
 
-To contrain a model's response to fit the boundaries of our task, we can specify a style.
+To constrain a model's response to fit the boundaries of our task, we can specify a style.
 
 Stylistic constraints can include:
 

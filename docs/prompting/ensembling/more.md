@@ -6,7 +6,7 @@ Language Models struggle to generalize across question types that require distin
 
 In the original paper, they utilise four different experts
 
-1. Factual Expert : This is a model that is augmented by a RAG prompting pipeline. WHen it recieves a query, it retrieves the top 10 most relevant passages from Wikipedia and appends them to the prompt right before the question.
+1. Factual Expert : This is a model that is augmented by a RAG prompting pipeline. WHen it receives a query, it retrieves the top 10 most relevant passages from Wikipedia and appends them to the prompt right before the question.
 
 2. Multihop Expert : This is an expert that has manually written rationales after each demo to elicit multi-step reasoning processes for the questions
 
@@ -16,7 +16,7 @@ In the original paper, they utilise four different experts
 
 ![](../../img/more.png)
 
-Once each expert has genearted a response, they then use a random forest classifier to score it from 0 to 1. This is then used for selecting the final answer and determining if we've generated a sufficiently good answer ( Since we have the option to abstain at each point )
+Once each expert has generated a response, they then use a random forest classifier to score it from 0 to 1. This is then used for selecting the final answer and determining if we've generated a sufficiently good answer ( Since we have the option to abstain at each point )
 
 We can implement a simplified version of MoRE with `instructor` with a few modifications.
 

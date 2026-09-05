@@ -189,6 +189,9 @@ def _create_sync_wrapper(
     default_model: str | None = None,
 ) -> Callable[..., T_Model]:
     """Create synchronous wrapper for patched function."""
+    from uuid import uuid4
+
+    default_cache_namespace = uuid4().hex
 
     @wraps(func)
     def new_create_sync(
@@ -202,6 +205,15 @@ def _create_sync_wrapper(
         **kwargs: Any,
     ) -> T_Model:
         """Patched synchronous create function."""
+        from instructor.v2.validation.async_validators import (
+            model_declares_async_validators,
+        )
+        from instructor.v2.core.errors import ConfigurationError
+
+        if model_declares_async_validators(response_model):
+            raise ConfigurationError(
+                "Response model declares async validators; use an async client"
+            )
         _validate_token_budget(
             token_budget,
             response_model=response_model,
@@ -209,6 +221,9 @@ def _create_sync_wrapper(
         )
         autodetect_images = bool(kwargs.get("autodetect_images", False))
         cache = kwargs.pop("cache", None)
+        cache_namespace = kwargs.pop("cache_namespace", default_cache_namespace)
+        if not isinstance(cache_namespace, str) or not cache_namespace:
+            raise ValueError("cache_namespace must be a non-empty string")
         cache_ttl_raw = kwargs.pop("cache_ttl", None)
         cache_ttl = cache_ttl_raw if isinstance(cache_ttl_raw, int) else None
 
@@ -256,8 +271,13 @@ def _create_sync_wrapper(
                     response_model=response_model,
                     mode=str(mode.value),
                     system=new_kwargs.get("system"),
+                    provider=provider.value,
+                    namespace=cache_namespace,
+                    request_kwargs=new_kwargs,
                 )
-                cached = load_cached_response(cache, key, response_model)
+                cached = load_cached_response(
+                    cache, key, response_model, context=context, strict=strict
+                )
                 if cached is not None:
                     return cached  # type: ignore[return-value]
 
@@ -289,15 +309,6 @@ def _create_sync_wrapper(
                 from pydantic import BaseModel as _BM  # type: ignore[import-not-found]
 
                 if isinstance(cache, BaseCache) and isinstance(response, _BM):
-                    key = make_cache_key(
-                        messages=new_kwargs.get("messages")
-                        or new_kwargs.get("contents")
-                        or new_kwargs.get("chat_history"),
-                        model=new_kwargs.get("model"),
-                        response_model=response_model,
-                        mode=str(mode.value),
-                        system=new_kwargs.get("system"),
-                    )
                     store_cached_response(cache, key, response, ttl=cache_ttl)
             except ModuleNotFoundError:
                 pass
@@ -314,6 +325,9 @@ def _create_async_wrapper(
     default_model: str | None = None,
 ) -> Callable[..., Awaitable[T_Model]]:
     """Create asynchronous wrapper for patched function."""
+    from uuid import uuid4
+
+    default_cache_namespace = uuid4().hex
 
     @wraps(func)
     async def new_create_async(
@@ -327,6 +341,29 @@ def _create_async_wrapper(
         **kwargs: Any,
     ) -> T_Model:
         """Patched asynchronous create function."""
+        from instructor.v2.validation.async_validators import (
+            run_async_validators,
+            model_declares_async_validators,
+        )
+        from instructor.v2.core.errors import ConfigurationError
+        from instructor.v2.dsl.iterable import IterableBase
+        from instructor.v2.dsl.partial import PartialBase
+        from typing import get_origin
+
+        if model_declares_async_validators(response_model) and (
+            kwargs.get("stream")
+            or get_origin(response_model) is not None
+            or mode in Mode.parallel_modes()
+            or (
+                isinstance(response_model, type)
+                and issubclass(response_model, (IterableBase, PartialBase))
+            )
+        ):
+            raise ConfigurationError(
+                "Async validators require a non-streaming single response model; "
+                "streaming, partial, iterable and parallel responses are not supported"
+            )
+
         _validate_token_budget(
             token_budget,
             response_model=response_model,
@@ -334,6 +371,9 @@ def _create_async_wrapper(
         )
         autodetect_images = bool(kwargs.get("autodetect_images", False))
         cache = kwargs.pop("cache", None)
+        cache_namespace = kwargs.pop("cache_namespace", default_cache_namespace)
+        if not isinstance(cache_namespace, str) or not cache_namespace:
+            raise ValueError("cache_namespace must be a non-empty string")
         cache_ttl_raw = kwargs.pop("cache_ttl", None)
         cache_ttl = cache_ttl_raw if isinstance(cache_ttl_raw, int) else None
 
@@ -381,14 +421,17 @@ def _create_async_wrapper(
                     response_model=response_model,
                     mode=str(mode.value),
                     system=new_kwargs.get("system"),
+                    provider=provider.value,
+                    namespace=cache_namespace,
+                    request_kwargs=new_kwargs,
                 )
-                cached = load_cached_response(cache, key, response_model)
+                cached = load_cached_response(
+                    cache, key, response_model, context=context, strict=strict
+                )
                 if cached is not None:
-                    return cached  # type: ignore[return-value]
+                    return await run_async_validators(cached, context=context)
 
-        # Use v2 retry logic with registry handlers. Pass an isolated copy of the
-        # messages list so reask-handler mutations during the retry loop can't leak
-        # back into new_kwargs, which is read again below for the cache store key.
+        # Keep attempt mutations separate from the original request.
         response = await retry_async_v2(
             func=func,
             response_model=response_model,
@@ -414,15 +457,6 @@ def _create_async_wrapper(
                 from pydantic import BaseModel as _BM  # type: ignore[import-not-found]
 
                 if isinstance(cache, BaseCache) and isinstance(response, _BM):
-                    key = make_cache_key(
-                        messages=new_kwargs.get("messages")
-                        or new_kwargs.get("contents")
-                        or new_kwargs.get("chat_history"),
-                        model=new_kwargs.get("model"),
-                        response_model=response_model,
-                        mode=str(mode.value),
-                        system=new_kwargs.get("system"),
-                    )
                     store_cached_response(cache, key, response, ttl=cache_ttl)
             except ModuleNotFoundError:
                 pass

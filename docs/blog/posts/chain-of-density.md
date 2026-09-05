@@ -229,9 +229,11 @@ import spacy
 
 nlp = spacy.load("en_core_web_sm")
 
+
 @field_validator("summary")
-def min_length(cls, v: str):
-    tokens = nltk.word_tokenize(v) #(1)!
+@classmethod
+def min_length(_cls, v: str):
+    tokens = nltk.word_tokenize(v)  # (1)!
     num_tokens = len(tokens)
     if num_tokens < 60:
         raise ValueError(
@@ -239,16 +241,20 @@ def min_length(cls, v: str):
         )
     return v
 
+
 @field_validator("missing")
-def has_missing_entities(cls, missing_entities: List[str]):
+@classmethod
+def has_missing_entities(_cls, missing_entities: List[str]):
     if len(missing_entities) == 0:
         raise ValueError(
             "You must identify 1-3 informative Entities from the Article which are missing from the previously generated summary to be used in a new summary"
         )
     return missing_entities
 
+
 @field_validator("absent")
-def has_no_absent_entities(cls, absent_entities: List[str]):
+@classmethod
+def has_no_absent_entities(_cls, absent_entities: List[str]):
     absent_entity_string = ",".join(absent_entities)
     if len(absent_entities) > 0:
         print(f"Detected absent entities of {absent_entity_string}")
@@ -257,17 +263,19 @@ def has_no_absent_entities(cls, absent_entities: List[str]):
         )
     return absent_entities
 
+
 @field_validator("summary")
-def min_entity_density(cls, v: str):
+@classmethod
+def min_entity_density(_cls, v: str):
     tokens = nltk.word_tokenize(v)
     num_tokens = len(tokens)
 
     # Extract Entities
-    doc = nlp(v) #(2)!
+    doc = nlp(v)  # (2)!
     num_entities = len(doc.ents)
 
     density = num_entities / num_tokens
-    if density < 0.08: #(3)!
+    if density < 0.08:  # (3)!
         raise ValueError(
             f"The summary of {v} has too few entities. Please regenerate a new summary with more new entities added to it. Remember that new entities can be added at any point of the summary."
         )
@@ -288,7 +296,9 @@ Now that we have our models and the rough flow figured out, let's implement a fu
 
 ```python hl_lines="4 9-24 38-68"
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano") #(1)!
+
+client = instructor.from_provider("openai/gpt-5-nano")  # (1)!
+
 
 def summarize_article(article: str, summary_steps: int = 3):
     summary_chain = []
@@ -311,7 +321,7 @@ def summarize_article(article: str, summary_steps: int = 3):
     )
     prev_summary = None
     summary_chain.append(summary.summary)
-    for i in range(summary_steps):
+    for _ in range(summary_steps):
         missing_entity_message = (
             []
             if prev_summary is None
@@ -322,7 +332,7 @@ def summarize_article(article: str, summary_steps: int = 3):
                 },
             ]
         )
-        new_summary: RewrittenSummary = client.create( # (3)!
+        new_summary: RewrittenSummary = client.create(  # (3)!
             model="gpt-5.4-mini",
             messages=[
                 {
@@ -349,7 +359,7 @@ def summarize_article(article: str, summary_steps: int = 3):
                 },
                 *missing_entity_message,
             ],
-            max_retries=3, #(4)!
+            max_retries=3,  # (4)!
             max_tokens=1000,
             response_model=RewrittenSummary,
         )
@@ -388,20 +398,21 @@ In this section, we'll look into how to fine-tune a GPT 3.5 model so that it is 
 
 ### Creating a Training Set
 
-In order to prevent any contamination of data during testing, we randomly sampled 120 articles from the `griffin/chain-of-density` dataset and split these articles into a `train.csv` and a `test.csv` file which we uploaded to [Hugging Face](https://huggingface.co/datasets/ivanleomk/gpt4-chain-of-density). Now, we just neeed to import the `Instructions` module from the `Instructor` package which allows you to generate a nicely formatted `.jsonl` file to be used for fine-tuning
+In order to prevent any contamination of data during testing, we randomly sampled 120 articles from the `griffin/chain-of-density` dataset and split these articles into a `train.csv` and a `test.csv` file which we uploaded to [Hugging Face](https://huggingface.co/datasets/ivanleomk/gpt4-chain-of-density). Now, we just need to import the `Instructions` module from the `Instructor` package which allows you to generate a nicely formatted `.jsonl` file to be used for fine-tuning
 
 ```py hl_lines="2 9 11 13-21 40 43"
 from typing import List
-from chain_of_density import summarize_article #(1)!
+from chain_of_density import summarize_article  # (1)!
 import csv
 import logging
 import instructor
 from pydantic import BaseModel
-client = instructor.from_provider("openai/gpt-5-nano") # (2)!
 
-logging.basicConfig(level=logging.INFO) #(3)!
+client = instructor.from_provider("openai/gpt-5-nano")  # (2)!
 
-instructions = instructor.Instructions( #(4)!
+logging.basicConfig(level=logging.INFO)  # (3)!
+
+instructions = instructor.Instructions(  # (4)!
     name="Chain Of Density",
     finetune_format="messages",
     # log handler is used to save the data to a file
@@ -410,6 +421,7 @@ instructions = instructor.Instructions( #(4)!
     log_handlers=[logging.FileHandler("generated.jsonl")],
     openai_client=client,
 )
+
 
 class GeneratedSummary(BaseModel):
     """
@@ -428,15 +440,17 @@ class GeneratedSummary(BaseModel):
         description="This represents the final summary generated that captures the meaning of the original article which is as concise as possible. ",
     )
 
-@instructions.distil #(4)!
+
+@instructions.distil  # (4)!
 def distil_summarization(text: str) -> GeneratedSummary:
     summary_chain: List[str] = summarize_article(text)
-    return GeneratedSummary(summary=summary_chain[-1]) #(5)!
+    return GeneratedSummary(summary=summary_chain[-1])  # (5)!
 
-with open("train.csv", "r") as file:
+
+with open("train.csv") as file:
     reader = csv.reader(file)
     next(reader)  # Skip the header
-    for article, summary in reader:
+    for article, _summary in reader:
         # Run Distillisation to generate the values
         distil_summarization(article)
 ```

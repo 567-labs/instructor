@@ -36,21 +36,23 @@ import anthropic
 import instructor
 
 # Patching the Anthropics client with the instructor for enhanced capabilities
-anthropic_client = instructor.from_openai(
-    create=anthropic.Anthropic().messages.create,
-    mode=instructor.Mode.JSON
+anthropic_client = instructor.from_anthropic(
+    anthropic.Anthropic(), mode=instructor.Mode.JSON
 )
+
 
 class Properties(BaseModel):
     name: str
     value: str
+
 
 class User(BaseModel):
     name: str
     age: int
     properties: List[Properties]
 
-user_response = anthropic_client(
+
+user_response = anthropic_client.create(
     model="claude-3-haiku-20240307",
     max_tokens=1024,
     max_retries=0,
@@ -70,11 +72,12 @@ print(user_response.model_dump_json(indent=2))
     "age": 25,
     "properties": [
         {
-            "key": "favorite_color",
+            "name": "favorite_color",
             "value": "blue"
         }
     ]
 }
+"""
 ```
 
 We're encountering challenges with deeply nested types and eagerly invite the community to test, provide feedback, and suggest necessary improvements as we enhance the anthropic client's support.

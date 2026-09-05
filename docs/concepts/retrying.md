@@ -173,7 +173,12 @@ Use the `context` parameter to pass runtime data to validators:
 ```python
 import instructor
 from pydantic import BaseModel, ValidationInfo, field_validator, ValidationError
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 client = instructor.from_provider("openai/gpt-4.1-mini")
 
@@ -344,10 +349,12 @@ Failed attempts are automatically propagated to reask handlers, enabling context
 ```python
 from tenacity import retry, stop_after_attempt
 
+
 # Good: bounded retries
 @retry(stop=stop_after_attempt(3))
 def bounded_retry():
     pass
+
 
 # Bad: could retry forever
 @retry()  # Don't do this!

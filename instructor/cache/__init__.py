@@ -25,6 +25,8 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
+from datetime import date, datetime
+from enum import Enum
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import Any
@@ -142,6 +144,44 @@ class DiskCache(BaseCache):
 # -------------------------------------------------------------------------
 
 
+def _canonical_cache_value(value: Any) -> Any:
+    if isinstance(value, BaseModel):
+        return _canonical_cache_value(value.model_dump(exclude_none=True))
+    if isinstance(value, type) and issubclass(value, BaseModel):
+        return _canonical_cache_value(value.model_json_schema())
+    if isinstance(value, Enum):
+        return _canonical_cache_value(value.value)
+    if value is None:
+        return ["null"]
+    if isinstance(value, bool):
+        return ["bool", value]
+    if isinstance(value, str):
+        return ["str", value]
+    if isinstance(value, int):
+        return ["int", value]
+    if isinstance(value, float):
+        return ["float", value]
+    if isinstance(value, dict):
+        items = [
+            [_canonical_cache_value(key), _canonical_cache_value(item)]
+            for key, item in value.items()
+        ]
+        items.sort(key=lambda pair: json.dumps(pair[0], sort_keys=True))
+        return ["map", items]
+    if isinstance(value, (list, tuple)):
+        return ["sequence", [_canonical_cache_value(item) for item in value]]
+    if isinstance(value, bytes):
+        return ["bytes", value.hex()]
+    if isinstance(value, datetime):
+        return ["datetime", value.isoformat()]
+    if isinstance(value, date):
+        return ["date", value.isoformat()]
+    raise TypeError(
+        f"Cannot build a cache key for {type(value).__name__}; "
+        "use serializable request settings or disable caching for this call"
+    )
+
+
 def make_cache_key(
     *,
     messages: Any,
@@ -149,6 +189,9 @@ def make_cache_key(
     response_model: type[BaseModel] | None,
     mode: str | None = None,
     system: Any = None,
+    provider: str | None = None,
+    namespace: str | None = None,
+    request_kwargs: dict[str, Any] | None = None,
 ) -> str:  # noqa: ANN401
     """Compute a *deterministic* cache key.
 
@@ -172,6 +215,49 @@ def make_cache_key(
         "messages": messages,
         "mode": mode,
     }
+    if provider is not None:
+        payload["provider"] = provider
+    if namespace is not None:
+        payload["namespace"] = namespace
+    if request_kwargs is not None:
+        generation_fields = (
+            "temperature",
+            "top_p",
+            "top_k",
+            "seed",
+            "max_tokens",
+            "max_completion_tokens",
+            "max_output_tokens",
+            "frequency_penalty",
+            "presence_penalty",
+            "n",
+            "stop",
+            "stop_sequences",
+            "logit_bias",
+            "reasoning_effort",
+            "reasoning",
+            "thinking",
+            "config",
+            "generation_config",
+            "inferenceConfig",
+            "additionalModelRequestFields",
+        )
+        generation = {}
+        for field in generation_fields:
+            value = request_kwargs.get(field)
+            if value is not None:
+                if isinstance(value, BaseModel):
+                    value = value.model_dump(
+                        exclude_none=True, exclude={"http_options"}
+                    )
+                elif field == "config" and isinstance(value, dict):
+                    value = {
+                        key: item
+                        for key, item in value.items()
+                        if key != "http_options"
+                    }
+                generation[field] = value
+        payload["generation"] = generation
 
     # Only added when present so keys for providers that keep the system
     # prompt inside ``messages`` (OpenAI & friends) stay unchanged.
@@ -183,9 +269,7 @@ def make_cache_key(
         # a field or its meta (title, description, constraints) changes.
         payload["schema"] = response_model.model_json_schema()
 
-    # ``default=str`` converts non-serializable objects (e.g. datetime) to
-    # string so dumps never fails.
-    data = json.dumps(payload, sort_keys=True, default=str)
+    data = json.dumps(_canonical_cache_value(payload), allow_nan=False)
     return hashlib.sha256(data.encode()).hexdigest()
 
 
@@ -196,7 +280,14 @@ def make_cache_key(
 logger = logging.getLogger("instructor.cache")
 
 
-def load_cached_response(cache: BaseCache, key: str, response_model: type[BaseModel]):  # noqa: ANN201
+def load_cached_response(
+    cache: BaseCache,
+    key: str,
+    response_model: type[BaseModel],
+    *,
+    context: dict[str, Any] | None = None,
+    strict: bool | None = None,
+):  # noqa: ANN201
     """Return parsed model if *key* exists in *cache* else None."""
     cached = cache.get(key)
     if cached is None:
@@ -211,7 +302,7 @@ def load_cached_response(cache: BaseCache, key: str, response_model: type[BaseMo
         model_json = cached
         raw_json = None
 
-    obj = response_model.model_validate_json(model_json)
+    obj = response_model.model_validate_json(model_json, context=context, strict=strict)
     if raw_json is not None:
         # `_raw_response` is an internal attribute used by Instructor; it may not
         # be declared on the Pydantic model type.

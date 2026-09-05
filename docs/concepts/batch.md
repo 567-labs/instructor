@@ -54,8 +54,8 @@ print(f"Batch job submitted: {batch_id}")
 
 # Check status and retrieve results
 status = processor.get_batch_status(batch_id)
-if status['status'] in ['completed', 'ended', 'JOB_STATE_SUCCEEDED']:
-    from instructor.batch import filter_successful, extract_results
+if status["status"] in ["completed", "ended", "JOB_STATE_SUCCEEDED"]:
+    from instructor.batch import extract_results
 
     all_results = processor.retrieve_results(batch_id)
     for user in extract_results(all_results):
@@ -158,7 +158,6 @@ Results use a Maybe/Result pattern for type-safe handling:
 
 ```python
 from instructor.batch import (
-    BatchProcessor,
     filter_successful,
     filter_errors,
     extract_results,
@@ -169,8 +168,8 @@ all_results = processor.retrieve_results(batch_id)
 
 # Filter by type
 successful = filter_successful(all_results)  # List[BatchSuccess[T]]
-errors = filter_errors(all_results)           # List[BatchError]
-objects = extract_results(all_results)        # List[T]
+errors = filter_errors(all_results)  # List[BatchError]
+objects = extract_results(all_results)  # List[T]
 
 # Access by custom_id
 by_id = get_results_by_custom_id(all_results)

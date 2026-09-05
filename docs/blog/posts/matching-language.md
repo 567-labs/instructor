@@ -87,12 +87,13 @@ If we use a simple instructor prompt, even when we ask for the language to be co
 In this example, we'll do something very simple, asking for the language to be correct. And generating a base model that only asks for a summary. To test we will use the library `langdetect` to detect the language of the text. To challenge us even more, we'll limit ourselves using 3.5 rather than 4 in order to use a 'dumber' model.
 
 ```python
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from instructor import patch
 from openai import AsyncOpenAI
 from langdetect import detect
 
-docs = # To see the text, expand the notes above.
+# Use the translated passages from the notes above.
+docs = ["Les modeles de langage peuvent resumer des textes dans plusieurs langues."]
 
 # Patch the OpenAI client to enable response_model
 client = patch(AsyncOpenAI())
@@ -100,6 +101,7 @@ client = patch(AsyncOpenAI())
 
 class GeneratedSummary(BaseModel):
     summary: str
+
 
 async def summarize_text(text: str):
     response = await client.create(

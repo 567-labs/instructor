@@ -55,7 +55,6 @@ Before running the following code, you'll need to make sure that you have your G
 
 ```python
 import instructor
-import google.generativeai as genai
 from pydantic import BaseModel
 
 
@@ -65,8 +64,6 @@ class User(BaseModel):
 
 
 client = instructor.from_provider("google/gemini-2.5-flash")
-    )
-)
 
 resp = client.create(
     messages=[
@@ -91,7 +88,6 @@ There are some instructions [here](https://cloud.google.com/vertex-ai/docs/authe
 ```python
 import instructor
 import vertexai  # type: ignore
-from vertexai.generative_models import GenerativeModel  # type: ignore
 from pydantic import BaseModel
 
 vertexai.init()
@@ -102,8 +98,7 @@ class User(BaseModel):
     age: int
 
 
-client = instructor.from_provider("google/gemini-2.5-flash", vertexai=True),  # (1)!
-)
+client = instructor.from_provider("google/gemini-2.5-flash", vertexai=True)  # (1)!
 
 
 resp = client.create(

@@ -50,7 +50,7 @@ def test_reask_genai_tools_without_function_call_appends_user_error(
     assert "Validation Error found" in result["contents"][1].parts[0].text
 
 
-def test_reask_genai_tools_with_function_call_appends_tool_response(
+def test_reask_genai_tools_with_function_call_appends_user_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_fake_genai_types(monkeypatch)
@@ -61,7 +61,8 @@ def test_reask_genai_tools_with_function_call_appends_tool_response(
     result = reask_genai_tools({"contents": []}, response, ValueError("bad schema"))
 
     assert result["contents"][0] is content
-    assert result["contents"][1].role == "tool"
+    assert result["contents"][1].role == "user"
+    assert result["contents"][1].role != "tool"
     function_response = result["contents"][1].parts[0].function_response
     assert function_response["name"] == "Answer"
     assert "Validation Error found" in function_response["response"]["error"]

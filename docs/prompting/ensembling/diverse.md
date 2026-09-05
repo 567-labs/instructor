@@ -49,7 +49,7 @@ async def generate_response(query: str, examples: list[str]):
                 "content": dedent(
                     f"""
                 You are a world class AI that excels at answering
-                user queries in a succint and accurate manner.
+                user queries in a succinct and accurate manner.
 
                 <query>
                 {query}
@@ -77,7 +77,7 @@ async def score_response(query: str, response: Response) -> tuple[Response, Grad
                     "content": dedent(
                         f"""
                 You are a world class AI that excels at grading
-                responses to a user query in a succint and clear
+                responses to a user query in a succinct and clear
                 manner.
 
                 <query>

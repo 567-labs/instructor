@@ -38,7 +38,6 @@ Now, let's define our Pydantic model for the response:
 import instructor
 from pydantic import BaseModel
 
-
 # Noticed thhat we use JSON not TOOLS mode
 client = instructor.from_provider(
     "anthropic/claude-3-7-sonnet-latest",

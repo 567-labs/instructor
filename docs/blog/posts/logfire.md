@@ -58,7 +58,6 @@ from openai import OpenAI
 import instructor
 import logfire
 
-
 openai_client = OpenAI()
 logfire.configure(pydantic_plugin=logfire.PydanticPlugin(record="all"))  # (1)!
 logfire.instrument_openai(openai_client)  # (2)!
@@ -243,7 +242,6 @@ We can then use this in a normal instructor call
 ```python
 import instructor
 import logfire
-
 
 client = instructor.from_provider("openai/gpt-4o", mode=instructor.Mode.MD_JSON)
 logfire.configure(pydantic_plugin=logfire.PydanticPlugin(record="all"))

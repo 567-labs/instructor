@@ -32,7 +32,10 @@ Raised when the LLM output is truncated due to reaching the token limit:
 ```python
 import instructor
 from pydantic import BaseModel
-from instructor.core.exceptions import IncompleteOutputException, InstructorRetryException
+from instructor.core.exceptions import (
+    IncompleteOutputException,
+    InstructorRetryException,
+)
 
 
 class Report(BaseModel):

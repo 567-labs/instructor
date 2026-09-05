@@ -236,7 +236,7 @@ resp = client.create_iterable(
     messages=[
         {
             "role": "user",
-            "content": "Extract all users from this sentence : Chris is 27 and lives in San Francisco, John is 30 and lives in New York while their college roomate Jessica is 26 and lives in London",
+            "content": "Extract all users from this sentence : Chris is 27 and lives in San Francisco, John is 30 and lives in New York while their college roommate Jessica is 26 and lives in London",
         }
     ],
     response_model=Person,
@@ -269,7 +269,7 @@ instructor.patch(client, validation_hook=validation_hook)
 
 ## Instructor Modes
 
-We provide serveral modes to make it easy to work with the different response models that Cerebras Supports
+We provide several modes to make it easy to work with the different response models that Cerebras Supports
 
 1. `instructor.Mode.MD_JSON` : This parses the raw completions as a valid JSON object.
 2. `instructor.Mode.TOOLS` : This uses Cerebras's tool calling mode to return structured outputs to the client.

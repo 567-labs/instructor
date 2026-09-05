@@ -38,16 +38,14 @@ First, let's set up our environment with the necessary libraries:
 pip install "instructor[google-generativeai]" pymupdf
 ```
 
-Then let's import the necessary libraries:
-
-```python
-```
-
 ## Defining Our Data Models
 
 We'll use Pydantic to define our data models for citations and answers:
 
 ```python
+from pydantic import BaseModel
+
+
 class Citation(BaseModel):
     reason_for_relevance: str
     text: list[str]
@@ -66,7 +64,6 @@ Next, we'll set up our Gemini client using Instructor:
 
 ```python
 client = instructor.from_provider("google/gemini-2.5-flash")
-)
 ```
 
 ## Processing the PDF

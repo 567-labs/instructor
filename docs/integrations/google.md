@@ -362,7 +362,7 @@ Google offers several Gemini models:
 
 We've written an extensive list of guides on how to use gemini's multimodal capabilities with instructor.
 
-- [Using Geminin To Extract Travel Video Recomendations](../blog/posts/multimodal-gemini.md)
+- [Using Gemini To Extract Travel Video Recommendations](../blog/posts/multimodal-gemini.md)
 - [Parsing PDFs with Gemini](../blog/posts/chat-with-your-pdf-with-gemini.md)
 - [Generating Citations with Gemini](../blog/posts/generating-pdf-citations.md)
 

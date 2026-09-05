@@ -9,9 +9,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
-## [1.16.1] - 2026-08-28
+## [1.17.0] - 2026-09-04
+
+Includes the fixes previously planned for 1.16.1, which was not published. The
+previous published version is 1.16.0.
+
+### Upgrade Notes
+- Cached responses use new keys and isolated per-client namespaces. Existing cache entries will miss. Set the same explicit `cache_namespace` only when clients are intended to share results; keep accounts, endpoints, and tenants isolated.
+- Async validators now run instead of being silently ignored. They must preserve field types and tolerate repeated validation, including cache hits. Models with async validators require an async, non-streaming single-model request; unsupported workflows raise `ConfigurationError` before a provider call.
+- Remote media URLs must resolve to public addresses and cannot contain credentials. Redirects and connected peers are checked, and downloads have size limits.
+
+### Fixed
+- **Cache isolation**: Include provider identity and prepared generation settings, including nested GenAI and Bedrock configuration; reuse the lookup key when storing after retries. Cache hits preserve current validation context and strictness. Clients have separate namespaces by default; use an explicit `cache_namespace` for intentional reuse across instances. Opaque request values now raise a clear error instead of relying on string representations. ([#2585](https://github.com/567-labs/instructor/issues/2585), [#2586](https://github.com/567-labs/instructor/pull/2586))
+- **GenAI cached content**: Omit conflicting system instructions and tool declarations after resolving cached-content configuration, including plain responses, and preserve caller-owned configuration. Consolidates [#2581](https://github.com/567-labs/instructor/pull/2581), [#2582](https://github.com/567-labs/instructor/pull/2582), and [#2591](https://github.com/567-labs/instructor/pull/2591) for [#2580](https://github.com/567-labs/instructor/issues/2580).
+- **GenAI request configuration**: Preserve caller-owned `generation_config` dictionaries when preparing tools and JSON requests, so repeated requests retain their sampling settings and token limits. ([#2596](https://github.com/567-labs/instructor/pull/2596))
+- **OpenAI SDK compatibility**: Support OpenAI 3.x and its HTTPX2 transport when constructing sync and async clients through `from_provider`, while retaining OpenAI 2.x support on Python 3.9. ([#2553](https://github.com/567-labs/instructor/issues/2553))
+- **Async validators**: Await `@async_field_validator` and `@async_model_validator` for non-streaming single-model responses, including nested models and cache hits with current context. Preserve validator chaining and subclass overrides. Sync clients and unsupported streaming, partial, iterable, or parallel workflows now raise `ConfigurationError` instead of silently skipping validation. ([#2528](https://github.com/567-labs/instructor/issues/2528), [#2588](https://github.com/567-labs/instructor/pull/2588))
+
+- **Anthropic local PDFs**: Read local PDF sources from disk instead of trying to fetch them over HTTP. ([#2577](https://github.com/567-labs/instructor/pull/2577))
 
 ### Changed
+- **Documentation examples**: Explain OpenAI-compatible JSON endpoints; correct typos, malformed client calls, missing imports, and code-block formatting across concepts and blog examples. Label displayed output separately from executable Python. ([#2578](https://github.com/567-labs/instructor/pull/2578), [#2579](https://github.com/567-labs/instructor/pull/2579), [#2584](https://github.com/567-labs/instructor/pull/2584), [#2587](https://github.com/567-labs/instructor/pull/2587), [#2593](https://github.com/567-labs/instructor/pull/2593))
 - **CLI cost metadata**: Add an explicit mapping annotation to the model-cost table so static analysis preserves its nested numeric value shape. ([#2521](https://github.com/567-labs/instructor/pull/2521))
 - **Provider documentation**: Correct the Mistral installation extra and xAI Python requirement, document Cerebras request-parameter forwarding with a runnable example, repair the Langfuse tracing examples, and clean up extraction typos. ([#2550](https://github.com/567-labs/instructor/pull/2550), [#2554](https://github.com/567-labs/instructor/pull/2554), [#2556](https://github.com/567-labs/instructor/pull/2556), [#2561](https://github.com/567-labs/instructor/pull/2561), [#2562](https://github.com/567-labs/instructor/pull/2562))
 - **Live-provider CI signal**: Retry only failed tests once in the mixed-provider and auto-client lanes so transient API failures do not obscure deterministic regressions, while setup, collection, repeated, and other failures remain red.
@@ -21,12 +39,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Supply-chain hardening**: Require a patched `urllib3` release and pin GitHub Actions to reviewed commit SHAs, including secret-bearing scheduled workflows.
 - **Release workflow hardening**: Avoid persisting checkout credentials, disable dependency-cache restoration in the PyPI publishing job, and pass release metadata to shell steps through environment variables instead of direct expression interpolation.
 
-### Fixed
+### Additional Fixes
 - **Anthropic batch messages**: Preserve every system instruction when converting batch requests instead of keeping only the final system message. ([#2552](https://github.com/567-labs/instructor/pull/2552))
 - **Anthropic batch accounting**: Include canceled and expired requests in reported batch totals. ([#2529](https://github.com/567-labs/instructor/pull/2529))
 - **Bedrock request safety**: Reject unsupported numerical, string-length, and `minItems > 1` constraints locally for native structured outputs, and preserve caller-owned nested inference configuration while normalizing requests. ([#2530](https://github.com/567-labs/instructor/pull/2530), [#2532](https://github.com/567-labs/instructor/pull/2532))
 - **Cache key isolation**: Include provider-hoisted system prompts in sync and async cache keys so requests with different instructions cannot share a cached response. ([#2524](https://github.com/567-labs/instructor/pull/2524))
 - **Gemini safety settings**: Copy caller-provided safety mappings before applying default thresholds so request preparation cannot mutate reusable application configuration. ([#2551](https://github.com/567-labs/instructor/pull/2551))
+- **Google GenAI validation retries**: Use the supported user role for function-response turns so Gemini can process correction requests. ([#2557](https://github.com/567-labs/instructor/pull/2557))
 - **TypedDict response models**: Preserve `total=False`, `Required`, and `NotRequired` key semantics for single and iterable response models so valid partial outputs do not trigger retries. ([#2567](https://github.com/567-labs/instructor/issues/2567), [#2568](https://github.com/567-labs/instructor/pull/2568))
 - **Provider initialization**: Reject provider strings with an empty provider or model component before client construction. ([#2522](https://github.com/567-labs/instructor/pull/2522))
 - **Remote multimodal media types**: Accept valid case-insensitive HTTP `Content-Type` values with optional parameters when loading images, audio, and PDFs. ([#2525](https://github.com/567-labs/instructor/pull/2525))
@@ -312,6 +331,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Fixed
 - Pydantic v2 deprecation warnings resolved by migrating from class `Config` to `ConfigDict` ([#1782](https://github.com/567-labs/instructor/pull/1782))
 
-[Unreleased]: https://github.com/567-labs/instructor/compare/v1.16.1...HEAD
-[1.16.1]: https://github.com/567-labs/instructor/compare/v1.16.0...v1.16.1
+[Unreleased]: https://github.com/567-labs/instructor/compare/v1.17.0...HEAD
+[1.17.0]: https://github.com/567-labs/instructor/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/567-labs/instructor/compare/v1.15.4...v1.16.0
