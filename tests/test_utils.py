@@ -459,6 +459,7 @@ def test_get_provider_matches_supported_providers():
         "xai": Provider.XAI,
         "litellm": Provider.LITELLM,
         "together": Provider.TOGETHER,
+        "atlascloud": Provider.ATLASCLOUD,
     }
     provider_urls = {
         "openai": "https://api.openai.com/v1",
@@ -484,6 +485,7 @@ def test_get_provider_matches_supported_providers():
         "xai": "https://api.x.ai",
         "litellm": "https://litellm.ai",
         "together": "https://api.together.xyz/v1",
+        "atlascloud": "https://api.atlascloud.ai/v1",
     }
     assert set(supported_providers) == set(provider_mapping)
     assert set(provider_mapping) == set(provider_urls)

@@ -57,6 +57,7 @@ if TYPE_CHECKING:
         from_together as from_together,
     )
     from .v2.providers.openrouter.client import from_openrouter as from_openrouter
+    from .v2.providers.atlascloud.client import from_atlascloud as from_atlascloud
     from .v2.providers.perplexity.client import from_perplexity as from_perplexity
     from .v2.providers.vertexai.client import from_vertexai as from_vertexai
     from .v2.providers.writer.client import from_writer as from_writer
@@ -78,6 +79,7 @@ __all__ = [
     "from_databricks",
     "from_deepseek",
     "from_openrouter",
+    "from_atlascloud",
     "from_litellm",
     "from_vertexai",
     "from_provider",
@@ -117,6 +119,7 @@ _LAZY_IMPORTS: dict[str, tuple[str, str | None]] = {
     "from_databricks": (".v2.providers.openai.client", "from_databricks"),
     "from_deepseek": (".v2.providers.openai.client", "from_deepseek"),
     "from_openrouter": (".v2.providers.openrouter.client", "from_openrouter"),
+    "from_atlascloud": (".v2.providers.atlascloud.client", "from_atlascloud"),
     "from_litellm": (".v2.providers.litellm.client", "from_litellm"),
     "Mode": (".mode", "Mode"),
     "patch": (".core.patch", "patch"),
@@ -188,4 +191,5 @@ _add_optional_export("from_bedrock", "boto3")
 _add_optional_export("from_writer", "writerai")
 _add_optional_export("from_xai", "xai_sdk")
 _add_optional_export("from_perplexity", "openai")
+_add_optional_export("from_atlascloud", "openai")
 _add_optional_export("from_genai", "google", "google.genai")

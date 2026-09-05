@@ -194,6 +194,7 @@ nav:
     - Perplexity: 'integrations/perplexity.md'
     - Writer: 'integrations/writer.md'
     - OpenRouter: 'integrations/openrouter.md'
+    - Atlas Cloud: 'integrations/atlascloud.md'
     - SambaNova: 'integrations/sambanova.md'
     - TrueFoundry: 'integrations/truefoundry.md'
   - Cookbook:
