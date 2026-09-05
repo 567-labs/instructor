@@ -1593,6 +1593,65 @@ def _build_litellm(
         raise
 
 
+def _build_minimax(
+    *,
+    provider: str,
+    model_name: str,
+    async_client: bool,
+    mode: Mode | None,
+    api_key: str | None,
+    kwargs: dict[str, Any],
+    provider_info: dict[str, str],
+) -> InstructorType:
+    try:
+        import openai
+        from instructor.v2.providers.minimax.client import from_minimax
+        import os
+
+        api_key = api_key or os.environ.get("MINIMAX_API_KEY")
+        if not api_key:
+            from instructor.v2.core.errors import ConfigurationError
+
+            raise ConfigurationError(
+                "MINIMAX_API_KEY is not set. "
+                "Set it with `export MINIMAX_API_KEY=<your-api-key>` or pass it as kwarg api_key=<your-api-key>"
+            )
+
+        base_url = kwargs.pop("base_url", "https://api.minimax.io/v1")
+        client = (
+            openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
+            if async_client
+            else openai.OpenAI(api_key=api_key, base_url=base_url)
+        )
+        result = from_minimax(
+            client,
+            model=model_name,
+            mode=mode if mode else Mode.TOOLS,
+            **kwargs,
+        )
+        logger.info(
+            "Client initialized",
+            extra={**provider_info, "status": "success"},
+        )
+        return result
+    except ImportError:
+        from instructor.v2.core.errors import ConfigurationError
+
+        raise ConfigurationError(
+            "The openai package is required to use the MiniMax provider. "
+            "Install it with `pip install openai`."
+        ) from None
+    except Exception as e:
+        logger.error(
+            "Error initializing %s client: %s",
+            provider,
+            e,
+            exc_info=True,
+            extra={**provider_info, "status": "error"},
+        )
+        raise
+
+
 ProviderBuilder = Callable[..., InstructorType]
 
 _PROVIDER_BUILDERS: dict[str, ProviderBuilder] = {
@@ -1618,5 +1677,6 @@ _PROVIDER_BUILDERS: dict[str, ProviderBuilder] = {
     "deepseek": _build_deepseek,
     "xai": _build_xai,
     "openrouter": _build_openrouter,
+    "minimax": _build_minimax,
     "litellm": _build_litellm,
 }

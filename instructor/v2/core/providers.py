@@ -36,6 +36,7 @@ class Provider(Enum):
     BEDROCK = "bedrock"
     PERPLEXITY = "perplexity"
     OPENROUTER = "openrouter"
+    MINIMAX = "minimax"
 
 
 def provider_from_mode(mode: Mode, default: Provider = Provider.OPENAI) -> Provider:
@@ -69,6 +70,8 @@ def provider_from_mode(mode: Mode, default: Provider = Provider.OPENAI) -> Provi
         Mode.BEDROCK_JSON: Provider.BEDROCK,
         Mode.PERPLEXITY_JSON: Provider.PERPLEXITY,
         Mode.OPENROUTER_STRUCTURED_OUTPUTS: Provider.OPENROUTER,
+        Mode.MINIMAX_TOOLS: Provider.MINIMAX,
+        Mode.MINIMAX_JSON: Provider.MINIMAX,
     }
     return mapping.get(mode, default)
 
@@ -117,6 +120,7 @@ def get_provider(base_url: str) -> Provider:
         ("localhost:11434", Provider.OLLAMA),
         ("litellm", Provider.LITELLM),
         ("openrouter", Provider.OPENROUTER),
+        ("minimax", Provider.MINIMAX),
         ("x.ai", Provider.XAI),
         ("xai", Provider.XAI),
     )

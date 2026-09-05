@@ -189,6 +189,7 @@ nav:
     - Databricks: 'integrations/databricks.md'
     - Cortex: 'integrations/cortex.md'
     - LiteLLM: 'integrations/litellm.md'
+    - MiniMax: 'integrations/minimax.md'
     - Mistral: 'integrations/mistral.md'
     - Ollama: 'integrations/ollama.md'
     - Perplexity: 'integrations/perplexity.md'

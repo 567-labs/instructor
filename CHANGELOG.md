@@ -115,6 +115,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Tests / CI
 - **Type checking**: Upgrade to `ty` 0.0.44, enforce warning-free checks with GitHub annotations, cover V2 tests, validate supported Python versions and platforms, and strengthen installed-package public API typing tests.
 
+### Added
+- **MiniMax**: First-class provider support via `from_minimax()` and `from_provider("minimax/...")`. Adds `MINIMAX_TOOLS` (tool-calling) and `MINIMAX_JSON` (system-prompt JSON) modes. `MINIMAX_JSON` automatically strips `<think>...</think>` reasoning blocks emitted by MiniMax reasoning models before JSON parsing. ([#2260](https://github.com/instructor-ai/instructor/issues/2260))
+
 ---
 
 ## [1.15.2] - 2026-05-10
