@@ -61,6 +61,11 @@ if TYPE_CHECKING:
     from .v2.providers.vertexai.client import from_vertexai as from_vertexai
     from .v2.providers.writer.client import from_writer as from_writer
     from .v2.providers.xai.client import from_xai as from_xai
+    from .v2.core.auto_mode import select_mode as select_mode
+    from .v2.core.schema_analyzer import (
+        SchemaAnalysis as SchemaAnalysis,
+        analyze_schema as analyze_schema,
+    )
     from .v2.validation import (
         llm_validator as llm_validator,
         openai_moderation as openai_moderation,
@@ -106,6 +111,9 @@ __all__ = [
     "openai_moderation",
     "hooks",
     "v2",
+    "analyze_schema",
+    "SchemaAnalysis",
+    "select_mode",
 ]
 
 _LAZY_IMPORTS: dict[str, tuple[str, str | None]] = {
@@ -158,6 +166,9 @@ _LAZY_IMPORTS: dict[str, tuple[str, str | None]] = {
     "from_xai": (".v2.providers.xai.client", "from_xai"),
     "from_perplexity": (".v2.providers.perplexity.client", "from_perplexity"),
     "from_genai": (".v2.providers.genai.client", "from_genai"),
+    "analyze_schema": (".v2.core.schema_analyzer", "analyze_schema"),
+    "SchemaAnalysis": (".v2.core.schema_analyzer", "SchemaAnalysis"),
+    "select_mode": (".v2.core.auto_mode", "select_mode"),
 }
 
 
