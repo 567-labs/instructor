@@ -231,6 +231,13 @@ def _build_partial_list(
         field_info = original_model.model_fields.get(field_name)
         if field_info:
             field_type = field_info.annotation
+            if get_origin(field_type) in UNION_ORIGINS:
+                non_none_args = [
+                    arg for arg in get_args(field_type) if arg is not type(None)
+                ]
+                # Only unwrap a nullable container with one unambiguous type.
+                if len(non_none_args) == 1:
+                    field_type = non_none_args[0]
             if get_origin(field_type) in (list, List):  # noqa: UP006
                 args = get_args(field_type)
                 if args:
