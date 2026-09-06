@@ -7,6 +7,7 @@ from typing import Any, cast
 from pydantic import BaseModel
 
 from instructor.v2.core.decorators import register_mode_handler
+from instructor.v2.core.errors import IncompleteOutputException
 from instructor.v2.core.handler import ModeHandler
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.multimodal import extract_genai_multimodal_content
@@ -300,6 +301,19 @@ class GenAIHandlerBase(ModeHandler):
             if issubclass(response_model, IterableBase):
                 return generator
             return list(generator)
+
+        # A response truncated at max_tokens is not evaluable: the model never
+        # emitted the remaining fields, so parsing it yields schema defaults that
+        # are indistinguishable from values the model actually chose.
+        # Restores the check shipped in v1.15.0 (#2232), dropped by 60cc815.
+        from google.genai import types as genai_types
+
+        candidates = getattr(response, "candidates", None)
+        if (
+            candidates
+            and candidates[0].finish_reason == genai_types.FinishReason.MAX_TOKENS
+        ):
+            raise IncompleteOutputException(last_completion=response)
 
         if self.mode == Mode.TOOLS:
             model = parse_genai_tools(

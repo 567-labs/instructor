@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Gemini truncation detection**: Restore the `finish_reason=MAX_TOKENS` check for the Google GenAI provider and extend it to `Mode.TOOLS`, so a truncated response raises `IncompleteOutputException` instead of parsing into schema defaults. The check shipped in v1.15.0 ([#2232](https://github.com/567-labs/instructor/pull/2232)) and was dropped during the v2 migration.
+
 ### Security
 - Route Anthropic PDF downloads through the bounded public-network fetcher and pin each media connection to a validated IP before sending HTTP.
 - Key cached responses by the complete prepared request, provider, validation context and strictness. Clients have isolated cache namespaces by default; `cache_namespace` explicitly enables sharing and must identify the endpoint and tenant. Revalidate cache hits with the current context and strictness.
