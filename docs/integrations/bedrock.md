@@ -21,7 +21,7 @@ pip install "instructor[bedrock]"
 - [from_provider Guide](../concepts/from_provider.md) - Detailed client configuration
 - [Mode Migration Guide](../concepts/mode-migration.md) - Move to core modes
 - [Provider Examples](../index.md#provider-examples) - Quick examples for all providers
-- [AWS Integration Guide](../examples/index.md#aws-integration) - More AWS examples
+- [AWS Integration Guide](../examples/index.md) - More AWS examples
 
 # AWS Bedrock
 

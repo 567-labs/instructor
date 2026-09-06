@@ -8,7 +8,7 @@ description: Use Instructor with SambaNova's LLM API for structured outputs.
 - [Getting Started](../getting-started.md) - Quick start guide
 - [from_provider Guide](../concepts/from_provider.md) - Detailed client configuration
 - [Provider Examples](../index.md#provider-examples) - Quick examples for all providers
-- [Enterprise Integration](../examples/index.md#enterprise-integration) - More enterprise examples
+- [Enterprise Integration](../examples/index.md) - More enterprise examples
 
 # SambaNova Integration
 

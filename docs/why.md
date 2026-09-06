@@ -234,4 +234,4 @@ Let's be clear - you might not need Instructor if:
 
 For everyone else building production LLM applications, Instructor is the obvious choice.
 
-[Get Started →](index.md#quick-start-extract-structured-data-in-3-lines){ .md-button .md-button--primary }
+[Get Started →](index.md#quick-start){ .md-button .md-button--primary }
