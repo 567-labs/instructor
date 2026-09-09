@@ -1,13 +1,9 @@
 """Tests for instructor.cli.files."""
 
 from openai.types import FileObject
-import pytest
 
 
-def test_generate_file_table_uses_attribute_access(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key-for-cli-import")
+def test_generate_file_table_uses_attribute_access() -> None:
     from instructor.cli.files import generate_file_table
 
     file = FileObject(

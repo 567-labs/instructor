@@ -144,6 +144,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: core-tests
     env:
+      PROVIDER_TEST_REQUIREMENTS: OPENAI_API_KEY
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
     steps:
@@ -161,16 +162,16 @@ jobs:
         run: uv sync --frozen --all-extras
       - name: Skip core provider tests (OpenAI)
         if: ${{ env.OPENAI_API_KEY == '' }}
-        run: echo "Skipping OpenAI core provider tests (missing OPENAI_API_KEY)."
+        run: echo "Skipping OpenAI core provider tests (missing OPENAI_API_KEY)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run core provider tests (OpenAI)
         if: ${{ env.OPENAI_API_KEY != '' }}
         run: |
           set +e
-          uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto -k "openai"
+          uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto -k "openai" -rs --junitxml="${RUNNER_TEMP}/provider-evidence-initial.xml"
           status=$?
           set -e
           if [ $status -eq 5 ]; then
-            echo "No tests collected; treating as success."
+            echo "::warning::No tests collected; provider is untested."
             exit 0
           fi
           exit $status
@@ -178,12 +179,17 @@ jobs:
           INSTRUCTOR_ENV: CI
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
+      - name: Summarize provider test evidence
+        if: always()
+        run: python scripts/provider_test_evidence.py --reports "${RUNNER_TEMP}"
+
   # Core provider tests for Anthropic
   core-anthropic:
     name: Core Provider Tests (Anthropic)
     runs-on: ubuntu-latest
     needs: core-tests
     env:
+      PROVIDER_TEST_REQUIREMENTS: ANTHROPIC_API_KEY
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
     steps:
@@ -201,16 +207,16 @@ jobs:
         run: uv sync --frozen --all-extras
       - name: Skip core provider tests (Anthropic)
         if: ${{ env.ANTHROPIC_API_KEY == '' }}
-        run: echo "Skipping Anthropic core provider tests (missing ANTHROPIC_API_KEY)."
+        run: echo "Skipping Anthropic core provider tests (missing ANTHROPIC_API_KEY)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run core provider tests (Anthropic)
         if: ${{ env.ANTHROPIC_API_KEY != '' }}
         run: |
           set +e
-          uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto -k "anthropic"
+          uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto -k "anthropic" -rs --junitxml="${RUNNER_TEMP}/provider-evidence-initial.xml"
           status=$?
           set -e
           if [ $status -eq 5 ]; then
-            echo "No tests collected; treating as success."
+            echo "::warning::No tests collected; provider is untested."
             exit 0
           fi
           exit $status
@@ -218,12 +224,17 @@ jobs:
           INSTRUCTOR_ENV: CI
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
+      - name: Summarize provider test evidence
+        if: always()
+        run: python scripts/provider_test_evidence.py --reports "${RUNNER_TEMP}"
+
   # Core provider tests for Google
   core-google:
     name: Core Provider Tests (Google)
     runs-on: ubuntu-latest
     needs: core-tests
     env:
+      PROVIDER_TEST_REQUIREMENTS: GOOGLE_API_KEY GOOGLE_GENAI_MODEL
       GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       GOOGLE_GENAI_MODEL: ${{ secrets.GOOGLE_GENAI_MODEL }}
 
@@ -242,16 +253,16 @@ jobs:
         run: uv sync --frozen --all-extras
       - name: Skip core provider tests (Google)
         if: ${{ env.GOOGLE_API_KEY == '' || env.GOOGLE_GENAI_MODEL == '' }}
-        run: echo "Skipping Google core provider tests (missing GOOGLE_API_KEY or GOOGLE_GENAI_MODEL)."
+        run: echo "Skipping Google core provider tests (missing GOOGLE_API_KEY or GOOGLE_GENAI_MODEL)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run core provider tests (Google)
         if: ${{ env.GOOGLE_API_KEY != '' && env.GOOGLE_GENAI_MODEL != '' }}
         run: |
           set +e
-          uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto -k "google"
+          uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto -k "google" -rs --junitxml="${RUNNER_TEMP}/provider-evidence-initial.xml"
           status=$?
           set -e
           if [ $status -eq 5 ]; then
-            echo "No tests collected; treating as success."
+            echo "::warning::No tests collected; provider is untested."
             exit 0
           fi
           exit $status
@@ -259,12 +270,17 @@ jobs:
           INSTRUCTOR_ENV: CI
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
 
+      - name: Summarize provider test evidence
+        if: always()
+        run: python scripts/provider_test_evidence.py --reports "${RUNNER_TEMP}"
+
   # Core provider tests for other providers
   core-other:
     name: Core Provider Tests (Other)
     runs-on: ubuntu-latest
     needs: core-tests
     env:
+      PROVIDER_TEST_REQUIREMENTS: COHERE_API_KEY XAI_API_KEY MISTRAL_API_KEY CEREBRAS_API_KEY FIREWORKS_API_KEY WRITER_API_KEY PERPLEXITY_API_KEY
       COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
       XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
       MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
@@ -292,7 +308,7 @@ jobs:
           && env.MISTRAL_API_KEY == '' && env.CEREBRAS_API_KEY == ''
           && env.FIREWORKS_API_KEY == '' && env.WRITER_API_KEY == ''
           && env.PERPLEXITY_API_KEY == '' }}
-        run: echo "Skipping core provider tests (Other) (missing provider secrets)."
+        run: echo "Skipping core provider tests (Other) (missing provider secrets)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run core provider tests (Cohere, xAI, Mistral, etc)
         if: >-
           ${{ env.COHERE_API_KEY != '' || env.XAI_API_KEY != ''
@@ -301,15 +317,15 @@ jobs:
           || env.PERPLEXITY_API_KEY != '' }}
         run: |
           set +e
-          uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto -k "cohere or xai or mistral or cerebras or fireworks or writer or perplexity"
+          uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto -k "cohere or xai or mistral or cerebras or fireworks or writer or perplexity" -rs --junitxml="${RUNNER_TEMP}/provider-evidence-initial.xml"
           status=$?
           if [ $status -eq 5 ]; then
-            echo "No tests collected; treating as success."
+            echo "::warning::No tests collected; provider is untested."
             exit 0
           fi
           if [ $status -eq 1 ]; then
             echo "Retrying only failed live-provider tests once."
-            uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto --last-failed -k "cohere or xai or mistral or cerebras or fireworks or writer or perplexity"
+            uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto --last-failed -k "cohere or xai or mistral or cerebras or fireworks or writer or perplexity" -rs --junitxml="${RUNNER_TEMP}/provider-evidence-retry.xml"
             status=$?
           fi
           set -e
@@ -325,7 +341,7 @@ jobs:
           PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
 
       - name: Check current documented model IDs
-        run: uv run --frozen pytest tests/llm/test_current_doc_models.py -v -rs --asyncio-mode=auto
+        run: uv run --frozen pytest tests/llm/test_current_doc_models.py -v -rs --asyncio-mode=auto --junitxml="${RUNNER_TEMP}/provider-evidence-documented-models.xml"
         env:
           INSTRUCTOR_ENV: CI
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -336,12 +352,17 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
 
+      - name: Summarize provider test evidence
+        if: always()
+        run: python scripts/provider_test_evidence.py --reports "${RUNNER_TEMP}"
+
   # Provider tests run in parallel
   provider-tests:
     name: ${{ matrix.provider.name }} Tests
     runs-on: ubuntu-latest
     needs: [core-openai, core-anthropic, core-google, core-other]
     env:
+      PROVIDER_TEST_REQUIREMENTS: PROVIDER_API_KEY
       PROVIDER_API_KEY: ${{ secrets[matrix.provider.env_key] }}
       GOOGLE_GENAI_MODEL: ${{ secrets.GOOGLE_GENAI_MODEL }}
     strategy:
@@ -388,7 +409,7 @@ jobs:
           || matrix.provider.name == 'Vertex AI') && env.GOOGLE_GENAI_MODEL == '') }}
         run: >-
           echo "Skipping ${{ matrix.provider.name }} tests
-          (missing ${{ matrix.provider.env_key }} or GOOGLE_GENAI_MODEL)."
+          (missing ${{ matrix.provider.env_key }} or GOOGLE_GENAI_MODEL)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run ${{ matrix.provider.name }} tests
         if: >-
           ${{ env.PROVIDER_API_KEY != '' &&
@@ -396,11 +417,11 @@ jobs:
           && matrix.provider.name != 'Vertex AI') || env.GOOGLE_GENAI_MODEL != '') }}
         run: |
           set +e
-          uv run --frozen pytest ${{ matrix.provider.test_path }} --asyncio-mode=auto -n auto
+          uv run --frozen pytest ${{ matrix.provider.test_path }} --asyncio-mode=auto -n auto -rs --junitxml="${RUNNER_TEMP}/provider-evidence-initial.xml"
           status=$?
           set -e
           if [ $status -eq 5 ]; then
-            echo "No tests collected; treating as success."
+            echo "::warning::No tests collected; provider is untested."
             exit 0
           fi
           exit $status
@@ -408,12 +429,17 @@ jobs:
           INSTRUCTOR_ENV: CI
           ${{ matrix.provider.env_key }}: ${{ secrets[matrix.provider.env_key] }}
 
+      - name: Summarize provider test evidence
+        if: always()
+        run: python scripts/provider_test_evidence.py --reports "${RUNNER_TEMP}"
+
   # Auto client needs multiple providers
   auto-client-test:
     name: Auto Client Tests
     runs-on: ubuntu-latest
     needs: [core-openai, core-anthropic, core-google, core-other]
     env:
+      PROVIDER_TEST_REQUIREMENTS: OPENAI_API_KEY GOOGLE_API_KEY COHERE_API_KEY ANTHROPIC_API_KEY XAI_API_KEY
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
@@ -438,7 +464,7 @@ jobs:
           ${{ env.OPENAI_API_KEY == '' || env.GOOGLE_API_KEY == ''
           || env.COHERE_API_KEY == '' || env.ANTHROPIC_API_KEY == ''
           || env.XAI_API_KEY == '' }}
-        run: echo "Skipping Auto Client tests (missing one or more provider secrets)."
+        run: echo "Skipping Auto Client tests (missing one or more provider secrets)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run Auto Client tests
         if: >-
           ${{ env.OPENAI_API_KEY != '' && env.GOOGLE_API_KEY != ''
@@ -446,15 +472,15 @@ jobs:
           && env.XAI_API_KEY != '' }}
         run: |
           set +e
-          uv run --frozen pytest tests/providers/test_auto_client.py --asyncio-mode=auto -n auto
+          uv run --frozen pytest tests/providers/test_auto_client.py --asyncio-mode=auto -n auto -rs --junitxml="${RUNNER_TEMP}/provider-evidence-initial.xml"
           status=$?
           if [ $status -eq 5 ]; then
-            echo "No tests collected; treating as success."
+            echo "::warning::No tests collected; provider is untested."
             exit 0
           fi
           if [ $status -eq 1 ]; then
             echo "Retrying only failed live-provider tests once."
-            uv run --frozen pytest tests/providers/test_auto_client.py --asyncio-mode=auto -n auto --last-failed
+            uv run --frozen pytest tests/providers/test_auto_client.py --asyncio-mode=auto -n auto --last-failed -rs --junitxml="${RUNNER_TEMP}/provider-evidence-retry.xml"
             status=$?
           fi
           set -e
@@ -466,3 +492,7 @@ jobs:
           COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+
+      - name: Summarize provider test evidence
+        if: always()
+        run: python scripts/provider_test_evidence.py --reports "${RUNNER_TEMP}"

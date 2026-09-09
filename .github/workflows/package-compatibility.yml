@@ -1,0 +1,44 @@
+name: Package compatibility
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  installed-package:
+    name: Wheel / Python ${{ matrix.python }} / ${{ matrix.sdk }} / ${{ matrix.extras || 'core' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python: "3.9"
+            sdk: minimum
+          - python: "3.9"
+            sdk: latest
+          - python: "3.11"
+            sdk: latest
+          - python: "3.14"
+            sdk: latest
+          - python: "3.11"
+            sdk: latest
+            extras: google-genai
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+      - name: Build sdist and exercise installed wheel without checkout imports
+        env:
+          PACKAGE_PYTHON: ${{ matrix.python }}
+          PACKAGE_SDK: ${{ matrix.sdk }}
+          PACKAGE_EXTRAS: ${{ matrix.extras }}
+        run: tests/packaging/check_package.sh

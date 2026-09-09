@@ -10,9 +10,16 @@ from rich.console import Console
 from datetime import datetime
 from openai.types.fine_tuning import FineTuningJob
 
-client = OpenAI()
+client: Optional[OpenAI] = None
 app = typer.Typer()
 console = Console()
+
+
+def _get_client() -> OpenAI:
+    global client
+    if client is None:
+        client = OpenAI()
+    return client
 
 
 class FuneTuningParams(TypedDict, total=False):
@@ -72,11 +79,11 @@ def status_color(status: str) -> str:
 
 
 def get_jobs(limit: int = 5) -> list[FineTuningJob]:
-    return client.fine_tuning.jobs.list(limit=limit).data
+    return _get_client().fine_tuning.jobs.list(limit=limit).data
 
 
 def get_file_status(file_id: str) -> str:
-    response = client.files.retrieve(file_id)
+    response = _get_client().files.retrieve(file_id)
     return response.status
 
 
@@ -130,7 +137,7 @@ def create_from_id(
     with console.status(
         f"[bold green]Creating fine-tuning job from ID {id}...", spinner="dots"
     ):
-        job = client.fine_tuning.jobs.create(
+        job = _get_client().fine_tuning.jobs.create(
             training_file=id,
             model=model,
             hyperparameters=hyperparameters_dict,
@@ -172,14 +179,16 @@ def create_from_file(
         hyperparameters_dict["learning_rate_multiplier"] = learning_rate_multiplier
 
     with open(file, "rb") as file_buffer:
-        response = client.files.create(file=file_buffer, purpose="fine-tune")
+        response = _get_client().files.create(file=file_buffer, purpose="fine-tune")
 
     file_id = response.id
 
     validation_file_id = None
     if validation_file:
         with open(validation_file, "rb") as val_file:
-            val_response = client.files.create(file=val_file, purpose="fine-tune")
+            val_response = _get_client().files.create(
+                file=val_file, purpose="fine-tune"
+            )
         validation_file_id = val_response.id
 
     with console.status(f"Monitoring upload: {file_id} before finetuning...") as status:
@@ -210,7 +219,7 @@ def create_from_file(
     if model_suffix:
         additional_params["suffix"] = model_suffix
 
-    job = client.fine_tuning.jobs.create(
+    job = _get_client().fine_tuning.jobs.create(
         training_file=file_id,
         model=model,
         **additional_params,
@@ -232,9 +241,10 @@ def create_from_file(
 def cancel(
     id: str = typer.Argument(help="ID of the fine-tuning job to cancel"),
 ) -> None:
+    active_client = _get_client()
     with console.status(f"[bold red]Cancelling job {id}...", spinner="dots"):
         try:
-            client.fine_tuning.jobs.cancel(id)
+            active_client.fine_tuning.jobs.cancel(id)
             console.log(f"[bold red]Job {id} cancelled successfully!")
         except Exception as e:
             console.log(f"[bold red]Error cancelling job {id}: {e}")

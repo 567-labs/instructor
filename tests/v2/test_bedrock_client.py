@@ -7,6 +7,38 @@ import pytest
 from instructor import Mode
 
 
+def test_from_provider_constructs_real_bedrock_sdk_client_without_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("boto3")
+    from botocore.client import BaseClient
+
+    from instructor import AsyncInstructor, from_provider
+
+    monkeypatch.setenv("AWS_EC2_METADATA_DISABLED", "true")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "environment-access")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "environment-secret")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-2")
+    monkeypatch.delenv("AWS_SESSION_TOKEN", raising=False)
+
+    wrapped = from_provider(
+        "bedrock/anthropic.claude-test",
+        async_client=True,
+        region="us-west-2",
+        aws_access_key_id="explicit-access",
+        aws_secret_access_key="explicit-secret",
+    )
+
+    assert isinstance(wrapped, AsyncInstructor)
+    assert isinstance(wrapped.client, BaseClient)
+    assert wrapped.client.meta.service_model.service_name == "bedrock-runtime"
+    assert wrapped.client.meta.region_name == "us-west-2"
+    assert wrapped.mode is Mode.TOOLS
+    credentials = wrapped.client._request_signer._credentials
+    assert credentials.access_key == "explicit-access"
+    assert credentials.secret_key == "explicit-secret"
+
+
 class TestBedrockClientWithSDK:
     """Tests for Bedrock client factory that require botocore."""
 

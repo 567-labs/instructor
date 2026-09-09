@@ -230,10 +230,10 @@ def retry_sync_v2(
                                 attempt_number=attempt_number,
                                 max_attempts=max_attempts,
                                 is_last_attempt=(
-                                    not isinstance(e, ValidationError)
-                                    or (
-                                        max_attempts is not None
-                                        and attempt_number >= max_attempts
+                                    max_attempts is not None
+                                    and (
+                                        not isinstance(e, ValidationError)
+                                        or attempt_number >= max_attempts
                                     )
                                 ),
                             ),
@@ -526,10 +526,10 @@ async def retry_async_v2(
                                 attempt_number=attempt_number,
                                 max_attempts=max_attempts,
                                 is_last_attempt=(
-                                    not isinstance(e, ValidationError)
-                                    or (
-                                        max_attempts is not None
-                                        and attempt_number >= max_attempts
+                                    max_attempts is not None
+                                    and (
+                                        not isinstance(e, ValidationError)
+                                        or attempt_number >= max_attempts
                                     )
                                 ),
                             ),

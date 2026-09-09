@@ -7,6 +7,98 @@ description: "Learn how to implement retry logic with Tenacity for LLM applicati
 
 Tenacity is a Python library for adding retry logic to your applications. Combined with Instructor, it helps handle API failures, rate limits, and validation errors.
 
+## Count SDK Requests Separately from Extraction Attempts
+
+There are two retry settings with the same name:
+
+- `OpenAI(max_retries=2)` or `Anthropic(max_retries=2)` configures SDK transport
+  retries after the first HTTP request.
+- `client.create(max_retries=2, ...)` configures Instructor validation retries
+  after the first extraction attempt: at most three SDK calls. Negative integer
+  values are treated as zero retries.
+
+With integer `max_retries`, Instructor retries supported parsing and validation
+errors. An exhausted SDK rate-limit, connection, or server error is wrapped in
+`InstructorRetryException`; Instructor does not restart it automatically. A
+custom `Retrying` / `AsyncRetrying` instance controls its own retry predicate,
+wait, and stop conditions, and can retry SDK errors as well.
+
+Do not multiply the configured limits to report actual calls. For example,
+`429 → invalid JSON response → 500 → valid JSON response` takes four HTTP
+requests and two Instructor attempts. Persistent `429` with two SDK retries
+ends after three HTTP requests and one Instructor attempt. The product of the
+limits is only an upper bound for these SDKs under an attempt-bounded policy;
+SDK retry decisions and successful responses determine the actual count.
+
+`completion:kwargs`, `completion:response`, and exception `n_attempts` describe
+Instructor attempts. SDK-internal retries do not emit additional Instructor
+hooks. `failed_attempts` records parsing failures, not every transport failure.
+Use SDK transport instrumentation or server request logs for HTTP attempt
+counts, and elapsed time around the entire extraction for latency. A missing
+measurement must remain unknown rather than being reported as zero.
+
+For custom policies, `max_attempts` is unknown (`None`), and an error hook's
+`is_last_attempt=False` means finality has not yet been established. Use
+`completion:last_attempt` to observe exhausted retries. This distinction also
+matters when elapsed-time stopping ends retries before the integer count limit.
+Cancellation propagates without an error or last-attempt hook.
+
+The [OpenAI SDK retry documentation](https://github.com/openai/openai-python#retries)
+and [Anthropic SDK documentation](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python)
+describe their own retry and timeout behavior. Both document two default retries
+for selected transport/status failures; consult the installed SDK version before
+extending these rules to another provider or transport.
+
+## Timeouts and Whole-Operation Deadlines
+
+For integer Instructor retries, a numeric `timeout` passed to `create` serves two
+purposes: it is forwarded to the SDK, and it supplies an elapsed-time stop
+condition for further validation retries. The elapsed condition is evaluated
+after a failed attempt. It does not interrupt an in-flight SDK request, SDK
+backoff, parsing, or user validation. A successful response can return after that
+elapsed limit. SDK socket timeouts may themselves trigger SDK retries.
+
+An SDK timeout object, such as `httpx.Timeout` for OpenAI 2.x, is forwarded but
+does not enable Instructor's numeric elapsed stop condition. A timeout configured
+only on the SDK client likewise does not set that condition. With a custom
+Tenacity instance, specify its stop policy explicitly; Instructor does not add
+an elapsed stop condition to it. `stop_after_delay` also checks between attempts
+and is not an interrupting deadline.
+
+For an async operation, the application can bound the wait using cancellation:
+
+```python
+import asyncio
+import instructor
+from openai import AsyncOpenAI
+from pydantic import BaseModel
+
+
+class Answer(BaseModel):
+    value: int
+
+
+async def extract():
+    async with AsyncOpenAI(max_retries=0, timeout=2.0) as sdk:
+        client = instructor.from_openai(sdk)
+        return await asyncio.wait_for(
+            client.create(
+                model="gpt-4.1-mini",
+                response_model=Answer,
+                messages=[{"role": "user", "content": "Extract seven"}],
+                max_retries=1,
+            ),
+            timeout=5.0,
+        )
+```
+
+`asyncio.wait_for` cancels the task and waits for cancellation cleanup, so cleanup
+or blocking synchronous validators can extend the observed wall time. It does
+not guarantee that the remote provider stops work. Cancelling a thread that runs
+a synchronous client does not cancel that client's HTTP request. For lazy
+streaming, place the stream's consumption and cleanup inside the application's
+deadline too; returning a stream does not mean extraction has completed.
+
 ## Limit Validation Retry Cost
 
 Use `token_budget` to stop validation retries after cumulative provider usage
@@ -87,53 +179,42 @@ except Exception as e:
 
 ## Error-Specific Retries
 
-Retry only on specific error types for better control:
+Pass the policy into Instructor to select the original SDK and validation
+exceptions before Instructor wraps exhaustion in `InstructorRetryException`:
 
 ```python
 import instructor
-from openai import APIError, RateLimitError
+from openai import APIConnectionError, InternalServerError, OpenAI, RateLimitError
 from pydantic import BaseModel, ValidationError
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
+from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_openai(OpenAI(max_retries=0))
 
 
 class UserInfo(BaseModel):
     name: str
     age: int
-    email: str
 
 
-# Retry on API errors with longer delays
-@retry(
-    retry=retry_if_exception_type((RateLimitError, APIError)),
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=2, min=1, max=60),
+user = client.create(
+    model="gpt-4.1-mini",
+    response_model=UserInfo,
+    messages=[{"role": "user", "content": "John is 30"}],
+    max_retries=Retrying(
+        retry=retry_if_exception_type(
+            (APIConnectionError, InternalServerError, RateLimitError, ValidationError)
+        ),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, max=10),
+    ),
 )
-def handle_api_errors(text: str) -> UserInfo:
-    return client.create(
-        response_model=UserInfo,
-        messages=[{"role": "user", "content": text}],
-    )
-
-
-# Retry on validation errors with shorter delays
-@retry(
-    retry=retry_if_exception_type(ValidationError),
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=1, max=10),
-)
-def handle_validation_errors(text: str) -> UserInfo:
-    return client.create(
-        response_model=UserInfo,
-        messages=[{"role": "user", "content": text}],
-    )
 ```
+
+Use `AsyncRetrying` with async clients and the relevant exception classes for
+your SDK (for example, `anthropic.RateLimitError`). This explicit policy makes
+up to three Instructor attempts and disables nested OpenAI transport retries.
+An outer decorator sees `InstructorRetryException`, not its underlying SDK or
+validation error, and restarting the function starts a new extraction budget.
 
 ## Custom Retry Conditions
 
@@ -174,7 +255,7 @@ Use the `context` parameter to pass runtime data to validators:
 import instructor
 from pydantic import BaseModel, ValidationInfo, field_validator, ValidationError
 from tenacity import (
-    retry,
+    Retrying,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
@@ -200,11 +281,6 @@ class Citation(BaseModel):
         return v
 
 
-@retry(
-    retry=retry_if_exception_type(ValidationError),
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
-)
 def extract_citation(claim: str, source_text: str) -> Citation:
     return client.create(
         response_model=Citation,
@@ -219,6 +295,11 @@ def extract_citation(claim: str, source_text: str) -> Citation:
             },
         ],
         context={"source_text": source_text, "claim": claim},
+        max_retries=Retrying(
+            retry=retry_if_exception_type(ValidationError),
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+        ),
     )
 
 
@@ -265,35 +346,27 @@ def logged_extraction(text: str) -> UserInfo:
 
 ## Instructor's Built-in Retries
 
-Instructor has built-in retry support that works alongside Tenacity:
+Set validation retry limits on the extraction call:
 
 ```python
 import instructor
-from instructor import Mode
+from openai import OpenAI
 from pydantic import BaseModel
-from tenacity import retry, stop_after_attempt
 
-client = instructor.from_provider(
-    "openai/gpt-4.1-mini",
-    mode=Mode.JSON,
-    max_retries=3,
-    retry_delay=1,
-)
+client = instructor.from_openai(OpenAI(max_retries=2), mode=instructor.Mode.JSON)
 
 
 class UserInfo(BaseModel):
     name: str
     age: int
-    email: str
 
 
-# Combine Instructor and Tenacity retries for additional resilience
-@retry(stop=stop_after_attempt(2))
-def double_retry_extraction(text: str) -> UserInfo:
-    return client.create(
-        response_model=UserInfo,
-        messages=[{"role": "user", "content": text}],
-    )
+user = client.create(
+    model="gpt-4.1-mini",
+    response_model=UserInfo,
+    messages=[{"role": "user", "content": "John is 30"}],
+    max_retries=1,  # First extraction plus at most one validation retry.
+)
 ```
 
 ## Failed Attempts Tracking

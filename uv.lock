@@ -1979,6 +1979,7 @@ dependencies = [
     { name = "requests", version = "2.34.2", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version >= '3.10'" },
     { name = "rich" },
     { name = "tenacity" },
+    { name = "tqdm" },
     { name = "typer" },
     { name = "urllib3", version = "2.7.0", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version >= '3.10'" },
 ]
@@ -2154,6 +2155,7 @@ requires-dist = [
     { name = "sqlmodel", marker = "extra == 'sqlmodel'", specifier = ">=0.0.22,<1.0.0" },
     { name = "tabulate", marker = "extra == 'test-docs'", specifier = ">=0.9.0,<1.0.0" },
     { name = "tenacity", specifier = ">=8.2.3,<10.0.0" },
+    { name = "tqdm", specifier = ">=4.27.0,<5.0.0" },
     { name = "trafilatura", marker = "extra == 'trafilatura'", specifier = ">=1.12.2,<3.0.0" },
     { name = "ty", marker = "extra == 'dev'", specifier = "==0.0.44" },
     { name = "typer", specifier = ">=0.9.0,<1.0.0" },

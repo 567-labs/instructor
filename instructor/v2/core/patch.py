@@ -255,8 +255,8 @@ def _create_sync_wrapper(
                 BaseCache,
                 make_request_cache_key,
                 client_cache_identity,
-                load_cached_response,
             )
+            from instructor.v2.core.cache_response import load_cached_response
 
             if isinstance(cache, BaseCache):
                 key = make_request_cache_key(
@@ -294,7 +294,7 @@ def _create_sync_wrapper(
         )
 
         if key is not None and isinstance(response, BaseModel):
-            from instructor.cache import store_cached_response
+            from instructor.v2.core.cache_response import store_cached_response
 
             try:
                 store_cached_response(cache, key, response, ttl=cache_ttl)
@@ -379,8 +379,8 @@ def _create_async_wrapper(
                 BaseCache,
                 make_request_cache_key,
                 client_cache_identity,
-                load_cached_response,
             )
+            from instructor.v2.core.cache_response import load_cached_response
 
             if isinstance(cache, BaseCache):
                 key = make_request_cache_key(
@@ -418,7 +418,7 @@ def _create_async_wrapper(
         )
 
         if key is not None and isinstance(response, BaseModel):
-            from instructor.cache import store_cached_response
+            from instructor.v2.core.cache_response import store_cached_response
 
             try:
                 store_cached_response(cache, key, response, ttl=cache_ttl)

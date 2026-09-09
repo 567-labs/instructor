@@ -983,80 +983,17 @@ def _build_bedrock(
     kwargs: dict[str, Any],
     provider_info: dict[str, str],
 ) -> InstructorType:
-    try:
-        import os
-        import boto3
-        from instructor.v2.providers.bedrock.client import from_bedrock
+    """Compatibility entry point for the provider-owned Bedrock builder."""
+    from instructor.v2.providers.bedrock.client import _build_from_model
 
-        # Get AWS configuration from environment or kwargs
-        if "region" in kwargs:
-            region = kwargs.pop("region")
-        else:
-            logger.debug(
-                "AWS_DEFAULT_REGION is not set. Using default region us-east-1"
-            )
-            region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
-
-        # Extract AWS-specific parameters
-        # Dictionary to collect AWS credentials and session parameters for boto3 client
-        aws_kwargs = {}
-        for key in [
-            "aws_access_key_id",
-            "aws_secret_access_key",
-            "aws_session_token",
-        ]:
-            if key in kwargs:
-                aws_kwargs[key] = kwargs.pop(key)
-            elif key.upper() in os.environ:
-                logger.debug(f"Using {key.upper()} from environment variable")
-                aws_kwargs[key] = os.environ[key.upper()]
-
-        # Add region to client configuration
-        aws_kwargs["region_name"] = region
-
-        # Create bedrock-runtime client
-        client = boto3.client("bedrock-runtime", **aws_kwargs)
-
-        # Determine default mode based on model
-        if mode is None:
-            # Anthropic models (Claude) support tools, others use JSON
-            if model_name and (
-                "anthropic" in model_name.lower() or "claude" in model_name.lower()
-            ):
-                default_mode = Mode.TOOLS
-            else:
-                default_mode = Mode.MD_JSON
-        else:
-            default_mode = mode
-
-        result = from_bedrock(
-            client,
-            mode=default_mode,
-            async_client=async_client,
-            model=model_name,
-            **kwargs,
-        )
-        logger.info(
-            "Client initialized",
-            extra={**provider_info, "status": "success"},
-        )
-        return result
-    except ImportError:
-        from instructor.v2.core.errors import ConfigurationError
-
-        raise ConfigurationError(
-            "The boto3 package is required to use the AWS Bedrock provider. "
-            "Install it with `pip install boto3`."
-        ) from None
-    except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
-        raise
+    return _build_from_model(
+        provider=provider,
+        model_name=model_name,
+        async_client=async_client,
+        mode=mode,
+        kwargs=kwargs,
+        provider_info=provider_info,
+    )
 
 
 def _build_cerebras(

@@ -2,6 +2,36 @@
 
 This directory contains unified tests that run across **all core providers**: OpenAI, Anthropic, Google (Gemini), Cohere, xAI, Mistral, Cerebras, Fireworks, Writer, and Perplexity.
 
+## Interpreting test evidence
+
+[ProviderSpec](../../../instructor/v2/core/provider_specs.py) declares normalized
+modes, aliases and explicit rejections. The [shared configuration](../shared_config.py)
+selects models and modes for this suite; [capability policy](capabilities.py)
+controls feature skips. Neither a registry entry nor a green job certifies a
+provider/API/mode combination that was not exercised.
+
+The [Test workflow](../../../.github/workflows/test.yml) uses the shared
+[JUnit reporter](../../../scripts/provider_test_evidence.py) for live jobs:
+
+- Missing credentials/configuration and no collected tests remain non-failing but
+  explicitly untested. Missing or unreadable reports have unknown counts; an empty
+  report has zero outcomes. An all-skipped run provides no passing evidence.
+- Initial, retry and documented-model reports remain separate. A passing retry
+  does not erase an initial failure. Counts are JUnit outcomes, not API calls or
+  unique tests across attempts.
+- Skip categories are coarse labels; inspect `pytest -rs` logs for exact reasons.
+  Configuration presence is reported without secret values. Tests omitted during
+  collection or selection cannot be inferred from XML, and jobs that never start
+  cannot emit a summary.
+
+The [retry tests](test_retries.py) accept retry settings without forcing a failed
+attempt. [Raw-response tests](test_response_modes.py) check non-null completions;
+[local Responses SDK contracts](../../v2/test_responses_sdk_contract.py) separately
+check sync/async wire mapping, SDK response types and HTTP error causes using
+loopback HTTP. Unit/handler tests in [tests/coverage](../../coverage) also use test
+doubles; their coverage is not live-provider evidence. Marker selection is not a
+network sandbox, so keep provider credentials out of offline coverage runs.
+
 ## Philosophy
 
 Instead of duplicating the same tests for each provider, we use `instructor.from_provider()` with parameterization to run the same test suite against all providers simultaneously.
@@ -111,26 +141,14 @@ Required API keys (set only what you have):
 
 ## Current Models
 
-All providers automatically skip if API keys are missing.
-
-- **OpenAI**: `gpt-4o-mini` with `Mode.TOOLS`
-- **Anthropic**: `claude-haiku-4-5-20251001` with `Mode.ANTHROPIC_TOOLS`
-- **Google**: `gemini-pro` with `Mode.GENAI_STRUCTURED_OUTPUTS`
-- **Cohere**: `command-a-03-2025` with `Mode.COHERE_TOOLS`
-- **xAI**: `grok-3-mini` with `Mode.XAI_TOOLS`
-- **Mistral**: `ministral-8b-latest` with `Mode.MISTRAL_TOOLS`
-- **Cerebras**: `llama3.1-70b` with `Mode.CEREBRAS_TOOLS`
-- **Fireworks**: `llama-v3p1-70b-instruct` with `Mode.FIREWORKS_TOOLS`
-- **Writer**: `palmyra-x-004` with `Mode.WRITER_TOOLS`
-- **Perplexity**: `llama-3.1-sonar-large-128k-online` with `Mode.PERPLEXITY_JSON`
-
-To change models, edit `tests/llm/shared_config.py`.
+Read and update `PROVIDER_CONFIGS` in [shared_config.py](../shared_config.py) for
+current model names, modes, SDK requirements and credential checks.
 
 ## Benefits
 
 ✅ **Less code**: ~3,500+ lines of duplicate code eliminated
 ✅ **Easier maintenance**: Update test logic once, applies to all providers
-✅ **Better coverage**: Ensures all providers support core features
+✅ **Shared coverage**: Applies the same assertions to configured provider cases
 ✅ **Faster development**: Add new providers by updating one config file
 ✅ **Consistent behavior**: Catches provider-specific quirks early
 

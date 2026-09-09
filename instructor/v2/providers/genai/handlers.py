@@ -18,6 +18,7 @@ from instructor.v2.dsl.parallel import ParallelBase
 from instructor.v2.dsl.partial import Partial, PartialBase
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.providers.gemini import utils as gemini_utils
+from instructor.v2.providers.genai.request import update_genai_kwargs
 
 
 def reask_genai_tools(
@@ -431,7 +432,7 @@ class GenAIToolsHandler(GenAIHandlerBase):
         }
         # Temporarily put generation_config back for update_genai_kwargs to process
         new_kwargs["generation_config"] = generation_config_dict
-        generation_config = gemini_utils.update_genai_kwargs(new_kwargs, base_config)
+        generation_config = update_genai_kwargs(new_kwargs, base_config)
         new_kwargs.pop("generation_config", None)  # Remove it after processing
         new_kwargs["config"] = types.GenerateContentConfig(**generation_config)
         new_kwargs = self._convert_messages_to_contents(new_kwargs, autodetect_images)
@@ -502,7 +503,7 @@ class GenAIStructuredOutputsHandler(GenAIHandlerBase):
         }
         # Temporarily put generation_config back for update_genai_kwargs to process
         new_kwargs["generation_config"] = generation_config_dict
-        generation_config = gemini_utils.update_genai_kwargs(new_kwargs, base_config)
+        generation_config = update_genai_kwargs(new_kwargs, base_config)
         new_kwargs.pop("generation_config", None)  # Remove it after processing
         new_kwargs["config"] = types.GenerateContentConfig(**generation_config)
         new_kwargs = self._convert_messages_to_contents(new_kwargs, autodetect_images)

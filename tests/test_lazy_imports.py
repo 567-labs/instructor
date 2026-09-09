@@ -77,3 +77,10 @@ def test_v2_module_export_stays_lightweight():
         "instructor.v2.core.provider_specs",
         "instructor.v2.core.providers",
     ]
+
+
+def test_auto_client_keeps_bedrock_provider_lazy():
+    state = _cold_import_state("from instructor.v2 import auto_client")
+
+    assert "instructor.v2.auto_client" in state["modules"]
+    assert "instructor.v2.providers.bedrock.client" not in state["modules"]

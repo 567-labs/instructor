@@ -60,12 +60,16 @@ __all__ = [
 
 # Lazy imports for backward compatibility to avoid circular imports
 def __getattr__(name):
+    if name == "update_genai_kwargs":
+        from ..v2.providers.genai.request import update_genai_kwargs
+
+        return update_genai_kwargs
+
     # Gemini utils
     if name in [
         "transform_to_gemini_prompt",
         "verify_no_unions",
         "map_to_gemini_function_schema",
-        "update_genai_kwargs",
         "update_gemini_kwargs",
         "extract_genai_system_message",
         "convert_to_genai_messages",
