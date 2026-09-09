@@ -28,5 +28,23 @@ def update_total_usage(response_usage: Any, total_usage: Any) -> bool:
     ):
         return False
 
+    # Older Anthropic SDKs retain this newer documented field as an extra dict,
+    # rather than a nested model. Only its known token counter is additive;
+    # unknown metadata must keep the existing generic accumulator behavior.
+    previous_details = getattr(total_usage, "output_tokens_details", None)
+    current_details = getattr(response_usage, "output_tokens_details", None)
+    thinking_total = None
+    if isinstance(previous_details, dict) and isinstance(current_details, dict):
+        previous_tokens = previous_details.get("thinking_tokens")
+        current_tokens = current_details.get("thinking_tokens")
+        if type(previous_tokens) is int and type(current_tokens) is int:
+            thinking_total = previous_tokens + current_tokens
+
     _accumulate_models(response_usage, total_usage)
+    if thinking_total is not None:
+        for usage in (total_usage, response_usage):
+            usage.output_tokens_details = {
+                **usage.output_tokens_details,
+                "thinking_tokens": thinking_total,
+            }
     return True
