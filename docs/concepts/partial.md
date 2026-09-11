@@ -202,6 +202,32 @@ import asyncio
 asyncio.run(print_partial_results())
 ```
 
+## Concurrent requests and direct handlers
+
+The core runtime passes each request's `stream` boolean explicitly. OpenAI-compatible,
+Anthropic, Mistral, and xAI mode handlers honor that value even when another request
+using the same model prepared a stream, failed, or was cancelled. This routing rule
+does not change each provider's event format or output type.
+
+When calling those handlers directly, pass `stream=True` or `stream=False` to
+`parse_response` for overlapping requests. Omitting `stream` preserves the legacy
+one-shot inference from `prepare_request`. That fallback is keyed by model class
+and cannot distinguish overlapping calls using the same class. Explicit parsing
+also retires a pending legacy marker; do not mix explicit and implicit parsing
+for overlapping calls with the same model.
+
+Sync partial parsing still materializes its results and may raise validation errors
+inside `parse_response`; async partial validation occurs during iteration. Closing
+a parsed generator early is not a promise that it closes the underlying SDK stream.
+Retain and close the source stream according to its SDK's ownership contract.
+Cancellation while awaiting a source propagates to that source.
+
+The native xAI client has a separate SDK streaming path; the shared routing rule
+here concerns its registry mode handlers. Providers without class-keyed stream
+markers retain their existing routing. Async request preparation still performs
+synchronous cache and media operations; this change does not offload them or alter
+remote-media connection checks.
+
 ## See Also
 
 - [Streaming Lists](./lists.md) - Stream collections of completed objects

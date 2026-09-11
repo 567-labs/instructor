@@ -22,7 +22,6 @@ from collections.abc import (
     Iterable as TypingIterable,
 )
 from typing import TYPE_CHECKING, Any, cast
-from weakref import WeakKeyDictionary
 
 from pydantic import BaseModel
 
@@ -43,7 +42,6 @@ from instructor.v2.dsl.parallel import (
     get_types_array,
     handle_parallel_model,
 )
-from instructor.v2.dsl.partial import PartialBase
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.core.json import (
     extract_json_from_codeblock,
@@ -52,6 +50,7 @@ from instructor.v2.core.json import (
 )
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
+from instructor.v2.core.streaming import StreamingModelState
 from instructor.v2.core.messages import copy_messages_for_mutation
 
 
@@ -166,46 +165,10 @@ def handle_xai_tools(
     return response_model, new_kwargs
 
 
-class XAIHandlerBase(ModeHandler):
+class XAIHandlerBase(StreamingModelState, ModeHandler):
     """Base class for xAI handlers with shared utilities."""
 
     mode: Mode
-
-    def __init__(self) -> None:
-        self._streaming_models: WeakKeyDictionary[type[Any], None] = WeakKeyDictionary()
-
-    def _register_streaming_from_kwargs(
-        self, response_model: type[BaseModel] | None, kwargs: dict[str, Any]
-    ) -> None:
-        """Register model for streaming if stream=True in kwargs."""
-        if response_model is None:
-            return
-        if kwargs.get("stream"):
-            self.mark_streaming_model(response_model, True)
-
-    def mark_streaming_model(
-        self, response_model: type[BaseModel] | None, stream: bool
-    ) -> None:
-        """Record that the response model expects streaming output."""
-        if not stream or response_model is None:
-            return
-        if inspect.isclass(response_model) and issubclass(
-            response_model, (IterableBase, PartialBase)
-        ):
-            self._streaming_models[response_model] = None
-
-    def _consume_streaming_flag(
-        self, response_model: type[BaseModel] | ParallelBase | None
-    ) -> bool:
-        """Check and consume streaming flag for a model."""
-        if response_model is None:
-            return False
-        if not inspect.isclass(response_model):
-            return False
-        if response_model in self._streaming_models:
-            del self._streaming_models[response_model]
-            return True
-        return False
 
     def extract_streaming_json(
         self, completion: TypingIterable[Any]
@@ -440,14 +403,12 @@ class XAIToolsHandler(XAIHandlerBase):
         response_model: type[BaseModel],
         validation_context: dict[str, Any] | None = None,
         strict: bool | None = None,
-        stream: bool = False,  # noqa: ARG002
+        stream: bool | None = None,
         is_async: bool = False,  # noqa: ARG002
     ) -> Any:
         """Parse tool call response from xAI."""
         # Check for streaming
-        if isinstance(response_model, type) and self._consume_streaming_flag(
-            response_model
-        ):
+        if self._should_parse_streaming(response_model, stream):
             return self._parse_streaming_response(
                 response_model,
                 response,
@@ -607,14 +568,12 @@ class XAIJSONSchemaHandler(XAIHandlerBase):
         response_model: type[BaseModel],
         validation_context: dict[str, Any] | None = None,
         strict: bool | None = None,
-        stream: bool = False,  # noqa: ARG002
+        stream: bool | None = None,
         is_async: bool = False,  # noqa: ARG002
     ) -> Any:
         """Parse JSON schema response from xAI."""
         # Check for streaming
-        if isinstance(response_model, type) and self._consume_streaming_flag(
-            response_model
-        ):
+        if self._should_parse_streaming(response_model, stream):
             return self._parse_streaming_response(
                 response_model,
                 response,
@@ -733,14 +692,12 @@ class XAIMDJSONHandler(XAIHandlerBase):
         response_model: type[BaseModel],
         validation_context: dict[str, Any] | None = None,
         strict: bool | None = None,
-        stream: bool = False,  # noqa: ARG002
+        stream: bool | None = None,
         is_async: bool = False,  # noqa: ARG002
     ) -> Any:
         """Parse JSON from markdown code block in xAI response."""
         # Check for streaming
-        if isinstance(response_model, type) and self._consume_streaming_flag(
-            response_model
-        ):
+        if self._should_parse_streaming(response_model, stream):
             return self._parse_streaming_response(
                 response_model,
                 response,
