@@ -30,6 +30,7 @@ class ExtractedNumber(BaseModel):
         ("perplexity/sonar", "PERPLEXITY_API_KEY"),
         ("deepseek/deepseek-v4-flash", "DEEPSEEK_API_KEY"),
         ("openrouter/google/gemini-3.8-flash", "OPENROUTER_API_KEY"),
+        ("requesty/openai/gpt-4o-mini", "REQUESTY_API_KEY"),
         ("together/meta-llama/Llama-3.3-70B-Instruct-Turbo", "TOGETHER_API_KEY"),
     ],
 )

@@ -54,6 +54,7 @@ if TYPE_CHECKING:
     from instructor.v2.providers.litellm.client import from_litellm
     from instructor.v2.providers.mistral.client import from_mistral
     from instructor.v2.providers.openrouter.client import from_openrouter
+    from instructor.v2.providers.requesty.client import from_requesty
     from instructor.v2.providers.perplexity.client import from_perplexity
     from instructor.v2.providers.vertexai.client import from_vertexai
     from instructor.v2.providers.writer.client import from_writer
@@ -248,6 +249,8 @@ def check_provider_factories(
     assert_type(from_groq(groq_async), AsyncInstructor)
     assert_type(from_openrouter(openai_sync), Instructor)
     assert_type(from_openrouter(openai_async), AsyncInstructor)
+    assert_type(from_requesty(openai_sync), Instructor)
+    assert_type(from_requesty(openai_async), AsyncInstructor)
     assert_type(from_perplexity(openai_sync), Instructor)
     assert_type(from_perplexity(openai_async), AsyncInstructor)
     assert_type(from_writer(writer_sync), Instructor)

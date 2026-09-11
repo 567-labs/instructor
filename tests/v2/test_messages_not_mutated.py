@@ -20,10 +20,10 @@ The provider lists below are imported directly from the shared OpenAI-compat
 handler module so this test stays in sync with the source registrations
 rather than duplicating them.
 
-Independently-implemented handlers (Mistral, Cohere, Writer, xAI, OpenRouter)
-reproduce the same anti-pattern in their own provider-specific code and were
-previously tracked here as known-broken `xfail` cases. They are now fixed too
-and folded into `FIXED_PAIRS` below.
+Independently-implemented handlers (Mistral, Cohere, Writer, xAI, OpenRouter,
+Requesty) reproduce the same anti-pattern in their own provider-specific code
+and were previously tracked here as known-broken `xfail` cases. They are now
+fixed too and folded into `FIXED_PAIRS` below.
 """
 
 from __future__ import annotations
@@ -61,7 +61,8 @@ class Answer(BaseModel):
 # (provider, mode) pairs whose handlers were patched to stop aliasing
 # `messages`. Covers both the shared OpenAI-compat handler classes and the
 # independently-implemented provider-specific handlers (Mistral, Cohere,
-# Writer, xAI, OpenRouter) that reproduced the same anti-pattern separately.
+# Writer, xAI, OpenRouter, Requesty) that reproduced the same anti-pattern
+# separately.
 FIXED_PAIRS: list[tuple[Provider, Mode]] = [
     *((provider, Mode.TOOLS) for provider in OPENAI_COMPAT_PROVIDERS),
     *((provider, Mode.JSON_SCHEMA) for provider in OPENAI_JSON_SCHEMA_PROVIDERS),
@@ -82,6 +83,7 @@ FIXED_PAIRS: list[tuple[Provider, Mode]] = [
     (Provider.XAI, Mode.JSON_SCHEMA),
     (Provider.XAI, Mode.MD_JSON),
     (Provider.OPENROUTER, Mode.JSON_SCHEMA),
+    (Provider.REQUESTY, Mode.JSON_SCHEMA),
 ]
 
 
@@ -178,6 +180,7 @@ REASK_MUTATION_PAIRS: list[tuple[Provider, Mode]] = [
     (Provider.XAI, Mode.PARALLEL_TOOLS),
     (Provider.XAI, Mode.JSON_SCHEMA),
     (Provider.OPENROUTER, Mode.JSON_SCHEMA),
+    (Provider.REQUESTY, Mode.JSON_SCHEMA),
 ]
 
 

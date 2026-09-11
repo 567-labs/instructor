@@ -7,6 +7,12 @@
 3. Add API key to environment - `export OPENROUTER_API_KEY=your key here`
 4. Add Openrouter API endpoint to environment - `export OPENROUTER_BASE_URL=https://openrouter.ai/api/v1` [See https://openrouter.ai/docs#format for potential updates]
 
+## Requesty
+1. Sign up for a Requesty account - https://app.requesty.ai
+2. Create an API key - https://app.requesty.ai/api-keys
+3. Add API key to environment - `export REQUESTY_API_KEY=your key here`
+4. The example uses `instructor.from_provider("requesty/...")`, which targets `https://router.requesty.ai/v1` by default [See https://docs.requesty.ai for potential updates]
+
 ## Perplexity
 1. Sign up for an Openrouter Account - https://www.perplexity.ai/
 2. Create an API key - https://www.perplexity.ai/pplx-api

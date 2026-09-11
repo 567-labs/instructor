@@ -57,6 +57,7 @@ if TYPE_CHECKING:
         from_together as from_together,
     )
     from .v2.providers.openrouter.client import from_openrouter as from_openrouter
+    from .v2.providers.requesty.client import from_requesty as from_requesty
     from .v2.providers.perplexity.client import from_perplexity as from_perplexity
     from .v2.providers.vertexai.client import from_vertexai as from_vertexai
     from .v2.providers.writer.client import from_writer as from_writer
@@ -78,6 +79,7 @@ __all__ = [
     "from_databricks",
     "from_deepseek",
     "from_openrouter",
+    "from_requesty",
     "from_litellm",
     "from_vertexai",
     "from_provider",
@@ -117,6 +119,7 @@ _LAZY_IMPORTS: dict[str, tuple[str, str | None]] = {
     "from_databricks": (".v2.providers.openai.client", "from_databricks"),
     "from_deepseek": (".v2.providers.openai.client", "from_deepseek"),
     "from_openrouter": (".v2.providers.openrouter.client", "from_openrouter"),
+    "from_requesty": (".v2.providers.requesty.client", "from_requesty"),
     "from_litellm": (".v2.providers.litellm.client", "from_litellm"),
     "Mode": (".mode", "Mode"),
     "patch": (".core.patch", "patch"),

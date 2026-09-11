@@ -51,6 +51,7 @@ Learn how to integrate Instructor with various AI model providers. These compreh
 
     [:octicons-arrow-right-16: LiteLLM](./litellm.md)
     [:octicons-arrow-right-16: OpenRouter](./openrouter.md)
+    [:octicons-arrow-right-16: Requesty](./requesty.md)
 
 </div>
 
