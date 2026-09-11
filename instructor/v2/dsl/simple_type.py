@@ -1,10 +1,31 @@
 from __future__ import annotations
 from inspect import isclass
+import sys
 import typing
 from pydantic import BaseModel, create_model
 from enum import Enum
 
 from instructor.v2.dsl.partial import Partial
+
+if sys.version_info >= (3, 10):
+    from types import UnionType
+
+    _UNION_ORIGINS: tuple[typing.Any, ...] = (typing.Union, UnionType)
+else:
+    _UNION_ORIGINS = (typing.Union,)
+
+
+def _is_union_type(tp: typing.Any, origin: typing.Any = None) -> bool:
+    if origin is None:
+        origin = typing.get_origin(tp)
+    if origin in _UNION_ORIGINS or str(origin) == "typing.Union":
+        return True
+    if str(type(tp)) == "<class 'typing._UnionGenericAlias'>":
+        return True
+    if sys.version_info >= (3, 10) and isinstance(tp, UnionType):
+        return True
+    return False
+
 
 T = typing.TypeVar("T")
 
@@ -85,12 +106,7 @@ def is_simple_type(
                 inner_origin = typing.get_origin(inner_arg)
 
                 # Explicit check for Union types - try different patterns across Python versions
-                if (
-                    inner_origin is typing.Union
-                    or inner_origin == typing.Union
-                    or str(inner_origin) == "typing.Union"
-                    or str(type(inner_arg)) == "<class 'typing._UnionGenericAlias'>"
-                ):
+                if _is_union_type(inner_arg, inner_origin):
                     return True
 
                 # Check if inner type is a BaseModel - if so, not a simple type
@@ -99,10 +115,6 @@ def is_simple_type(
                         return False
                 except TypeError:
                     pass
-
-                # Check for Python 3.10+ pipe syntax
-                if hasattr(inner_arg, "__or__"):
-                    return True
 
                 # For simple list with basic types, also return True
                 if inner_arg in {str, int, float, bool}:
@@ -119,16 +131,7 @@ def is_simple_type(
             inner_origin = typing.get_origin(inner_arg)
 
             # Explicit check for Union types - try different patterns across Python versions
-            if (
-                inner_origin is typing.Union
-                or inner_origin == typing.Union
-                or str(inner_origin) == "typing.Union"
-                or str(type(inner_arg)) == "<class 'typing._UnionGenericAlias'>"
-            ):
-                return True
-
-            # Check for Python 3.10+ pipe syntax
-            if hasattr(inner_arg, "__or__"):
+            if _is_union_type(inner_arg, inner_origin):
                 return True
 
             # For simple list with basic types, also return True
@@ -150,9 +153,12 @@ def is_simple_type(
     if origin in {
         typing.Annotated,
         typing.Literal,
-        typing.Union,
+        *_UNION_ORIGINS,
         list,  # origin of List[T] is list
     }:
+        return True
+
+    if sys.version_info >= (3, 10) and isinstance(response_model, UnionType):
         return True
 
     if isclass(response_model) and issubclass(response_model, Enum):
