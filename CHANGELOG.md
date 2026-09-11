@@ -16,6 +16,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Ordinary dictionaries containing non-string keys, including nested dictionaries, bypass caching. Pydantic models use their JSON-serialized representation for cache identity, which does not preserve every distinction between original Python key types.
 
 ### Fixed
+- **Anthropic retry usage**: Accumulate documented thinking-token counts when an older SDK retains `output_tokens_details` as a dictionary. Preserve existing SDK response types, cumulative totals, and unknown/null metadata behavior.
 - **CLI installation**: Declare the CLI’s `tqdm` dependency directly to fix the missing-dependency crash in OpenAI 3 installations, which no longer supply it transitively. Defer file and job client construction so top-level and subcommand help work without provider credentials.
 - **Partial streaming**: Preserve model instances inside nullable list fields in sync and async streams, while retaining validation context and final validation. ([#2600](https://github.com/567-labs/instructor/pull/2600))
 - **GenAI truncation**: Raise `IncompleteOutputException` for non-streaming tools and JSON responses ending with `MAX_TOKENS`, instead of accepting schema defaults for missing output. ([#2601](https://github.com/567-labs/instructor/pull/2601))
@@ -27,6 +28,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Changed
 - Consolidate duplicate helpers and utility tests while preserving public compatibility, and separate token-budget policy from retry execution without changing budget arithmetic or retry behavior. ([#2616](https://github.com/567-labs/instructor/pull/2616), [#2617](https://github.com/567-labs/instructor/pull/2617))
+
+### Documentation
+- Document provider-specific usage accounting, raw-response mutation, streaming/cache/batch limitations, and legacy CLI estimate limitations.
 
 ## [1.17.0] - 2026-09-04
 
