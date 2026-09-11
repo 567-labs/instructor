@@ -68,18 +68,28 @@ def test_reask_genai_tools_with_function_call_appends_user_response(
     assert "Validation Error found" in function_response["response"]["error"]
 
 
-def test_reask_genai_structured_outputs_appends_model_content(
+def test_reask_genai_structured_outputs_appends_model_then_user_turn(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_fake_genai_types(monkeypatch)
-    kwargs = {"contents": []}
+    original_contents = []
+    kwargs = {"contents": original_contents}
     response = SimpleNamespace(text='{"bad": true}')
 
     result = reask_genai_structured_outputs(kwargs, response, ValueError("bad json"))
 
-    assert isinstance(result["contents"][-1], FakeModelContent)
+    # Original contents must not be mutated
+    assert len(original_contents) == 0
+
+    # Model content from previous attempt must be appended
+    assert isinstance(result["contents"][-2], FakeModelContent)
+    assert result["contents"][-2].role == "model"
+    assert '{"bad": true}' in result["contents"][-2].parts[0].text
+
+    # Final turn must be a user turn carrying the validation error to avoid Gemini 400 error
+    assert result["contents"][-1].role == "user"
+    assert "Validation Error found" in result["contents"][-1].parts[0].text
     assert "bad json" in result["contents"][-1].parts[0].text
-    assert '{"bad": true}' in result["contents"][-1].parts[0].text
 
 
 def test_tools_handler_prepare_request_without_response_model(

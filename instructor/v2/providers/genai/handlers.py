@@ -94,19 +94,46 @@ def reask_genai_structured_outputs(
     from google.genai import types
 
     kwargs = kwargs.copy()
-    genai_response = (
-        response.text
-        if response and hasattr(response, "text")
-        else "You must generate a response to the user's request that is consistent with the response model"
+    existing_contents = kwargs.get("contents")
+    if isinstance(existing_contents, list):
+        kwargs["contents"] = existing_contents.copy()
+    elif existing_contents is None:
+        kwargs["contents"] = []
+    else:
+        kwargs["contents"] = list(existing_contents)
+
+    model_content = None
+    candidates = getattr(response, "candidates", None) if response is not None else None
+    if isinstance(candidates, list):
+        for candidate in candidates:
+            content = getattr(candidate, "content", None)
+            if content is not None:
+                model_content = content
+                break
+
+    if model_content is not None:
+        kwargs["contents"].append(model_content)
+    else:
+        genai_response = (
+            response.text
+            if response and hasattr(response, "text") and response.text
+            else "You must generate a response to the user's request that is consistent with the response model"
+        )
+        kwargs["contents"].append(
+            types.ModelContent(
+                parts=[types.Part.from_text(text=genai_response)],
+            )
+        )
+
+    error_msg = (
+        f"Validation Error found:\n{exception}\n"
+        "Recall the function correctly, fix the errors"
     )
     kwargs["contents"].append(
-        types.ModelContent(
-            parts=[
-                types.Part.from_text(
-                    text=f"Validation Error found:\n{exception}\nRecall the function correctly, fix the errors in the following attempt:\n{genai_response}"
-                ),
-            ]
-        ),
+        types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=error_msg)],
+        )
     )
     return kwargs
 
