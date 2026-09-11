@@ -490,3 +490,24 @@ def test_get_provider_matches_supported_providers():
 
     for provider_name, base_url in provider_urls.items():
         assert get_provider(base_url) == provider_mapping[provider_name]
+
+
+def test_extract_json_from_stream_rejects_oversized_input():
+    """Inputs exceeding MAX_JSON_EXTRACTION_CHARS raise a ValueError."""
+    from instructor.v2.core.json import (
+        MAX_JSON_EXTRACTION_CHARS,
+        extract_json_from_stream,
+    )
+
+    oversized = "a" * (MAX_JSON_EXTRACTION_CHARS + 1)
+    with pytest.raises(ValueError, match="1 MB streaming limit"):
+        list(extract_json_from_stream(iter([oversized])))
+
+
+def test_extract_json_from_stream_rejects_deep_nesting():
+    """Inputs exceeding MAX_JSON_DEPTH raise a ValueError."""
+    from instructor.v2.core.json import MAX_JSON_DEPTH, extract_json_from_stream
+
+    deep = "[" * (MAX_JSON_DEPTH + 1) + "]" * (MAX_JSON_DEPTH + 1)
+    with pytest.raises(ValueError, match="128 level limit"):
+        list(extract_json_from_stream(iter([deep])))
