@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **GenAI structured output retry**: Append the model's previous attempt followed by a user turn containing the validation error instead of ending the reask request with a model turn, avoiding Gemini 400 `INVALID_ARGUMENT` errors and caller `contents` list mutation.
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
