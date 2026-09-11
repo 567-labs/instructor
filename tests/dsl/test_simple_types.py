@@ -86,6 +86,18 @@ def test_list_of_base_model_not_simple():
     assert not is_simple_type(List[Item])  # noqa: UP006
 
 
+def test_list_of_custom_class_not_simple():
+    """A user-defined class is not a union just because ``type`` exposes ``__or__``."""
+
+    class CustomClass:
+        pass
+
+    assert not is_simple_type(list[CustomClass])
+
+    with pytest.raises(TypeError, match="iterable elements must be Pydantic models"):
+        prepare_response_model(list[CustomClass])
+
+
 @pytest.mark.skipif(
     sys.version_info < (3, 10),
     reason="Union pipe syntax is only available in Python 3.10+",

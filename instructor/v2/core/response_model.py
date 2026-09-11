@@ -110,6 +110,18 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
                 "response_model must be parameterized, e.g. list[User] or Iterable[User]"
             )
         iterable_element_class = args[0]
+        if inspect.isclass(iterable_element_class) and not is_typed_dict(
+            iterable_element_class
+        ):
+            try:
+                is_base_model = issubclass(iterable_element_class, BaseModel)
+            except TypeError:
+                is_base_model = False
+            if not is_base_model:
+                raise TypeError(
+                    "response_model iterable elements must be Pydantic models or typed dictionaries; "
+                    f"got {iterable_element_class!r}"
+                )
         if is_typed_dict(iterable_element_class):
             iterable_element_class = _typed_dict_to_model(iterable_element_class)
         working_model = IterableModel(cast(type[BaseModel], iterable_element_class))

@@ -1,12 +1,18 @@
 from __future__ import annotations
 from inspect import isclass
 import typing
+import types
 from pydantic import BaseModel, create_model
 from enum import Enum
 
 from instructor.v2.dsl.partial import Partial
 
 T = typing.TypeVar("T")
+
+if hasattr(types, "UnionType"):
+    _UNION_ORIGINS = (typing.Union, types.UnionType)
+else:  # pragma: no cover - Python 3.9 has no PEP 604 union type
+    _UNION_ORIGINS = (typing.Union,)
 
 
 class AdapterBase(BaseModel):
@@ -86,7 +92,8 @@ def is_simple_type(
 
                 # Explicit check for Union types - try different patterns across Python versions
                 if (
-                    inner_origin is typing.Union
+                    inner_origin in _UNION_ORIGINS
+                    or inner_origin is typing.Union
                     or inner_origin == typing.Union
                     or str(inner_origin) == "typing.Union"
                     or str(type(inner_arg)) == "<class 'typing._UnionGenericAlias'>"
@@ -99,10 +106,6 @@ def is_simple_type(
                         return False
                 except TypeError:
                     pass
-
-                # Check for Python 3.10+ pipe syntax
-                if hasattr(inner_arg, "__or__"):
-                    return True
 
                 # For simple list with basic types, also return True
                 if inner_arg in {str, int, float, bool}:
@@ -120,15 +123,12 @@ def is_simple_type(
 
             # Explicit check for Union types - try different patterns across Python versions
             if (
-                inner_origin is typing.Union
+                inner_origin in _UNION_ORIGINS
+                or inner_origin is typing.Union
                 or inner_origin == typing.Union
                 or str(inner_origin) == "typing.Union"
                 or str(type(inner_arg)) == "<class 'typing._UnionGenericAlias'>"
             ):
-                return True
-
-            # Check for Python 3.10+ pipe syntax
-            if hasattr(inner_arg, "__or__"):
                 return True
 
             # For simple list with basic types, also return True
