@@ -94,6 +94,14 @@ def reask_genai_structured_outputs(
     from google.genai import types
 
     kwargs = kwargs.copy()
+    existing_contents = kwargs.get("contents")
+    if isinstance(existing_contents, list):
+        kwargs["contents"] = existing_contents.copy()
+    elif existing_contents is None:
+        kwargs["contents"] = []
+    else:
+        kwargs["contents"] = list(existing_contents)
+
     genai_response = (
         response.text
         if response and hasattr(response, "text")
@@ -101,11 +109,20 @@ def reask_genai_structured_outputs(
     )
     kwargs["contents"].append(
         types.ModelContent(
+            parts=[types.Part.from_text(text=genai_response)],
+        ),
+    )
+    kwargs["contents"].append(
+        types.Content(
+            role="user",
             parts=[
                 types.Part.from_text(
-                    text=f"Validation Error found:\n{exception}\nRecall the function correctly, fix the errors in the following attempt:\n{genai_response}"
-                ),
-            ]
+                    text=(
+                        f"Validation Error found:\n{exception}\n"
+                        "Recall the function correctly, fix the errors"
+                    )
+                )
+            ],
         ),
     )
     return kwargs
