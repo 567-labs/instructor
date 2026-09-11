@@ -33,6 +33,7 @@ from instructor.v2.providers.openai.schema import generate_openai_schema
 from instructor.v2.providers.openai.templating import process_message
 from instructor.v2.providers.openrouter.client import from_openrouter
 from instructor.v2.providers.perplexity.client import from_perplexity
+from instructor.v2.providers.requesty.client import from_requesty
 
 
 def _response_payload(model: str) -> dict[str, Any]:
@@ -156,12 +157,17 @@ async def test_openai_compatible_wrappers_keep_provider_mode_and_client() -> Non
     openrouter = from_openrouter(
         sync_client, mode=Mode.JSON_SCHEMA, model="router-model"
     )
+    requesty = from_requesty(sync_client, mode=Mode.JSON_SCHEMA, model="router-model")
     perplexity = from_perplexity(async_client, model="perplexity-model")
 
     assert isinstance(openrouter, Instructor)
     assert openrouter.client is sync_client
     assert openrouter.provider is Provider.OPENROUTER
     assert openrouter.mode is Mode.JSON_SCHEMA
+    assert isinstance(requesty, Instructor)
+    assert requesty.client is sync_client
+    assert requesty.provider is Provider.REQUESTY
+    assert requesty.mode is Mode.JSON_SCHEMA
     assert isinstance(perplexity, AsyncInstructor)
     assert perplexity.client is async_client
     assert perplexity.provider is Provider.PERPLEXITY

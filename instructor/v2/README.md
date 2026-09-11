@@ -1153,6 +1153,12 @@ This checklist tracks which providers have been migrated to v2:
   - Tests: `tests/v2/test_handlers_parametrized.py`, `tests/v2/test_client_unified.py`
   - Status: ✅ Complete
 
+- [x] **Requesty** (`Provider.REQUESTY`)
+  - Location: `instructor/v2/providers/requesty/`
+  - Modes: `TOOLS`, `JSON`, `MD_JSON`, `PARALLEL_TOOLS`, `JSON_SCHEMA`
+  - Tests: `tests/v2/test_handlers_parametrized.py`, `tests/v2/test_client_unified.py`
+  - Status: ✅ Complete
+
 - [x] **Anthropic** (`Provider.ANTHROPIC`)
   - Location: `instructor/v2/providers/anthropic/`
   - Modes: `TOOLS`, `JSON`, `JSON_SCHEMA`, `PARALLEL_TOOLS`

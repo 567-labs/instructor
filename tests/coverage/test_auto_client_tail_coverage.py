@@ -239,6 +239,14 @@ def test_generative_ai_builder_uses_environment_key_and_forwards_options(
             "OPENROUTER_API_KEY",
             "https://openrouter.ai/api/v1/",
         ),
+        (
+            "requesty",
+            auto_client._build_requesty,
+            "instructor.v2.providers.requesty.client",
+            "from_requesty",
+            "REQUESTY_API_KEY",
+            "https://router.requesty.ai/v1/",
+        ),
     ],
 )
 @pytest.mark.parametrize("async_client", [False, True])
@@ -310,6 +318,7 @@ def test_openai_compatible_tail_builders_use_environment_and_custom_url(
     [
         ("deepseek", auto_client._build_deepseek, "DEEPSEEK_API_KEY"),
         ("openrouter", auto_client._build_openrouter, "OPENROUTER_API_KEY"),
+        ("requesty", auto_client._build_requesty, "REQUESTY_API_KEY"),
     ],
 )
 def test_openai_compatible_tail_builders_require_api_key(
@@ -519,6 +528,7 @@ MISSING_IMPORTS = [
         "optional dependency `xai-sdk`",
     ),
     ("openrouter", auto_client._build_openrouter, "openai", "OpenRouter provider"),
+    ("requesty", auto_client._build_requesty, "openai", "Requesty provider"),
     ("litellm", auto_client._build_litellm, "litellm", "LiteLLM provider"),
 ]
 
@@ -606,6 +616,12 @@ FACTORY_FAILURES = [
         auto_client._build_openrouter,
         "instructor.v2.providers.openrouter.client",
         "from_openrouter",
+    ),
+    (
+        "requesty",
+        auto_client._build_requesty,
+        "instructor.v2.providers.requesty.client",
+        "from_requesty",
     ),
     (
         "litellm",

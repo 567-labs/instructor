@@ -19,6 +19,7 @@ calls use the provider's model ID without that prefix.
 | Perplexity | `perplexity/sonar` | [Model](https://docs.perplexity.ai/docs/sonar/models/sonar) |
 | DeepSeek | `deepseek/deepseek-v4-flash` | [Migration](https://api-docs.deepseek.com/updates) |
 | OpenRouter | `openrouter/google/gemini-3.8-flash` | [Model](https://openrouter.ai/google/gemini-3.8-flash) |
+| Requesty | `requesty/openai/gpt-4o-mini` | [Model library](https://app.requesty.ai/model-library) |
 | Together | `together/meta-llama/Llama-3.3-70B-Instruct-Turbo` | [Models](https://docs.together.ai/docs/serverless/models) |
 | Bedrock | `bedrock/anthropic.claude-sonnet-5` | [Model and regions](https://docs.aws.amazon.com/en_en/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5.html) |
 | Vertex AI | `vertexai/gemini-3.8-flash` | [Model guide](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/guides/gemini-3-8-flash) |

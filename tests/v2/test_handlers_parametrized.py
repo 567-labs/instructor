@@ -44,6 +44,7 @@ _HANDLER_MODULE_PATHS: dict[Provider, Path] = {
     Provider.WRITER: _PROJECT_ROOT / "instructor/v2/providers/writer/handlers.py",
     Provider.OPENROUTER: _PROJECT_ROOT
     / "instructor/v2/providers/openrouter/handlers.py",
+    Provider.REQUESTY: _PROJECT_ROOT / "instructor/v2/providers/requesty/handlers.py",
 }
 _HANDLERS_LOADED: set[Provider] = set()
 
@@ -110,6 +111,11 @@ PARSE_SCENARIOS: dict[Provider, dict[Mode, str]] = {
         Mode.MD_JSON: "markdown",
     },
     Provider.OPENROUTER: {
+        Mode.TOOLS: "tool_call",
+        Mode.JSON_SCHEMA: "text",
+        Mode.MD_JSON: "markdown",
+    },
+    Provider.REQUESTY: {
         Mode.TOOLS: "tool_call",
         Mode.JSON_SCHEMA: "text",
         Mode.MD_JSON: "markdown",
@@ -251,6 +257,7 @@ class MockResponseBuilder:
             Provider.DATABRICKS,
             Provider.DEEPSEEK,
             Provider.OPENROUTER,
+            Provider.REQUESTY,
             Provider.PERPLEXITY,
             Provider.CEREBRAS,
             Provider.WRITER,
@@ -312,6 +319,7 @@ class MockResponseBuilder:
             Provider.DATABRICKS,
             Provider.DEEPSEEK,
             Provider.OPENROUTER,
+            Provider.REQUESTY,
             Provider.PERPLEXITY,
             Provider.CEREBRAS,
             Provider.WRITER,

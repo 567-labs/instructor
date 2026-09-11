@@ -23,6 +23,7 @@ from pytest_examples import CodeExample, EvalExample, find_examples
                 "perplexity",
                 "deepseek",
                 "openrouter",
+                "requesty",
                 "together",
                 "bedrock",
                 "vertex",

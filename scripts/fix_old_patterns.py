@@ -37,6 +37,7 @@ PROVIDER_MAPPING = {
     "perplexity": "perplexity",
     "writer": "writer",
     "openrouter": "openrouter",
+    "requesty": "requesty",
     "sambanova": "sambanova",
     "truefoundry": "truefoundry",
     "cortex": "cortex",

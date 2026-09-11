@@ -69,6 +69,9 @@ def test_normalize_mode_passthrough_for_generic_modes(mode: Mode) -> None:
         (Provider.VERTEXAI, Mode.VERTEXAI_JSON),
         (Provider.VERTEXAI, Mode.VERTEXAI_PARALLEL_TOOLS),
         (Provider.OPENROUTER, Mode.OPENROUTER_STRUCTURED_OUTPUTS),
+        (Provider.REQUESTY, Mode.FUNCTIONS),
+        (Provider.REQUESTY, Mode.TOOLS_STRICT),
+        (Provider.REQUESTY, Mode.JSON_O1),
     ],
 )
 def test_legacy_modes_normalize_with_warning(
@@ -89,6 +92,7 @@ def test_legacy_modes_normalize_with_warning(
         (Provider.ANTHROPIC, Mode.GENAI_TOOLS),
         (Provider.GENAI, Mode.VERTEXAI_TOOLS),
         (Provider.COHERE, Mode.OPENROUTER_STRUCTURED_OUTPUTS),
+        (Provider.REQUESTY, Mode.OPENROUTER_STRUCTURED_OUTPUTS),
     ],
 )
 def test_legacy_modes_do_not_cross_provider_boundaries(

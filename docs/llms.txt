@@ -178,6 +178,7 @@ Instructor supports many additional providers:
 - Perplexity
 - Ollama
 - OpenRouter
+- Requesty
 - LiteLLM
 - llama-cpp-python
 

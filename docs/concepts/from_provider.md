@@ -75,6 +75,7 @@ user = client.create(
 - DeepSeek: `"deepseek/deepseek-chat"`
 - xAI: `"xai/grok-beta"`
 - OpenRouter: `"openrouter/meta-llama/llama-3.1-70b"`
+- Requesty: `"requesty/openai/gpt-4o-mini"`
 - Ollama: `"ollama/llama3.2"` (local models)
 - LiteLLM: `"litellm/gpt-4o"` (meta-provider)
 
@@ -243,7 +244,7 @@ try:
 except ConfigurationError as e:
     print(f"Unsupported provider: {e}")
     """
-    Unsupported provider: Unsupported provider: unsupported. Supported providers are: ['openai', 'azure_openai', 'databricks', 'anthropic', 'google', 'generative-ai', 'vertexai', 'mistral', 'cohere', 'perplexity', 'groq', 'writer', 'bedrock', 'cerebras', 'deepseek', 'fireworks', 'ollama', 'openrouter', 'xai', 'litellm']
+    Unsupported provider: Unsupported provider: unsupported. Supported providers are: ['openai', 'azure_openai', 'databricks', 'anthropic', 'google', 'generative-ai', 'vertexai', 'mistral', 'cohere', 'perplexity', 'groq', 'writer', 'bedrock', 'cerebras', 'deepseek', 'fireworks', 'ollama', 'openrouter', 'requesty', 'xai', 'litellm']
     """
 
 try:
@@ -283,6 +284,7 @@ export COHERE_API_KEY=your-key
 export GROQ_API_KEY=your-key
 export DEEPSEEK_API_KEY=your-key
 export OPENROUTER_API_KEY=your-key
+export REQUESTY_API_KEY=your-key
 ```
 
 ## Switching Between Providers
