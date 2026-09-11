@@ -210,3 +210,24 @@ def test_list_of_model_three_way_union_generates_clean_name():
     prepared = prepare_response_model(list[A | B | C])
     assert prepared is not None
     assert prepared.__name__ == "IterableAOrBOrC"
+
+
+def test_custom_class_not_simple():
+    """Custom non-Pydantic classes must not be falsely identified as simple types (Issue #2613)."""
+
+    class MyCustomClass:
+        pass
+
+    assert not is_simple_type(MyCustomClass)
+    assert not is_simple_type(list[MyCustomClass])
+    assert not is_simple_type(Iterable[MyCustomClass])
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 10),
+    reason="Union pipe syntax is only available in Python 3.10+",
+)
+def test_union_pipe_syntax_is_simple_type():
+    """Direct PEP 604 union types (e.g., int | str) must be identified as simple types."""
+    assert is_simple_type(int | str)
+
