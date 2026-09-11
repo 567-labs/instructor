@@ -68,18 +68,26 @@ def test_reask_genai_tools_with_function_call_appends_user_response(
     assert "Validation Error found" in function_response["response"]["error"]
 
 
-def test_reask_genai_structured_outputs_appends_model_content(
+def test_reask_genai_structured_outputs_ends_on_user_turn(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_fake_genai_types(monkeypatch)
-    kwargs = {"contents": []}
+    original_contents = [
+        FakeContent(role="user", parts=[FakePart(text="Name a color")])
+    ]
+    kwargs = {"contents": original_contents}
     response = SimpleNamespace(text='{"bad": true}')
 
     result = reask_genai_structured_outputs(kwargs, response, ValueError("bad json"))
 
-    assert isinstance(result["contents"][-1], FakeModelContent)
+    assert result["contents"] is not original_contents
+    assert len(original_contents) == 1
+    assert isinstance(result["contents"][-2], FakeModelContent)
+    assert result["contents"][-2].parts[0].text == '{"bad": true}'
+    assert result["contents"][-1].role == "user"
     assert "bad json" in result["contents"][-1].parts[0].text
-    assert '{"bad": true}' in result["contents"][-1].parts[0].text
+    assert "Recall the function correctly" in result["contents"][-1].parts[0].text
+    assert '{"bad": true}' not in result["contents"][-1].parts[0].text
 
 
 def test_tools_handler_prepare_request_without_response_model(

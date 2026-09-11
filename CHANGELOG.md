@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **GenAI structured-output retry**: End validation reasks on a user turn and copy caller-owned `contents`, matching tool-mode reasks, so Gemini no longer rejects the retry with `Requests ending with a model turn are not supported.` ([#2631](https://github.com/567-labs/instructor/issues/2631))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
