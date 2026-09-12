@@ -1,10 +1,18 @@
 from __future__ import annotations
 from inspect import isclass
+import sys
 import typing
 from pydantic import BaseModel, create_model
 from enum import Enum
 
 from instructor.v2.dsl.partial import Partial
+
+if sys.version_info >= (3, 10):
+    from types import UnionType
+
+    _UNION_ORIGINS: tuple[typing.Any, ...] = (typing.Union, UnionType)
+else:  # pragma: no cover - Python 3.9 has no runtime ``X | Y`` syntax
+    _UNION_ORIGINS = (typing.Union,)
 
 T = typing.TypeVar("T")
 
@@ -100,8 +108,13 @@ def is_simple_type(
                 except TypeError:
                     pass
 
-                # Check for Python 3.10+ pipe syntax
-                if hasattr(inner_arg, "__or__"):
+                # Check for Python 3.10+ pipe syntax, e.g. list[int | str]:
+                # get_origin(X | Y) is types.UnionType (typing.Union origins are
+                # handled above). Do NOT probe `hasattr(inner_arg, "__or__")` --
+                # on 3.10+ `__or__` lives on `type` itself (PEP 604), so every
+                # class satisfies it and custom non-BaseModel classes are then
+                # misclassified as simple types, crashing schema generation.
+                if inner_origin in _UNION_ORIGINS:
                     return True
 
                 # For simple list with basic types, also return True
@@ -127,8 +140,11 @@ def is_simple_type(
             ):
                 return True
 
-            # Check for Python 3.10+ pipe syntax
-            if hasattr(inner_arg, "__or__"):
+            # Check for Python 3.10+ pipe syntax, e.g. Iterable[int | str]:
+            # get_origin(X | Y) is types.UnionType. Do NOT probe
+            # `hasattr(inner_arg, "__or__")` -- on 3.10+ `__or__` lives on `type`
+            # itself (PEP 604), so every class satisfies it.
+            if inner_origin in _UNION_ORIGINS:
                 return True
 
             # For simple list with basic types, also return True

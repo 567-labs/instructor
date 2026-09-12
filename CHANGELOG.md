@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Response model validation**: Custom (non-BaseModel) classes used as `list[...]` element types are no longer misclassified as simple types on Python 3.10+ (`__or__` now lives on `type` itself, so probing for it matched every class), and `prepare_response_model` raises a clear `TypeError` for unsupported element types instead of an opaque Pydantic schema error. ([#2613](https://github.com/567-labs/instructor/issues/2613))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes

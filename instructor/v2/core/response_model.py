@@ -65,6 +65,18 @@ def is_simple_type(typehint: type[T]) -> bool:
     return _is_simple_type(typehint)
 
 
+def _is_model_type(candidate: Any) -> bool:
+    """True for BaseModel subclasses, TypedDicts, and unions of those."""
+    if is_typed_dict(candidate):
+        return True
+    if inspect.isclass(candidate) and issubclass(candidate, BaseModel):
+        return True
+    return get_origin(candidate) in _UNION_ORIGINS and all(
+        inspect.isclass(member) and issubclass(member, BaseModel)
+        for member in get_args(candidate)
+    )
+
+
 def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
     """Normalize user response-model inputs into runtime-ready model classes."""
     from instructor.v2.validation.async_validators import reject_async_validators
@@ -78,16 +90,6 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
     if origin is list and is_simple_type(working_model):
         args = get_args(working_model)
         inner = args[0] if args else None
-
-        def _is_model_type(candidate: Any) -> bool:
-            if is_typed_dict(candidate):
-                return True
-            if inspect.isclass(candidate) and issubclass(candidate, BaseModel):
-                return True
-            return get_origin(candidate) in _UNION_ORIGINS and all(
-                inspect.isclass(member) and issubclass(member, BaseModel)
-                for member in get_args(candidate)
-            )
 
         if inner is not None and _is_model_type(inner):
             origin = list
@@ -112,6 +114,12 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
         iterable_element_class = args[0]
         if is_typed_dict(iterable_element_class):
             iterable_element_class = _typed_dict_to_model(iterable_element_class)
+        if not _is_model_type(iterable_element_class):
+            raise TypeError(
+                f"Unsupported response_model {response_model!r}: elements of "
+                "list[...] / Iterable[...] must be BaseModel subclasses, "
+                f"TypedDicts, or unions of those; got {iterable_element_class!r}."
+            )
         working_model = IterableModel(cast(type[BaseModel], iterable_element_class))
 
     if is_simple_type(working_model):
