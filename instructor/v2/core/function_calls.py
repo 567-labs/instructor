@@ -91,6 +91,9 @@ def _validate_model_from_json(
     strict: bool | None = None,
 ) -> Any:
     """Validate model from JSON string with appropriate error handling."""
+    from instructor.utils import extract_json_from_codeblock
+    json_str = extract_json_from_codeblock(json_str)
+
     try:
         if hasattr(cls, "model_validate_json"):
             if strict:
