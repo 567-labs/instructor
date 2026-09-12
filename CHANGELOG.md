@@ -16,7 +16,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Ordinary dictionaries containing non-string keys, including nested dictionaries, bypass caching. Pydantic models use their JSON-serialized representation for cache identity, which does not preserve every distinction between original Python key types.
 
 ### Fixed
-- **CLI installation**: Declare the CLI’s `tqdm` dependency directly to fix the missing-dependency crash in OpenAI 3 installations, which no longer supply it transitively. Defer file and job client construction so top-level and subcommand help work without provider credentials.
+- **CLI installation**: Declare `tqdm` directly for OpenAI 3 installations. Construct file and job clients lazily so help works without credentials, while delete and cancel commands still fail when credentials are missing. ([#2622](https://github.com/567-labs/instructor/pull/2622))
+- **Anthropic retry usage**: Accumulate thinking-token counts when older SDKs retain `output_tokens_details` as a dictionary, preserving SDK response types and unknown/null metadata. ([#2620](https://github.com/567-labs/instructor/pull/2620))
+- **Streaming request isolation**: Honor explicit streaming flags across OpenAI-compatible, Anthropic, Mistral and xAI mode handlers when requests reuse a model. Preserve sequential direct-handler inference when `stream` is omitted. ([#2626](https://github.com/567-labs/instructor/pull/2626))
+- **Retry hooks**: Do not report a custom retry-policy error as terminal before the policy has finished deciding whether to retry. ([#2625](https://github.com/567-labs/instructor/pull/2625))
 - **Partial streaming**: Preserve model instances inside nullable list fields in sync and async streams, while retaining validation context and final validation. ([#2600](https://github.com/567-labs/instructor/pull/2600))
 - **GenAI truncation**: Raise `IncompleteOutputException` for non-streaming tools and JSON responses ending with `MAX_TOKENS`, instead of accepting schema defaults for missing output. ([#2601](https://github.com/567-labs/instructor/pull/2601))
 - **GenAI templating**: Preserve text-part metadata, including thought flags and signatures, without modifying caller-owned conversation history. ([#2607](https://github.com/567-labs/instructor/issues/2607), [#2608](https://github.com/567-labs/instructor/pull/2608))
@@ -27,6 +30,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Changed
 - Consolidate duplicate helpers and utility tests while preserving public compatibility, and separate token-budget policy from retry execution without changing budget arithmetic or retry behavior. ([#2616](https://github.com/567-labs/instructor/pull/2616), [#2617](https://github.com/567-labs/instructor/pull/2617))
+- Move Bedrock SDK construction and GenAI request configuration into their provider modules, and separate cache response serialization from cache storage while retaining compatibility entry points. ([#2618](https://github.com/567-labs/instructor/pull/2618), [#2619](https://github.com/567-labs/instructor/pull/2619), [#2621](https://github.com/567-labs/instructor/pull/2621))
+
+### Validation and Documentation
+- Add installed-distribution compatibility checks and make provider CI execution and skips visible; a skipped provider job is not evidence of live API compatibility. ([#2622](https://github.com/567-labs/instructor/pull/2622), [#2623](https://github.com/567-labs/instructor/pull/2623))
+- Add reproducible offline benchmarks and distinguish response-model allocations from retained objects. These tools do not claim a speedup or a fixed unbounded leak. ([#2624](https://github.com/567-labs/instructor/pull/2624), [#2627](https://github.com/567-labs/instructor/pull/2627))
+- Document provider-specific usage accounting and its streaming, cache, batch and legacy CLI-estimate limitations, together with retry and streaming contracts. ([#2620](https://github.com/567-labs/instructor/pull/2620), [#2625](https://github.com/567-labs/instructor/pull/2625), [#2626](https://github.com/567-labs/instructor/pull/2626))
 
 ## [1.17.0] - 2026-09-04
 
