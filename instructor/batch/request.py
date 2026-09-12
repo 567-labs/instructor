@@ -60,10 +60,12 @@ class BatchRequest(BaseModel, Generic[T]):
         """Convert to OpenAI batch format with JSON schema"""
         schema = self.get_json_schema()
 
-        # OpenAI strict mode requires additionalProperties to be false
+        # OpenAI strict mode requires all fields and disallows extra properties.
         def make_strict_schema(schema_dict):
-            """Recursively add additionalProperties: false for OpenAI strict mode"""
+            """Recursively require all properties for OpenAI strict mode."""
             if isinstance(schema_dict, dict):
+                if "default" in schema_dict and schema_dict["default"] is None:
+                    del schema_dict["default"]
                 if "type" in schema_dict:
                     if schema_dict["type"] == "object":
                         schema_dict["additionalProperties"] = False
@@ -72,6 +74,7 @@ class BatchRequest(BaseModel, Generic[T]):
 
                 # Recursively process properties
                 if "properties" in schema_dict:
+                    schema_dict["required"] = list(schema_dict["properties"])
                     for prop_name, prop_schema in schema_dict["properties"].items():
                         schema_dict["properties"][prop_name] = make_strict_schema(
                             prop_schema
