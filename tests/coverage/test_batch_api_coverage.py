@@ -414,6 +414,7 @@ def test_openai_batch_request_requires_fields_with_defaults(nested: bool) -> Non
         schema = schema["$defs"]["Contact"]
 
     assert schema["required"] == ["name", "phone_number"]
+    assert "default" not in schema["properties"]["phone_number"]
     assert {"type": "null"} in schema["properties"]["phone_number"]["anyOf"]
     # Requiring fields in the request must not change local Pydantic defaults.
     assert Contact(name="Ada").phone is None

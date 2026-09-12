@@ -64,6 +64,8 @@ class BatchRequest(BaseModel, Generic[T]):
         def make_strict_schema(schema_dict):
             """Recursively require all properties for OpenAI strict mode."""
             if isinstance(schema_dict, dict):
+                if "default" in schema_dict and schema_dict["default"] is None:
+                    del schema_dict["default"]
                 if "type" in schema_dict:
                     if schema_dict["type"] == "object":
                         schema_dict["additionalProperties"] = False
