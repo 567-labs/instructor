@@ -50,7 +50,8 @@ Learn how to integrate Instructor with various AI model providers. These compreh
     Unified interfaces for multiple providers
 
     [:octicons-arrow-right-16: LiteLLM](./litellm.md)
-    [:octicons-arrow-right-16: OpenRouter](./openrouter.md)
+    [:octicons-arrow-right-16: OpenRouter](./openrouter.md)                  ·
+    [:octicons-arrow-right-16: Atlas Cloud](./atlascloud.md)
 
 </div>
 

@@ -36,6 +36,7 @@ _HANDLER_MODULE_PATHS: dict[Provider, Path] = {
     Provider.MISTRAL: _PROJECT_ROOT / "instructor/v2/providers/mistral/handlers.py",
     Provider.FIREWORKS: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
     Provider.CEREBRAS: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
+    Provider.ATLASCLOUD: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
     Provider.WRITER: _PROJECT_ROOT / "instructor/v2/providers/writer/handlers.py",
     Provider.BEDROCK: _PROJECT_ROOT / "instructor/v2/providers/bedrock/handlers.py",
     Provider.VERTEXAI: _PROJECT_ROOT / "instructor/v2/providers/vertexai/handlers.py",

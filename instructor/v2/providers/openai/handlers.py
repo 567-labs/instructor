@@ -62,6 +62,7 @@ OPENAI_COMPAT_PROVIDERS = [
     Provider.GROQ,
     Provider.FIREWORKS,
     Provider.CEREBRAS,
+    Provider.ATLASCLOUD,
 ]
 
 OPENAI_PARALLEL_TOOL_PROVIDERS = [
@@ -72,6 +73,7 @@ OPENAI_PARALLEL_TOOL_PROVIDERS = [
     Provider.DEEPSEEK,
     Provider.OPENROUTER,
     Provider.CEREBRAS,
+    Provider.ATLASCLOUD,
 ]
 
 OPENAI_JSON_SCHEMA_PROVIDERS = [
@@ -83,6 +85,7 @@ OPENAI_JSON_SCHEMA_PROVIDERS = [
     Provider.GROQ,
     Provider.FIREWORKS,
     Provider.CEREBRAS,
+    Provider.ATLASCLOUD,
 ]
 
 

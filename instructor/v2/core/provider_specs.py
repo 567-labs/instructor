@@ -166,6 +166,25 @@ PROVIDER_SPECS: Mapping[Provider, ProviderSpec] = MappingProxyType(
             client_module="instructor.v2.providers.openrouter.client",
             sdk_module="openai",
         ),
+        Provider.ATLASCLOUD: _spec(
+            Provider.ATLASCLOUD,
+            aliases=("atlascloud",),
+            handler_module="instructor.v2.providers.openai.handlers",
+            supported_modes=(
+                Mode.TOOLS,
+                Mode.JSON_SCHEMA,
+                Mode.MD_JSON,
+                Mode.PARALLEL_TOOLS,
+            ),
+            unsupported_modes=(Mode.RESPONSES_TOOLS,),
+            legacy_modes={
+                Mode.FUNCTIONS: Mode.TOOLS,
+                Mode.TOOLS_STRICT: Mode.TOOLS,
+            },
+            from_function="from_atlascloud",
+            client_module="instructor.v2.providers.atlascloud.client",
+            sdk_module="openai",
+        ),
         Provider.ANTHROPIC: _spec(
             Provider.ANTHROPIC,
             aliases=("anthropic",),
