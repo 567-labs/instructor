@@ -86,6 +86,32 @@ def test_list_of_base_model_not_simple():
     assert not is_simple_type(List[Item])  # noqa: UP006
 
 
+def test_list_of_custom_class_not_simple():
+    """A custom non-BaseModel class is not a simple type.
+
+    On Python 3.10+ every class satisfies ``hasattr(cls, "__or__")`` because PEP
+    604 put ``__or__`` on ``type`` itself, so probing for ``__or__`` misclassified
+    e.g. ``list[MyClass]`` as a simple type and crashed schema generation.
+    https://github.com/jxnl/instructor/issues/2613
+    """
+
+    class MyClass:
+        pass
+
+    assert not is_simple_type(list[MyClass])
+    assert not is_simple_type(Iterable[MyClass])
+
+
+def test_prepare_response_model_with_custom_class_raises_clear_error():
+    """A custom class inside list[...] must fail with a clear TypeError."""
+
+    class MyClass:
+        pass
+
+    with pytest.raises(TypeError, match="BaseModel subclasses"):
+        prepare_response_model(list[MyClass])
+
+
 @pytest.mark.skipif(
     sys.version_info < (3, 10),
     reason="Union pipe syntax is only available in Python 3.10+",

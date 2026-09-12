@@ -198,7 +198,9 @@ def test_is_simple_type_covers_list_shapes_and_old_issubclass_behavior(
 ) -> None:
     assert is_simple_type(list[typing.Union[int, str]])
     assert not is_simple_type(list[User])
-    assert is_simple_type(list[object]) is hasattr(object, "__or__")
+    # A plain class is never a simple type; on Python 3.10+ every class satisfies
+    # hasattr(cls, "__or__") (PEP 604), so the old probe misclassified list[object].
+    assert not is_simple_type(list[object])
     assert is_simple_type(typing.List)  # noqa: UP006
 
     monkeypatch.setattr(simple_type, "hasattr", lambda *_: False, raising=False)
