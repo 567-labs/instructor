@@ -1,5 +1,6 @@
 from __future__ import annotations
 from inspect import isclass
+import types
 import typing
 from pydantic import BaseModel, create_model
 from enum import Enum
@@ -43,8 +44,6 @@ def validateIsSubClass(response_model: type):
         return issubclass(typing.get_args(response_model)[0], BaseModel)
     try:
         # Add a guard here to prevent issues with GenericAlias
-        import types
-
         if isinstance(response_model, types.GenericAlias):
             return False
     except Exception:
@@ -100,8 +99,9 @@ def is_simple_type(
                 except TypeError:
                     pass
 
-                # Check for Python 3.10+ pipe syntax
-                if hasattr(inner_arg, "__or__"):
+                # Check for Python 3.10+ pipe syntax (str | int creates types.UnionType;
+                # plain classes also have __or__ since Python 3.10, so check the type)
+                if hasattr(types, "UnionType") and isinstance(inner_arg, types.UnionType):
                     return True
 
                 # For simple list with basic types, also return True
@@ -127,8 +127,9 @@ def is_simple_type(
             ):
                 return True
 
-            # Check for Python 3.10+ pipe syntax
-            if hasattr(inner_arg, "__or__"):
+            # Check for Python 3.10+ pipe syntax (str | int creates types.UnionType;
+            # plain classes also have __or__ since Python 3.10, so check the type)
+            if hasattr(types, "UnionType") and isinstance(inner_arg, types.UnionType):
                 return True
 
             # For simple list with basic types, also return True
