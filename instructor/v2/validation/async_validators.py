@@ -121,7 +121,7 @@ def model_declares_async_validators(model_cls: Any) -> bool:
 async def run_async_validators(value: Any, *, context: dict[str, Any] | None) -> Any:
     """Recursively run declared async field/model validators over a parsed value.
 
-    Nested `BaseModel` instances (directly, or inside lists/tuples/dicts) are
+    Nested `BaseModel` instances (directly, or inside lists/tuples/sets/dicts) are
     validated depth-first so a parent model's async validators see already
     -validated children. Returns the (possibly updated) value; raises
     `AsyncValidationError` aggregating every failure found in the subtree.
@@ -132,6 +132,12 @@ async def run_async_validators(value: Any, *, context: dict[str, Any] | None) ->
         return [await run_async_validators(item, context=context) for item in value]
     if isinstance(value, tuple):
         return tuple(
+            [await run_async_validators(item, context=context) for item in value]
+        )
+    if isinstance(value, set):
+        return {await run_async_validators(item, context=context) for item in value}
+    if isinstance(value, frozenset):
+        return frozenset(
             [await run_async_validators(item, context=context) for item in value]
         )
     if isinstance(value, dict):
