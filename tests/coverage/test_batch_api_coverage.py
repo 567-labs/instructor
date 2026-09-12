@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from instructor.batch import (
     BatchError,
@@ -385,6 +385,39 @@ def test_openai_batch_request_preserves_boolean_property_schema() -> None:
 
     assert schema["additionalProperties"] is False
     assert schema["properties"]["forbidden"] is False
+
+
+@pytest.mark.parametrize("nested", [False, True], ids=["root", "nested-array"])
+def test_openai_batch_request_requires_fields_with_defaults(nested: bool) -> None:
+    class Contact(BaseModel):
+        name: str
+        phone: str | None = Field(default=None, alias="phone_number")
+
+    class Contacts(BaseModel):
+        contacts: list[Contact] = Field(default_factory=list)
+
+    request = BatchRequest(
+        custom_id="contacts-1",
+        messages=[{"role": "user", "content": "Extract contact details."}],
+        response_model=Contacts if nested else Contact,
+        model="gpt-4o-mini",
+    )
+    buffer = io.BytesIO()
+    request.save_to_file(buffer, provider="openai")
+    result = json.loads(buffer.getvalue())
+    response_format = result["body"]["response_format"]["json_schema"]
+    schema = response_format["schema"]
+
+    assert response_format["strict"] is True
+    if nested:
+        assert schema["required"] == ["contacts"]
+        schema = schema["$defs"]["Contact"]
+
+    assert schema["required"] == ["name", "phone_number"]
+    assert {"type": "null"} in schema["properties"]["phone_number"]["anyOf"]
+    # Requiring fields in the request must not change local Pydantic defaults.
+    assert Contact(name="Ada").phone is None
+    assert Contacts().contacts == []
 
 
 def test_anthropic_batch_request_extracts_system_message_and_completes_schema() -> None:

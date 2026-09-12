@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **OpenAI batches**: Include fields with defaults in strict schemas' required lists, including nested response models, while preserving nullable types and field aliases.
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
