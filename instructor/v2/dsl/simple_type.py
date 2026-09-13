@@ -45,7 +45,7 @@ def validateIsSubClass(response_model: type):
         # Add a guard here to prevent issues with GenericAlias
         import types
 
-        if isinstance(response_model, types.GenericAlias):
+        if typing.get_origin(response_model) is not None or isinstance(response_model, (types.GenericAlias, getattr(types, "GenericAlias", ()))):
             return False
     except Exception:
         pass
@@ -100,8 +100,10 @@ def is_simple_type(
                 except TypeError:
                     pass
 
-                # Check for Python 3.10+ pipe syntax
-                if hasattr(inner_arg, "__or__"):
+                # Check for Python 3.10+ pipe syntax (types.UnionType)
+                import types
+
+                if isinstance(inner_arg, getattr(types, "UnionType", ())) or inner_origin is getattr(types, "UnionType", None):
                     return True
 
                 # For simple list with basic types, also return True
@@ -127,8 +129,10 @@ def is_simple_type(
             ):
                 return True
 
-            # Check for Python 3.10+ pipe syntax
-            if hasattr(inner_arg, "__or__"):
+            # Check for Python 3.10+ pipe syntax (types.UnionType)
+            import types
+
+            if isinstance(inner_arg, getattr(types, "UnionType", ())) or inner_origin is getattr(types, "UnionType", None):
                 return True
 
             # For simple list with basic types, also return True
