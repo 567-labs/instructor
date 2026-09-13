@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **GenAI structured-output retries**: Preserve the failed model response and append validation feedback as a user turn without modifying the caller's conversation history. ([#2631](https://github.com/567-labs/instructor/issues/2631))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
