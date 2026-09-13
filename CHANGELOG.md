@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Hooks**: Preserve callback order when handlers register or unregister handlers during an emission; registration changes take effect on the next emission.
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes

@@ -86,6 +86,46 @@ def test_hooks_reject_invalid_name_and_remove_or_clear_registered_handlers() -> 
         hooks.get_hook_name(cast(Any, "completion:missing"))
 
 
+def test_hooks_self_removal_does_not_skip_the_next_handler() -> None:
+    hooks = Hooks()
+    seen: list[str] = []
+
+    def once(response: str) -> None:
+        seen.append(f"once:{response}")
+        hooks.off("completion:response", once)
+
+    def always(response: str) -> None:
+        seen.append(f"always:{response}")
+
+    hooks.on("completion:response", once)
+    hooks.on("completion:response", always)
+
+    hooks.emit_completion_response("first")
+    hooks.emit_completion_response("second")
+
+    assert seen == ["once:first", "always:first", "always:second"]
+
+
+def test_hooks_new_handlers_start_with_the_next_emission() -> None:
+    hooks = Hooks()
+    seen: list[str] = []
+
+    def register(response: str) -> None:
+        seen.append(f"register:{response}")
+        if response == "first":
+            hooks.on("completion:response", added)
+
+    def added(response: str) -> None:
+        seen.append(f"added:{response}")
+
+    hooks.on("completion:response", register)
+
+    hooks.emit_completion_response("first")
+    hooks.emit_completion_response("second")
+
+    assert seen == ["register:first", "register:second", "added:second"]
+
+
 def test_hooks_emit_retry_events_with_metadata_and_remove_the_final_handler() -> None:
     hooks = Hooks()
     error = ValueError("invalid response")
