@@ -198,7 +198,7 @@ def test_is_simple_type_covers_list_shapes_and_old_issubclass_behavior(
 ) -> None:
     assert is_simple_type(list[typing.Union[int, str]])
     assert not is_simple_type(list[User])
-    assert is_simple_type(list[object]) is hasattr(object, "__or__")
+    assert not is_simple_type(list[object])
     assert is_simple_type(typing.List)  # noqa: UP006
 
     monkeypatch.setattr(simple_type, "hasattr", lambda *_: False, raising=False)

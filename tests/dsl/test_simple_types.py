@@ -86,6 +86,16 @@ def test_list_of_base_model_not_simple():
     assert not is_simple_type(List[Item])  # noqa: UP006
 
 
+def test_custom_class_list_not_simple():
+    """list[CustomClass] (non-Pydantic) must not be identified as a simple type on Python 3.10+."""
+
+    class CustomClass:
+        pass
+
+    assert not is_simple_type(list[CustomClass])
+    assert not is_simple_type(List[CustomClass])  # noqa: UP006
+
+
 @pytest.mark.skipif(
     sys.version_info < (3, 10),
     reason="Union pipe syntax is only available in Python 3.10+",
