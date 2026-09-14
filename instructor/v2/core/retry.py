@@ -36,7 +36,7 @@ from instructor.v2.core.errors import (
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.response_list import ListResponse
 from instructor.v2.dsl.simple_type import AdapterBase
-from instructor.v2.core.messages import extract_messages
+from instructor.v2.core.messages import extract_messages, isolate_retry_kwargs
 from instructor.v2.core.usage import (
     _usage_snapshot as _usage_snapshot,
     _usage_total_tokens as _usage_total_tokens,
@@ -182,6 +182,11 @@ def retry_sync_v2(
     if response_model is None:
         # No structured output, just call the API
         return func(*args, **kwargs)
+
+    # Isolate the request lists that reask handlers mutate in place
+    # (``messages``/``contents``/``chat_history``) so retries cannot leak
+    # appended messages into the caller's own kwargs.
+    kwargs = isolate_retry_kwargs(kwargs)
 
     # Validate and get handlers from registry
     RegistryValidationMixin.validate_mode_registration(provider, mode)
@@ -478,6 +483,11 @@ async def retry_async_v2(
     if response_model is None:
         # No structured output, just call the API
         return await func(*args, **kwargs)
+
+    # Isolate the request lists that reask handlers mutate in place
+    # (``messages``/``contents``/``chat_history``) so retries cannot leak
+    # appended messages into the caller's own kwargs.
+    kwargs = isolate_retry_kwargs(kwargs)
 
     # Validate and get handlers from registry
     RegistryValidationMixin.validate_mode_registration(provider, mode)
