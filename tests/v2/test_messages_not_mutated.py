@@ -227,3 +227,106 @@ def test_reask_does_not_mutate_caller_messages(provider: Provider, mode: Mode) -
     handlers.reask_handler(new_kwargs, response, exception)
 
     assert caller_messages == original_snapshot
+
+
+def test_retry_sync_does_not_mutate_caller_messages() -> None:
+    """The public `retry_sync` entry point must isolate the caller's kwargs.
+
+    The patched-create path pre-isolates `messages` before entering the retry
+    loop, but callers that invoke the public `retry_sync`/`retry_async` API
+    directly hand their own kwargs dict to the loop. Reask handlers append to
+    `kwargs["messages"]` in place, so without isolation the caller's list is
+    permanently corrupted by validation retries.
+    """
+    from instructor.core import retry_sync
+
+    call_count = {"n": 0}
+
+    def fake_create(*_args: Any, **_kwargs: Any) -> ChatCompletion:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return _make_tool_call_response('{"name": "Ada"}', "call_1")
+        return _make_tool_call_response('{"name": "Ada", "age": 37}', "call_2")
+
+    caller_messages = [{"role": "user", "content": "Ada is 37 years old"}]
+    snapshot = deepcopy(caller_messages)
+    kwargs = {
+        "model": "gpt-4o-mini",
+        "messages": caller_messages,
+    }
+
+    result = retry_sync(
+        func=fake_create,
+        response_model=Answer,
+        args=(),
+        kwargs=kwargs,
+        mode=Mode.TOOLS,
+        provider=Provider.OPENAI,
+        max_retries=2,
+    )
+
+    assert isinstance(result, Answer)
+    assert result.age == 37
+    assert caller_messages == snapshot
+
+
+@pytest.mark.asyncio
+async def test_retry_async_does_not_mutate_caller_messages() -> None:
+    """Same isolation guarantee for the async `retry_async` entry point."""
+    from instructor.core import retry_async
+
+    call_count = {"n": 0}
+
+    async def fake_create(*_args: Any, **_kwargs: Any) -> ChatCompletion:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return _make_tool_call_response('{"name": "Ada"}', "call_1")
+        return _make_tool_call_response('{"name": "Ada", "age": 37}', "call_2")
+
+    caller_messages = [{"role": "user", "content": "Ada is 37 years old"}]
+    snapshot = deepcopy(caller_messages)
+    kwargs = {
+        "model": "gpt-4o-mini",
+        "messages": caller_messages,
+    }
+
+    result = await retry_async(
+        func=fake_create,
+        response_model=Answer,
+        args=(),
+        kwargs=kwargs,
+        mode=Mode.TOOLS,
+        provider=Provider.OPENAI,
+        max_retries=2,
+    )
+
+    assert isinstance(result, Answer)
+    assert result.age == 37
+    assert caller_messages == snapshot
+
+
+def test_handle_reask_kwargs_does_not_mutate_caller_messages() -> None:
+    """`handle_reask_kwargs` documents a shallow copy 'to avoid modifying the
+    original', but the reask handler then extends `kwargs["messages"]` in
+    place -- which mutated the caller's list. The isolation must be deep
+    enough to cover the mutated list."""
+    from instructor.processing import handle_reask_kwargs
+
+    response = _make_tool_call_response('{"name": "Ada"}', "call_1")
+    exception = ValueError("1 validation error for Answer\nage\n  Field required")
+
+    caller_messages = [{"role": "user", "content": "hi"}]
+    snapshot = deepcopy(caller_messages)
+    kwargs = {"model": "gpt-4o-mini", "messages": caller_messages}
+
+    new_kwargs = handle_reask_kwargs(
+        kwargs=kwargs,
+        mode=Mode.TOOLS,
+        provider=Provider.OPENAI,
+        response=response,
+        exception=exception,
+    )
+
+    # The reask payload itself must still carry the appended retry messages.
+    assert len(new_kwargs["messages"]) == len(snapshot) + 2
+    assert caller_messages == snapshot

@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Retry isolation**: Keep caller-owned `messages`, `contents` and `chat_history` lists unchanged when validation retries run through the public `retry_sync`, `retry_async` and `handle_reask_kwargs` entry points.
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
