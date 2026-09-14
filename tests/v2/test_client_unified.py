@@ -29,6 +29,7 @@ _HANDLER_MODULE_PATHS: dict[Provider, Path] = {
     Provider.COHERE: _PROJECT_ROOT / "instructor/v2/providers/cohere/handlers.py",
     Provider.OPENROUTER: _PROJECT_ROOT
     / "instructor/v2/providers/openrouter/handlers.py",
+    Provider.HUBRIS: _PROJECT_ROOT / "instructor/v2/providers/hubris/handlers.py",
     Provider.PERPLEXITY: _PROJECT_ROOT
     / "instructor/v2/providers/perplexity/handlers.py",
     Provider.XAI: _PROJECT_ROOT / "instructor/v2/providers/xai/handlers.py",

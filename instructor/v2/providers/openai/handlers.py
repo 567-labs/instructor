@@ -54,6 +54,7 @@ logger = logging.getLogger("instructor")
 
 OPENAI_COMPAT_PROVIDERS = [
     Provider.OPENAI,
+    Provider.HUBRIS,
     Provider.ANYSCALE,
     Provider.TOGETHER,
     Provider.DATABRICKS,
@@ -66,6 +67,7 @@ OPENAI_COMPAT_PROVIDERS = [
 
 OPENAI_PARALLEL_TOOL_PROVIDERS = [
     Provider.OPENAI,
+    Provider.HUBRIS,
     Provider.ANYSCALE,
     Provider.TOGETHER,
     Provider.DATABRICKS,
@@ -76,6 +78,7 @@ OPENAI_PARALLEL_TOOL_PROVIDERS = [
 
 OPENAI_JSON_SCHEMA_PROVIDERS = [
     Provider.OPENAI,
+    Provider.HUBRIS,
     Provider.ANYSCALE,
     Provider.TOGETHER,
     Provider.DATABRICKS,

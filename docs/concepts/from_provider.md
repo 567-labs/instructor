@@ -75,6 +75,7 @@ user = client.create(
 - DeepSeek: `"deepseek/deepseek-chat"`
 - xAI: `"xai/grok-beta"`
 - OpenRouter: `"openrouter/meta-llama/llama-3.1-70b"`
+- Hubris: `"hubris/anthropic/claude-sonnet-5"`
 - Ollama: `"ollama/llama3.2"` (local models)
 - LiteLLM: `"litellm/gpt-4o"` (meta-provider)
 
