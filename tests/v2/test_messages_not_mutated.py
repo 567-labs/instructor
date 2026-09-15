@@ -42,10 +42,11 @@ from openai.types.chat.chat_completion_message_tool_call import (
 from openai.types.completion_usage import CompletionUsage
 from pydantic import BaseModel
 
+from instructor.processing import handle_reask_kwargs
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.registry import mode_registry
-from instructor.v2.core.retry import retry_sync_v2
+from instructor.v2.core.retry import retry_async_v2, retry_sync_v2
 from instructor.v2.providers.openai.handlers import (
     OPENAI_COMPAT_PROVIDERS,
     OPENAI_JSON_SCHEMA_PROVIDERS,
@@ -166,6 +167,83 @@ def test_client_create_does_not_mutate_caller_messages_after_reask() -> None:
     assert result.name == "Ada"
     assert result.age == 37
     assert caller_messages == [{"role": "user", "content": "Ada is 37 years old"}]
+
+
+def test_public_retry_does_not_mutate_caller_messages_after_reask() -> None:
+    """Direct retry callers must receive the same request-state isolation as clients."""
+    call_count = {"n": 0}
+
+    def fake_openai_create(*_args: Any, **_kwargs: Any) -> ChatCompletion:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return _make_tool_call_response('{"name": "Ada"}', "call_1")
+        return _make_tool_call_response('{"name": "Ada", "age": 37}', "call_2")
+
+    caller_messages = [{"role": "user", "content": "Ada is 37 years old"}]
+    original_snapshot = deepcopy(caller_messages)
+
+    result = retry_sync_v2(
+        func=fake_openai_create,
+        response_model=Answer,
+        provider=Provider.OPENAI,
+        mode=Mode.TOOLS,
+        context=None,
+        max_retries=2,
+        args=(),
+        kwargs={"model": "gpt-4o-mini", "messages": caller_messages},
+        strict=True,
+        hooks=None,
+    )
+
+    assert isinstance(result, Answer)
+    assert caller_messages == original_snapshot
+
+
+@pytest.mark.asyncio
+async def test_public_async_retry_does_not_mutate_caller_messages_after_reask() -> None:
+    """The async public retry API must isolate request state before reasking."""
+    call_count = {"n": 0}
+
+    async def fake_openai_create(*_args: Any, **_kwargs: Any) -> ChatCompletion:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return _make_tool_call_response('{"name": "Ada"}', "call_1")
+        return _make_tool_call_response('{"name": "Ada", "age": 37}', "call_2")
+
+    caller_messages = [{"role": "user", "content": "Ada is 37 years old"}]
+    original_snapshot = deepcopy(caller_messages)
+
+    result = await retry_async_v2(
+        func=fake_openai_create,
+        response_model=Answer,
+        provider=Provider.OPENAI,
+        mode=Mode.TOOLS,
+        context=None,
+        max_retries=2,
+        args=(),
+        kwargs={"model": "gpt-4o-mini", "messages": caller_messages},
+        strict=True,
+        hooks=None,
+    )
+
+    assert isinstance(result, Answer)
+    assert caller_messages == original_snapshot
+
+
+def test_public_reask_helper_does_not_mutate_caller_messages() -> None:
+    """The compatibility reask helper must not mutate nested request lists."""
+    caller_messages = [{"role": "user", "content": "Ada is 37 years old"}]
+    original_snapshot = deepcopy(caller_messages)
+
+    result = handle_reask_kwargs(
+        kwargs={"model": "gpt-4o-mini", "messages": caller_messages},
+        mode=Mode.TOOLS,
+        response=_make_tool_call_response('{"name": "Ada"}', "call_1"),
+        exception=ValueError("age is required"),
+    )
+
+    assert len(result["messages"]) == 3
+    assert caller_messages == original_snapshot
 
 
 REASK_MUTATION_PAIRS: list[tuple[Provider, Mode]] = [
