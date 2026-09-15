@@ -44,6 +44,7 @@ from pydantic import BaseModel
 from typing_extensions import ParamSpec
 
 from instructor.v2.core.errors import InstructorError
+from instructor.v2.core.messages import isolate_retry_kwargs
 
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import ParallelBase
@@ -536,8 +537,7 @@ def handle_reask_kwargs(
     Note:
         Provider-specific formatting still lives on each registered mode handler.
     """
-    # Create a shallow copy of kwargs to avoid modifying the original
-    kwargs_copy = kwargs.copy()
+    kwargs_copy = isolate_retry_kwargs(kwargs)
 
     exception = InstructorError.from_exception(
         exception, failed_attempts=failed_attempts
