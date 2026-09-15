@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **v2 simple-type detection**: Stop misclassifying custom non-`BaseModel` classes as PEP 604 unions on Python 3.10+, and raise a clear `TypeError` for unsupported list/iterable element types instead of crashing inside Pydantic. ([#2613](https://github.com/567-labs/instructor/issues/2613))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes

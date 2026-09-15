@@ -31,6 +31,17 @@ def is_typed_dict(cls: Any) -> bool:
     )
 
 
+def _is_model_type(candidate: Any) -> bool:
+    if is_typed_dict(candidate):
+        return True
+    if inspect.isclass(candidate) and issubclass(candidate, BaseModel):
+        return True
+    return get_origin(candidate) in _UNION_ORIGINS and all(
+        inspect.isclass(member) and issubclass(member, BaseModel)
+        for member in get_args(candidate)
+    )
+
+
 def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
     """Convert a TypedDict while preserving per-key requiredness."""
     annotations = get_type_hints(typed_dict, include_extras=True)
@@ -79,16 +90,6 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
         args = get_args(working_model)
         inner = args[0] if args else None
 
-        def _is_model_type(candidate: Any) -> bool:
-            if is_typed_dict(candidate):
-                return True
-            if inspect.isclass(candidate) and issubclass(candidate, BaseModel):
-                return True
-            return get_origin(candidate) in _UNION_ORIGINS and all(
-                inspect.isclass(member) and issubclass(member, BaseModel)
-                for member in get_args(candidate)
-            )
-
         if inner is not None and _is_model_type(inner):
             origin = list
         else:
@@ -110,6 +111,11 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
                 "response_model must be parameterized, e.g. list[User] or Iterable[User]"
             )
         iterable_element_class = args[0]
+        if not _is_model_type(iterable_element_class):
+            raise TypeError(
+                "list response models must use BaseModel subclasses, TypedDicts, or unions of those; "
+                f"got {iterable_element_class!r}"
+            )
         if is_typed_dict(iterable_element_class):
             iterable_element_class = _typed_dict_to_model(iterable_element_class)
         working_model = IterableModel(cast(type[BaseModel], iterable_element_class))
