@@ -10,6 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- **Bedrock and Anthropic templating**: Render `context=` Jinja templates into the top-level `system` list (Converse blocks and Anthropic `{"type": "text", ...}` blocks) and Converse content text blocks. Both request handlers hoist the system prompt out of `messages` before templating runs, so system-prompt variables previously reached the model unrendered; Converse content blocks were affected as well. ([#2650](https://github.com/567-labs/instructor/issues/2650), [#2651](https://github.com/567-labs/instructor/pull/2651))
 - File-backed batch requests replace the destination after all records serialize. Failed writes preserve the previous batch.
 - OpenAI and Anthropic batch results that hit the token limit return an incomplete-output error, even when the partial JSON validates.
 - Anthropic batch requests omit an unset temperature and preserve explicit numeric values, including zero.
