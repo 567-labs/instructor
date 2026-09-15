@@ -1,5 +1,6 @@
 from __future__ import annotations
 from inspect import isclass
+import sys
 import typing
 from pydantic import BaseModel, create_model
 from enum import Enum
@@ -100,9 +101,13 @@ def is_simple_type(
                 except TypeError:
                     pass
 
-                # Check for Python 3.10+ pipe syntax
-                if hasattr(inner_arg, "__or__"):
-                    return True
+                # Check for Python 3.10+ pipe syntax without falsely treating
+                # ordinary custom classes as unions.
+                if sys.version_info >= (3, 10):
+                    import types
+
+                    if isinstance(inner_arg, types.UnionType):
+                        return True
 
                 # For simple list with basic types, also return True
                 if inner_arg in {str, int, float, bool}:
@@ -127,9 +132,13 @@ def is_simple_type(
             ):
                 return True
 
-            # Check for Python 3.10+ pipe syntax
-            if hasattr(inner_arg, "__or__"):
-                return True
+            # Check for Python 3.10+ pipe syntax without falsely treating
+            # ordinary custom classes as unions.
+            if sys.version_info >= (3, 10):
+                import types
+
+                if isinstance(inner_arg, types.UnionType):
+                    return True
 
             # For simple list with basic types, also return True
             if inner_arg in {str, int, float, bool}:
