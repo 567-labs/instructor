@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Bedrock templating**: Render `context=` Jinja templates into the Converse `system` list and content text blocks. The request handler reshapes messages into Converse form before templating runs, so variables previously reached the model unrendered. ([#2651](https://github.com/567-labs/instructor/pull/2651))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes

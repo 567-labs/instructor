@@ -23,6 +23,15 @@ def process_message(
 
         return process_genai_message(message, context, apply_template)
 
+    # Bedrock: the request handler has already turned content parts into Converse blocks
+    # ({"text": ...}, no "type"), which the Anthropic branch below would skip.
+    if provider == Provider.BEDROCK:
+        from instructor.v2.providers.bedrock.templating import (
+            process_message as process_bedrock_message,
+        )
+
+        return process_bedrock_message(message, context, apply_template)
+
     # VertexAI Support
     if (
         hasattr(message, "parts")
@@ -96,7 +105,8 @@ def handle_templating(
 
     This function processes messages, applying Jinja2 templating to their content
     using the provided context. It supports various message formats including
-    OpenAI, Anthropic, Cohere, VertexAI, and Gemini.
+    OpenAI, Anthropic, Bedrock Converse (including the top-level ``system`` list),
+    Cohere, VertexAI, and Gemini.
 
     Args:
         kwargs (Dict[str, Any]): Keyword arguments being passed to the create method.
@@ -132,6 +142,14 @@ def handle_templating(
 
     if isinstance(new_kwargs, list):
         return new_kwargs
+
+    # Bedrock hoists the system prompt out of messages into a top-level list of blocks.
+    if provider == Provider.BEDROCK and isinstance(new_kwargs.get("system"), list):
+        from instructor.v2.providers.bedrock.templating import process_system
+
+        new_kwargs["system"] = process_system(
+            new_kwargs["system"], context, apply_template
+        )
 
     message_key = "messages" if new_kwargs.get("messages") else "contents"
     messages = new_kwargs.get(message_key)
