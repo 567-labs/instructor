@@ -68,10 +68,16 @@ def extract_json_from_stream(chunks: Iterable[str]) -> Generator[str, None, None
     buffer: list[str] = []
     codeblock_buffer: list[str] = []
     last_invalid_candidate: str | None = None
+    total_chars = 0
     emitted_valid_candidate = False
 
     for chunk in chunks:
         for char in chunk:
+            total_chars += 1
+            if total_chars > MAX_JSON_EXTRACTION_CHARS:
+                raise ValueError("JSON extraction exceeds the 1 MB streaming limit")
+            if len(delimiter_stack) > MAX_JSON_DEPTH:
+                raise ValueError("JSON extraction nesting exceeds the 128 level limit")
             if not in_codeblock and char == "`" and not (json_started and in_string):
                 codeblock_buffer.append(char)
                 if len(codeblock_buffer) == 3:
@@ -168,6 +174,7 @@ async def extract_json_from_stream_async(
     buffer: list[str] = []
     codeblock_buffer: list[str] = []
     last_invalid_candidate: str | None = None
+    total_chars = 0
     emitted_valid_candidate = False
 
     async for chunk in chunks:
