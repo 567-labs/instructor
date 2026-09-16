@@ -20,13 +20,23 @@ class Answer(BaseModel):
     name: str
 
 
-@pytest.mark.parametrize("all_failed", [False, True])
 @pytest.mark.parametrize("operation", ["retrieve", "download", "processor"])
+@pytest.mark.parametrize(
+    ("all_failed", "delayed_file"),
+    [
+        (False, None),
+        (True, None),
+        (False, "file_output"),
+        (False, "file_errors"),
+        (True, "file_errors"),
+    ],
+)
 def test_completed_batch_preserves_error_file_results(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     all_failed: bool,
     operation: str,
+    delayed_file: str | None,
 ) -> None:
     success = {
         "id": "batch_req_ok",
@@ -66,6 +76,8 @@ def test_completed_batch_preserves_error_file_results(
         "file_errors": "\n".join(map(json.dumps, [failure, http_failure])) + "\n",
     }
     requests: list[str] = []
+    waits: list[int] = []
+    monkeypatch.setattr("time.sleep", waits.append)
 
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
@@ -81,8 +93,17 @@ def test_completed_batch_preserves_error_file_results(
                     "endpoint": "/v1/chat/completions",
                     "input_file_id": "file_input",
                     "status": "completed",
-                    "output_file_id": None if all_failed else "file_output",
-                    "error_file_id": "file_errors",
+                    "output_file_id": (
+                        None
+                        if all_failed
+                        or (len(requests) == 1 and delayed_file == "file_output")
+                        else "file_output"
+                    ),
+                    "error_file_id": (
+                        None
+                        if len(requests) == 1 and delayed_file == "file_errors"
+                        else "file_errors"
+                    ),
                     "request_counts": {
                         "total": len(expected),
                         "completed": int(not all_failed),
@@ -132,7 +153,8 @@ def test_completed_batch_preserves_error_file_results(
                 json.loads(line) for line in content.splitlines() if line
             ] == expected
 
-    assert requests == ["/v1/batches/batch_test"] + [
+    assert waits == ([5] if delayed_file else [])
+    assert requests == ["/v1/batches/batch_test"] * (2 if delayed_file else 1) + [
         f"/v1/files/{file_id}/content"
         for file_id in (
             ["file_errors"] if all_failed else ["file_output", "file_errors"]

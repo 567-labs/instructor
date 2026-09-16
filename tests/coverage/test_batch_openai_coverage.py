@@ -246,7 +246,7 @@ def test_get_status_wraps_sdk_error(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_completed_batch_reads_or_writes_results(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, operation: str
 ) -> None:
-    counts = SimpleNamespace(total=2, completed=1, failed=1)
+    counts = SimpleNamespace(total=1, completed=1, failed=0)
     batch = BatchResponse(request_counts=counts)
     client = OpenAIClient([batch])
     client.files.text = '{"custom_id": "one", "response": {}}\n'
@@ -295,7 +295,7 @@ def test_results_wait_for_output_file_then_succeed(
 
 
 @pytest.mark.parametrize("operation", ["retrieve", "download"])
-def test_results_reject_noncompleted_and_all_failed_batches(
+def test_results_reject_noncompleted_batches(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, operation: str
 ) -> None:
     pending_client = OpenAIClient([BatchResponse(status="in_progress")])
@@ -308,17 +308,7 @@ def test_results_reject_noncompleted_and_all_failed_batches(
         else:
             provider.download_results("batch_pending", str(destination))
 
-    failed_counts = SimpleNamespace(total=3, completed=0, failed=3)
-    failed_client = OpenAIClient([BatchResponse(request_counts=failed_counts)])
-    provider = install_client(monkeypatch, failed_client)
-    with pytest.raises(Exception, match="All 3 batch requests failed"):
-        if operation == "retrieve":
-            provider.retrieve_results("batch_failed")
-        else:
-            provider.download_results("batch_failed", str(destination))
-
     assert pending_client.files.content_ids == []
-    assert failed_client.files.content_ids == []
     assert not destination.exists()
 
 
@@ -349,16 +339,34 @@ def test_results_stop_when_status_changes_while_waiting(
 
 
 @pytest.mark.parametrize("operation", ["retrieve", "download"])
+@pytest.mark.parametrize("available_file", [None, "file_output", "file_errors"])
 def test_results_report_exhausted_output_retries(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, operation: str
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    operation: str,
+    available_file: str | None,
 ) -> None:
-    client = OpenAIClient([BatchResponse(output_file_id=None)])
+    client = OpenAIClient(
+        [
+            BatchResponse(
+                output_file_id="file_output"
+                if available_file == "file_output"
+                else None,
+                error_file_id="file_errors"
+                if available_file == "file_errors"
+                else None,
+                request_counts=SimpleNamespace(total=2, completed=1, failed=1),
+            )
+        ]
+    )
     provider = install_client(monkeypatch, client)
     waits: list[int] = []
     monkeypatch.setattr("time.sleep", waits.append)
     destination = tmp_path / "results.jsonl"
 
-    with pytest.raises(Exception, match="No output file available after 10 retries"):
+    with pytest.raises(
+        Exception, match="Expected result files not available after 10 retries"
+    ):
         if operation == "retrieve":
             provider.retrieve_results("batch_123")
         else:
