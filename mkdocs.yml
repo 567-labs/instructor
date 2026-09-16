@@ -228,6 +228,7 @@ nav:
     - "Contact Information Extraction": 'examples/extract_contact_info.md'
     - "Knowledge Graph Building": 'examples/building_knowledge_graphs.md'
     - "Tracing with Langfuse": 'examples/tracing_with_langfuse.md'
+    - "Tracing with Arize": 'examples/tracing_with_arize.md'
     - "Multiple Classification Tasks": 'examples/multiple_classification.md'
     - "Pandas DataFrame Integration": 'examples/pandas_df.md'
     - "Partial Response Streaming": 'examples/partial_streaming.md'

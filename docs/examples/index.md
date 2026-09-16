@@ -116,7 +116,8 @@ Our cookbooks demonstrate how to use Instructor to solve real-world problems wit
 
 | Example | Description | Use Case |
 |---------|-------------|----------|
-| [Langfuse Tracing](tracing_with_langfuse.md) | Open-source LLM engineering | Observability & Debugging
+| [Langfuse Tracing](tracing_with_langfuse.md) | Open-source LLM engineering | Observability & Debugging |
+| [Arize Tracing](tracing_with_arize.md) | AX or open-source Phoenix | Observability & Evaluation |
 
 ## Deployment Options
 
