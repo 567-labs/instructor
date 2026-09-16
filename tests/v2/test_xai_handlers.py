@@ -170,10 +170,11 @@ class TestXAIToolsHandler:
 
         result = handler.reask_handler(original_kwargs, response, exception)
 
-        # Returns a new dict (shallow copy)
+        # Returns a new dict
         assert result is not original_kwargs
-        # But messages list is shared (shallow copy behavior)
-        assert result["messages"] is original_kwargs["messages"]
+        # And messages list is an isolated copy (not mutated in original)
+        assert result["messages"] is not original_kwargs["messages"]
+        assert original_kwargs["messages"] == [{"role": "user", "content": "Test"}]
 
 
 # ============================================================================

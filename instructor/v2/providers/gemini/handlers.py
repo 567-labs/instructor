@@ -38,6 +38,9 @@ def reask_gemini_tools(
     """Build a Gemini tool reask payload after validation failure."""
     from google.ai import generativelanguage as glm  # type: ignore
 
+    kwargs = kwargs.copy()
+    kwargs["contents"] = list(kwargs.get("contents", []))
+
     reask_msgs = [
         {
             "role": "model",
@@ -74,6 +77,8 @@ def reask_gemini_json(
     exception: Exception,
 ):
     """Build a Gemini JSON reask payload after validation failure."""
+    kwargs = kwargs.copy()
+    kwargs["contents"] = list(kwargs.get("contents", []))
     kwargs["contents"].append(
         {
             "role": "user",

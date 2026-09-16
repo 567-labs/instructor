@@ -45,7 +45,13 @@ from pydantic import BaseModel
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.registry import mode_registry
-from instructor.v2.core.retry import retry_sync_v2
+from instructor.v2.core.response import handle_reask_kwargs
+from instructor.v2.core.retry import (
+    retry_async,
+    retry_async_v2,
+    retry_sync,
+    retry_sync_v2,
+)
 from instructor.v2.providers.openai.handlers import (
     OPENAI_COMPAT_PROVIDERS,
     OPENAI_JSON_SCHEMA_PROVIDERS,
@@ -227,3 +233,180 @@ def test_reask_does_not_mutate_caller_messages(provider: Provider, mode: Mode) -
     handlers.reask_handler(new_kwargs, response, exception)
 
     assert caller_messages == original_snapshot
+
+
+def test_retry_sync_does_not_mutate_caller_messages_after_reask() -> None:
+    """Public retry_sync must not mutate caller's messages list during validation retries."""
+    call_count = {"n": 0}
+
+    def fake_openai_create(*_args: Any, **_kwargs: Any) -> ChatCompletion:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return _make_tool_call_response('{"name": "Ada"}', "call_1")
+        return _make_tool_call_response('{"name": "Ada", "age": 37}', "call_2")
+
+    caller_messages = [{"role": "user", "content": "Ada is 37 years old"}]
+    original_snapshot = deepcopy(caller_messages)
+
+    result = retry_sync(
+        func=fake_openai_create,
+        response_model=Answer,
+        provider=Provider.OPENAI,
+        mode=Mode.TOOLS,
+        max_retries=2,
+        args=(),
+        kwargs={"model": "gpt-4o-mini", "messages": caller_messages},
+    )
+
+    assert isinstance(result, Answer)
+    assert result.name == "Ada"
+    assert result.age == 37
+    assert caller_messages == original_snapshot
+
+
+@pytest.mark.asyncio
+async def test_retry_async_does_not_mutate_caller_messages_after_reask() -> None:
+    """Public retry_async must not mutate caller's messages list during validation retries."""
+    call_count = {"n": 0}
+
+    async def fake_openai_create_async(*_args: Any, **_kwargs: Any) -> ChatCompletion:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return _make_tool_call_response('{"name": "Ada"}', "call_1")
+        return _make_tool_call_response('{"name": "Ada", "age": 37}', "call_2")
+
+    caller_messages = [{"role": "user", "content": "Ada is 37 years old"}]
+    original_snapshot = deepcopy(caller_messages)
+
+    result = await retry_async(
+        func=fake_openai_create_async,
+        response_model=Answer,
+        provider=Provider.OPENAI,
+        mode=Mode.TOOLS,
+        max_retries=2,
+        args=(),
+        kwargs={"model": "gpt-4o-mini", "messages": caller_messages},
+    )
+
+    assert isinstance(result, Answer)
+    assert result.name == "Ada"
+    assert result.age == 37
+    assert caller_messages == original_snapshot
+
+
+def test_retry_sync_v2_direct_does_not_mutate_caller_messages() -> None:
+    """Direct retry_sync_v2 call must not mutate caller's messages list during validation retries."""
+    call_count = {"n": 0}
+
+    def fake_openai_create(*_args: Any, **_kwargs: Any) -> ChatCompletion:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return _make_tool_call_response('{"name": "Ada"}', "call_1")
+        return _make_tool_call_response('{"name": "Ada", "age": 37}', "call_2")
+
+    caller_messages = [{"role": "user", "content": "Ada is 37 years old"}]
+    original_snapshot = deepcopy(caller_messages)
+
+    result = retry_sync_v2(
+        func=fake_openai_create,
+        response_model=Answer,
+        provider=Provider.OPENAI,
+        mode=Mode.TOOLS,
+        context=None,
+        max_retries=2,
+        args=(),
+        kwargs={"model": "gpt-4o-mini", "messages": caller_messages},
+        strict=True,
+    )
+
+    assert isinstance(result, Answer)
+    assert result.name == "Ada"
+    assert result.age == 37
+    assert caller_messages == original_snapshot
+
+
+@pytest.mark.asyncio
+async def test_retry_async_v2_direct_does_not_mutate_caller_messages() -> None:
+    """Direct retry_async_v2 call must not mutate caller's messages list during validation retries."""
+    call_count = {"n": 0}
+
+    async def fake_openai_create_async(*_args: Any, **_kwargs: Any) -> ChatCompletion:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return _make_tool_call_response('{"name": "Ada"}', "call_1")
+        return _make_tool_call_response('{"name": "Ada", "age": 37}', "call_2")
+
+    caller_messages = [{"role": "user", "content": "Ada is 37 years old"}]
+    original_snapshot = deepcopy(caller_messages)
+
+    result = await retry_async_v2(
+        func=fake_openai_create_async,
+        response_model=Answer,
+        provider=Provider.OPENAI,
+        mode=Mode.TOOLS,
+        context=None,
+        max_retries=2,
+        args=(),
+        kwargs={"model": "gpt-4o-mini", "messages": caller_messages},
+        strict=True,
+    )
+
+    assert isinstance(result, Answer)
+    assert result.name == "Ada"
+    assert result.age == 37
+    assert caller_messages == original_snapshot
+
+
+@pytest.mark.parametrize(
+    ("provider", "mode"),
+    [
+        (Provider.OPENAI, Mode.TOOLS),
+        (Provider.OPENAI, Mode.MD_JSON),
+        (Provider.ANTHROPIC, Mode.TOOLS),
+        (Provider.MISTRAL, Mode.TOOLS),
+        (Provider.XAI, Mode.TOOLS),
+        (Provider.COHERE, Mode.JSON_SCHEMA),
+    ],
+)
+def test_handle_reask_kwargs_does_not_mutate_caller_messages(
+    provider: Provider, mode: Mode
+) -> None:
+    """handle_reask_kwargs must leave caller's messages list completely unmodified."""
+    tool_call = ChatCompletionMessageToolCall(
+        id="call_1",
+        type="function",
+        function=Function(name="Answer", arguments='{"name": "Ada"}'),
+    )
+    response = ChatCompletion(
+        id="chatcmpl-test",
+        choices=[
+            Choice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant", content="stub", tool_calls=[tool_call]
+                ),
+                finish_reason="tool_calls",
+                logprobs=None,
+            )
+        ],
+        created=0,
+        model="test-model",
+        object="chat.completion",
+        usage=CompletionUsage(completion_tokens=1, prompt_tokens=1, total_tokens=2),
+    )
+    exception = ValueError("1 validation error for Answer\nage\n  Field required")
+
+    caller_messages = [{"role": "user", "content": "hi"}]
+    original_snapshot = deepcopy(caller_messages)
+
+    new_kwargs = handle_reask_kwargs(
+        kwargs={"model": "test-model", "messages": caller_messages},
+        mode=mode,
+        response=response,
+        exception=exception,
+        provider=provider,
+    )
+
+    assert caller_messages == original_snapshot
+    assert new_kwargs["messages"] is not caller_messages
+    assert len(new_kwargs["messages"]) > len(caller_messages)

@@ -21,6 +21,7 @@ def reask_perplexity_json(
     from instructor.v2.core.messages import dump_message
 
     kwargs = kwargs.copy()
+    kwargs["messages"] = list(kwargs.get("messages", []))
     reask_msgs = [dump_message(response.choices[0].message)]
     reask_msgs.append(
         {

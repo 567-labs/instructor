@@ -52,6 +52,7 @@ def reask_writer_tools(
 ):
     """Handle reask for Writer tools mode when validation fails."""
     kwargs = kwargs.copy()
+    kwargs["messages"] = list(kwargs.get("messages", []))
     reask_msgs = [_extract_reask_message(response)]
     reask_msgs.append(
         {
@@ -77,6 +78,7 @@ def reask_writer_json(
 ):
     """Handle reask for Writer JSON mode when validation fails."""
     kwargs = kwargs.copy()
+    kwargs["messages"] = list(kwargs.get("messages", []))
     base_message = _extract_reask_message(response)
     reask_msgs = [base_message]
     reask_msgs.append(
