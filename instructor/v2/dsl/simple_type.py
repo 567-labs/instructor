@@ -1,12 +1,38 @@
 from __future__ import annotations
 from inspect import isclass
 import typing
-from pydantic import BaseModel, create_model
+import types
+from pydantic import BaseModel, TypeAdapter, create_model
+from pydantic.errors import PydanticSchemaGenerationError
 from enum import Enum
 
 from instructor.v2.dsl.partial import Partial
 
 T = typing.TypeVar("T")
+
+if hasattr(types, "UnionType"):
+    _UNION_ORIGINS = (typing.Union, types.UnionType)
+else:  # pragma: no cover - Python 3.9 has no PEP 604 union type
+    _UNION_ORIGINS = (typing.Union,)
+
+
+def has_pydantic_schema(typehint: type) -> bool:
+    """Whether pydantic can generate a schema for ``typehint``.
+
+    Used to tell a custom class pydantic cannot describe (``list[MyClass]``, the
+    #2613 reproducer) apart from the classes it can (``Enum``, ``date``,
+    ``Decimal``, ``UUID``, dataclasses, typed dictionaries, or anything
+    implementing ``__get_pydantic_core_schema__``).
+
+    The probe runs at most twice per ``prepare_response_model`` call and costs a
+    few microseconds against a ~200-550 µs call, so it is deliberately not cached:
+    an ``lru_cache`` here would pin dynamically created classes alive for no gain.
+    """
+    try:
+        TypeAdapter(typehint)
+    except PydanticSchemaGenerationError:
+        return False
+    return True
 
 
 class AdapterBase(BaseModel):
@@ -86,7 +112,8 @@ def is_simple_type(
 
                 # Explicit check for Union types - try different patterns across Python versions
                 if (
-                    inner_origin is typing.Union
+                    inner_origin in _UNION_ORIGINS
+                    or inner_origin is typing.Union
                     or inner_origin == typing.Union
                     or str(inner_origin) == "typing.Union"
                     or str(type(inner_arg)) == "<class 'typing._UnionGenericAlias'>"
@@ -100,13 +127,29 @@ def is_simple_type(
                 except TypeError:
                     pass
 
-                # Check for Python 3.10+ pipe syntax
-                if hasattr(inner_arg, "__or__"):
-                    return True
+                # A member that is neither a class nor a typing construct (``None``,
+                # ``"ForwardRef"``, ``3``) is not a simple type either. The old
+                # ``hasattr(inner_arg, "__or__")`` probe covered this for free,
+                # because those members are exactly the ones without ``__or__``.
+                # ``None`` matters: ``prepare_response_model`` reports
+                # ``list[None]`` with its own "must be parameterized" error.
+                if not isclass(inner_arg) and inner_origin is None:
+                    return False
 
-                # For simple list with basic types, also return True
-                if inner_arg in {str, int, float, bool}:
-                    return True
+                # A custom class pydantic cannot describe must not reach the content
+                # adapter: it used to, and only blew up later with an opaque
+                # ``PydanticSchemaGenerationError`` (#2613). Falling through lets the
+                # iterable guard in ``prepare_response_model`` raise an actionable
+                # ``TypeError`` instead.
+                if isclass(inner_arg) and not has_pydantic_schema(inner_arg):
+                    return False
+
+                # Every remaining member keeps the content-adapter routing it had
+                # before the ``hasattr(inner_arg, "__or__")`` probe was replaced:
+                # scalars, enums, dates, decimals, UUIDs, dataclasses, typed
+                # dictionaries, ``Annotated`` and ``Literal`` members, classes
+                # implementing ``__get_pydantic_core_schema__``, and PEP 604 unions.
+                return True
 
             # If no args or unknown pattern, treat as simple list
             return len(args) == 0
@@ -120,18 +163,19 @@ def is_simple_type(
 
             # Explicit check for Union types - try different patterns across Python versions
             if (
-                inner_origin is typing.Union
+                inner_origin in _UNION_ORIGINS
+                or inner_origin is typing.Union
                 or inner_origin == typing.Union
                 or str(inner_origin) == "typing.Union"
                 or str(type(inner_arg)) == "<class 'typing._UnionGenericAlias'>"
             ):
                 return True
 
-            # Check for Python 3.10+ pipe syntax
-            if hasattr(inner_arg, "__or__"):
-                return True
-
-            # For simple list with basic types, also return True
+            # This branch is only reachable when ``get_origin`` reports
+            # ``typing.Iterable`` itself, which is the pre-3.9 spelling; on modern
+            # runtimes ``Iterable[X]`` resolves to ``collections.abc.Iterable`` and
+            # falls through to the bottom of the function. Keep the legacy
+            # scalar-only rule so the behaviour is unchanged where it does apply.
             if inner_arg in {str, int, float, bool}:
                 return True
 

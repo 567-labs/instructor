@@ -198,12 +198,15 @@ def test_is_simple_type_covers_list_shapes_and_old_issubclass_behavior(
 ) -> None:
     assert is_simple_type(list[typing.Union[int, str]])
     assert not is_simple_type(list[User])
-    assert is_simple_type(list[object]) is hasattr(object, "__or__")
+    # ``object`` is representable by pydantic, so it keeps the content-adapter path.
+    assert is_simple_type(list[object])
     assert is_simple_type(typing.List)  # noqa: UP006
 
-    monkeypatch.setattr(simple_type, "hasattr", lambda *_: False, raising=False)
     assert is_simple_type(list[int])
-    assert not is_simple_type(list[typing.Literal["one"]])
+    # ``Literal`` members keep the content-adapter path without needing the old
+    # ``hasattr(inner_arg, "__or__")`` probe, which was true for every class on
+    # Python 3.10+ and therefore could not distinguish these shapes at all.
+    assert is_simple_type(list[typing.Literal["one"]])
 
     def legacy_issubclass(value: object, base: type) -> bool:
         if value is int:

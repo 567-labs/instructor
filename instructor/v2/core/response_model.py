@@ -31,6 +31,21 @@ def is_typed_dict(cls: Any) -> bool:
     )
 
 
+def _has_pydantic_schema(typehint: Any) -> bool:
+    """Whether pydantic can generate a schema for ``typehint``.
+
+    Iterable response models accept any element type pydantic can represent, not
+    only ``BaseModel`` subclasses and typed dictionaries: enums, dates, decimals,
+    UUIDs, dataclasses and classes implementing ``__get_pydantic_core_schema__``
+    all prepared and generated schemas before this guard was added, and must keep
+    working. Asking pydantic keeps the diagnostic limited to element types that
+    are genuinely unsupported.
+    """
+    from instructor.v2.dsl.simple_type import has_pydantic_schema
+
+    return has_pydantic_schema(typehint)
+
+
 def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
     """Convert a TypedDict while preserving per-key requiredness."""
     annotations = get_type_hints(typed_dict, include_extras=True)
@@ -110,6 +125,15 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
                 "response_model must be parameterized, e.g. list[User] or Iterable[User]"
             )
         iterable_element_class = args[0]
+        if (
+            inspect.isclass(iterable_element_class)
+            and not is_typed_dict(iterable_element_class)
+            and not _has_pydantic_schema(iterable_element_class)
+        ):
+            raise TypeError(
+                "response_model iterable elements must be Pydantic models or typed dictionaries; "
+                f"got {iterable_element_class!r}"
+            )
         if is_typed_dict(iterable_element_class):
             iterable_element_class = _typed_dict_to_model(iterable_element_class)
         working_model = IterableModel(cast(type[BaseModel], iterable_element_class))
