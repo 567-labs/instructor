@@ -590,7 +590,7 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         )
 
     def _extract_text_content(self, response: Any) -> str:
-        """Extract text content from response."""
+        """Extract a string or concatenate text blocks from compatible providers."""
         choices = getattr(response, "choices", None)
         if not choices:
             raise ResponseParsingError(
@@ -598,7 +598,16 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                 mode=str(self.mode.value),
                 raw_response=response,
             )
-        return choices[0].message.content or ""
+        content = choices[0].message.content
+        if isinstance(content, list):
+            return "".join(
+                block["text"]
+                for block in content
+                if isinstance(block, dict)
+                and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+            )
+        return content or ""
 
     def _parse_json_response(
         self,
