@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **OpenAI-compatible JSON responses**: Parse text-block lists returned by providers such as Databricks, preserving string responses and leaving response metadata unchanged. ([#2654](https://github.com/567-labs/instructor/issues/2654))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
