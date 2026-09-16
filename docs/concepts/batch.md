@@ -154,6 +154,12 @@ Required permissions: `roles/aiplatform.user` and `roles/storage.objectUser`.
 
 ## Processing Results
 
+For completed OpenAI batches, results include records from both the output file
+and the error file. Failed requests are returned as `BatchError` objects with
+their `custom_id`, provider error code, and message, including when every request
+failed and only an error file is available. Downloaded results combine both files
+as JSONL; use `custom_id` to match records to requests rather than relying on order.
+
 Results use a Maybe/Result pattern for type-safe handling:
 
 ```python

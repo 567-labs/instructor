@@ -86,7 +86,7 @@ class OpenAIProvider(BatchProvider):
             raise Exception(f"Failed to get OpenAI batch status: {e}") from e
 
     def _get_results_text(self, batch_id: str) -> str:
-        """Return the output file for a completed OpenAI batch."""
+        """Return success and error records for a completed OpenAI batch."""
         from openai import OpenAI
         import time
 
@@ -102,12 +102,12 @@ class OpenAIProvider(BatchProvider):
             failed = getattr(request_counts, "failed", 0)
             total = getattr(request_counts, "total", 0)
 
-            if failed > 0 and completed == 0:
+            if failed > 0 and completed == 0 and not batch.error_file_id:
                 raise RuntimeError(
                     f"All {total} batch requests failed. No output file will be available."
                 )
 
-        if not batch.output_file_id:
+        if not batch.output_file_id and not batch.error_file_id:
             max_retries = 10
             for attempt in range(max_retries):
                 wait_time = min(5 + attempt, 15)
@@ -116,8 +116,11 @@ class OpenAIProvider(BatchProvider):
                 )
                 time.sleep(wait_time)
                 batch = client.batches.retrieve(batch_id)
-                if batch.output_file_id:
-                    print(f"Output file now available: {batch.output_file_id}")
+                if batch.output_file_id or batch.error_file_id:
+                    if batch.output_file_id:
+                        print(f"Output file now available: {batch.output_file_id}")
+                    else:
+                        print(f"Error file now available: {batch.error_file_id}")
                     break
                 if batch.status != "completed":
                     raise Exception(
@@ -129,7 +132,13 @@ class OpenAIProvider(BatchProvider):
                     f"Batch status: {batch.status}, Request counts: {getattr(batch, 'request_counts', 'unknown')}."
                 )
 
-        return client.files.content(batch.output_file_id).text
+        contents = [
+            client.files.content(file_id).text
+            for file_id in (batch.output_file_id, batch.error_file_id)
+            if file_id
+        ]
+        # A file need not end with a newline. Keep adjacent JSONL records separate.
+        return "\n".join(contents)
 
     def retrieve_results(self, batch_id: str) -> str:
         """Retrieve OpenAI batch results"""

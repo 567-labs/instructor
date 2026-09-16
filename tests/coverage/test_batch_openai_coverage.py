@@ -30,10 +30,12 @@ class BatchResponse:
         status: str = "completed",
         output_file_id: str | None = "file_output",
         request_counts: Any = None,
+        error_file_id: str | None = None,
     ) -> None:
         self.id = batch_id
         self.status = status
         self.output_file_id = output_file_id
+        self.error_file_id = error_file_id
         self.request_counts = request_counts
         self.created_at = 1_700_000_000
 
