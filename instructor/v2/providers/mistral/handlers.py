@@ -271,6 +271,7 @@ class MistralToolsHandler(MistralHandlerBase):
     ) -> dict[str, Any]:
         """Handle reask for tools mode."""
         kwargs = kwargs.copy()
+        kwargs["messages"] = list(kwargs.get("messages", []))
         message = response.choices[0].message
         reask_msgs: list[Any] = [dump_message(message)]
 
@@ -407,6 +408,7 @@ class MistralJSONSchemaHandler(MistralHandlerBase):
     ) -> dict[str, Any]:
         """Handle reask for JSON schema mode."""
         kwargs = kwargs.copy()
+        kwargs["messages"] = list(kwargs.get("messages", []))
         reask_msgs = [
             {
                 "role": "assistant",
@@ -528,6 +530,7 @@ class MistralMDJSONHandler(MistralHandlerBase):
     ) -> dict[str, Any]:
         """Handle reask for MD_JSON mode."""
         kwargs = kwargs.copy()
+        kwargs["messages"] = list(kwargs.get("messages", []))
         reask_msgs = [
             {
                 "role": "assistant",

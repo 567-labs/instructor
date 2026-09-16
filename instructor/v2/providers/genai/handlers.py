@@ -94,6 +94,7 @@ def reask_genai_structured_outputs(
     from google.genai import types
 
     kwargs = kwargs.copy()
+    kwargs["contents"] = list(kwargs.get("contents", []))
     genai_response = (
         response.text
         if response and hasattr(response, "text")

@@ -160,6 +160,7 @@ def reask_tools(
 ):
     """Handle reask for OpenAI tools mode when validation fails."""
     kwargs = kwargs.copy()
+    kwargs["messages"] = list(kwargs.get("messages", []))
 
     if _is_stream_response(response):
         kwargs["messages"].append(
@@ -213,6 +214,7 @@ def reask_responses_tools(
 ):
     """Handle reask for OpenAI responses tools mode when validation fails."""
     kwargs = kwargs.copy()
+    kwargs["messages"] = list(kwargs.get("messages", []))
 
     if response is None or not hasattr(response, "output"):
         kwargs["messages"].append(
@@ -285,6 +287,7 @@ def reask_md_json(
 ):
     """Handle reask for OpenAI JSON modes when validation fails."""
     kwargs = kwargs.copy()
+    kwargs["messages"] = list(kwargs.get("messages", []))
 
     if _is_stream_response(response):
         kwargs["messages"].append(
@@ -328,6 +331,7 @@ def reask_default(
 ):
     """Handle reask for OpenAI default mode when validation fails."""
     kwargs = kwargs.copy()
+    kwargs["messages"] = list(kwargs.get("messages", []))
 
     if _is_stream_response(response):
         kwargs["messages"].append(

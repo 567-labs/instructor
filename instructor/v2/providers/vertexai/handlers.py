@@ -112,6 +112,7 @@ def reask_vertexai_tools(
 ):
     """Build a VertexAI tool reask payload after validation failure."""
     kwargs = kwargs.copy()
+    kwargs["contents"] = list(kwargs.get("contents", []))
     reask_msgs = [
         response.candidates[0].content,
         vertexai_function_response_parser(response, exception),
@@ -127,6 +128,7 @@ def reask_vertexai_json(
 ):
     """Build a VertexAI JSON reask payload after validation failure."""
     kwargs = kwargs.copy()
+    kwargs["contents"] = list(kwargs.get("contents", []))
     reask_msgs = [
         response.candidates[0].content,
         vertexai_message_parser(

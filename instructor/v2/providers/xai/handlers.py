@@ -91,6 +91,7 @@ def reask_xai_json(
 ):
     """Handle reask for xAI JSON mode when validation fails."""
     kwargs = kwargs.copy()
+    kwargs["messages"] = list(kwargs.get("messages", []))
     reask_msg = {
         "role": "user",
         "content": (
@@ -111,6 +112,7 @@ def reask_xai_tools(
 ):
     """Handle reask for xAI tools mode when validation fails."""
     kwargs = kwargs.copy()
+    kwargs["messages"] = list(kwargs.get("messages", []))
 
     assistant_msg = {
         "role": "assistant",

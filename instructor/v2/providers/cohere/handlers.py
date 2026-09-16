@@ -179,11 +179,13 @@ class CohereHandlerBase(ModeHandler):
 
         if "messages" in kwargs:
             # V2 format
+            kwargs["messages"] = list(kwargs.get("messages", []))
             kwargs["messages"].append({"role": "user", "content": correction_msg})
         else:
             # V1 format
             message = kwargs.get("message", "")
             if "chat_history" in kwargs:
+                kwargs["chat_history"] = list(kwargs["chat_history"])
                 kwargs["chat_history"].append({"role": "user", "message": message})
             else:
                 kwargs["chat_history"] = [{"role": "user", "message": message}]
