@@ -292,6 +292,50 @@ def test_session_mounts_public_transport():
 
 
 @pytest.mark.parametrize(
+    "host",
+    [
+        "64:ff9b::a9fe:a9fe",  # NAT64 well-known prefix wrapping 169.254.169.254
+        "64:ff9b::7f00:1",  # NAT64 wrapping 127.0.0.1
+        "64:ff9b::a00:1",  # NAT64 wrapping 10.0.0.1
+        "64:ff9b:1::a9fe:a9fe",  # NAT64 local-use prefix wrapping metadata
+        "::a9fe:a9fe",  # deprecated IPv4-compatible wrapping metadata
+        "::ffff:169.254.169.254",  # IPv4-mapped wrapping metadata
+        "2002:7f00:1::",  # 6to4 wrapping 127.0.0.1
+    ],
+)
+def test_validate_public_address_rejects_ipv6_transition_wrappers(host):
+    # CPython's is_global classifies these wrappers by the IPv6 form, not the
+    # embedded IPv4, so a NAT64/DNS64 host would otherwise reach the internal
+    # target. The embedded IPv4 must be validated instead.
+    with pytest.raises(remote.RemoteFetchError, match="non-public"):
+        remote._validate_public_address(host)
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "64:ff9b::808:808",  # NAT64 wrapping a public IPv4 (8.8.8.8)
+        "2606:4700:4700::1111",  # ordinary public IPv6
+    ],
+)
+def test_validate_public_address_allows_public_ipv6(host):
+    # NAT64-wrapped public IPv4 must stay allowed so IPv6-only egress works.
+    remote._validate_public_address(host)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "HTTP://[64:ff9b::a9fe:a9fe]/private.pdf",
+        "HTTP://[::ffff:169.254.169.254]/private.pdf",
+    ],
+)
+def test_validate_public_url_rejects_ipv6_transition_literals(source):
+    with pytest.raises(remote.RemoteFetchError, match="non-public"):
+        remote._validate_public_url(source)
+
+
+@pytest.mark.parametrize(
     "source", ["HTTP://127.0.0.1/private.pdf", "HTTP://[::1]/private.pdf"]
 )
 def test_anthropic_pdf_fallback_rejects_private(source):
