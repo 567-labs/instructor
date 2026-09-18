@@ -469,6 +469,25 @@ PROVIDER_SPECS: Mapping[Provider, ProviderSpec] = MappingProxyType(
             client_module="instructor.v2.providers.litellm.client",
             sdk_module=None,
         ),
+        Provider.MINIMAX: _spec(
+            Provider.MINIMAX,
+            aliases=("minimax",),
+            handler_module="instructor.v2.providers.minimax.handlers",
+            supported_modes=(Mode.TOOLS, Mode.MD_JSON),
+            unsupported_modes=(
+                Mode.JSON,
+                Mode.JSON_SCHEMA,
+                Mode.PARALLEL_TOOLS,
+                Mode.RESPONSES_TOOLS,
+            ),
+            legacy_modes={
+                Mode.MINIMAX_TOOLS: Mode.TOOLS,
+                Mode.MINIMAX_JSON: Mode.MD_JSON,
+            },
+            from_function="from_minimax",
+            client_module="instructor.v2.providers.minimax.client",
+            sdk_module="openai",
+        ),
     }
 )
 

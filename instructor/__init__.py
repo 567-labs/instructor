@@ -156,6 +156,7 @@ _LAZY_IMPORTS: dict[str, tuple[str, str | None]] = {
     "from_bedrock": (".v2.providers.bedrock.client", "from_bedrock"),
     "from_writer": (".v2.providers.writer.client", "from_writer"),
     "from_xai": (".v2.providers.xai.client", "from_xai"),
+    "from_minimax": (".v2.providers.minimax.client", "from_minimax"),
     "from_perplexity": (".v2.providers.perplexity.client", "from_perplexity"),
     "from_genai": (".v2.providers.genai.client", "from_genai"),
 }
@@ -187,5 +188,6 @@ _add_optional_export("from_cohere", "cohere")
 _add_optional_export("from_bedrock", "boto3")
 _add_optional_export("from_writer", "writerai")
 _add_optional_export("from_xai", "xai_sdk")
+_add_optional_export("from_minimax", "openai")
 _add_optional_export("from_perplexity", "openai")
 _add_optional_export("from_genai", "google", "google.genai")
