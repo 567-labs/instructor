@@ -34,7 +34,8 @@ class FakeResponse:
         self.closed = False
 
     def raise_for_status(self) -> None:
-        return None
+        if self.status_code >= 400:
+            raise remote.requests.HTTPError(response=self)
 
     def iter_content(self, *, chunk_size: int) -> list[bytes]:
         assert chunk_size > 0
@@ -336,6 +337,42 @@ def test_probes_content_type_and_closes_resources(
 
     assert remote.probe_remote_content_type("https://media.example/clip") == "audio/wav"
     assert session.requests[0][0] == "HEAD"
+    assert response.closed
+    assert session.closed
+
+
+@pytest.mark.parametrize("status_code", [405, 501])
+def test_probe_falls_back_to_get_when_head_is_not_supported(
+    monkeypatch: pytest.MonkeyPatch,
+    public_dns: None,  # noqa: ARG001
+    status_code: int,
+) -> None:
+    head_response = FakeResponse(status_code=status_code)
+    get_response = FakeResponse(headers={"Content-Type": "Image/PNG"})
+    session = FakeSession([head_response, get_response])
+    monkeypatch.setattr(remote, "_new_session", lambda: session)
+
+    assert (
+        remote.probe_remote_content_type("https://media.example/content") == "image/png"
+    )
+    assert [method for method, _, _ in session.requests] == ["HEAD", "GET"]
+    assert head_response.closed
+    assert get_response.closed
+    assert session.closed
+
+
+def test_probe_does_not_retry_other_http_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    public_dns: None,  # noqa: ARG001
+) -> None:
+    response = FakeResponse(status_code=404)
+    session = FakeSession([response])
+    monkeypatch.setattr(remote, "_new_session", lambda: session)
+
+    with pytest.raises(remote.requests.HTTPError):
+        remote.probe_remote_content_type("https://media.example/content")
+
+    assert [method for method, _, _ in session.requests] == ["HEAD"]
     assert response.closed
     assert session.closed
 

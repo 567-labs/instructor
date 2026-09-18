@@ -235,7 +235,12 @@ def probe_remote_content_type(
     session = _new_session()
     response: requests.Response | None = None
     try:
-        response, _ = _request_with_redirects(session, "HEAD", url, timeout=timeout)
+        try:
+            response, _ = _request_with_redirects(session, "HEAD", url, timeout=timeout)
+        except requests.HTTPError as exc:
+            if exc.response is None or exc.response.status_code not in {405, 501}:
+                raise
+            response, _ = _request_with_redirects(session, "GET", url, timeout=timeout)
         return _normalized_content_type(response.headers.get("Content-Type"))
     finally:
         if response is not None:
