@@ -64,6 +64,10 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
         def _raw_chunks() -> Generator[str, None, None]:
             for chunk in completion:
                 try:
+                    # `choices` can be empty (e.g. a trailing usage-only
+                    # chunk), which raises IndexError rather than
+                    # AttributeError — skip the chunk either way, same as
+                    # the OpenAI handler's `if not chunk.choices` guard.
                     if self.mode == Mode.TOOLS:
                         if not chunk.data.choices[0].delta.tool_calls:
                             continue
@@ -72,7 +76,7 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
                         )
                     else:
                         yield chunk.data.choices[0].delta.content
-                except AttributeError:
+                except (AttributeError, IndexError):
                     continue
 
         raw_chunks = _raw_chunks()
@@ -97,7 +101,7 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
                         )
                     else:
                         yield chunk.data.choices[0].delta.content
-                except AttributeError:
+                except (AttributeError, IndexError):
                     continue
 
         raw_chunks = _raw_chunks()

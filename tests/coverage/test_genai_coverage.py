@@ -341,12 +341,19 @@ def test_streaming_extractors_handle_tools_text_fallback_and_bad_chunks() -> Non
     tools_handler = handlers.GenAIToolsHandler(mode=Mode.TOOLS)
     json_handler = handlers.GenAIStructuredOutputsHandler(mode=Mode.JSON)
 
-    assert list(tools_handler.extract_streaming_json([object(), tool_chunk])) == [
-        json.dumps({"answer": 8})
-    ]
+    assert list(
+        tools_handler.extract_streaming_json(
+            [object(), SimpleNamespace(candidates=[]), tool_chunk]
+        )
+    ) == [json.dumps({"answer": 8})]
     assert list(
         json_handler.extract_streaming_json(
-            [object(), SimpleNamespace(text='{"answer": 9}'), MissingTextChunk("tail")]
+            [
+                object(),
+                SimpleNamespace(candidates=[]),
+                SimpleNamespace(text='{"answer": 9}'),
+                MissingTextChunk("tail"),
+            ]
         )
     ) == ['{"answer": 9}', "tail"]
     with pytest.raises(ValueError, match="text accessor failed"):
@@ -382,7 +389,7 @@ async def test_async_streaming_extractors_handle_tools_text_fallback_and_bad_chu
     tool_chunks = [
         item
         async for item in tools_handler.extract_streaming_json_async(
-            async_items([object(), tool_chunk])
+            async_items([object(), SimpleNamespace(candidates=[]), tool_chunk])
         )
     ]
     json_chunks = [
@@ -391,6 +398,7 @@ async def test_async_streaming_extractors_handle_tools_text_fallback_and_bad_chu
             async_items(
                 [
                     object(),
+                    SimpleNamespace(candidates=[]),
                     SimpleNamespace(text='{"answer": 11}'),
                     MissingTextChunk("tail"),
                 ]
