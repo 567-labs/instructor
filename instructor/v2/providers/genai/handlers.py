@@ -183,13 +183,16 @@ class GenAIHandlerBase(ModeHandler):
         """Extract JSON chunks from GenAI streaming responses."""
         for chunk in completion:
             try:
+                # `candidates` can be empty (e.g. a safety-blocked chunk),
+                # which raises IndexError rather than AttributeError — skip
+                # the chunk either way.
                 if self.mode == Mode.TOOLS:
                     yield json.dumps(
                         chunk.candidates[0].content.parts[0].function_call.args
                     )
                 else:
                     yield gemini_utils.extract_gemini_chunk_text(chunk)
-            except AttributeError:
+            except (AttributeError, IndexError):
                 continue
 
     async def extract_streaming_json_async(
@@ -204,7 +207,7 @@ class GenAIHandlerBase(ModeHandler):
                     )
                 else:
                     yield gemini_utils.extract_gemini_chunk_text(chunk)
-            except AttributeError:
+            except (AttributeError, IndexError):
                 continue
 
     def _wrap_streaming_model(

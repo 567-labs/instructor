@@ -245,8 +245,16 @@ def test_vertexai_handlers_parse_reask_and_finalize_responses() -> None:
 def test_vertexai_sync_stream_extractors_skip_empty_chunks() -> None:
     tools_handler = handlers.VertexAIToolsHandler()
     json_handler = handlers.VertexAIJSONHandler()
-    tool_stream = [object(), _response(_part(args={"city": "Paris"}))]
-    json_stream = [object(), _response(_part(text='{"city":"Paris"}'))]
+    tool_stream = [
+        object(),
+        SimpleNamespace(candidates=[]),  # e.g. a safety-blocked chunk
+        _response(_part(args={"city": "Paris"})),
+    ]
+    json_stream = [
+        object(),
+        SimpleNamespace(candidates=[]),  # e.g. a safety-blocked chunk
+        _response(_part(text='{"city":"Paris"}')),
+    ]
 
     assert list(tools_handler.extract_streaming_json(tool_stream)) == [
         '{"city": "Paris"}'
@@ -260,8 +268,16 @@ def test_vertexai_sync_stream_extractors_skip_empty_chunks() -> None:
 async def test_vertexai_async_stream_extractors_skip_empty_chunks() -> None:
     tools_handler = handlers.VertexAIToolsHandler()
     json_handler = handlers.VertexAIJSONHandler()
-    tool_stream = [object(), _response(_part(args={"city": "Paris"}))]
-    json_stream = [object(), _response(_part(text='{"city":"Paris"}'))]
+    tool_stream = [
+        object(),
+        SimpleNamespace(candidates=[]),  # e.g. a safety-blocked chunk
+        _response(_part(args={"city": "Paris"})),
+    ]
+    json_stream = [
+        object(),
+        SimpleNamespace(candidates=[]),  # e.g. a safety-blocked chunk
+        _response(_part(text='{"city":"Paris"}')),
+    ]
 
     tool_chunks = [
         chunk
