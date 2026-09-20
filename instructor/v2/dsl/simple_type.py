@@ -1,5 +1,6 @@
 from __future__ import annotations
 from inspect import isclass
+import types
 import typing
 from pydantic import BaseModel, create_model
 from enum import Enum
@@ -7,6 +8,11 @@ from enum import Enum
 from instructor.v2.dsl.partial import Partial
 
 T = typing.TypeVar("T")
+
+UNION_TYPE = getattr(types, "UnionType", None)
+_UNION_ORIGINS: tuple[typing.Any, ...] = (
+    (typing.Union, UNION_TYPE) if UNION_TYPE is not None else (typing.Union,)
+)
 
 
 class AdapterBase(BaseModel):
@@ -86,8 +92,7 @@ def is_simple_type(
 
                 # Explicit check for Union types - try different patterns across Python versions
                 if (
-                    inner_origin is typing.Union
-                    or inner_origin == typing.Union
+                    inner_origin in _UNION_ORIGINS
                     or str(inner_origin) == "typing.Union"
                     or str(type(inner_arg)) == "<class 'typing._UnionGenericAlias'>"
                 ):
@@ -120,8 +125,7 @@ def is_simple_type(
 
             # Explicit check for Union types - try different patterns across Python versions
             if (
-                inner_origin is typing.Union
-                or inner_origin == typing.Union
+                inner_origin in _UNION_ORIGINS
                 or str(inner_origin) == "typing.Union"
                 or str(type(inner_arg)) == "<class 'typing._UnionGenericAlias'>"
             ):
@@ -146,13 +150,17 @@ def is_simple_type(
     }:
         return True
 
-    # If the response_model is a simple type like annotated
-    if origin in {
-        typing.Annotated,
-        typing.Literal,
-        typing.Union,
-        list,  # origin of List[T] is list
-    }:
+    # If the response_model is a simple type like annotated or union
+    if (
+        origin
+        in {
+            typing.Annotated,
+            typing.Literal,
+            typing.Union,
+            list,  # origin of List[T] is list
+        }
+        or origin in _UNION_ORIGINS
+    ):
         return True
 
     if isclass(response_model) and issubclass(response_model, Enum):
