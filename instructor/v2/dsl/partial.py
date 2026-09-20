@@ -140,6 +140,32 @@ def process_potential_object(potential_object, partial_mode, partial_model, **kw
     return _build_partial_object(parsed, model_for_construct, tracker, "", **kwargs)
 
 
+def _alias_keys(field: FieldInfo) -> set[str]:
+    """Every JSON key a field may legitimately arrive under."""
+    keys = {field.alias, field.validation_alias, field.serialization_alias}
+    aliases = {key for key in keys if isinstance(key, str)}
+    for alias in keys:
+        choices = getattr(alias, "choices", None)
+        if choices is not None:
+            aliases.update(key for key in choices if isinstance(key, str))
+    return {key for key in aliases if key}
+
+
+def canonical_field_name(model: type[BaseModel], key: str) -> str:
+    """Map a parsed JSON key to the model's attribute name.
+
+    ``model_fields`` is keyed by the attribute name while the streamed JSON is
+    keyed by the alias that ``model_json_schema()`` advertises, so a name-only
+    lookup silently misses every aliased field.
+    """
+    if key in model.model_fields:
+        return key
+    for name, field in model.model_fields.items():
+        if key in _alias_keys(field):
+            return name
+    return key
+
+
 def _build_partial_object(
     data: Any,
     model: type[BaseModel],
@@ -161,9 +187,13 @@ def _build_partial_object(
 
     result: dict[str, Any] = {}
 
-    for field_name in data:
-        field_value = data[field_name]
-        field_path = f"{path}.{field_name}" if path else field_name
+    for json_key in data:
+        field_value = data[json_key]
+        # The tracker works on raw JSON, so its path keeps the parsed key.
+        field_path = f"{path}.{json_key}" if path else json_key
+        # model_construct() is keyed by attribute name; the parsed key may be an
+        # alias, and storing it verbatim would leave the declared field unset.
+        field_name = canonical_field_name(model, json_key)
 
         if field_value is None:
             result[field_name] = None
