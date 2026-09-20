@@ -171,7 +171,7 @@ class BatchRequest(BaseModel, Generic[T]):
         json_line = json.dumps(data) + "\n"
 
         if isinstance(file_path_or_buffer, str):
-            with open(file_path_or_buffer, "a") as f:
+            with open(file_path_or_buffer, "a", encoding="utf-8") as f:
                 f.write(json_line)
         elif isinstance(file_path_or_buffer, io.BytesIO):
             file_path_or_buffer.write(json_line.encode("utf-8"))
