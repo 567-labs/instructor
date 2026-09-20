@@ -513,3 +513,31 @@ def test_batch_result_helpers_keep_successes_errors_and_custom_ids() -> None:
         "request-2": failure,
         "request-3": grace,
     }
+
+
+def test_parse_from_file_passes_utf8_encoding(tmp_path, monkeypatch):
+    """Reading a batch file from disk must not rely on the platform's default encoding.
+
+    The in-memory (BytesIO) branch already decodes as UTF-8; reading from a path must do the
+    same, otherwise batch files containing non-ASCII text fail on systems whose default
+    encoding is not UTF-8 (for example Windows with a cp1252 locale).
+    """
+    import builtins
+
+    name = "Ren" + chr(0xE9) + "e"
+    batch_file = tmp_path / "batch-results.jsonl"
+    batch_file.write_text(json.dumps({"name": name, "age": 30}), encoding="utf-8")
+
+    real_open = builtins.open
+    seen_encodings = []
+
+    def recording_open(file, *args, **kwargs):
+        if str(file) == str(batch_file):
+            seen_encodings.append(kwargs.get("encoding"))
+        return real_open(file, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", recording_open)
+
+    BatchJob.parse_from_file(str(batch_file), Person)
+
+    assert seen_encodings == ["utf-8"]
