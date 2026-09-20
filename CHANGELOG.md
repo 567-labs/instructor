@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Cache round-trip**: Accept field names when validating a cached response, so response models declaring `Field(alias=...)` reload instead of raising `ValidationError` on the second identical call. Entries are written by field name, so alias-only validation never matched them. Aliased cache entries keep validating. Requires Pydantic 2.11 or newer; on older supported versions the behavior is unchanged. Fields declared with `exclude=True` and `SecretStr` values are dropped or masked before they reach the cache and are still not restored. ([#2715](https://github.com/567-labs/instructor/pull/2715))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
