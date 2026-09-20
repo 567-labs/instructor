@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Partial streaming**: Resolve streamed fields that arrive under a validation alias, so nested models behind an alias are validated and stored on the declared attribute instead of leaking as raw dictionaries. ([#2668](https://github.com/567-labs/instructor/pull/2668))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
