@@ -15,6 +15,10 @@ __all__ = [
     "ReaskHandler",
     "ResponseParser",
     "normalize_mode",
+    "analyze_schema",
+    "SchemaAnalysis",
+    "SchemaFinding",
+    "select_mode",
 ]
 
 _LAZY_ATTRS: dict[str, tuple[str, str]] = {
@@ -27,6 +31,10 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
     "ReaskHandler": ("instructor.v2.core.protocols", "ReaskHandler"),
     "ResponseParser": ("instructor.v2.core.protocols", "ResponseParser"),
     "normalize_mode": ("instructor.v2.core.registry", "normalize_mode"),
+    "analyze_schema": ("instructor.v2.core.schema_analyzer", "analyze_schema"),
+    "SchemaAnalysis": ("instructor.v2.core.schema_analyzer", "SchemaAnalysis"),
+    "SchemaFinding": ("instructor.v2.core.schema_analyzer", "SchemaFinding"),
+    "select_mode": ("instructor.v2.core.auto_mode", "select_mode"),
 }
 
 
