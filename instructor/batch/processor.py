@@ -106,6 +106,9 @@ class BatchProcessor(Generic[T]):
         if metadata is None:
             metadata = {"description": "Instructor batch job"}
 
+        # Providers such as Mistral set the model on the job, not per request
+        kwargs.setdefault("model", self.model_name)
+
         return self.provider.submit_batch(
             file_path_or_buffer, metadata=metadata, **kwargs
         )
@@ -226,6 +229,17 @@ class BatchProcessor(Generic[T]):
                                 error_message = str(error_info)
                                 error_type = "anthropic_error"
 
+                    if self.provider_name == "mistral" and data.get("error"):
+                        mistral_error = data["error"]
+                        if isinstance(mistral_error, dict):
+                            error_message = mistral_error.get(
+                                "message", "Unknown Mistral error"
+                            )
+                            error_type = mistral_error.get("type", "mistral_error")
+                        else:
+                            error_message = str(mistral_error)
+                            error_type = "mistral_error"
+
                     error_result = BatchError(
                         custom_id=custom_id,
                         error_type=error_type,
@@ -248,8 +262,8 @@ class BatchProcessor(Generic[T]):
     def _extract_from_response(self, data: dict[str, Any]) -> dict[str, Any] | None:
         """Extract structured data from provider-specific response format"""
         try:
-            if self.provider_name == "openai":
-                # OpenAI JSON schema response
+            if self.provider_name in ("openai", "mistral"):
+                # OpenAI and Mistral share the same JSON schema response shape
                 content = data["response"]["body"]["choices"][0]["message"]["content"]
                 return json.loads(content)
 

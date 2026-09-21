@@ -13,6 +13,27 @@ import io
 from .models import T
 
 
+def _make_strict_schema(schema_dict: Any) -> Any:
+    """Recursively add additionalProperties: false for strict JSON schema mode"""
+    if isinstance(schema_dict, dict):
+        if "type" in schema_dict:
+            if schema_dict["type"] == "object":
+                schema_dict["additionalProperties"] = False
+            elif schema_dict["type"] == "array" and "items" in schema_dict:
+                schema_dict["items"] = _make_strict_schema(schema_dict["items"])
+
+        if "properties" in schema_dict:
+            for prop_name, prop_schema in schema_dict["properties"].items():
+                schema_dict["properties"][prop_name] = _make_strict_schema(prop_schema)
+
+        for key in ["definitions", "$defs"]:
+            if key in schema_dict:
+                for def_name, def_schema in schema_dict[key].items():
+                    schema_dict[key][def_name] = _make_strict_schema(def_schema)
+
+    return schema_dict
+
+
 class Function(BaseModel):
     name: str
     description: str
@@ -61,31 +82,7 @@ class BatchRequest(BaseModel, Generic[T]):
         schema = self.get_json_schema()
 
         # OpenAI strict mode requires additionalProperties to be false
-        def make_strict_schema(schema_dict):
-            """Recursively add additionalProperties: false for OpenAI strict mode"""
-            if isinstance(schema_dict, dict):
-                if "type" in schema_dict:
-                    if schema_dict["type"] == "object":
-                        schema_dict["additionalProperties"] = False
-                    elif schema_dict["type"] == "array" and "items" in schema_dict:
-                        schema_dict["items"] = make_strict_schema(schema_dict["items"])
-
-                # Recursively process properties
-                if "properties" in schema_dict:
-                    for prop_name, prop_schema in schema_dict["properties"].items():
-                        schema_dict["properties"][prop_name] = make_strict_schema(
-                            prop_schema
-                        )
-
-                # Process definitions/defs
-                for key in ["definitions", "$defs"]:
-                    if key in schema_dict:
-                        for def_name, def_schema in schema_dict[key].items():
-                            schema_dict[key][def_name] = make_strict_schema(def_schema)
-
-            return schema_dict
-
-        strict_schema = make_strict_schema(schema.copy())
+        strict_schema = _make_strict_schema(schema.copy())
 
         return {
             "custom_id": self.custom_id,
@@ -93,6 +90,33 @@ class BatchRequest(BaseModel, Generic[T]):
             "url": "/v1/chat/completions",
             "body": {
                 "model": self.model,
+                "messages": self.messages,
+                "max_tokens": self.max_tokens,
+                "temperature": self.temperature,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": self.response_model.__name__,
+                        "strict": True,
+                        "schema": strict_schema,
+                    },
+                },
+            },
+        }
+
+    def to_mistral_format(self) -> dict[str, Any]:
+        """Convert to Mistral batch format with JSON schema
+
+        Mistral takes the model at job creation, so only the request body is
+        written per line.
+        """
+        schema = self.get_json_schema()
+        schema.setdefault("type", "object")
+        strict_schema = _make_strict_schema(schema.copy())
+
+        return {
+            "custom_id": self.custom_id,
+            "body": {
                 "messages": self.messages,
                 "max_tokens": self.max_tokens,
                 "temperature": self.temperature,
@@ -165,6 +189,8 @@ class BatchRequest(BaseModel, Generic[T]):
             data = self.to_openai_format()
         elif provider == "anthropic":
             data = self.to_anthropic_format()
+        elif provider == "mistral":
+            data = self.to_mistral_format()
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 

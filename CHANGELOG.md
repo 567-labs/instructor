@@ -9,6 +9,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- **Mistral batch**: Support the Mistral Batch API through `BatchProcessor("mistral/<model>", ResponseModel)`, covering submit, status, results, cancel, delete and list. Works with both Mistral SDK export layouts: `mistralai` 1.x on Python 3.9 and 2.x on Python 3.10+. Deleting a job requires `mistralai>=2.0.0`. ([#2168](https://github.com/567-labs/instructor/pull/2168))
+
+### Fixed
+- **Batch provider isolation**: A missing optional SDK now disables only its own batch provider. Previously the conditional imports in `instructor.batch.providers` could set an unrelated installed provider to `None`. ([#2168](https://github.com/567-labs/instructor/pull/2168))
+
+### Changed
+- **Batch submission**: `BatchProcessor.submit_batch` forwards the processor's model to the provider as a `model` keyword argument unless the caller supplies one. Providers that carry the model per request ignore it. ([#2168](https://github.com/567-labs/instructor/pull/2168))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
