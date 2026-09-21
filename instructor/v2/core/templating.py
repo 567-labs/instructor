@@ -5,11 +5,12 @@ from textwrap import dedent
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider, provider_from_mode
 from jinja2.sandbox import SandboxedEnvironment
+from jinja2 import StrictUndefined
 
 
 def apply_template(text: str, context: dict[str, Any]) -> str:
     """Apply Jinja2 template to the given text."""
-    return dedent(SandboxedEnvironment().from_string(text).render(**context))
+    return dedent(SandboxedEnvironment(undefined=StrictUndefined).from_string(text).render(**context))
 
 
 def process_message(
