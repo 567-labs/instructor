@@ -146,7 +146,7 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
       - name: Download exact release candidate
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: instructor-${{ needs.prepare.outputs.version }}-${{ github.sha }}
       - name: Install and exercise wheel
@@ -190,7 +190,7 @@ jobs:
 
     steps:
       - name: Download exact release candidate
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: instructor-${{ needs.prepare.outputs.version }}-${{ github.sha }}
       - name: Create GitHub release from tested artifacts
