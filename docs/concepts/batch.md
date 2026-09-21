@@ -14,6 +14,7 @@ Batch processing lets you send multiple requests in a single operation, saving u
 | OpenAI | gpt-4o, gpt-4.1-mini, gpt-5.4-mini | 50% |
 | Anthropic | claude-3-5-sonnet, claude-3-opus, claude-3-haiku | 50% |
 | Google GenAI | gemini-2.5-flash, gemini-2.0-flash, gemini-pro | 50% |
+| Mistral | mistral-small-latest, mistral-medium-latest, mistral-large-latest | 50% |
 
 ## Basic Usage
 
@@ -152,6 +153,37 @@ processor = BatchProcessor("google/gemini-2.5-flash", User)
 
 Required permissions: `roles/aiplatform.user` and `roles/storage.objectUser`.
 
+### Mistral
+
+```bash
+export MISTRAL_API_KEY="your-mistral-key"
+```
+
+```python
+processor = BatchProcessor("mistral/mistral-small-latest", User)
+```
+
+Mistral sets the model on the batch job rather than on each request, so the model
+you pass to `BatchProcessor` is applied to the whole job. Both Mistral SDK
+versions are supported: `mistralai` 1.x on Python 3.9 and 2.x on Python 3.10+.
+Deleting a job needs `mistralai>=2.0.0`, because version 1.x has no delete
+endpoint.
+
+Mistral batch jobs report their own status values, so poll for `SUCCESS`:
+
+```python
+import time
+
+batch_id = processor.submit_batch("batch_requests.jsonl")
+
+status = processor.get_batch_status(batch_id)
+while status["status"] not in ["SUCCESS", "FAILED", "CANCELLED", "TIMEOUT_EXCEEDED"]:
+    time.sleep(10)
+    status = processor.get_batch_status(batch_id)
+
+results = processor.retrieve_results(batch_id)
+```
+
 ## Processing Results
 
 Results use a Maybe/Result pattern for type-safe handling:
@@ -220,3 +252,4 @@ instructor batch results --batch-id "batch_abc123" --output-file results.jsonl
 | Permission Denied (Google) | Add `aiplatform.user` and `storage.objectUser` roles |
 | Invalid Model Name | Use format `provider/model-name` |
 | Authentication Error | Verify API keys are set correctly |
+| Delete not supported (Mistral) | Upgrade to `mistralai>=2.0.0` |

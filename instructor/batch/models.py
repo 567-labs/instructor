@@ -289,6 +289,85 @@ class BatchJobInfo(BaseModel):
             raw_data=batch_data,
         )
 
+    @classmethod
+    def from_mistral(cls, batch_data: dict[str, Any]) -> BatchJobInfo:
+        """Create from Mistral batch response"""
+        # Normalize status
+        status_map = {
+            "QUEUED": BatchStatus.PENDING,
+            "RUNNING": BatchStatus.PROCESSING,
+            "SUCCESS": BatchStatus.COMPLETED,
+            "FAILED": BatchStatus.FAILED,
+            "TIMEOUT_EXCEEDED": BatchStatus.EXPIRED,
+            "CANCELLATION_REQUESTED": BatchStatus.CANCELLED,
+            "CANCELLED": BatchStatus.CANCELLED,
+        }
+
+        # Mistral reports timestamps as Unix seconds
+        def parse_timestamp(timestamp_value):
+            if isinstance(timestamp_value, datetime):
+                return timestamp_value
+            if isinstance(timestamp_value, (int, float)) and not isinstance(
+                timestamp_value, bool
+            ):
+                try:
+                    return datetime.fromtimestamp(timestamp_value, tz=timezone.utc)
+                except (OverflowError, OSError, ValueError):
+                    return None
+            if isinstance(timestamp_value, str):
+                try:
+                    return datetime.fromisoformat(
+                        timestamp_value.replace("Z", "+00:00")
+                    )
+                except ValueError:
+                    return None
+            return None
+
+        timestamps = BatchTimestamps(
+            created_at=parse_timestamp(batch_data.get("created_at")),
+            started_at=parse_timestamp(batch_data.get("started_at")),
+            completed_at=parse_timestamp(batch_data.get("completed_at")),
+        )
+
+        request_counts = BatchRequestCounts(
+            total=batch_data.get("total_requests"),
+            completed=batch_data.get("completed_requests"),
+            succeeded=batch_data.get("succeeded_requests"),
+            failed=batch_data.get("failed_requests"),
+        )
+
+        input_files = batch_data.get("input_files") or []
+        files = BatchFiles(
+            input_file_id=input_files[0] if input_files else None,
+            output_file_id=batch_data.get("output_file"),
+            error_file_id=batch_data.get("error_file"),
+        )
+
+        # Mistral returns a list of job-level errors; surface the first one
+        errors = batch_data.get("errors") or []
+        error = None
+        if errors and isinstance(errors[0], dict):
+            error = BatchErrorInfo(
+                error_type="mistral_error",
+                error_message=errors[0].get("message"),
+            )
+
+        raw_status = batch_data.get("status", "QUEUED")
+        return cls(
+            id=batch_data["id"],
+            provider="mistral",
+            status=status_map.get(raw_status, BatchStatus.PENDING),
+            raw_status=raw_status,
+            timestamps=timestamps,
+            request_counts=request_counts,
+            files=files,
+            error=error,
+            metadata=batch_data.get("metadata") or {},
+            raw_data=batch_data,
+            model=batch_data.get("model"),
+            endpoint=batch_data.get("endpoint"),
+        )
+
 
 # Union type for batch results - like a Maybe/Result type
 BatchResult: TypeAlias = Union[BatchSuccess[Any], BatchError]

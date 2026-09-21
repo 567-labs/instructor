@@ -184,7 +184,7 @@ def test_provider_operations_forward_arguments_and_parse_downloaded_results(
         (
             request_buffer,
             {"description": "Instructor batch job"},
-            {"completion_window": "24h"},
+            {"completion_window": "24h", "model": "gpt-4.1-mini"},
         ),
     )
     assert processor.submit_batch("requests.jsonl", metadata={"team": "search"}) == (
@@ -192,7 +192,7 @@ def test_provider_operations_forward_arguments_and_parse_downloaded_results(
     )
     assert provider.calls[-1] == (
         "submit",
-        ("requests.jsonl", {"team": "search"}, {}),
+        ("requests.jsonl", {"team": "search"}, {"model": "gpt-4.1-mini"}),
     )
     assert processor.get_batch_status("batch-123") == {
         "id": "batch-123",
@@ -229,10 +229,10 @@ def test_provider_operations_forward_arguments_and_parse_downloaded_results(
             (
                 request_buffer,
                 {"description": "Instructor batch job"},
-                {"completion_window": "24h"},
+                {"completion_window": "24h", "model": "gpt-4.1-mini"},
             ),
         ),
-        ("submit", ("requests.jsonl", {"team": "search"}, {})),
+        ("submit", ("requests.jsonl", {"team": "search"}, {"model": "gpt-4.1-mini"})),
         ("status", "batch-123"),
         ("list", 2),
         ("retrieve", "batch-123"),
