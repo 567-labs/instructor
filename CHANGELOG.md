@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Parallel tools**: Route OpenAI and Anthropic tool responses by their declared JSON schema names, including custom Pydantic titles, while preserving Vertex AI class-name dispatch. ([#2675](https://github.com/567-labs/instructor/pull/2675))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes

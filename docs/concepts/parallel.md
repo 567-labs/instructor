@@ -22,6 +22,11 @@ Parallel Tool Calling is a feature that allows you to call multiple functions in
 
 Parallel Function Calling helps you to significantly reduce the latency of your application without having to build a parent schema as a wrapper around these tool calls.
 
+OpenAI and Anthropic use each model's JSON schema title as its tool name. You can
+set a custom name with `model_config = ConfigDict(title="extract_weather")`.
+Give each model in the parallel response a unique tool name. Vertex AI uses the
+Python class name for its function declarations.
+
 === "OpenAI"
 
     ```python hl_lines="20 32"

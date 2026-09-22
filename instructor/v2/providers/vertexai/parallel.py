@@ -15,6 +15,10 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class VertexAIParallelBase(ParallelBase[T]):
+    def _get_model_name(self, model: type[T]) -> str:
+        # VertexAI function declarations use the Python class name.
+        return model.__name__
+
     def from_response(
         self,
         response: Any,

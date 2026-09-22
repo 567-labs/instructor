@@ -23,9 +23,12 @@ class ParallelBase(Generic[T]):
         assert len(models) > 0, "At least one model is required"
         self.models = models
         self.registry: dict[str, type[T]] = {
-            model.__name__ if hasattr(model, "__name__") else str(model): model
-            for model in models
+            self._get_model_name(model): model for model in models
         }
+
+    def _get_model_name(self, model: type[T]) -> str:
+        # OpenAI and Anthropic tool declarations use the JSON schema title.
+        return model.model_json_schema()["title"]
 
     def from_response(
         self,

@@ -726,7 +726,7 @@ class OpenAIToolsHandler(OpenAIHandlerBase):
         origin = get_origin(response_model)
         if origin is TypingIterable:
             the_types = get_types_array(response_model)  # type: ignore[arg-type]
-            type_registry = {t.__name__: t for t in the_types}
+            type_registry = {t.model_json_schema()["title"]: t for t in the_types}
 
             def parallel_generator() -> Generator[BaseModel, None, None]:
                 for tool_call in response.choices[0].message.tool_calls:
@@ -1040,7 +1040,7 @@ class OpenAIParallelToolsHandler(OpenAIHandlerBase):
 
         # Extract model types from response_model
         the_types = get_types_array(response_model)  # type: ignore[arg-type]
-        type_registry = {t.__name__: t for t in the_types}
+        type_registry = {t.model_json_schema()["title"]: t for t in the_types}
 
         results = []
         tool_calls = choices[0].message.tool_calls
