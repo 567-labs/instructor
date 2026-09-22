@@ -21,6 +21,14 @@ MAX_REDIRECTS = 5
 _CHUNK_SIZE = 64 * 1024
 _REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 
+# IPv6 formats that carry an IPv4 destination inside them (RFC 6052, RFC 4291)
+_NAT64_WELL_KNOWN = ipaddress.ip_network("64:ff9b::/96")
+_NAT64_LOCAL_USE = ipaddress.ip_network("64:ff9b:1::/48")
+_IPV4_COMPATIBLE = ipaddress.ip_network("::/96")
+_IPV4_COMPATIBLE_EXCLUDED = frozenset(
+    {ipaddress.IPv6Address("::"), ipaddress.IPv6Address("::1")}
+)
+
 
 class RemoteFetchError(ValueError):
     """Raised when a remote media request is unsafe or exceeds its limits."""
@@ -41,16 +49,53 @@ def _normalized_content_type(value: str | None) -> str | None:
     return value.split(";", 1)[0].strip().lower() or None
 
 
+def _embedded_ipv4(address: ipaddress.IPv6Address) -> tuple[ipaddress.IPv4Address, ...]:
+    """IPv4 addresses an IPv6 transition format carries inside it.
+
+    ``is_global`` judges the wrapper, not the destination, so a transition address
+    embedding a private or link-local IPv4 is reported as globally routable. On a
+    host with NAT64/6to4/Teredo routing the traffic still reaches the embedded IPv4.
+    """
+    embedded: list[ipaddress.IPv4Address] = []
+
+    if address.ipv4_mapped is not None:
+        embedded.append(address.ipv4_mapped)
+    if address.sixtofour is not None:
+        embedded.append(address.sixtofour)
+    if address.teredo is not None:
+        embedded.extend(address.teredo)
+
+    packed = int(address)
+    if address in _NAT64_WELL_KNOWN:
+        embedded.append(ipaddress.IPv4Address(packed & 0xFFFFFFFF))
+    elif address in _NAT64_LOCAL_USE:
+        # RFC 6052 splits the address around the reserved u-octet at bits 64-71
+        embedded.append(
+            ipaddress.IPv4Address(
+                (((packed >> 64) & 0xFFFF) << 16) | ((packed >> 40) & 0xFFFF)
+            )
+        )
+    elif address in _IPV4_COMPATIBLE and address not in _IPV4_COMPATIBLE_EXCLUDED:
+        embedded.append(ipaddress.IPv4Address(packed & 0xFFFFFFFF))
+
+    return tuple(embedded)
+
+
 def _validate_public_address(address: str) -> None:
     try:
         parsed = ipaddress.ip_address(address)
     except ValueError as exc:
         raise RemoteFetchError(f"Invalid remote address: {address}") from exc
 
-    if not parsed.is_global or parsed.is_multicast:
-        raise RemoteFetchError(
-            f"Remote media URL resolves to a non-public address: {address}"
-        )
+    candidates: tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...] = (parsed,)
+    if isinstance(parsed, ipaddress.IPv6Address):
+        candidates += _embedded_ipv4(parsed)
+
+    for candidate in candidates:
+        if not candidate.is_global or candidate.is_multicast:
+            raise RemoteFetchError(
+                f"Remote media URL resolves to a non-public address: {address}"
+            )
 
 
 def _validate_public_url(url: str) -> None:

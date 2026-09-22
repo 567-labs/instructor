@@ -386,3 +386,51 @@ def test_ignores_empty_stream_chunks_and_missing_content_type(
 def test_rejects_nonpositive_download_limit() -> None:
     with pytest.raises(ValueError, match="greater than zero"):
         remote.fetch_remote_content("https://media.example/image", max_bytes=0)
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "64:ff9b::a9fe:a9fe",
+        "64:ff9b:1:a9fe:a9:fe00::",
+        "64:ff9b::7f00:1",
+        "64:ff9b::a00:1",
+        "::169.254.169.254",
+        "2002:a9fe:a9fe::",
+        "::ffff:169.254.169.254",
+    ],
+    ids=[
+        "nat64-well-known-metadata",
+        "nat64-local-use-metadata",
+        "nat64-loopback",
+        "nat64-rfc1918",
+        "ipv4-compatible-metadata",
+        "sixtofour-metadata",
+        "ipv4-mapped-metadata",
+    ],
+)
+def test_rejects_ipv6_transition_addresses_embedding_private_ipv4(address: str) -> None:
+    """CPython reports these as globally routable because it judges the wrapper, but a
+    NAT64/6to4 host delivers the traffic to the embedded IPv4, which reaches loopback,
+    RFC1918 or the cloud metadata endpoint."""
+    with pytest.raises(remote.RemoteFetchError, match="non-public"):
+        remote._validate_public_address(address)
+
+    with pytest.raises(remote.RemoteFetchError, match="non-public"):
+        remote._validate_public_url(f"http://[{address}]/latest/meta-data/")
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "2606:4700:4700::1111",
+        "64:ff9b::808:808",
+    ],
+)
+def test_allows_public_ipv6_and_transition_wrappers_around_public_ipv4(
+    address: str,
+) -> None:
+    """A transition wrapper around a public IPv4 must keep working, otherwise IPv6-only
+    egress through NAT64 breaks."""
+    remote._validate_public_address(address)
+    remote._validate_public_url(f"http://[{address}]/image.png")
