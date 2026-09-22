@@ -63,6 +63,16 @@ def _normalize_media_type(media_type: str | None) -> str | None:
     return media_type.split(";", 1)[0].strip().lower()
 
 
+def _normalize_audio_media_type(media_type: str | None) -> str | None:
+    """Use the same canonical audio MIME types for every source."""
+    if media_type is None:
+        return None
+    return {
+        "audio/x-wav": "audio/wav",
+        "audio/vnd.dlna.adts": "audio/aac",
+    }.get(media_type, media_type)
+
+
 class ImageParamsBase(TypedDict):
     type: Literal["image"]
     source: str
@@ -316,12 +326,12 @@ class Audio(BaseModel):
 
     @classmethod
     def is_base64(cls, s: str) -> bool:
-        return bool(re.match(r"^data:audio/[a-zA-Z0-9+-]+;base64,", s))
+        return bool(re.match(r"^data:audio/[a-zA-Z0-9+.-]+;base64,", s))
 
     @classmethod
     def from_base64(cls, data_uri: str) -> Audio:
         header, encoded = data_uri.split(",", 1)
-        media_type = header.split(":")[1].split(";")[0]
+        media_type = _normalize_audio_media_type(header.split(":")[1].split(";")[0])
         if media_type not in VALID_AUDIO_MIME_TYPES:
             raise ValueError(f"Unsupported audio format: {media_type}")
         return cls(
@@ -336,7 +346,7 @@ class Audio(BaseModel):
         if url.startswith("gs://"):
             return cls.from_gs_url(url)
         response = fetch_remote_content(url, max_bytes=MAX_AUDIO_BYTES, timeout=30)
-        content_type = response.content_type
+        content_type = _normalize_audio_media_type(response.content_type)
         if content_type not in VALID_AUDIO_MIME_TYPES:
             raise ValueError(
                 f"Unsupported audio format: {content_type}. "
@@ -356,15 +366,7 @@ class Audio(BaseModel):
         if path.stat().st_size == 0:
             raise ValueError("Audio file is empty")
 
-        mime_type = mimetypes.guess_type(str(path))[0]
-
-        if mime_type == "audio/x-wav":
-            mime_type = "audio/wav"
-
-        if (
-            mime_type == "audio/vnd.dlna.adts"
-        ):  # <--- this is the case for aac audio files in Windows
-            mime_type = "audio/aac"
+        mime_type = _normalize_audio_media_type(mimetypes.guess_type(str(path))[0])
 
         if mime_type not in VALID_AUDIO_MIME_TYPES:
             raise ValueError(
@@ -395,7 +397,7 @@ class Audio(BaseModel):
                 max_bytes=MAX_AUDIO_BYTES,
                 timeout=timeout,
             )
-            media_type = response.content_type
+            media_type = _normalize_audio_media_type(response.content_type)
             if media_type not in VALID_AUDIO_MIME_TYPES:
                 raise ValueError(f"Unsupported audio format: {media_type}")
 
