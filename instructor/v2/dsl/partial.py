@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 import types
 import warnings
-from collections.abc import AsyncGenerator, Callable, Generator, Iterable
+from collections.abc import AsyncGenerator, Callable, Generator, Iterable, Mapping
 from contextvars import ContextVar
 from copy import deepcopy
 from functools import cache
@@ -190,6 +190,15 @@ def _build_partial_object(
                 result[field_name] = _build_partial_object(
                     field_value, nested_model, tracker, field_path, **kwargs
                 )
+            elif (
+                field_type is not None
+                and _mapping_value_annotation(field_type) is not None
+            ):
+                # A mapping field holds its models as values (dict[str, Model]);
+                # without this they stay plain dicts and attribute access fails.
+                result[field_name] = _build_partial_mapping(
+                    field_value, field_type, tracker, field_path, **kwargs
+                )
             else:
                 result[field_name] = field_value
         elif isinstance(field_value, list):
@@ -258,7 +267,74 @@ def _build_partial_list(
             )
             continue
 
+        if (
+            item_type is not None
+            and _mapping_value_annotation(item_type) is not None
+            and isinstance(item, dict)
+        ):
+            # An item typed as a mapping of models, e.g. list[dict[str, Model]].
+            result.append(
+                _build_partial_mapping(item, item_type, tracker, item_path, **kwargs)
+            )
+            continue
+
         result.append(item)
+
+    return result
+
+
+def _mapping_value_annotation(annotation: Any) -> Any:
+    """The value annotation of a mapping type, unwrapping ``Optional[...]`` first.
+
+    Returns ``None`` when the annotation is not a mapping, so callers can use it to
+    tell the mapping cases apart from everything else.
+    """
+    origin = get_origin(annotation)
+    if origin in UNION_ORIGINS:
+        non_none_args = [arg for arg in get_args(annotation) if arg is not type(None)]
+        if len(non_none_args) == 1:
+            annotation = non_none_args[0]
+            origin = get_origin(annotation)
+    if isinstance(origin, type) and issubclass(origin, Mapping):
+        args = get_args(annotation)
+        if len(args) == 2:
+            return args[1]
+    return None
+
+
+def _build_partial_mapping(
+    values: dict[Any, Any],
+    annotation: Any,
+    tracker: JsonCompleteness,
+    path: str,
+    **kwargs: Any,
+) -> dict[Any, Any]:
+    """Build the model values of a mapping, validating the complete ones.
+
+    Each value keeps the path the tracker recorded for it (``path.key``), so a value
+    that arrived in full is validated against the original model and one still
+    streaming is built as a partial object, matching how sequence items are handled.
+    Values that are not models are passed through unchanged.
+    """
+    value_annotation = _mapping_value_annotation(annotation)
+    value_model = (
+        _unwrap_optional_base_model(value_annotation)
+        if value_annotation is not None
+        else None
+    )
+
+    result: dict[Any, Any] = {}
+    for key, value in values.items():
+        value_path = f"{path}.{key}"
+        if value_model is not None and isinstance(value, dict):
+            if tracker.is_path_complete(value_path):
+                result[key] = value_model.model_validate(value, **kwargs)
+            else:
+                result[key] = _build_partial_object(
+                    value, value_model, tracker, value_path, **kwargs
+                )
+        else:
+            result[key] = value
 
     return result
 
