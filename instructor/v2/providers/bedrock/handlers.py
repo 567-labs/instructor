@@ -654,7 +654,7 @@ class BedrockMDJSONHandler(ModeHandler):
     ) -> tuple[type[BaseModel] | None, dict[str, Any]]:
         new_kwargs = kwargs.copy()
         if response_model is None:
-            return None, new_kwargs
+            return None, _prepare_bedrock_converse_kwargs_internal(new_kwargs)
 
         prepared_model = cast(type[BaseModel], prepare_response_model(response_model))
         return handle_bedrock_json(prepared_model, new_kwargs)

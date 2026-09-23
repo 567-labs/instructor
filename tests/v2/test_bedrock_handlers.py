@@ -198,6 +198,16 @@ class TestBedrockMDJSONHandler:
         assert result_model is None
         assert "messages" in result_kwargs
 
+    def test_prepare_request_with_none_model_converts_to_converse(self, handler):
+        """response_model=None still converts OpenAI-style kwargs, like TOOLS."""
+        kwargs = {"model": "m", "messages": [{"role": "user", "content": "Hello"}]}
+        _, result_kwargs = handler.request_handler(None, kwargs)
+
+        assert result_kwargs == {
+            "modelId": "m",
+            "messages": [{"role": "user", "content": [{"text": "Hello"}]}],
+        }
+
     def test_prepare_request_adds_system_message(self, handler):
         """prepare_request adds system instructions for JSON output."""
         kwargs = {"messages": [{"role": "user", "content": "Extract user"}]}

@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Bedrock MD_JSON without a response model**: Convert the request to Converse form when `response_model=None`, as the TOOLS and JSON_SCHEMA handlers already do. `from_provider("bedrock/...")` picks `MD_JSON` for non-Claude models (for example OpenAI GPT-6 Sol/Luna), and these calls previously failed with `ParamValidationError` (missing `modelId`). Native Converse kwargs in this path now get the same content checks as those handlers. ([#2684](https://github.com/567-labs/instructor/issues/2684), [#2685](https://github.com/567-labs/instructor/pull/2685))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
