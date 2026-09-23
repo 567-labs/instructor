@@ -131,6 +131,18 @@ class TestBedrockToolsHandler:
         assert "tools" in result_kwargs["toolConfig"]
         assert "toolChoice" in result_kwargs["toolConfig"]
 
+    def test_prepare_request_keeps_caller_tool_choice(self, handler):
+        """An explicit tool choice is preserved for provider-specific limits."""
+        kwargs = {
+            "messages": [{"role": "user", "content": "What is 2+2?"}],
+            "toolConfig": {"toolChoice": {"auto": {}}},
+        }
+
+        result_model, result_kwargs = handler.request_handler(Answer, kwargs)
+
+        assert result_model is not None
+        assert result_kwargs["toolConfig"]["toolChoice"] == {"auto": {}}
+
     def test_prepare_request_does_not_mutate_nested_config(self, handler):
         """Preparing Bedrock kwargs treats nested caller config as read-only."""
         kwargs = {

@@ -487,9 +487,12 @@ def handle_bedrock_tools(
         return None, new_kwargs
 
     tool_schema = generate_bedrock_schema(response_model, strict=strict)
+    tool_choice = (new_kwargs.get("toolConfig") or {}).get(
+        "toolChoice", {"tool": {"name": response_model.__name__}}
+    )
     new_kwargs["toolConfig"] = {
         "tools": [tool_schema],
-        "toolChoice": {"tool": {"name": response_model.__name__}},
+        "toolChoice": tool_choice,
     }
 
     return response_model, new_kwargs
