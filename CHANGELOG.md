@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Security
+- **Remote media SSRF guard**: Judge IPv6 transition addresses by the IPv4 they embed. NAT64 (`64:ff9b::/96`, `64:ff9b:1::/48`), 6to4 and IPv4-compatible wrappers around loopback, link-local or RFC1918 targets are now rejected instead of being treated as globally routable. NAT64 wrappers around public IPv4 addresses remain allowed. ([#2659](https://github.com/567-labs/instructor/issues/2659), [#2680](https://github.com/567-labs/instructor/pull/2680))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
