@@ -41,6 +41,33 @@ def _normalized_content_type(value: str | None) -> str | None:
     return value.split(";", 1)[0].strip().lower() or None
 
 
+_NAT64_WELL_KNOWN = ipaddress.IPv6Network("64:ff9b::/96")
+_NAT64_LOCAL_USE = ipaddress.IPv6Network("64:ff9b:1::/48")
+_IPV4_COMPATIBLE = ipaddress.IPv6Network("::/96")
+
+
+def _embedded_ipv4(address: ipaddress.IPv6Address) -> ipaddress.IPv4Address | None:
+    """Return the IPv4 address an IPv6 transition address delivers to, if any."""
+    for candidate in (address.ipv4_mapped, address.sixtofour):
+        if candidate is not None:
+            return candidate
+
+    teredo = address.teredo
+    if teredo is not None:
+        return teredo[1]
+
+    packed = int(address)
+    if address in _NAT64_WELL_KNOWN or address in _IPV4_COMPATIBLE:
+        return ipaddress.IPv4Address(packed & 0xFFFFFFFF)
+    if address in _NAT64_LOCAL_USE:
+        # RFC 6052 section 2.2: a /48 prefix splits the IPv4 across bits 48-63
+        # and 72-87, around the reserved octet at bits 64-71.
+        return ipaddress.IPv4Address(
+            (((packed >> 64) & 0xFFFF) << 16) | ((packed >> 40) & 0xFFFF)
+        )
+    return None
+
+
 def _validate_public_address(address: str) -> None:
     try:
         parsed = ipaddress.ip_address(address)
@@ -51,6 +78,17 @@ def _validate_public_address(address: str) -> None:
         raise RemoteFetchError(
             f"Remote media URL resolves to a non-public address: {address}"
         )
+
+    # CPython reports IPv6 transition addresses as globally routable even when
+    # they embed a private IPv4. On a NAT64/dual-stack host the request is
+    # delivered to that IPv4, so it has to clear the same bar on its own.
+    if isinstance(parsed, ipaddress.IPv6Address):
+        embedded = _embedded_ipv4(parsed)
+        if embedded is not None and (not embedded.is_global or embedded.is_multicast):
+            raise RemoteFetchError(
+                f"Remote media URL resolves to a non-public address: {address} "
+                f"(embedded IPv4 {embedded})"
+            )
 
 
 def _validate_public_url(url: str) -> None:

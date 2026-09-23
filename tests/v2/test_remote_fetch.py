@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import socket
 from types import SimpleNamespace
 from typing import Any
@@ -260,6 +261,50 @@ def test_accepts_public_literal_address() -> None:
 def test_rejects_invalid_address_value() -> None:
     with pytest.raises(remote.RemoteFetchError, match="Invalid remote address"):
         remote._validate_public_address("not-an-address")
+
+
+@pytest.mark.parametrize(
+    ("address", "embedded"),
+    [
+        ("64:ff9b::a9fe:a9fe", "169.254.169.254"),
+        ("64:ff9b::7f00:1", "127.0.0.1"),
+        ("64:ff9b::a00:1", "10.0.0.1"),
+        ("64:ff9b::c0a8:1", "192.168.0.1"),
+        ("64:ff9b:1:a9fe:a9:fe00::", "169.254.169.254"),
+        ("::a9fe:a9fe", "169.254.169.254"),
+        ("::7f00:1", "127.0.0.1"),
+        ("2002:a9fe:a9fe::", "169.254.169.254"),
+        ("2002:7f00:1::", "127.0.0.1"),
+        ("::ffff:169.254.169.254", "169.254.169.254"),
+    ],
+)
+def test_rejects_ipv6_transition_address_embedding_private_ipv4(
+    address: str, embedded: str
+) -> None:
+    """NAT64, 6to4 and IPv4-compatible wrappers must not smuggle a private IPv4."""
+    assert remote._embedded_ipv4(
+        ipaddress.IPv6Address(address)
+    ) == ipaddress.IPv4Address(embedded)
+
+    with pytest.raises(remote.RemoteFetchError, match="non-public address"):
+        remote._validate_public_address(address)
+
+    with pytest.raises(remote.RemoteFetchError, match="non-public address"):
+        remote._validate_public_url(f"http://[{address}]/latest/meta-data/")
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "64:ff9b::8.8.8.8",
+        "64:ff9b::5db8:d822",
+        "2002:5db8:d822::",
+        "2606:4700:4700::1111",
+    ],
+)
+def test_accepts_ipv6_transition_address_embedding_public_ipv4(address: str) -> None:
+    """IPv6-only egress through NAT64 keeps working for public destinations."""
+    remote._validate_public_address(address)
 
 
 @pytest.mark.parametrize("result", [socket.gaierror(), []])
