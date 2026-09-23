@@ -303,6 +303,11 @@ def _to_bedrock_content_items(content: Any) -> list[dict[str, Any]]:
                 if "cachePoint" in part:
                     items.append(part)
                     continue
+                if "reasoningContent" in part and isinstance(
+                    part["reasoningContent"], dict
+                ):
+                    items.append(part)
+                    continue
                 raise ValueError(f"Unsupported dict content for Bedrock: {part}")
 
             if isinstance(part, str):
