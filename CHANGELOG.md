@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Bedrock message history**: Accept Converse `reasoningContent` blocks in assistant messages, so a previous reply from a reasoning model (for example OpenAI GPT-6 Sol/Luna or gpt-oss) can be sent back in `messages` instead of raising `Unsupported dict content for Bedrock`. ([#2682](https://github.com/567-labs/instructor/issues/2682), [#2683](https://github.com/567-labs/instructor/pull/2683))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
