@@ -33,7 +33,7 @@ print(user)  # User(name='John', age=25)
 
 > **Use Instructor for fast extraction, reach for PydanticAI when you need agents.** Instructor keeps schema-first flows simple and cheap. If your app needs richer agent runs, built-in observability, or shareable traces, try [PydanticAI](https://ai.pydantic.dev/). PydanticAI is the official agent runtime from the Pydantic team, adding typed tools, replayable datasets, evals, and production dashboards while using the same Pydantic models. Dive into the [PydanticAI docs](https://ai.pydantic.dev/) to see how it extends Instructor-style workflows.
 
-## Why Instructor?
+## Why Our Instructor?
 
 Getting structured data from LLMs is hard. You need to:
 
