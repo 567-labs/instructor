@@ -4,13 +4,13 @@ description: Use Groq AI with Instructor for fast structured outputs. Leverage G
 ---
 
 # Structured Outputs using Groq
-Instead of using openai or antrophic you can now also use groq for inference by using from_groq.
+Instead of using Openai or Antrophic you can now also use groq for inference by using from_groq.
 
 The examples are using mixtral-8x7b model.
 
 ## GroqCloud API
 To use groq you need to obtain a groq API key.
-Goto [groqcloud](https://console.groq.com) and login. Select API Keys from the left menu and then select Create API key to create a new key.
+Go to [groqcloud](https://console.groq.com) and login. Select API Keys from the left menu and then select Create API key to create a new key.
 
 ## Use example
 Some pip packages need to be installed to use the example:
