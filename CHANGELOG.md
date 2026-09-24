@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- **Batch custom IDs**: `BatchProcessor.create_batch_from_messages` accepts an optional `custom_ids` list so results can be matched to inputs. IDs are checked for count, uniqueness and Anthropic's format before any request is written.))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
