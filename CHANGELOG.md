@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Response caching**: Serialize parsed models in round-trip mode so `Json[T]` fields and computed fields with forbidden extras can be restored from cache. ([#2688](https://github.com/567-labs/instructor/pull/2688))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
