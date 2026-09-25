@@ -58,7 +58,14 @@ def extract_json_from_codeblock(content: str) -> str:
 
 
 def extract_json_from_stream(chunks: Iterable[str]) -> Generator[str, None, None]:
-    """Extract JSON characters from a plain-text or fenced streaming response."""
+    """Extract JSON characters from a plain-text or fenced streaming response.
+
+    Returns the LAST complete JSON object, not the first. The LLM's own
+    structured output is the authoritative JSON and appears last; JSON that
+    appeared earlier may have originated from user input embedded in the
+    prompt and was referenced in the model's reasoning. Returning the first
+    object allowed prompt-injection to hijack the parsed output.
+    """
     in_codeblock = False
     codeblock_delimiter_count = 0
     json_started = False
@@ -68,6 +75,7 @@ def extract_json_from_stream(chunks: Iterable[str]) -> Generator[str, None, None
     buffer: list[str] = []
     codeblock_buffer: list[str] = []
     last_invalid_candidate: str | None = None
+    last_valid_candidate: str | None = None
     emitted_valid_candidate = False
 
     for chunk in chunks:
@@ -138,7 +146,7 @@ def extract_json_from_stream(chunks: Iterable[str]) -> Generator[str, None, None
                                 continue
                             emitted_valid_candidate = True
                             last_invalid_candidate = None
-                            yield from candidate
+                            last_valid_candidate = candidate
                             continue
 
                 buffer.append(char)
@@ -149,7 +157,9 @@ def extract_json_from_stream(chunks: Iterable[str]) -> Generator[str, None, None
                 delimiter_stack.append("}" if char == "{" else "]")
                 buffer.append(char)
 
-    if json_started and buffer:
+    if last_valid_candidate is not None:
+        yield from last_valid_candidate
+    elif json_started and buffer:
         yield from buffer
     elif not emitted_valid_candidate and last_invalid_candidate is not None:
         yield from last_invalid_candidate
@@ -168,6 +178,7 @@ async def extract_json_from_stream_async(
     buffer: list[str] = []
     codeblock_buffer: list[str] = []
     last_invalid_candidate: str | None = None
+    last_valid_candidate: str | None = None
     emitted_valid_candidate = False
 
     async for chunk in chunks:
@@ -239,8 +250,7 @@ async def extract_json_from_stream_async(
                                 continue
                             emitted_valid_candidate = True
                             last_invalid_candidate = None
-                            for buffered_char in candidate:
-                                yield buffered_char
+                            last_valid_candidate = candidate
                             continue
 
                 buffer.append(char)
@@ -251,7 +261,10 @@ async def extract_json_from_stream_async(
                 delimiter_stack.append("}" if char == "{" else "]")
                 buffer.append(char)
 
-    if json_started and buffer:
+    if last_valid_candidate is not None:
+        for buffered_char in last_valid_candidate:
+            yield buffered_char
+    elif json_started and buffer:
         for buffered_char in buffer:
             yield buffered_char
     elif not emitted_valid_candidate and last_invalid_candidate is not None:
