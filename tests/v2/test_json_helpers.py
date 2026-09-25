@@ -104,15 +104,14 @@ def test_extract_json_from_stream_preserves_triple_backticks_in_plain_string() -
     assert "".join(extract_json_from_stream(chunks)) == '{"code":"```py```"}'
 
 
-def test_extract_json_from_stream_yields_all_objects_in_one_chunk() -> None:
-    # A complete object must not swallow a second object sharing its chunk.
+def test_extract_json_from_stream_returns_last_object() -> None:
     chunks = ['{"a":1}{"b":2}']
-    assert "".join(extract_json_from_stream(chunks)) == '{"a":1}{"b":2}'
+    assert "".join(extract_json_from_stream(chunks)) == '{"b":2}'
 
 
-def test_extract_json_from_stream_yields_all_objects_in_fenced_chunk() -> None:
+def test_extract_json_from_stream_returns_last_object_in_fenced() -> None:
     chunks = ['```json\n{"a":1}{"b":2}\n```']
-    assert "".join(extract_json_from_stream(chunks)) == '{"a":1}{"b":2}'
+    assert "".join(extract_json_from_stream(chunks)) == '{"b":2}'
 
 
 def test_extract_json_from_stream_preserves_backticks_in_fenced_string() -> None:
@@ -175,13 +174,13 @@ async def test_extract_json_from_stream_async_handles_array_root() -> None:
 
 
 @pytest.mark.asyncio
-async def test_extract_json_from_stream_async_yields_all_objects_in_chunk() -> None:
+async def test_extract_json_from_stream_async_returns_last_object() -> None:
     async def chunks():
         yield '{"a":1}{"b":2}'
 
     assert "".join(
         [chunk async for chunk in extract_json_from_stream_async(chunks())]
-    ) == ('{"a":1}{"b":2}')
+    ) == ('{"b":2}')
 
 
 @pytest.mark.asyncio
@@ -213,3 +212,21 @@ async def test_extract_json_from_stream_async_discards_non_json_brace_span_befor
         "".join([chunk async for chunk in extract_json_from_stream_async(chunks())])
         == '{"name":"Ada","age":30}'
     )
+
+
+def test_stream_extraction_matches_codeblock_last_object() -> None:
+    text = 'prefix {"a": 1} suffix {"a": 2}'
+    assert extract_json_from_codeblock(text) == '{"a": 2}'
+    assert "".join(extract_json_from_stream(list(text))) == '{"a": 2}'
+
+
+@pytest.mark.asyncio
+async def test_stream_async_extraction_matches_codeblock_last_object() -> None:
+    text = 'prefix {"a": 1} suffix {"a": 2}'
+    assert extract_json_from_codeblock(text) == '{"a": 2}'
+
+    async def chunks():
+        for c in list(text):
+            yield c
+
+    assert "".join([chunk async for chunk in extract_json_from_stream_async(chunks())]) == '{"a": 2}'
