@@ -71,6 +71,14 @@ class CitationMixin(BaseModel):
         if text_chunks is None:
             return self
 
+        # RAG callers often pass a list/tuple of chunks; normalize before span search.
+        if isinstance(text_chunks, (list, tuple)):
+            text_chunks = "\n".join(
+                chunk for chunk in text_chunks if isinstance(chunk, str)
+            )
+        elif not isinstance(text_chunks, str):
+            return self
+
         # Get the spans of the substring_phrase in the context
         spans = list(self.get_spans(text_chunks))
         # Replace the substring_phrase with the actual substring

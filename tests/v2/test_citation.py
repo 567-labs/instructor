@@ -80,6 +80,33 @@ def test_no_context_leaves_quotes_untouched() -> None:
     assert answer.substring_quotes == ["anything (raw"]
 
 
+def test_list_context_chunks_resolve_without_typeerror() -> None:
+    """List/tuple RAG contexts must resolve quotes, not raise TypeError."""
+    chunks = [
+        "Betty was a student.",
+        "Jason was a student. Jason is 20 years old.",
+    ]
+
+    answer = Answer.model_validate(
+        {"substring_quotes": ["Jason is 20 years old", "missing quote"]},
+        context={"context": chunks},
+    )
+
+    assert answer.substring_quotes == ["Jason is 20 years old"]
+
+
+def test_non_string_context_is_ignored() -> None:
+    """Unsupported context types should leave quotes untouched, not crash."""
+    quotes = ["anything (raw"]
+
+    answer = Answer.model_validate(
+        {"substring_quotes": quotes},
+        context={"context": {"nested": "dict"}},
+    )
+
+    assert answer.substring_quotes == quotes
+
+
 def test_quote_within_error_tolerance_matches() -> None:
     context = "0123456789"
 
