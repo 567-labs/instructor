@@ -387,6 +387,32 @@ def test_openai_batch_request_preserves_boolean_property_schema() -> None:
     assert schema["properties"]["forbidden"] is False
 
 
+def test_openai_batch_request_preserves_mapping_value_schema() -> None:
+    class Inventory(BaseModel):
+        counts: dict[str, int]
+
+    class Warehouse(BaseModel):
+        inventories: list[Inventory]
+
+    request = BatchRequest[Warehouse](
+        custom_id="warehouse-1",
+        messages=[{"role": "user", "content": "Extract the inventories."}],
+        response_model=Warehouse,
+        model="gpt-4o-mini",
+    )
+
+    schema = request.to_openai_format()["body"]["response_format"]["json_schema"][
+        "schema"
+    ]
+    counts = schema["$defs"]["Inventory"]["properties"]["counts"]
+
+    assert schema["additionalProperties"] is False
+    assert schema["$defs"]["Inventory"]["additionalProperties"] is False
+    # `counts` is a mapping: its value schema lives in `additionalProperties` and
+    # must survive the strict conversion, otherwise the field only accepts `{}`.
+    assert counts["additionalProperties"] == {"type": "integer"}
+
+
 def test_anthropic_batch_request_extracts_system_message_and_completes_schema() -> None:
     request = BatchRequest[TypelessResponse](
         custom_id="anthropic-1",

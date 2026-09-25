@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **OpenAI batches**: Preserve the value schema of mapping fields such as `dict[str, int]` instead of overwriting `additionalProperties`, which left those fields accepting only an empty object. ([#2693](https://github.com/567-labs/instructor/pull/2693))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes

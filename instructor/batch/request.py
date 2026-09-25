@@ -66,7 +66,15 @@ class BatchRequest(BaseModel, Generic[T]):
             if isinstance(schema_dict, dict):
                 if "type" in schema_dict:
                     if schema_dict["type"] == "object":
-                        schema_dict["additionalProperties"] = False
+                        # A mapping field such as `dict[str, int]` carries its value
+                        # schema in `additionalProperties`. Overwriting that schema
+                        # drops the value type and leaves a field that only accepts
+                        # an empty object, so only fill the keyword in when it does
+                        # not already describe a schema.
+                        if not isinstance(
+                            schema_dict.get("additionalProperties"), dict
+                        ):
+                            schema_dict["additionalProperties"] = False
                     elif schema_dict["type"] == "array" and "items" in schema_dict:
                         schema_dict["items"] = make_strict_schema(schema_dict["items"])
 
