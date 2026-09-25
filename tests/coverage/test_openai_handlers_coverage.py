@@ -645,7 +645,7 @@ def test_extract_tool_call_json_reports_refusals_and_malformed_responses(
         OpenAIToolsHandler()._extract_tool_call_json(response)
 
 
-def test_tools_prepare_and_parse_parallel_calls_and_ignore_unknown_tool() -> None:
+def test_tools_prepare_and_parse_parallel_calls_and_reject_unknown_tool() -> None:
     handler = OpenAIToolsHandler()
     response_model = Iterable[Union[User, Search]]
 
@@ -654,7 +654,6 @@ def test_tools_prepare_and_parse_parallel_calls_and_ignore_unknown_tool() -> Non
         tool_calls=[
             tool_call("User", '{"name":"Ada"}', "call_user"),
             tool_call("Search", '{"query":"python"}', "call_search"),
-            tool_call("Unrelated", "{}", "call_unknown"),
         ]
     )
 
@@ -669,6 +668,11 @@ def test_tools_prepare_and_parse_parallel_calls_and_ignore_unknown_tool() -> Non
             strict=True,
         )
     ) == [User(name="Ada"), Search(query="python")]
+    unknown = chat_completion(
+        tool_calls=[tool_call("Unrelated", "{}", "call_unknown")]
+    )
+    with pytest.raises(ResponseParsingError, match="Unrelated"):
+        list(handler.parse_response(unknown, prepared_model))
 
 
 def test_tools_prepare_strict_schema_and_parse_incomplete_output() -> None:
@@ -819,7 +823,6 @@ def test_parallel_tools_parse_valid_calls_and_report_empty_or_incomplete_output(
         tool_calls=[
             tool_call("User", '{"name":"Ada"}', "call_user"),
             tool_call("Search", '{"query":"python"}', "call_search"),
-            tool_call("Unrelated", "{}", "call_unknown"),
         ]
     )
 
@@ -831,6 +834,11 @@ def test_parallel_tools_parse_valid_calls_and_report_empty_or_incomplete_output(
             strict=True,
         )
     ) == [User(name="Ada"), Search(query="python")]
+    unknown = chat_completion(
+        tool_calls=[tool_call("Unrelated", "{}", "call_unknown")]
+    )
+    with pytest.raises(ResponseParsingError, match="Unrelated"):
+        list(handler.parse_response(unknown, response_model))
     with pytest.raises(ResponseParsingError, match="No tool calls in response"):
         handler.parse_response(chat_completion(tool_calls=[]), response_model)
     empty_response = chat_completion(tool_calls=[]).model_copy(update={"choices": []})

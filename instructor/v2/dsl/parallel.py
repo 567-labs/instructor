@@ -30,7 +30,7 @@ class ParallelBase(Generic[T]):
     def from_response(
         self,
         response: Any,
-        mode: Mode,  # noqa: ARG002
+        mode: Mode,
         validation_context: Optional[Any] = None,
         strict: Optional[bool] = None,
     ) -> Generator[T, None, None]:
@@ -39,7 +39,10 @@ class ParallelBase(Generic[T]):
         for tool_call in response.choices[0].message.tool_calls:
             name = tool_call.function.name
             arguments = tool_call.function.arguments
-            yield self.registry[name].model_validate_json(
+            model = model_for_tool_name(
+                self.registry, name, mode=mode, raw_response=response
+            )
+            yield model.model_validate_json(
                 arguments, context=validation_context, strict=strict
             )
 
@@ -54,6 +57,28 @@ else:
 
     def is_union_type(typehint: type[Iterable[T]]) -> bool:
         return get_origin(get_args(typehint)[0]) is Union
+
+
+def model_for_tool_name(
+    registry: dict[str, type[T]],
+    name: str,
+    *,
+    mode: Any = None,
+    raw_response: Any = None,
+) -> type[T]:
+    """Return the model for a tool name, or raise if the name was not registered."""
+    model = registry.get(name)
+    if model is not None:
+        return model
+    from instructor.v2.core.errors import ResponseParsingError
+
+    expected = ", ".join(sorted(registry))
+    mode_value = getattr(mode, "value", mode)
+    raise ResponseParsingError(
+        f"Unknown tool call {name!r}. Expected one of: {expected}.",
+        mode=None if mode_value is None else str(mode_value),
+        raw_response=raw_response,
+    )
 
 
 def get_types_array(typehint: type[Iterable[T]]) -> tuple[type[T], ...]:
