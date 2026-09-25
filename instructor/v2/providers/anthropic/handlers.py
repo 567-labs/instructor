@@ -27,6 +27,7 @@ from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import (
     ParallelBase,
     get_types_array,
+    model_for_tool_name,
 )
 from instructor.v2.providers.anthropic.parallel import (
     handle_parallel_model as handle_anthropic_parallel_model,
@@ -482,14 +483,18 @@ class AnthropicToolsHandler(AnthropicHandlerBase):
                 for content in response.content:
                     if getattr(content, "type", None) == "tool_use":
                         tool_name = content.name
-                        if tool_name in type_registry:
-                            model_class = type_registry[tool_name]
-                            json_str = json.dumps(content.input)
-                            yield model_class.model_validate_json(
-                                json_str,
-                                context=validation_context,
-                                strict=strict,
-                            )
+                        model_class = model_for_tool_name(
+                            type_registry,
+                            tool_name,
+                            mode=self.mode,
+                            raw_response=response,
+                        )
+                        json_str = json.dumps(content.input)
+                        yield model_class.model_validate_json(
+                            json_str,
+                            context=validation_context,
+                            strict=strict,
+                        )
 
             return parallel_generator()
 
@@ -594,14 +599,18 @@ class AnthropicParallelToolsHandler(AnthropicHandlerBase):
             if getattr(content, "type", None) == "tool_use":
                 name = content.name
                 arguments = content.input
-                if name in type_registry:
-                    model_class = type_registry[name]
-                    json_str = json.dumps(arguments)
-                    yield model_class.model_validate_json(
-                        json_str,
-                        context=validation_context,
-                        strict=strict,
-                    )
+                model_class = model_for_tool_name(
+                    type_registry,
+                    name,
+                    mode=self.mode,
+                    raw_response=response,
+                )
+                json_str = json.dumps(arguments)
+                yield model_class.model_validate_json(
+                    json_str,
+                    context=validation_context,
+                    strict=strict,
+                )
 
 
 @register_mode_handler(Provider.ANTHROPIC, Mode.JSON)

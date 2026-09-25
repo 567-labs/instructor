@@ -17,7 +17,7 @@ from instructor.v2.core.client import AsyncInstructor, Instructor
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from instructor.v2.dsl.iterable import IterableBase
-from instructor.v2.dsl.parallel import get_types_array
+from instructor.v2.dsl.parallel import get_types_array, model_for_tool_name
 from instructor.v2.dsl.partial import PartialBase
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.core.response_model import prepare_response_model
@@ -363,13 +363,17 @@ def from_xai(
 
             return iter(
                 _validate_model_from_json(
-                    type_registry[tool_call.function.name],
+                    model_for_tool_name(
+                        type_registry,
+                        tool_call.function.name,
+                        mode=mode,
+                        raw_response=resp,
+                    ),
                     tool_call.function.arguments,
                     None,
                     strict,
                 )
                 for tool_call in resp.tool_calls
-                if tool_call.function.name in type_registry
             )
         # MD_JSON mode - use sample() and extract from text
         resp = await chat.sample()  # type: ignore[misc]
@@ -525,13 +529,17 @@ def from_xai(
 
             return iter(
                 _validate_model_from_json(
-                    type_registry[tool_call.function.name],
+                    model_for_tool_name(
+                        type_registry,
+                        tool_call.function.name,
+                        mode=mode,
+                        raw_response=resp,
+                    ),
                     tool_call.function.arguments,
                     None,
                     strict,
                 )
                 for tool_call in resp.tool_calls
-                if tool_call.function.name in type_registry
             )
         # MD_JSON mode - use sample() and extract from text
         resp = chat.sample()  # type: ignore[misc]

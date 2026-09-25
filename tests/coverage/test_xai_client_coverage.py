@@ -18,7 +18,7 @@ from xai_sdk.aio.client import Client as XAIAsyncClient
 from xai_sdk.sync.client import Client as XAISyncClient
 
 from instructor.v2.core.client import AsyncInstructor, Instructor
-from instructor.v2.core.errors import ClientError, ModeError
+from instructor.v2.core.errors import ClientError, ModeError, ResponseParsingError
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.response_model import prepare_response_model
@@ -755,7 +755,7 @@ async def test_async_tools_stream_iterable_partial_and_reject_plain_models() -> 
         )
 
 
-def test_sync_parallel_tools_register_each_schema_and_ignore_unknown_calls() -> None:
+def test_sync_parallel_tools_register_each_schema_and_reject_unknown_calls() -> None:
     response = SimpleNamespace(
         tool_calls=[
             tool_call("Answer", '{"answer":7}'),
@@ -766,23 +766,19 @@ def test_sync_parallel_tools_register_each_schema_and_ignore_unknown_calls() -> 
     chat = SyncChat(sampled=response)
     wrapped, _ = sync_client(chat, mode=Mode.PARALLEL_TOOLS)
 
-    results = list(
-        wrapped.create_fn(
-            response_model=Iterable[Union[Answer, Reason]],
-            messages=MESSAGES,
-            model="grok",
+    with pytest.raises(ResponseParsingError, match="Unknown"):
+        list(
+            wrapped.create_fn(
+                response_model=Iterable[Union[Answer, Reason]],
+                messages=MESSAGES,
+                model="grok",
+            )
         )
-    )
-
-    assert [item.model_dump() for item in results] == [
-        {"answer": 7},
-        {"reason": "checked"},
-    ]
     assert [tool.function.name for tool in chat.proto.tools] == ["Answer", "Reason"]
 
 
 @pytest.mark.asyncio
-async def test_async_parallel_tools_register_each_schema_and_ignore_unknown_calls() -> (
+async def test_async_parallel_tools_register_each_schema_and_reject_unknown_calls() -> (
     None
 ):
     response = SimpleNamespace(
@@ -798,12 +794,8 @@ async def test_async_parallel_tools_register_each_schema_and_ignore_unknown_call
     iterator = await wrapped.create_fn(
         response_model=Iterable[Union[Answer, Reason]], messages=MESSAGES, model="grok"
     )
-    results = list(iterator)
-
-    assert [item.model_dump() for item in results] == [
-        {"answer": 7},
-        {"reason": "checked"},
-    ]
+    with pytest.raises(ResponseParsingError, match="Unknown"):
+        list(iterator)
     assert [tool.function.name for tool in chat.proto.tools] == ["Answer", "Reason"]
 
 
