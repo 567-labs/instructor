@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **OpenAI strict schemas**: Enforce OpenAI-compliant strict JSON schemas across `Mode.JSON_SCHEMA`, `Mode.TOOLS(strict=True)`, and OpenRouter structured outputs, recursively requiring all properties and setting `additionalProperties: false`. ([#2695](https://github.com/567-labs/instructor/issues/2695))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes

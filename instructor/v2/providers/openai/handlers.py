@@ -44,7 +44,10 @@ from instructor.v2.core.messages import (
     dump_message,
     merge_consecutive_messages,
 )
-from instructor.v2.providers.openai.schema import generate_openai_schema
+from instructor.v2.providers.openai.schema import (
+    generate_openai_schema,
+    make_strict_schema,
+)
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
 from instructor.v2.core.streaming import StreamingModelState
@@ -359,17 +362,19 @@ def handle_openrouter_structured_outputs(
     response_model: type[Any], new_kwargs: dict[str, Any]
 ) -> tuple[type[Any], dict[str, Any]]:
     """Handle OpenRouter structured outputs mode."""
-    schema = response_model.model_json_schema()
-    schema["additionalProperties"] = False
+    from instructor.v2.core.response_model import prepare_response_model
+
+    prepared_model = prepare_response_model(response_model) or response_model
+    schema = make_strict_schema(prepared_model.model_json_schema())
     new_kwargs["response_format"] = {
         "type": "json_schema",
         "json_schema": {
-            "name": response_model.__name__,
+            "name": prepared_model.__name__,
             "schema": schema,
             "strict": True,
         },
     }
-    return response_model, new_kwargs
+    return prepared_model, new_kwargs
 
 
 class OpenAIHandlerBase(StreamingModelState, ModeHandler):
@@ -668,6 +673,14 @@ class OpenAIToolsHandler(OpenAIHandlerBase):
             from instructor.v2.dsl.parallel import handle_parallel_model
 
             new_kwargs["tools"] = handle_parallel_model(cast(Any, response_model))
+            use_strict = new_kwargs.pop("strict", False)
+            if use_strict:
+                for tool in new_kwargs["tools"]:
+                    fn = tool.get("function")
+                    if isinstance(fn, dict):
+                        fn["strict"] = True
+                        if "parameters" in fn and isinstance(fn["parameters"], dict):
+                            fn["parameters"] = make_strict_schema(fn["parameters"])
             new_kwargs["tool_choice"] = "auto"
         else:
             # Shallow-copy to avoid mutating the lru_cache return value.
@@ -680,6 +693,7 @@ class OpenAIToolsHandler(OpenAIHandlerBase):
             use_strict = new_kwargs.pop("strict", False)
             if use_strict:
                 schema["strict"] = True
+                schema["parameters"] = make_strict_schema(schema["parameters"])
 
             new_kwargs["tools"] = [{"type": "function", "function": schema}]
             new_kwargs["tool_choice"] = {
@@ -771,17 +785,27 @@ class OpenAIJSONSchemaHandler(OpenAIHandlerBase):
         if response_model is None:
             return None, kwargs
 
+        from instructor.v2.core.response_model import prepare_response_model
+
+        prepared_model = cast(type[BaseModel], prepare_response_model(response_model))
+
         new_kwargs = kwargs.copy()
         new_kwargs["messages"] = list(kwargs.get("messages", []))
-        schema = response_model.model_json_schema()
+        use_strict = new_kwargs.pop("strict", True)
+        schema = prepared_model.model_json_schema()
+        if use_strict:
+            schema = make_strict_schema(schema)
+        json_schema: dict[str, Any] = {
+            "name": prepared_model.__name__,
+            "schema": schema,
+        }
+        if use_strict:
+            json_schema["strict"] = True
         new_kwargs["response_format"] = {
             "type": "json_schema",
-            "json_schema": {
-                "name": response_model.__name__,
-                "schema": schema,
-            },
+            "json_schema": json_schema,
         }
-        return response_model, new_kwargs
+        return prepared_model, new_kwargs
 
     def handle_reask(
         self,
@@ -1002,6 +1026,14 @@ class OpenAIParallelToolsHandler(OpenAIHandlerBase):
         from instructor.v2.dsl.parallel import handle_parallel_model
 
         new_kwargs["tools"] = handle_parallel_model(cast(Any, response_model))
+        use_strict = new_kwargs.pop("strict", False)
+        if use_strict:
+            for tool in new_kwargs["tools"]:
+                fn = tool.get("function")
+                if isinstance(fn, dict):
+                    fn["strict"] = True
+                    if "parameters" in fn and isinstance(fn["parameters"], dict):
+                        fn["parameters"] = make_strict_schema(fn["parameters"])
         new_kwargs["tool_choice"] = "auto"
 
         # Wrap in ParallelModel for proper parsing
