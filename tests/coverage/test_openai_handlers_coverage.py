@@ -645,15 +645,20 @@ def test_extract_tool_call_json_reports_refusals_and_malformed_responses(
         OpenAIToolsHandler()._extract_tool_call_json(response)
 
 
-def test_tools_prepare_and_parse_parallel_calls_and_ignore_unknown_tool() -> None:
+def test_tools_prepare_and_parse_parallel_calls_and_reject_unknown_tool() -> None:
     handler = OpenAIToolsHandler()
     response_model = Iterable[Union[User, Search]]
 
     prepared_model, kwargs = handler.prepare_request(response_model, {"messages": []})
-    response = chat_completion(
+    valid_response = chat_completion(
         tool_calls=[
             tool_call("User", '{"name":"Ada"}', "call_user"),
             tool_call("Search", '{"query":"python"}', "call_search"),
+        ]
+    )
+    invalid_response = chat_completion(
+        tool_calls=[
+            tool_call("User", '{"name":"Ada"}', "call_user"),
             tool_call("Unrelated", "{}", "call_unknown"),
         ]
     )
@@ -663,12 +668,22 @@ def test_tools_prepare_and_parse_parallel_calls_and_ignore_unknown_tool() -> Non
     assert {tool["function"]["name"] for tool in kwargs["tools"]} == {"User", "Search"}
     assert list(
         handler.parse_response(
-            response,
+            valid_response,
             prepared_model,
             validation_context={"source": "parallel"},
             strict=True,
         )
     ) == [User(name="Ada"), Search(query="python")]
+
+    with pytest.raises(ResponseParsingError, match="Unknown tool call name 'Unrelated'"):
+        list(
+            handler.parse_response(
+                invalid_response,
+                prepared_model,
+                validation_context={"source": "parallel"},
+                strict=True,
+            )
+        )
 
 
 def test_tools_prepare_strict_schema_and_parse_incomplete_output() -> None:
@@ -819,6 +834,11 @@ def test_parallel_tools_parse_valid_calls_and_report_empty_or_incomplete_output(
         tool_calls=[
             tool_call("User", '{"name":"Ada"}', "call_user"),
             tool_call("Search", '{"query":"python"}', "call_search"),
+        ]
+    )
+    invalid = chat_completion(
+        tool_calls=[
+            tool_call("User", '{"name":"Ada"}', "call_user"),
             tool_call("Unrelated", "{}", "call_unknown"),
         ]
     )
@@ -831,6 +851,15 @@ def test_parallel_tools_parse_valid_calls_and_report_empty_or_incomplete_output(
             strict=True,
         )
     ) == [User(name="Ada"), Search(query="python")]
+    with pytest.raises(ResponseParsingError, match="Unknown tool call name 'Unrelated'"):
+        list(
+            handler.parse_response(
+                invalid,
+                response_model,
+                validation_context={"source": "parallel"},
+                strict=True,
+            )
+        )
     with pytest.raises(ResponseParsingError, match="No tool calls in response"):
         handler.parse_response(chat_completion(tool_calls=[]), response_model)
     empty_response = chat_completion(tool_calls=[]).model_copy(update={"choices": []})
