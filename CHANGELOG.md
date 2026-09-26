@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- **Decisions**: Evaluate typed Choice, Noul, and Score questions with Jev through TypeSafe or OpenRouter.
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes

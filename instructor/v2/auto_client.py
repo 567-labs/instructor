@@ -1,7 +1,16 @@
 from __future__ import annotations
 
 import importlib
-from typing import Any, Callable, Literal, Optional, Union, cast, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Literal,
+    Optional,
+    Union,
+    cast,
+    overload,
+)
 from instructor.v2.core.client import AsyncInstructor, Instructor
 from instructor import __version__
 from instructor.v2.core.mode import Mode
@@ -11,6 +20,9 @@ from instructor.v2.core.provider_specs import ALIAS_TO_PROVIDER
 import warnings
 import logging
 
+if TYPE_CHECKING:
+    from instructor.decisions._client import AsyncDecisionsClient, DecisionsClient
+
 # Type alias for the return type
 InstructorType = Union[Instructor, AsyncInstructor]
 
@@ -19,6 +31,28 @@ logger = logging.getLogger("instructor.auto_client")
 
 # Canonical strings and compatibility aliases accepted by from_provider().
 supported_providers = list(ALIAS_TO_PROVIDER)
+
+
+@overload
+def from_provider(
+    model: str,
+    async_client: Literal[False] = False,
+    cache: None = None,
+    *,
+    mode: Literal[Mode.DECISIONS],
+    **kwargs: Any,
+) -> DecisionsClient: ...
+
+
+@overload
+def from_provider(
+    model: str,
+    async_client: Literal[True],
+    cache: None = None,
+    *,
+    mode: Literal[Mode.DECISIONS],
+    **kwargs: Any,
+) -> AsyncDecisionsClient: ...
 
 
 @overload
@@ -63,7 +97,7 @@ def from_provider(
     cache: BaseCache | None = None,
     mode: Union[Mode, None] = None,  # noqa: ARG001, UP007
     **kwargs: Any,
-) -> Union[Instructor, AsyncInstructor]:  # noqa: UP007
+) -> Union[Instructor, AsyncInstructor, DecisionsClient, AsyncDecisionsClient]:  # noqa: UP007
     """Create an Instructor client from a model string.
 
     Args:
@@ -145,6 +179,13 @@ def from_provider(
                 len(api_key),
                 extra=provider_info,
             )
+
+    if mode is Mode.DECISIONS:
+        from instructor.decisions._client import from_decisions_provider
+
+        return from_decisions_provider(
+            provider, model_name, async_client=async_client, api_key=api_key, **kwargs
+        )
 
     builder = _PROVIDER_BUILDERS.get(provider)
     if builder is None:
