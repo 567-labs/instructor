@@ -738,6 +738,12 @@ class OpenAIToolsHandler(OpenAIHandlerBase):
                             context=validation_context,
                             strict=strict,
                         )
+                    else:
+                        raise ResponseParsingError(
+                            f"Unknown tool call name '{name}'. Expected one of {list(type_registry.keys())}",
+                            mode=str(self.mode.value),
+                            raw_response=response,
+                        )
 
             return parallel_generator()
 
@@ -1060,6 +1066,12 @@ class OpenAIParallelToolsHandler(OpenAIHandlerBase):
                     strict=strict,
                 )
                 results.append(model)
+            else:
+                raise ResponseParsingError(
+                    f"Unknown tool call name '{name}'. Expected one of {list(type_registry.keys())}",
+                    mode="PARALLEL_TOOLS",
+                    raw_response=response,
+                )
 
         return iter(results)
 
