@@ -45,7 +45,7 @@ from pydantic import BaseModel
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.registry import mode_registry
-from instructor.v2.core.retry import retry_sync_v2
+from instructor.v2.core.retry import retry_async, retry_sync, retry_sync_v2
 from instructor.v2.providers.openai.handlers import (
     OPENAI_COMPAT_PROVIDERS,
     OPENAI_JSON_SCHEMA_PROVIDERS,
@@ -226,4 +226,70 @@ def test_reask_does_not_mutate_caller_messages(provider: Provider, mode: Mode) -
     )
     handlers.reask_handler(new_kwargs, response, exception)
 
+    assert caller_messages == original_snapshot
+
+
+def _counting_tool_call_create(counter: dict[str, int]) -> Any:
+    def fake_openai_create(*_args: Any, **_kwargs: Any) -> ChatCompletion:
+        counter["n"] += 1
+        if counter["n"] == 1:
+            return _make_tool_call_response('{"name": "Ada"}', "call_1")
+        return _make_tool_call_response('{"name": "Ada", "age": 37}', "call_2")
+
+    return fake_openai_create
+
+
+def test_public_retry_sync_does_not_mutate_caller_messages() -> None:
+    """The public `retry_sync` entrypoint must isolate caller-owned state too.
+
+    `patch.py` already isolates `messages` before entering the retry loop, so
+    direct callers of the public retry API were the remaining path where a
+    reask could permanently append to the caller's own list (issue #2645).
+    """
+    counter: dict[str, int] = {"n": 0}
+    caller_messages = [{"role": "user", "content": "Ada is 37 years old"}]
+    original_snapshot = deepcopy(caller_messages)
+
+    result = retry_sync(
+        func=_counting_tool_call_create(counter),
+        response_model=Answer,
+        args=(),
+        kwargs={"model": "gpt-4o-mini", "messages": caller_messages},
+        mode=Mode.TOOLS,
+        provider=Provider.OPENAI,
+        max_retries=2,
+    )
+
+    assert isinstance(result, Answer)
+    assert result.age == 37
+    assert counter["n"] == 2
+    assert caller_messages == original_snapshot
+
+
+@pytest.mark.asyncio
+async def test_public_retry_async_does_not_mutate_caller_messages() -> None:
+    """Async counterpart of the public retry isolation guarantee."""
+    counter: dict[str, int] = {"n": 0}
+    caller_messages = [{"role": "user", "content": "Ada is 37 years old"}]
+    original_snapshot = deepcopy(caller_messages)
+
+    async def fake_openai_create(*_args: Any, **_kwargs: Any) -> ChatCompletion:
+        counter["n"] += 1
+        if counter["n"] == 1:
+            return _make_tool_call_response('{"name": "Ada"}', "call_1")
+        return _make_tool_call_response('{"name": "Ada", "age": 37}', "call_2")
+
+    result = await retry_async(
+        func=fake_openai_create,
+        response_model=Answer,
+        args=(),
+        kwargs={"model": "gpt-4o-mini", "messages": caller_messages},
+        mode=Mode.TOOLS,
+        provider=Provider.OPENAI,
+        max_retries=2,
+    )
+
+    assert isinstance(result, Answer)
+    assert result.age == 37
+    assert counter["n"] == 2
     assert caller_messages == original_snapshot
