@@ -8,7 +8,7 @@ from typing import Any, TypeVar
 import httpx
 from pydantic import BaseModel
 
-from ._schema import build_questions, parse_answers
+from .schema import build_questions, parse_answers
 
 T = TypeVar("T", bound=BaseModel)
 _ENDPOINTS = {

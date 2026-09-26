@@ -12,7 +12,7 @@ from typing import Any, Annotated, Literal, TypeVar, Union, get_args, get_origin
 from pydantic import BaseModel
 
 from instructor.v2.core.templating import apply_template
-from ._types import Choice, Choices, Level, Noul, Question, Score
+from .types import Choice, Choices, Level, Noul, Question, Score
 
 _UNION_TYPE = getattr(types, "UnionType", ())
 T = TypeVar("T", bound=BaseModel)

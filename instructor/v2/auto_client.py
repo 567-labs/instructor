@@ -21,7 +21,7 @@ import warnings
 import logging
 
 if TYPE_CHECKING:
-    from instructor.decisions._client import AsyncDecisionsClient, DecisionsClient
+    from instructor.decisions.client import AsyncDecisionsClient, DecisionsClient
 
 # Type alias for the return type
 InstructorType = Union[Instructor, AsyncInstructor]
@@ -181,7 +181,7 @@ def from_provider(
             )
 
     if mode is Mode.DECISIONS:
-        from instructor.decisions._client import from_decisions_provider
+        from instructor.decisions.client import from_decisions_provider
 
         return from_decisions_provider(
             provider, model_name, async_client=async_client, api_key=api_key, **kwargs
