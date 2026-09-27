@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 import math
 import types
+from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Annotated, Literal, TypeVar, Union, get_args, get_origin
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from instructor.v2.core.templating import apply_template
 from .types import Choice, Choices, Level, Noul, Question, Score
@@ -74,7 +75,7 @@ def _instructions(value: Any, context: dict[str, Any]) -> Any:
 
 
 def _with_examples(meaning: Any, examples: list[Any]) -> Any:
-    meaning = _entry(meaning, nullable=True)
+    meaning = deepcopy(_entry(meaning, nullable=True))
     if not examples:
         return meaning
     return {"meaning": meaning, "examples": [str(example) for example in examples]}
@@ -148,7 +149,16 @@ def build_questions(model: type[BaseModel], context: dict[str, Any]) -> list[_Fi
         if len(specs) > 1:
             raise ValueError(f"{name}: use only one decision annotation")
         spec = specs[0] if specs else None
-        input_name = field.validation_alias or field.alias or name
+        input_name = name
+        # Before Pydantic 2.11, this config key is ignored by validation.
+        if not (
+            "validate_by_alias" in ConfigDict.__annotations__
+            and model.model_config.get("validate_by_alias") is False
+        ):
+            if field.validation_alias is not None:
+                input_name = field.validation_alias
+            elif field.alias is not None:
+                input_name = field.alias
         if not isinstance(input_name, str):
             raise ValueError(f"{name}: complex validation aliases are not supported")
         if input_name in input_names:
@@ -297,6 +307,8 @@ def parse_answers(
                 raise ValueError(f"{field.name}: invalid {field.kind} answer")
             if field.scale is not None:
                 low, high = field.scale
-                value = low + value / maximum * (high - low)
+                ratio = value / maximum
+                # Avoid overflowing the difference of large finite bounds.
+                value = low * (1 - ratio) + high * ratio
         values[field.input_name] = value
     return model.model_validate_json(json.dumps(values), context=context, strict=strict)

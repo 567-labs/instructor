@@ -17,6 +17,13 @@ _ENDPOINTS = {
 }
 
 
+class _DefaultTimeout:
+    """Distinguish an omitted timeout from explicit None."""
+
+
+_DEFAULT_TIMEOUT = _DefaultTimeout()
+
+
 def _request(model: str, response_model: type[T], context: dict[str, Any]):
     fields = build_questions(response_model, context)
     body = {
@@ -36,14 +43,23 @@ class DecisionsClient:
         endpoint: str,
         api_key: str,
         http_client: httpx.Client | None = None,
-        timeout: float = 60.0,
+        timeout: float | None | _DefaultTimeout = _DEFAULT_TIMEOUT,
     ):
         self.model = model
         self.endpoint = endpoint
         self._api_key = api_key
+        self._timeout = (
+            httpx.USE_CLIENT_DEFAULT
+            if isinstance(timeout, _DefaultTimeout)
+            else timeout
+        )
         self._owned = http_client is None
         self._client = (
-            http_client if http_client is not None else httpx.Client(timeout=timeout)
+            http_client
+            if http_client is not None
+            else httpx.Client(
+                timeout=60.0 if isinstance(timeout, _DefaultTimeout) else timeout
+            )
         )
 
     def create(
@@ -62,6 +78,7 @@ class DecisionsClient:
             self.endpoint,
             json=body,
             headers={"Authorization": f"Bearer {self._api_key}"},
+            timeout=self._timeout,
         )
         response.raise_for_status()
         raw = response.json()
@@ -88,16 +105,23 @@ class AsyncDecisionsClient:
         endpoint: str,
         api_key: str,
         http_client: httpx.AsyncClient | None = None,
-        timeout: float = 60.0,
+        timeout: float | None | _DefaultTimeout = _DEFAULT_TIMEOUT,
     ):
         self.model = model
         self.endpoint = endpoint
         self._api_key = api_key
+        self._timeout = (
+            httpx.USE_CLIENT_DEFAULT
+            if isinstance(timeout, _DefaultTimeout)
+            else timeout
+        )
         self._owned = http_client is None
         self._client = (
             http_client
             if http_client is not None
-            else httpx.AsyncClient(timeout=timeout)
+            else httpx.AsyncClient(
+                timeout=60.0 if isinstance(timeout, _DefaultTimeout) else timeout
+            )
         )
 
     async def create(
@@ -116,6 +140,7 @@ class AsyncDecisionsClient:
             self.endpoint,
             json=body,
             headers={"Authorization": f"Bearer {self._api_key}"},
+            timeout=self._timeout,
         )
         response.raise_for_status()
         raw = response.json()
@@ -134,21 +159,22 @@ class AsyncDecisionsClient:
 
 
 def from_decisions_provider(
-    provider: str, model: str, *, async_client: bool, api_key: str | None, **kwargs: Any
+    provider: str,
+    model: str,
+    *,
+    async_client: bool,
+    api_key: str | None,
+    endpoint: str | None = None,
+    http_client: httpx.Client | httpx.AsyncClient | None = None,
+    timeout: float | None | _DefaultTimeout = _DEFAULT_TIMEOUT,
 ) -> DecisionsClient | AsyncDecisionsClient:
     if provider not in _ENDPOINTS:
         raise ValueError(f"Decisions mode does not support provider {provider!r}")
-    endpoint, key_name = _ENDPOINTS[provider]
+    default_endpoint, key_name = _ENDPOINTS[provider]
     api_key = api_key or os.environ.get(key_name)
     if not api_key:
         raise ValueError(f"Set {key_name} or pass api_key to use decisions mode")
-    endpoint = kwargs.pop("endpoint", endpoint)
-    http_client = kwargs.pop("http_client", None)
-    timeout = kwargs.pop("timeout", 60.0)
-    if kwargs:
-        raise TypeError(
-            f"Unsupported decisions client options: {', '.join(sorted(kwargs))}"
-        )
+    endpoint = default_endpoint if endpoint is None else endpoint
     if async_client:
         if http_client is not None and not isinstance(http_client, httpx.AsyncClient):
             raise TypeError("async decisions require an httpx.AsyncClient")

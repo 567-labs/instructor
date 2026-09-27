@@ -11,6 +11,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 - **Decisions**: Evaluate typed Choice, Noul, and Score questions with Jev through TypeSafe or OpenRouter.
+- **Decisions validation**: Add shared sync/async provider contracts, schema and configuration suites, and explicitly opt-in live checks. Preserve provider response metadata, borrowed-client timeouts, alias-disabled models, reusable examples, and finite score scaling.
 
 ## [1.17.1] - 2026-09-09
 

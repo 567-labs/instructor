@@ -137,9 +137,21 @@ client = instructor.from_provider(
 )
 ```
 
+Both providers use the same decision model and `context`. To switch routes,
+change the provider/model string and configure that provider's API key; the
+question annotations and validated result do not change. Raw response metadata
+remains provider-specific. For example, OpenRouter includes a monetary `cost`
+in `usage`; do not infer a direct TypeSafe cost from token counts.
+
 For async use, pass `async_client=True`, await `create` or
 `create_with_completion`, and call `await client.close()` when done. Synchronous
 clients also support `with`; asynchronous clients support `async with`.
+
+An owned HTTP client defaults to a 60-second timeout. When supplying
+`http_client`, its timeout is preserved unless you pass `timeout=...` to
+`from_provider`. That override applies to decision requests without changing the
+supplied HTTP client's configuration. Closing a decision client only closes an
+HTTP client it created. Pass `timeout=None` explicitly to disable timeouts.
 
 ## Choices
 
@@ -198,3 +210,25 @@ than being replaced with defaults. Decision mode currently does not support
 streaming, retries, caching, or completion hooks; HTTP errors propagate to the
 caller. See the [TypeSafe API reference](https://docs.typesafe.ai/api) and
 [OpenRouter's Jev guide](https://openrouter.ai/blog/tutorials/how-to-use-jev/).
+
+## Testing
+
+The local suites in `tests/v2/decisions/` cover annotations and answer parsing,
+client configuration, and common provider contracts over localhost HTTP. They
+do not call provider services or require API keys:
+
+```bash
+uv run pytest tests/v2/decisions/
+```
+
+Live provider contracts are a separate, opt-in suite. They use synthetic ticket
+data, make billed API requests, and skip providers whose keys are missing:
+
+```bash
+uv run pytest tests/llm/test_decisions/ --run-decisions-live
+```
+
+Set `TYPESAFE_API_KEY` and/or `OPENROUTER_API_KEY` for the selected providers.
+`TYPESAFE_DECISIONS_MODEL` and `OPENROUTER_DECISIONS_MODEL` optionally override
+the live model IDs. Without the explicit flag, live cases are skipped even
+when credentials are present. Local contracts do not certify a live provider.

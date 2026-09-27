@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Literal,
@@ -20,8 +19,7 @@ from instructor.v2.core.provider_specs import ALIAS_TO_PROVIDER
 import warnings
 import logging
 
-if TYPE_CHECKING:
-    from instructor.decisions.client import AsyncDecisionsClient, DecisionsClient
+from instructor.decisions.client import AsyncDecisionsClient, DecisionsClient
 
 # Type alias for the return type
 InstructorType = Union[Instructor, AsyncInstructor]
@@ -94,7 +92,7 @@ def from_provider(
 def from_provider(
     model: Union[str, KnownModelName],  # noqa: UP007
     async_client: bool = False,
-    cache: BaseCache | None = None,
+    cache: Union[BaseCache, None] = None,  # noqa: UP007
     mode: Union[Mode, None] = None,  # noqa: ARG001, UP007
     **kwargs: Any,
 ) -> Union[Instructor, AsyncInstructor, DecisionsClient, AsyncDecisionsClient]:  # noqa: UP007

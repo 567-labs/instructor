@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
 from copy import deepcopy
-from dataclasses import dataclass, field
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import json
-import threading
 from enum import Enum
 from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
 from urllib.parse import urlsplit
@@ -16,6 +11,9 @@ from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 import instructor
 from instructor.decisions import Choice, Choices, Level, Noul, Question, Score
+
+if TYPE_CHECKING:
+    from tests.v2.decisions.conftest import DecisionEndpoint
 
 
 class Category(Choices):
@@ -97,57 +95,6 @@ PROVIDERS = [
 ]
 
 
-@dataclass
-class DecisionEndpoint:
-    url: str = ""
-    response: Any = field(default_factory=lambda: deepcopy(RAW))
-    status: int = 200
-    calls: list[dict[str, Any]] = field(default_factory=list)
-
-
-@pytest.fixture
-def decision_endpoint() -> Iterator[DecisionEndpoint]:
-    endpoint = DecisionEndpoint()
-
-    class Handler(BaseHTTPRequestHandler):
-        def parse_request(self) -> bool:
-            if not super().parse_request():
-                return False
-            self.record = {
-                "method": self.command,
-                "path": self.path,
-                "authorization": self.headers.get("Authorization"),
-                "body": None,
-            }
-            endpoint.calls.append(self.record)
-            return True
-
-        def do_POST(self) -> None:
-            self.record["body"] = json.loads(
-                self.rfile.read(int(self.headers["Content-Length"]))
-            )
-            body = json.dumps(endpoint.response).encode()
-            self.send_response(endpoint.status)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-        def log_message(self, format: str, *args: Any) -> None:  # noqa: A002, ARG002
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    endpoint.url = f"http://127.0.0.1:{server.server_port}"
-    try:
-        yield endpoint
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join()
-
-
 def assert_request(endpoint: DecisionEndpoint, model: str, url: str) -> None:
     assert len(endpoint.calls) == 1
     request = endpoint.calls[0]
@@ -209,6 +156,7 @@ def assert_decision(result: Decision) -> None:
 def test_request_and_typed_response(
     decision_endpoint, provider, model, url, with_completion
 ):
+    decision_endpoint.response = deepcopy(RAW)
     with httpx.Client(trust_env=False) as http:
         client = instructor.from_provider(
             f"{provider}/{model}",
@@ -236,6 +184,7 @@ def test_request_and_typed_response(
 async def test_async_request_and_typed_response(
     decision_endpoint, provider, model, url, with_completion
 ):
+    decision_endpoint.response = deepcopy(RAW)
     async with httpx.AsyncClient(trust_env=False) as http:
         client = instructor.from_provider(
             f"{provider}/{model}",
@@ -378,6 +327,7 @@ def test_invalid_models_are_rejected_before_request(decision_endpoint):
 @pytest.mark.parametrize("async_client", [False, True], ids=["sync", "async"])
 @pytest.mark.asyncio
 async def test_malformed_answers_fail(decision_endpoint, field, answer, async_client):
+    decision_endpoint.response = deepcopy(RAW)
     decision_endpoint.response["answers"][field] = answer
     options: dict[str, Any] = {
         "mode": instructor.Mode.DECISIONS,
