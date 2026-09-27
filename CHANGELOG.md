@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **TypedDict response models**: Support PEP 705 `ReadOnly` qualifier and nested TypedDict qualifiers (`Required`, `NotRequired`, `ReadOnly`) in TypedDict response models and iterable models. ([#2665](https://github.com/567-labs/instructor/issues/2665))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes

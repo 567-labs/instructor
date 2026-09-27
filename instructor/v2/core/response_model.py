@@ -4,16 +4,30 @@ from __future__ import annotations
 
 import inspect
 import sys
+import typing
 from collections.abc import Iterable
-from typing import Any, Callable, TypeVar, Union, cast, get_args, get_origin
+from typing import (
+    Annotated,
+    Any,
+    Callable,
+    TypeVar,
+    Union,
+    cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from pydantic import BaseModel, create_model
-from typing_extensions import NotRequired, Required
-from typing import get_type_hints
+from typing_extensions import NotRequired, ReadOnly, Required
 
 T = TypeVar("T")
 
 _create_dynamic_model = cast(Callable[..., type[BaseModel]], create_model)
+
+_REQUIRED_ORIGINS = {Required, getattr(typing, "Required", None)} - {None}
+_NOT_REQUIRED_ORIGINS = {NotRequired, getattr(typing, "NotRequired", None)} - {None}
+_READ_ONLY_ORIGINS = {ReadOnly, getattr(typing, "ReadOnly", None)} - {None}
 
 if sys.version_info >= (3, 10):
     from types import UnionType
@@ -31,6 +45,39 @@ def is_typed_dict(cls: Any) -> bool:
     )
 
 
+def _unwrap_typed_dict_qualifiers(annotation: Any) -> tuple[Any, bool | None]:
+    """Recursively strip TypedDict qualifiers (Required, NotRequired, ReadOnly) while extracting requiredness."""
+    origin = get_origin(annotation)
+    if origin is None:
+        return annotation, None
+
+    if origin in _REQUIRED_ORIGINS:
+        args = get_args(annotation)
+        inner, _ = _unwrap_typed_dict_qualifiers(args[0]) if args else (Any, None)
+        return inner, True
+
+    if origin in _NOT_REQUIRED_ORIGINS:
+        args = get_args(annotation)
+        inner, _ = _unwrap_typed_dict_qualifiers(args[0]) if args else (Any, None)
+        return inner, False
+
+    if origin in _READ_ONLY_ORIGINS:
+        args = get_args(annotation)
+        inner, req = _unwrap_typed_dict_qualifiers(args[0]) if args else (Any, None)
+        return inner, req
+
+    if origin is Annotated:
+        args = get_args(annotation)
+        if len(args) > 1:
+            clean_inner, req = _unwrap_typed_dict_qualifiers(args[0])
+            return Annotated[(clean_inner, *args[1:])], req
+        elif args:
+            return _unwrap_typed_dict_qualifiers(args[0])
+        return annotation, None
+
+    return annotation, None
+
+
 def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
     """Convert a TypedDict while preserving per-key requiredness."""
     annotations = get_type_hints(typed_dict, include_extras=True)
@@ -40,15 +87,12 @@ def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
     fields: dict[str, tuple[Any, Any]] = {}
 
     for name, annotation in annotations.items():
-        annotation_origin = get_origin(annotation)
-        if annotation_origin is Required:
-            field_annotation = get_args(annotation)[0]
+        field_annotation, explicit_required = _unwrap_typed_dict_qualifiers(annotation)
+        if explicit_required is True:
             is_required = True
-        elif annotation_origin is NotRequired:
-            field_annotation = get_args(annotation)[0]
+        elif explicit_required is False:
             is_required = False
         else:
-            field_annotation = annotation
             is_required = name in required_keys or (name not in optional_keys and total)
 
         fields[name] = (field_annotation, ... if is_required else None)
