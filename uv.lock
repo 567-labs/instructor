@@ -1960,7 +1960,7 @@ wheels = [
 
 [[package]]
 name = "instructor"
-version = "1.17.1"
+version = "1.18.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp", version = "3.12.15", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version < '3.10'" },

@@ -9,9 +9,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-09-26
+
 ### Added
 - **Decisions**: Evaluate typed Choice, Noul, and Score questions with Jev through TypeSafe or OpenRouter.
 - **Decisions validation**: Add shared sync/async provider contracts, schema and configuration suites, and explicitly opt-in live checks. Preserve provider response metadata, borrowed-client timeouts, alias-disabled models, reusable examples, and finite score scaling.
+
+### Upgrade Notes
+- Decision mode is opt-in; existing chat modes are unchanged. TypeSafe and OpenRouter use the same typed questions but require their own credentials and model IDs. Retries, caching, streaming, and completion hooks are not supported in decision mode. Live provider compatibility has not yet been verified.
 
 ## [1.17.1] - 2026-09-09
 
@@ -370,7 +375,8 @@ previous published version is 1.16.0.
 ### Fixed
 - Pydantic v2 deprecation warnings resolved by migrating from class `Config` to `ConfigDict` ([#1782](https://github.com/567-labs/instructor/pull/1782))
 
-[Unreleased]: https://github.com/567-labs/instructor/compare/v1.17.1...HEAD
+[Unreleased]: https://github.com/567-labs/instructor/compare/v1.18.0...HEAD
+[1.18.0]: https://github.com/567-labs/instructor/compare/v1.17.1...v1.18.0
 [1.17.1]: https://github.com/567-labs/instructor/compare/v1.17.0...v1.17.1
 [1.17.0]: https://github.com/567-labs/instructor/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/567-labs/instructor/compare/v1.15.4...v1.16.0
