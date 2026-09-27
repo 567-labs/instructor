@@ -1144,6 +1144,13 @@ class OpenAIResponsesToolsHandler(OpenAIHandlerBase):
         is_async: bool = False,  # noqa: ARG002
     ) -> Any:
         """Parse Responses API response."""
+        incomplete_details = getattr(response, "incomplete_details", None)
+        if (
+            getattr(response, "status", None) == "incomplete"
+            and getattr(incomplete_details, "reason", None) == "max_output_tokens"
+        ):
+            raise IncompleteOutputException(last_completion=response)
+
         # Check for streaming
         if self._should_parse_streaming(response_model, stream):
             return self._parse_streaming_response(
