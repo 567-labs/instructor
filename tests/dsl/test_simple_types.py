@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from enum import Enum
-from typing import Annotated, Literal, Union, List, cast, get_origin, get_args  # noqa: UP035
+from typing import Annotated, Any, Literal, Union, List, cast, get_origin, get_args  # noqa: UP035
 from uuid import UUID
 
 import pytest
@@ -157,6 +157,25 @@ def test_annotated_model_member_keeps_content_adapter_routing():
 
     assert prepared is not None
     assert "content" in prepared.model_fields
+
+
+@pytest.mark.parametrize(
+    ("annotation", "payload"),
+    [
+        (list[list[int]], [[1, 2]]),
+        (list[dict[str, int]], [{"value": 1}]),
+        (list[tuple[int, str]], [(1, "one")]),
+        (list[Union[list[int], str]], [[1], "one"]),
+    ],
+)
+def test_nested_generic_annotations_prepare_and_validate(
+    annotation: Any, payload: Any
+) -> None:
+    prepared = cast(type[BaseModel], prepare_response_model(annotation))
+    assert prepared.model_json_schema()["properties"]["content"]["type"] == "array"
+    assert (
+        prepared.model_validate({"content": payload}).model_dump()["content"] == payload
+    )
 
 
 def test_iterable_of_pydantic_supported_scalar_not_rejected():

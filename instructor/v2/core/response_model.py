@@ -83,10 +83,16 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
         def _is_model_type(candidate: Any) -> bool:
             if is_typed_dict(candidate):
                 return True
-            if inspect.isclass(candidate) and issubclass(candidate, BaseModel):
+            if (
+                get_origin(candidate) is None
+                and inspect.isclass(candidate)
+                and issubclass(candidate, BaseModel)
+            ):
                 return True
             return get_origin(candidate) in _UNION_ORIGINS and all(
-                inspect.isclass(member) and issubclass(member, BaseModel)
+                get_origin(member) is None
+                and inspect.isclass(member)
+                and issubclass(member, BaseModel)
                 for member in get_args(candidate)
             )
 
