@@ -66,7 +66,7 @@ if TYPE_CHECKING:
         openai_moderation as openai_moderation,
     )
 
-__version__ = "1.17.1"
+__version__ = "1.18.0"
 
 __all__ = [
     "Instructor",
