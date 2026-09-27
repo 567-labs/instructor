@@ -196,3 +196,17 @@ def test_parse_response_warns_on_empty_args(caplog) -> None:
             pass
 
     assert any("empty arguments" in record.message for record in caplog.records)
+
+
+def test_parse_response_rejects_incomplete_max_output_tokens_response() -> None:
+    """A valid tool payload does not make a token-truncated Responses turn complete."""
+    import pytest
+
+    from instructor.v2.core.errors import IncompleteOutputException
+
+    response = _make_mock_response('{"name": "Ada"}')
+    response.status = "incomplete"
+    response.incomplete_details.reason = "max_output_tokens"
+
+    with pytest.raises(IncompleteOutputException):
+        OpenAIResponsesToolsHandler().parse_response(response, ResponseToolModel)
