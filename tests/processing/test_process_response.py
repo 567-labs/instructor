@@ -1,4 +1,4 @@
-from typing_extensions import TypedDict
+from typing_extensions import ReadOnly, TypedDict
 from pydantic import BaseModel
 from instructor.processing.response import handle_response_model
 from instructor.v2.core.response import _redact_kwargs
@@ -19,6 +19,21 @@ def test_typed_dict_conversion() -> None:
         age: int
 
     _, pydantic_user_tool_definition = handle_response_model(User)
+    assert user_tool_definition == pydantic_user_tool_definition
+
+
+def test_typed_dict_conversion_with_readonly() -> None:
+    class ReadOnlyUser(TypedDict):
+        name: ReadOnly[str]
+        age: int
+
+    _, user_tool_definition = handle_response_model(ReadOnlyUser)
+
+    class ReadOnlyUser(BaseModel):
+        name: str
+        age: int
+
+    _, pydantic_user_tool_definition = handle_response_model(ReadOnlyUser)
     assert user_tool_definition == pydantic_user_tool_definition
 
 

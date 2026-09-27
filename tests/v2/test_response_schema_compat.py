@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 import pytest
-from typing_extensions import NotRequired, Required, TypedDict
+from pydantic import Field
+from typing_extensions import NotRequired, ReadOnly, Required, TypedDict
 
 from instructor import Mode, Provider
 from instructor.v2.core.function_calls import ResponseSchema
@@ -162,3 +163,43 @@ def test_prepare_response_model_preserves_iterable_typed_dict_keys() -> None:
     assert task_model.model_fields["name"].is_required()
     assert not task_model.model_fields["age"].is_required()
     assert task_model(name="Ada").model_dump(exclude_unset=True) == {"name": "Ada"}
+
+
+class ReadOnlyUser(TypedDict):
+    name: ReadOnly[str]
+    age: NotRequired[ReadOnly[int]]
+    score: ReadOnly[Required[float]]
+
+
+class ReadOnlyAnnotatedUser(TypedDict):
+    title: Annotated[ReadOnly[str], Field(description="The user's title")]
+    code: ReadOnly[Annotated[int, Field(ge=0)]]
+
+
+def test_prepare_response_model_supports_readonly_typed_dict() -> None:
+    model = cast(Any, prepare_response_model(ReadOnlyUser))
+
+    assert model.model_fields["name"].is_required()
+    assert not model.model_fields["age"].is_required()
+    assert model.model_fields["score"].is_required()
+    instance = model(name="Ada", score=100.0)
+    assert instance.model_dump(exclude_unset=True) == {"name": "Ada", "score": 100.0}
+
+
+def test_prepare_response_model_supports_readonly_annotated_typed_dict() -> None:
+    model = cast(Any, prepare_response_model(ReadOnlyAnnotatedUser))
+
+    assert model.model_fields["title"].is_required()
+    assert model.model_fields["title"].description == "The user's title"
+    assert model.model_fields["code"].is_required()
+
+
+def test_prepare_response_model_supports_iterable_readonly_typed_dict() -> None:
+    iterable_model = cast(Any, prepare_response_model(list[ReadOnlyUser]))
+    task_model = iterable_model.task_type
+
+    assert task_model.model_fields["name"].is_required()
+    assert not task_model.model_fields["age"].is_required()
+    assert task_model.model_fields["score"].is_required()
+    instance = task_model(name="Ada", score=100.0)
+    assert instance.model_dump(exclude_unset=True) == {"name": "Ada", "score": 100.0}
