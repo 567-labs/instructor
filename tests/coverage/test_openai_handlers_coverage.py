@@ -13,7 +13,7 @@ from openai.types.responses import (
     ResponseOutputMessage,
     ResponseOutputText,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from instructor.v2.core.errors import (
     ConfigurationError,
@@ -844,6 +844,39 @@ def test_parallel_tools_parse_valid_calls_and_report_empty_or_incomplete_output(
         handler.parse_response(
             chat_completion(tool_calls=[], finish_reason="length"), response_model
         )
+
+
+def test_parallel_tools_handler_with_custom_schema_title() -> None:
+    class CustomUser(BaseModel):
+        model_config = ConfigDict(title="custom_user_tool")
+        name: str
+
+    response_model = Iterable[CustomUser]
+    handler = OpenAIParallelToolsHandler()
+
+    valid = chat_completion(
+        tool_calls=[
+            tool_call("custom_user_tool", '{"name":"Ada"}', "call_custom"),
+        ]
+    )
+
+    parsed = list(
+        handler.parse_response(
+            valid,
+            response_model,
+        )
+    )
+    assert parsed == [CustomUser(name="Ada")]
+
+    # Also test OpenAIToolsHandler with Iterable[CustomUser]
+    tools_handler = OpenAIToolsHandler()
+    tools_parsed = list(
+        tools_handler.parse_response(
+            valid,
+            response_model,
+        )
+    )
+    assert tools_parsed == [CustomUser(name="Ada")]
 
 
 def test_responses_tools_converts_max_tokens_and_falls_back_to_chat_tool_call() -> None:

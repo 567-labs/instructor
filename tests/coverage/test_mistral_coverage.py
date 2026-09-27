@@ -10,7 +10,7 @@ from typing import Any, Union, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 try:
     mistral_models = cast(Any, importlib.import_module("mistralai.client.models"))
@@ -454,6 +454,33 @@ def test_parallel_tool_request_and_response_support_multiple_models() -> None:
     assert request["tool_choice"] == "any"
     assert "tools" not in original
     assert parsed == [User(name="Ada", age=36), Answer(answer=42.0)]
+
+
+def test_parallel_tool_custom_schema_title() -> None:
+    class CustomExtract(BaseModel):
+        model_config = ConfigDict(title="custom_extract_tool")
+        value: int
+
+    handler = MistralToolsHandler()
+    model = Iterable[CustomExtract]
+    original = {"messages": [{"role": "user", "content": "Extract"}]}
+
+    returned_model, request = handler.prepare_request(
+        cast(type[BaseModel], model), original
+    )
+    assert request["tools"][0]["function"]["name"] == "custom_extract_tool"
+
+    parsed = list(
+        handler.parse_response(
+            response(
+                tool_calls=[
+                    tool_call("custom_extract_tool", {"value": 77}, "extract_call"),
+                ]
+            ),
+            returned_model,
+        )
+    )
+    assert parsed == [CustomExtract(value=77)]
 
 
 def test_tools_handler_survives_prose_response_without_tool_calls() -> None:

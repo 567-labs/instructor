@@ -32,7 +32,11 @@ from instructor.v2.core.errors import (
     ResponseParsingError,
 )
 from instructor.v2.dsl.iterable import IterableBase
-from instructor.v2.dsl.parallel import ParallelBase, get_types_array
+from instructor.v2.dsl.parallel import (
+    ParallelBase,
+    build_type_registry,
+    get_types_array,
+)
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.core.multimodal import convert_messages as convert_messages_v1
 from instructor.v2.core.json import (
@@ -334,7 +338,7 @@ class MistralToolsHandler(MistralHandlerBase):
         origin = get_origin(response_model)
         if origin is TypingIterable:
             the_types = get_types_array(response_model)  # type: ignore[arg-type]
-            type_registry = {t.__name__: t for t in the_types}
+            type_registry = build_type_registry(the_types)
 
             def parallel_generator() -> Generator[BaseModel, None, None]:
                 for tool_call in response.choices[0].message.tool_calls or []:

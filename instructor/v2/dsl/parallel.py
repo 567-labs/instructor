@@ -15,6 +15,37 @@ from collections.abc import Iterable
 from instructor.v2.core.mode import Mode
 
 T = TypeVar("T", bound=BaseModel)
+M = TypeVar("M")
+
+
+def get_model_tool_name(model: Any, default: str | None = None) -> str:
+    """Extract the declared tool name from a model, prioritizing Pydantic schema title."""
+    if hasattr(model, "model_config") and isinstance(model.model_config, dict):
+        title = model.model_config.get("title")
+        if title:
+            return title
+    if hasattr(model, "model_json_schema") and callable(model.model_json_schema):
+        try:
+            title = model.model_json_schema().get("title")
+            if title:
+                return title
+        except Exception:
+            pass
+    if hasattr(model, "__name__"):
+        return model.__name__
+    return default if default is not None else str(model)
+
+
+def build_type_registry(the_types: Iterable[type[M]]) -> dict[str, type[M]]:
+    """Build a mapping from tool/model names to their corresponding model types."""
+    registry: dict[str, type[M]] = {}
+    for model in the_types:
+        fallback_name = getattr(model, "__name__", str(model))
+        registry[fallback_name] = model
+    for model in the_types:
+        tool_name = get_model_tool_name(model)
+        registry[tool_name] = model
+    return registry
 
 
 class ParallelBase(Generic[T]):
@@ -22,10 +53,7 @@ class ParallelBase(Generic[T]):
         # Note that for everything else we've created a class, but for parallel base it is an instance
         assert len(models) > 0, "At least one model is required"
         self.models = models
-        self.registry: dict[str, type[T]] = {
-            model.__name__ if hasattr(model, "__name__") else str(model): model
-            for model in models
-        }
+        self.registry: dict[str, type[T]] = build_type_registry(models)
 
     def from_response(
         self,

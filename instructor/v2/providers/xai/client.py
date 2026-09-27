@@ -17,7 +17,11 @@ from instructor.v2.core.client import AsyncInstructor, Instructor
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from instructor.v2.dsl.iterable import IterableBase
-from instructor.v2.dsl.parallel import get_types_array
+from instructor.v2.dsl.parallel import (
+    build_type_registry,
+    get_model_tool_name,
+    get_types_array,
+)
 from instructor.v2.dsl.partial import PartialBase
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.core.response_model import prepare_response_model
@@ -51,7 +55,7 @@ def _get_model_schema(response_model: Any) -> dict[str, Any]:
 
 def _get_model_name(response_model: Any) -> str:
     """Get the name of a response model."""
-    return getattr(response_model, "__name__", "Model")
+    return get_model_tool_name(response_model, default="Model")
 
 
 def _finalize_parsed_response(parsed: Any, raw_response: Any) -> Any:
@@ -355,10 +359,9 @@ def from_xai(
                 )
                 chat.proto.tools.append(cast(Any, tool_obj))
             resp = await chat.sample()  # type: ignore[misc]
-            type_registry = {
-                model_type.__name__: model_type
-                for model_type in get_types_array(response_model)  # type: ignore[arg-type]
-            }
+            type_registry = build_type_registry(
+                get_types_array(response_model)  # type: ignore[arg-type]
+            )
             from instructor.v2.core.function_calls import _validate_model_from_json
 
             return iter(
@@ -517,10 +520,9 @@ def from_xai(
                 )
                 chat.proto.tools.append(cast(Any, tool_obj))
             resp = chat.sample()  # type: ignore[misc]
-            type_registry = {
-                model_type.__name__: model_type
-                for model_type in get_types_array(response_model)  # type: ignore[arg-type]
-            }
+            type_registry = build_type_registry(
+                get_types_array(response_model)  # type: ignore[arg-type]
+            )
             from instructor.v2.core.function_calls import _validate_model_from_json
 
             return iter(

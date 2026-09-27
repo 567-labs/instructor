@@ -8,7 +8,13 @@ from typing import Any, Union, cast
 
 import pytest
 from openai.types.chat import ChatCompletion
-from pydantic import BaseModel, ValidationError, ValidationInfo, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+)
 
 from instructor.v2.core.mode import Mode
 from instructor.v2.dsl import parallel as parallel_module
@@ -18,6 +24,8 @@ from instructor.v2.dsl.parallel import (
     ParallelBase,
     ParallelModel,
     VertexAIParallelModel,
+    build_type_registry,
+    get_model_tool_name,
     get_types_array,
     handle_anthropic_parallel_model,
     handle_parallel_model,
@@ -353,3 +361,63 @@ def test_parallel_schema_and_provider_factories_register_all_models() -> None:
     assert set(ParallelModel(typehint).registry) == {"EmailJob", "SmsJob"}
     assert set(VertexAIParallelModel(typehint).registry) == {"EmailJob", "SmsJob"}
     assert set(AnthropicParallelModel(typehint).registry) == {"EmailJob", "SmsJob"}
+
+
+def test_get_model_tool_name_and_build_type_registry() -> None:
+    class CustomConfigDictModel(BaseModel):
+        model_config = ConfigDict(title="custom_config_dict")
+        value: int
+
+    class CustomConfigClassModel(BaseModel):
+        class Config:
+            title = "custom_config_class"
+
+        value: int
+
+    class PlainModel(BaseModel):
+        value: int
+
+    assert get_model_tool_name(CustomConfigDictModel) == "custom_config_dict"
+    assert get_model_tool_name(CustomConfigClassModel) == "custom_config_class"
+    assert get_model_tool_name(PlainModel) == "PlainModel"
+    assert get_model_tool_name(int) == "int"
+
+    registry = build_type_registry(
+        [CustomConfigDictModel, CustomConfigClassModel, PlainModel]
+    )
+    assert registry["custom_config_dict"] is CustomConfigDictModel
+    assert registry["CustomConfigDictModel"] is CustomConfigDictModel
+    assert registry["custom_config_class"] is CustomConfigClassModel
+    assert registry["CustomConfigClassModel"] is CustomConfigClassModel
+    assert registry["PlainModel"] is PlainModel
+
+
+def test_parallel_models_with_custom_schema_title() -> None:
+    class ExtractData(BaseModel):
+        model_config = ConfigDict(title="extract_data")
+        val: int
+
+    class OtherData(BaseModel):
+        msg: str
+
+    typehint = Iterable[Union[ExtractData, OtherData]]
+    openai_tools = handle_parallel_model(typehint)
+    anthropic_tools = handle_anthropic_parallel_model(typehint)
+
+    assert [tool["function"]["name"] for tool in openai_tools] == [
+        "extract_data",
+        "OtherData",
+    ]
+    assert [tool["name"] for tool in anthropic_tools] == ["extract_data", "OtherData"]
+
+    pm = ParallelModel(typehint)
+    assert pm.registry["extract_data"] is ExtractData
+    assert pm.registry["ExtractData"] is ExtractData
+    assert pm.registry["OtherData"] is OtherData
+
+    resp = tool_response(
+        ("extract_data", '{"val": 99}'),
+        ("OtherData", '{"msg": "hello"}'),
+    )
+    results = list(pm.from_response(resp, mode=Mode.PARALLEL_TOOLS))
+    assert results == [ExtractData(val=99), OtherData(msg="hello")]
