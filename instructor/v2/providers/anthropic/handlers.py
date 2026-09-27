@@ -26,6 +26,7 @@ from instructor.v2.core.errors import ConfigurationError, IncompleteOutputExcept
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import (
     ParallelBase,
+    build_type_registry,
     get_types_array,
 )
 from instructor.v2.providers.anthropic.parallel import (
@@ -476,7 +477,7 @@ class AnthropicToolsHandler(AnthropicHandlerBase):
         origin = get_origin(response_model)
         if origin is TypingIterable:
             the_types = get_types_array(response_model)  # type: ignore[arg-type]
-            type_registry = {t.__name__: t for t in the_types}
+            type_registry = build_type_registry(the_types)
 
             def parallel_generator() -> Generator[BaseModel, None, None]:
                 for content in response.content:
@@ -584,10 +585,7 @@ class AnthropicParallelToolsHandler(AnthropicHandlerBase):
 
         # Extract model types from response_model (Iterable[Union[Model1, Model2, ...]])
         the_types = get_types_array(response_model)  # type: ignore[arg-type]
-        type_registry = {
-            model.__name__ if hasattr(model, "__name__") else str(model): model
-            for model in the_types
-        }
+        type_registry = build_type_registry(the_types)
 
         # Parse tool_use blocks from response
         for content in response.content:

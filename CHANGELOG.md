@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Parallel tools schema title dispatch**: Resolve and dispatch parallel tool calls using Pydantic schema titles (`ConfigDict(title=...)` or `Config.title`) in addition to class names across OpenAI, Anthropic, Mistral, and xAI handlers. ([#2674](https://github.com/567-labs/instructor/issues/2674))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes

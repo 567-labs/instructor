@@ -16,7 +16,7 @@ import pytest
 from anthropic.types import Usage
 from anthropic.types.cache_creation import CacheCreation
 from anthropic.types.server_tool_usage import ServerToolUsage
-from pydantic import BaseModel, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 
 from instructor.v2.core.client import AsyncInstructor, Instructor
 from instructor.v2.core.errors import ClientError, ModeError
@@ -343,6 +343,47 @@ def test_anthropic_parallel_schema_and_response_filtering() -> None:
     ) == [Contact(name="Ada", score=7), Reminder(text="Send notes")]
     assert list(parser.from_response(None, Mode.PARALLEL_TOOLS)) == []
     assert list(parser.from_response(object(), Mode.PARALLEL_TOOLS)) == []
+
+
+def test_anthropic_parallel_tools_with_custom_schema_title() -> None:
+    from instructor.v2.providers.anthropic.handlers import (
+        AnthropicParallelToolsHandler,
+        AnthropicToolsHandler,
+    )
+
+    class CustomContact(BaseModel):
+        model_config = ConfigDict(title="custom_contact_tool")
+        name: str
+
+    typehint = Iterable[CustomContact]
+    schemas = handle_parallel_model(typehint)
+    assert schemas[0]["name"] == "custom_contact_tool"
+
+    parser = AnthropicParallelModel(typehint)
+    assert parser.registry["custom_contact_tool"] is CustomContact
+    assert parser.registry["CustomContact"] is CustomContact
+
+    response = SimpleNamespace(
+        content=[
+            SimpleNamespace(
+                type="tool_use", name="custom_contact_tool", input={"name": "Ada"}
+            ),
+        ]
+    )
+
+    assert list(parser.from_response(response, Mode.PARALLEL_TOOLS)) == [
+        CustomContact(name="Ada")
+    ]
+
+    parallel_handler = AnthropicParallelToolsHandler()
+    assert list(
+        parallel_handler._parse_parallel_response(response, typehint, None, None)
+    ) == [CustomContact(name="Ada")]
+
+    tools_handler = AnthropicToolsHandler()
+    assert list(tools_handler.parse_response(response, typehint)) == [
+        CustomContact(name="Ada")
+    ]
 
 
 def test_anthropic_templating_renders_only_text_blocks() -> None:

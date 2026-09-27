@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from typing import Any, Union, get_args, get_origin
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.patch import patch_v2
@@ -101,3 +101,39 @@ async def test_parallel_tools_async_wrapper() -> None:
 
     assert calls, "create was never called"
     _assert_parallel_result(result, response_model)
+
+
+class CustomTitledModel(BaseModel):
+    model_config = ConfigDict(title="custom_tool_title")
+    x: int
+
+
+def test_parallel_tools_custom_schema_title_wrapper() -> None:
+    response_model = Iterable[Union[CustomTitledModel, B]]
+    calls: list[dict[str, Any]] = []
+
+    def create(**kwargs: Any) -> Any:
+        calls.append(kwargs)
+        return chat_completion(
+            tool_calls=[
+                tool_call("custom_tool_title", '{"x": 123}', call_id="call_custom"),
+                tool_call("B", '{"b": "beta"}', call_id="call_b"),
+            ],
+            finish_reason="tool_calls",
+        )
+
+    patched = patch_v2(create, Provider.OPENAI, Mode.PARALLEL_TOOLS)
+    result = patched(
+        response_model=response_model,
+        messages=[{"role": "user", "content": "run both"}],
+    )
+
+    assert calls, "create was never called"
+    tool_names = {t["function"]["name"] for t in calls[0]["tools"]}
+    assert tool_names == {"custom_tool_title", "B"}
+    items = list(result)
+    assert len(items) == 2
+    assert isinstance(items[0], CustomTitledModel)
+    assert items[0].x == 123
+    assert isinstance(items[1], B)
+    assert items[1].b == "beta"

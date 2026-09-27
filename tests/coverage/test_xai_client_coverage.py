@@ -12,7 +12,7 @@ import pytest
 pytest.importorskip("xai_sdk")
 
 from openai.types.chat import ChatCompletionMessageParam
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from xai_sdk import chat as xchat
 from xai_sdk.aio.client import Client as XAIAsyncClient
 from xai_sdk.sync.client import Client as XAISyncClient
@@ -805,6 +805,43 @@ async def test_async_parallel_tools_register_each_schema_and_ignore_unknown_call
         {"reason": "checked"},
     ]
     assert [tool.function.name for tool in chat.proto.tools] == ["Answer", "Reason"]
+
+
+def test_xai_parallel_tools_custom_schema_title() -> None:
+    from instructor.v2.providers.xai.handlers import XAIParallelToolsHandler
+
+    class CustomAnswer(BaseModel):
+        model_config = ConfigDict(title="custom_answer_tool")
+        answer: int
+
+    response = SimpleNamespace(
+        tool_calls=[
+            tool_call("custom_answer_tool", '{"answer":42}'),
+        ]
+    )
+    chat = SyncChat(sampled=response)
+    wrapped, _ = sync_client(chat, mode=Mode.PARALLEL_TOOLS)
+
+    results = list(
+        wrapped.create_fn(
+            response_model=Iterable[CustomAnswer],
+            messages=MESSAGES,
+            model="grok",
+        )
+    )
+
+    assert results == [CustomAnswer(answer=42)]
+    assert [tool.function.name for tool in chat.proto.tools] == ["custom_answer_tool"]
+
+    # Also test XAIParallelToolsHandler.parse_response directly
+    handler = XAIParallelToolsHandler()
+    handler_results = list(
+        handler.parse_response(
+            response,
+            Iterable[CustomAnswer],
+        )
+    )
+    assert handler_results == [CustomAnswer(answer=42)]
 
 
 @pytest.mark.parametrize(
