@@ -104,15 +104,15 @@ def test_question_overrides_field_description_and_nested_templates_do_not_mutate
 ):
     instructions = {
         "question": "Choose for {{ item.name }}",
-        "rules": ["{{ rule }}", {"fixed": 3, "enabled": True, "empty": None}],
+        "rules": ["{{ rule }}", {"fixed": 3.5, "enabled": True, "empty": None}],
     }
-    context = {"item": {"name": "post"}, "rule": "Be civil"}
+    context = {"item": {"name": "post", "confidence": 0.9}, "rule": "Be civil"}
     before = deepcopy((instructions, context))
     model = decision_model(Annotated[Literal["ok"], Question(instructions)])
     first = build_questions(model, context)
     assert first[0].question["instructions"] == {
         "question": "Choose for post",
-        "rules": ["Be civil", {"fixed": 3, "enabled": True, "empty": None}],
+        "rules": ["Be civil", {"fixed": 3.5, "enabled": True, "empty": None}],
     }
     assert json.loads(json.dumps(first[0].question)) == first[0].question
     first[0].question["instructions"]["rules"].append("changed")

@@ -157,8 +157,6 @@ def build_questions(model: type[BaseModel], context: dict[str, Any]) -> list[_Fi
         ):
             if field.validation_alias is not None:
                 input_name = field.validation_alias
-            elif field.alias is not None:
-                input_name = field.alias
         if not isinstance(input_name, str):
             raise ValueError(f"{name}: complex validation aliases are not supported")
         if input_name in input_names:
