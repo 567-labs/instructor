@@ -74,7 +74,7 @@ class BatchJob:
     def parse_from_file(
         cls, file_path: str, response_model: type[T]
     ) -> tuple[list[T], list[dict[Any, Any]]]:
-        with open(file_path) as file:
+        with open(file_path, encoding="utf-8") as file:
             content = file.read()
         return cls.parse_from_string(content, response_model)
 

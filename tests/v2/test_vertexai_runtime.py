@@ -10,7 +10,7 @@ import pytest
 from pydantic import BaseModel
 
 from instructor import Mode
-from instructor.v2.core.errors import ConfigurationError
+from instructor.v2.core.errors import ConfigurationError, ResponseParsingError
 from instructor.v2.providers.vertexai.parallel import VertexAIParallelModel
 
 
@@ -133,9 +133,27 @@ def test_vertexai_parallel_model_validates_registered_calls() -> None:
         ]
     )
 
-    parsed = list(model.from_response(response, mode=Mode.VERTEXAI_TOOLS))
-
-    assert parsed == [Weather(city="Paris")]
+    valid = SimpleNamespace(
+        candidates=[
+            SimpleNamespace(
+                content=SimpleNamespace(
+                    parts=[
+                        SimpleNamespace(
+                            function_call=SimpleNamespace(
+                                name="Weather",
+                                args={"city": "Paris"},
+                            )
+                        )
+                    ]
+                )
+            )
+        ]
+    )
+    assert list(model.from_response(valid, mode=Mode.VERTEXAI_TOOLS)) == [
+        Weather(city="Paris")
+    ]
+    with pytest.raises(ResponseParsingError, match="Unknown"):
+        list(model.from_response(response, mode=Mode.VERTEXAI_TOOLS))
 
 
 def test_vertexai_parallel_model_skips_empty_candidates() -> None:

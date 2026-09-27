@@ -45,7 +45,7 @@ class AnthropicProvider(BatchProvider):
                 batches_client = client.beta.messages.batches
 
             if isinstance(file_path_or_buffer, str):
-                with open(file_path_or_buffer) as f:
+                with open(file_path_or_buffer, encoding="utf-8") as f:
                     requests = [json.loads(line) for line in f if line.strip()]
             elif isinstance(file_path_or_buffer, io.BytesIO):
                 file_path_or_buffer.seek(0)
@@ -134,7 +134,7 @@ class AnthropicProvider(BatchProvider):
         """Download Anthropic batch results to a file"""
         try:
             result_lines = self._iter_result_lines(batch_id)
-            with open(file_path, "w") as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 for line in result_lines:
                     f.write(line + "\n")
         except Exception as e:

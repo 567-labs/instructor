@@ -69,8 +69,12 @@ def extract_json_from_stream(chunks: Iterable[str]) -> Generator[str, None, None
     codeblock_buffer: list[str] = []
     last_invalid_candidate: str | None = None
     emitted_valid_candidate = False
+    total_chars = 0
 
     for chunk in chunks:
+        total_chars += len(chunk)
+        if total_chars > MAX_JSON_EXTRACTION_CHARS:
+            raise ValueError("JSON extraction input exceeds the 1 MiB character limit")
         for char in chunk:
             if not in_codeblock and char == "`" and not (json_started and in_string):
                 codeblock_buffer.append(char)
@@ -124,6 +128,10 @@ def extract_json_from_stream(chunks: Iterable[str]) -> Generator[str, None, None
                 if not in_string:
                     if char in "{[":
                         delimiter_stack.append("}" if char == "{" else "]")
+                        if len(delimiter_stack) > MAX_JSON_DEPTH:
+                            raise ValueError(
+                                "JSON extraction nesting exceeds the 128 level limit"
+                            )
                     elif delimiter_stack and char == delimiter_stack[-1]:
                         delimiter_stack.pop()
                         if not delimiter_stack:
@@ -169,8 +177,12 @@ async def extract_json_from_stream_async(
     codeblock_buffer: list[str] = []
     last_invalid_candidate: str | None = None
     emitted_valid_candidate = False
+    total_chars = 0
 
     async for chunk in chunks:
+        total_chars += len(chunk)
+        if total_chars > MAX_JSON_EXTRACTION_CHARS:
+            raise ValueError("JSON extraction input exceeds the 1 MiB character limit")
         for char in chunk:
             if not in_codeblock and char == "`" and not (json_started and in_string):
                 codeblock_buffer.append(char)
@@ -225,6 +237,10 @@ async def extract_json_from_stream_async(
                 if not in_string:
                     if char in "{[":
                         delimiter_stack.append("}" if char == "{" else "]")
+                        if len(delimiter_stack) > MAX_JSON_DEPTH:
+                            raise ValueError(
+                                "JSON extraction nesting exceeds the 128 level limit"
+                            )
                     elif delimiter_stack and char == delimiter_stack[-1]:
                         delimiter_stack.pop()
                         if not delimiter_stack:

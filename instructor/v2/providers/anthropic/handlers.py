@@ -26,9 +26,9 @@ from instructor.v2.core.errors import ConfigurationError, IncompleteOutputExcept
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import (
     ParallelBase,
-    get_types_array,
 )
 from instructor.v2.providers.anthropic.parallel import (
+    AnthropicParallelModel,
     handle_parallel_model as handle_anthropic_parallel_model,
 )
 from instructor.v2.dsl.simple_type import AdapterBase
@@ -475,23 +475,9 @@ class AnthropicToolsHandler(AnthropicHandlerBase):
 
         origin = get_origin(response_model)
         if origin is TypingIterable:
-            the_types = get_types_array(response_model)  # type: ignore[arg-type]
-            type_registry = {t.__name__: t for t in the_types}
-
-            def parallel_generator() -> Generator[BaseModel, None, None]:
-                for content in response.content:
-                    if getattr(content, "type", None) == "tool_use":
-                        tool_name = content.name
-                        if tool_name in type_registry:
-                            model_class = type_registry[tool_name]
-                            json_str = json.dumps(content.input)
-                            yield model_class.model_validate_json(
-                                json_str,
-                                context=validation_context,
-                                strict=strict,
-                            )
-
-            return parallel_generator()
+            return AnthropicParallelModel(response_model).from_response(
+                response, self.mode, validation_context, strict
+            )
 
         tool_calls = [
             json.dumps(c.input)
@@ -577,31 +563,11 @@ class AnthropicParallelToolsHandler(AnthropicHandlerBase):
         response_model: type[BaseModel],
         validation_context: dict[str, Any] | None,
         strict: bool | None,
-    ) -> Generator[BaseModel, None, None]:
-        """Parse parallel tool response directly without using AnthropicParallelBase."""
-        if not response or not hasattr(response, "content"):
-            return
-
-        # Extract model types from response_model (Iterable[Union[Model1, Model2, ...]])
-        the_types = get_types_array(response_model)  # type: ignore[arg-type]
-        type_registry = {
-            model.__name__ if hasattr(model, "__name__") else str(model): model
-            for model in the_types
-        }
-
-        # Parse tool_use blocks from response
-        for content in response.content:
-            if getattr(content, "type", None) == "tool_use":
-                name = content.name
-                arguments = content.input
-                if name in type_registry:
-                    model_class = type_registry[name]
-                    json_str = json.dumps(arguments)
-                    yield model_class.model_validate_json(
-                        json_str,
-                        context=validation_context,
-                        strict=strict,
-                    )
+    ) -> Any:
+        """Validate every parallel tool call before returning an iterator."""
+        return AnthropicParallelModel(response_model).from_response(
+            response, self.mode, validation_context, strict
+        )
 
 
 @register_mode_handler(Provider.ANTHROPIC, Mode.JSON)

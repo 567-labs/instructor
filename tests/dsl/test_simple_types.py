@@ -1,10 +1,15 @@
 import sys
 from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
 from enum import Enum
 from typing import Annotated, Literal, Union, List, cast, get_origin, get_args  # noqa: UP035
+from uuid import UUID
 
 import pytest
 from pydantic import BaseModel, Field
+from pydantic_core import core_schema
 
 from instructor.dsl import is_simple_type, Partial
 from instructor.utils.core import prepare_response_model
@@ -84,6 +89,114 @@ def test_list_of_base_model_not_simple():
 
     assert not is_simple_type(list[Item])
     assert not is_simple_type(List[Item])  # noqa: UP006
+
+
+def test_list_of_custom_class_not_simple():
+    """A user-defined class is not a union just because ``type`` exposes ``__or__``."""
+
+    class CustomClass:
+        pass
+
+    assert not is_simple_type(list[CustomClass])
+
+    with pytest.raises(TypeError, match="iterable elements must have a Pydantic"):
+        prepare_response_model(list[CustomClass])
+
+
+def test_list_of_pydantic_supported_classes_keeps_content_adapter_routing():
+    """Supported scalar schemas retain content-adapter routing."""
+
+    @dataclass
+    class Point:
+        x: int
+        y: int
+
+    class CustomCore:
+        def __init__(self, value: object) -> None:
+            self.value = value
+
+        @classmethod
+        def __get_pydantic_core_schema__(cls, source_type, handler):
+            return core_schema.no_info_plain_validator_function(cls)
+
+    class Color(Enum):
+        RED = "red"
+
+    supported = {
+        "Enum": list[Color],
+        "date": list[date],
+        "Decimal": list[Decimal],
+        "UUID": list[UUID],
+        "dataclass": list[Point],
+        "__get_pydantic_core_schema__": list[CustomCore],
+        "Annotated": list[Annotated[int, Field(gt=0)]],
+        "Literal": list[Literal["one"]],
+        "object": list[object],
+    }
+
+    for name, hint in supported.items():
+        assert is_simple_type(hint), f"{name}: {hint} left the content-adapter path"
+        prepared = cast(type[BaseModel], prepare_response_model(hint))
+        assert prepared is not None, f"{name}: {hint} did not prepare"
+        assert "content" in prepared.model_fields, (
+            f"{name}: {hint} routed to {prepared.__name__} instead of the content adapter"
+        )
+
+
+def test_annotated_model_member_keeps_content_adapter_routing():
+    """Annotated models retain the existing content-adapter schema."""
+
+    class Record(BaseModel):
+        name: str
+
+    hint = list[Annotated[Record, Field()]]
+
+    assert is_simple_type(hint)
+
+    prepared = cast(type[BaseModel], prepare_response_model(hint))
+
+    assert prepared is not None
+    assert "content" in prepared.model_fields
+
+
+def test_iterable_of_pydantic_supported_scalar_not_rejected():
+    """``Iterable[int]`` generated a schema before #2629 and must keep doing so."""
+
+    assert not is_simple_type(Iterable[int])
+
+    prepared = cast(type[BaseModel], prepare_response_model(Iterable[int]))
+
+    assert prepared is not None
+    assert "content" not in prepared.model_fields
+
+
+def test_non_type_iterable_member_is_not_simple():
+    """Invalid iterable annotations are not silently wrapped in an adapter."""
+
+    assert not is_simple_type(list[None])
+    assert not is_simple_type(list.__class_getitem__("ForwardRef"))
+
+    with pytest.raises(ValueError, match="must be parameterized"):
+        prepare_response_model(list[None])
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 10),
+    reason="type.__or__ only exists on Python 3.10+",
+)
+def test_routing_does_not_depend_on_the_dunder_or_probe():
+    """Both classes expose __or__, but only one has a validation schema."""
+
+    class NotPydantic:
+        pass
+
+    class Color(Enum):
+        RED = "red"
+
+    assert hasattr(NotPydantic, "__or__") and hasattr(Color, "__or__")
+
+    assert is_simple_type(list[Color])
+    assert not is_simple_type(list[NotPydantic])
 
 
 @pytest.mark.skipif(

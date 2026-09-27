@@ -10,9 +10,12 @@ from typing import Any, Generic
 import json
 import os
 import io
+import re
 from .models import BatchResult, BatchSuccess, BatchError, BatchJobInfo, T
 from .request import BatchRequest
 from .providers import get_provider
+
+_ANTHROPIC_CUSTOM_ID = re.compile(r"[a-zA-Z0-9_-]{1,64}")
 
 
 class BatchProcessor(Generic[T]):
@@ -40,6 +43,7 @@ class BatchProcessor(Generic[T]):
         file_path: str | None = None,
         max_tokens: int | None = 1000,
         temperature: float | None = 0.1,
+        custom_ids: list[str] | None = None,
     ) -> str | io.BytesIO:
         """Create batch file from list of message conversations
 
@@ -48,18 +52,29 @@ class BatchProcessor(Generic[T]):
             file_path: Path to save the batch request file. If None, returns BytesIO buffer
             max_tokens: Maximum tokens per request
             temperature: Temperature for generation
+            custom_ids: Optional unique ID for each conversation, in the same order.
+                Defaults to "request-0", "request-1", ...
 
         Returns:
             The file path where the batch was saved, or BytesIO buffer if file_path is None
+
+        Raises:
+            ValueError: If custom_ids does not match messages_list in length, contains
+                duplicates, or (for Anthropic) does not match ^[a-zA-Z0-9_-]{1,64}$
         """
+        if custom_ids is None:
+            custom_ids = [f"request-{i}" for i in range(len(messages_list))]
+        else:
+            self._validate_custom_ids(custom_ids, len(messages_list))
+
         if file_path is not None:
             if os.path.exists(file_path):
                 os.remove(file_path)
 
             batch_requests = []
-            for i, messages in enumerate(messages_list):
+            for custom_id, messages in zip(custom_ids, messages_list):
                 batch_request = BatchRequest[T](
-                    custom_id=f"request-{i}",
+                    custom_id=custom_id,
                     messages=messages,
                     response_model=self.response_model,
                     model=self.model_name,
@@ -74,9 +89,9 @@ class BatchProcessor(Generic[T]):
         # Create BytesIO buffer - caller is responsible for cleanup
         buffer = io.BytesIO()
         batch_requests = []
-        for i, messages in enumerate(messages_list):
+        for custom_id, messages in zip(custom_ids, messages_list):
             batch_request = BatchRequest[T](
-                custom_id=f"request-{i}",
+                custom_id=custom_id,
                 messages=messages,
                 response_model=self.response_model,
                 model=self.model_name,
@@ -89,6 +104,21 @@ class BatchProcessor(Generic[T]):
         print(f"Created batch buffer with {len(batch_requests)} requests")
         buffer.seek(0)  # Reset buffer position for reading
         return buffer
+
+    def _validate_custom_ids(self, custom_ids: list[str], expected: int) -> None:
+        """Fail before writing requests if the provider would reject the IDs"""
+        if len(custom_ids) != expected:
+            raise ValueError(
+                f"custom_ids has {len(custom_ids)} items but messages_list has {expected}"
+            )
+        if len(set(custom_ids)) != len(custom_ids):
+            raise ValueError("custom_ids must be unique")
+        if self.provider_name == "anthropic":
+            invalid = [c for c in custom_ids if not _ANTHROPIC_CUSTOM_ID.fullmatch(c)]
+            if invalid:
+                raise ValueError(
+                    f"Anthropic custom_ids must match {_ANTHROPIC_CUSTOM_ID.pattern}: {invalid}"
+                )
 
     def submit_batch(
         self,
