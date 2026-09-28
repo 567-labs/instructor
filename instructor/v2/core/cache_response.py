@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 from types import SimpleNamespace
@@ -15,6 +16,17 @@ if TYPE_CHECKING:
     from instructor.cache import BaseCache
 
 logger = logging.getLogger("instructor.cache")
+
+# Entries are stored by field name, because ``model_dump_json`` does not apply
+# aliases. Validation accepts aliases only, so aliased models fail to reload
+# unless field names are accepted too. ``by_name`` arrived in Pydantic 2.11 and
+# the declared floor is 2.8, so detect it rather than assume it. It leaves
+# ``by_alias`` at its default, so aliases keep validating on newer Pydantic.
+_VALIDATE_BY_NAME: dict[str, bool] = (
+    {"by_name": True}
+    if "by_name" in inspect.signature(BaseModel.model_validate_json).parameters
+    else {}
+)
 
 
 def load_cached_response(
@@ -39,7 +51,9 @@ def load_cached_response(
         model_json = cached
         raw_json = None
 
-    obj = response_model.model_validate_json(model_json, context=context, strict=strict)
+    obj = response_model.model_validate_json(
+        model_json, context=context, strict=strict, **_VALIDATE_BY_NAME
+    )
     if raw_json is not None:
         # `_raw_response` is an internal attribute used by Instructor; it may not
         # be declared on the Pydantic model type.
