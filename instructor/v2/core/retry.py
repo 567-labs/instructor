@@ -173,6 +173,7 @@ def retry_sync_v2(
     """
     from instructor.v2.validation.async_validators import reject_async_validators
 
+    kwargs = isolate_retry_kwargs(kwargs)
     reject_async_validators(response_model)
     _validate_token_budget(
         token_budget,
@@ -394,7 +395,7 @@ def retry_sync(
         context=context,
         max_retries=max_retries,
         args=tuple(args) if isinstance(args, tuple) else args,
-        kwargs=isolate_retry_kwargs(kwargs),
+        kwargs=dict(kwargs),
         strict=strict_value,
         hooks=hooks,
         token_budget=token_budget,
@@ -424,7 +425,7 @@ async def retry_async(
         context=context,
         max_retries=max_retries,
         args=tuple(args) if isinstance(args, tuple) else args,
-        kwargs=isolate_retry_kwargs(kwargs),
+        kwargs=dict(kwargs),
         strict=strict_value,
         hooks=hooks,
         token_budget=token_budget,
@@ -469,6 +470,7 @@ async def retry_async_v2(
     """
     from instructor.v2.validation.async_validators import reject_async_validators
 
+    kwargs = isolate_retry_kwargs(kwargs)
     reject_async_validators(response_model)
     _validate_token_budget(
         token_budget,

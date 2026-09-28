@@ -45,7 +45,13 @@ from pydantic import BaseModel
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.registry import mode_registry
-from instructor.v2.core.retry import retry_async, retry_sync, retry_sync_v2
+from instructor.v2.core.response import handle_reask_kwargs
+from instructor.v2.core.retry import (
+    retry_async,
+    retry_async_v2,
+    retry_sync,
+    retry_sync_v2,
+)
 from instructor.v2.providers.openai.handlers import (
     OPENAI_COMPAT_PROVIDERS,
     OPENAI_JSON_SCHEMA_PROVIDERS,
@@ -239,7 +245,8 @@ def _counting_tool_call_create(counter: dict[str, int]) -> Any:
     return fake_openai_create
 
 
-def test_public_retry_sync_does_not_mutate_caller_messages() -> None:
+@pytest.mark.asyncio
+async def test_public_retry_sync_does_not_mutate_caller_messages() -> None:
     """The public `retry_sync` entrypoint must isolate caller-owned state too.
 
     `patch.py` already isolates `messages` before entering the retry loop, so
@@ -291,5 +298,101 @@ async def test_public_retry_async_does_not_mutate_caller_messages() -> None:
 
     assert isinstance(result, Answer)
     assert result.age == 37
+    assert counter["n"] == 2
+    assert caller_messages == original_snapshot
+
+
+def test_retry_sync_v2_does_not_mutate_raw_caller_messages() -> None:
+    """`retry_sync_v2` must isolate a raw caller dict, with no request handler
+    having copied the list first (issue #2645)."""
+    counter: dict[str, int] = {"n": 0}
+    caller_messages = [{"role": "user", "content": "Ada is 37 years old"}]
+    original_snapshot = deepcopy(caller_messages)
+
+    result = retry_sync_v2(
+        func=_counting_tool_call_create(counter),
+        response_model=Answer,
+        provider=Provider.OPENAI,
+        mode=Mode.TOOLS,
+        context=None,
+        max_retries=2,
+        args=(),
+        kwargs={"model": "gpt-4o-mini", "messages": caller_messages},
+        strict=True,
+        hooks=None,
+    )
+
+    assert isinstance(result, Answer)
+    assert counter["n"] == 2
+    assert caller_messages == original_snapshot
+
+
+def test_handle_reask_kwargs_does_not_mutate_caller_messages() -> None:
+    """`handle_reask_kwargs` is public and its comment promises a copy that
+    `dict.copy()` did not make (issue #2645)."""
+    caller_messages = [{"role": "user", "content": "hi"}]
+    original_snapshot = deepcopy(caller_messages)
+    tool_call = ChatCompletionMessageToolCall(
+        id="call_1",
+        type="function",
+        function=Function(name="Answer", arguments='{"name": "Ada"}'),
+    )
+    response = ChatCompletion(
+        id="chatcmpl-test",
+        choices=[
+            Choice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant", content="stub", tool_calls=[tool_call]
+                ),
+                finish_reason="tool_calls",
+                logprobs=None,
+            )
+        ],
+        created=0,
+        model="m",
+        object="chat.completion",
+        usage=CompletionUsage(completion_tokens=1, prompt_tokens=1, total_tokens=2),
+    )
+    exception = ValueError("1 validation error for Answer\nage\n  Field required")
+
+    handle_reask_kwargs(
+        kwargs={"model": "gpt-4o-mini", "messages": caller_messages},
+        mode=Mode.TOOLS,
+        response=response,
+        exception=exception,
+        provider=Provider.OPENAI,
+    )
+
+    assert caller_messages == original_snapshot
+
+
+@pytest.mark.asyncio
+async def test_retry_async_v2_does_not_mutate_raw_caller_messages() -> None:
+    """Async counterpart: `retry_async_v2` must isolate a raw caller dict."""
+    counter: dict[str, int] = {"n": 0}
+    caller_messages = [{"role": "user", "content": "Ada is 37 years old"}]
+    original_snapshot = deepcopy(caller_messages)
+
+    async def fake_openai_create(*_args: Any, **_kwargs: Any) -> ChatCompletion:
+        counter["n"] += 1
+        if counter["n"] == 1:
+            return _make_tool_call_response('{"name": "Ada"}', "call_1")
+        return _make_tool_call_response('{"name": "Ada", "age": 37}', "call_2")
+
+    result = await retry_async_v2(
+        func=fake_openai_create,
+        response_model=Answer,
+        provider=Provider.OPENAI,
+        mode=Mode.TOOLS,
+        context=None,
+        max_retries=2,
+        args=(),
+        kwargs={"model": "gpt-4o-mini", "messages": caller_messages},
+        strict=True,
+        hooks=None,
+    )
+
+    assert isinstance(result, Answer)
     assert counter["n"] == 2
     assert caller_messages == original_snapshot
