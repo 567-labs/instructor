@@ -427,11 +427,19 @@ def handle_gemini_json(
         """
     )
 
+    # Never mutate the caller's own message objects in place. `prepare_request`
+    # only performs a shallow copy of `kwargs`, so `new_kwargs["messages"]` is
+    # still the caller's list; the injection below would otherwise corrupt it.
+    # Copy the list and each message dict before mutating (see issue #2716).
     messages = new_kwargs.get("messages") or []
+    if messages:
+        messages = [dict(m) for m in messages]
+    else:
+        messages = []
+    new_kwargs["messages"] = messages
+
     if not messages or messages[0].get("role") != "system":
-        new_kwargs.setdefault("messages", []).insert(
-            0, {"role": "system", "content": message}
-        )
+        messages.insert(0, {"role": "system", "content": message})
     else:
         messages[0]["content"] += f"\n\n{message}"
 
