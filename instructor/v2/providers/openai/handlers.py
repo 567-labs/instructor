@@ -1112,11 +1112,18 @@ class OpenAIResponsesToolsHandler(OpenAIHandlerBase):
                 f"the required parameters with correct types"
             )
 
-        new_kwargs["tools"] = [tool_definition]
-        new_kwargs["tool_choice"] = {
-            "type": "function",
-            "name": schema["function"]["name"],
-        }
+        existing_tools = list(kwargs.get("tools") or [])
+        if existing_tools:
+            new_kwargs["tools"] = [*existing_tools, tool_definition]
+            if "tool_choice" not in kwargs:
+                new_kwargs["tool_choice"] = "auto"
+        else:
+            new_kwargs["tools"] = [tool_definition]
+            if "tool_choice" not in kwargs:
+                new_kwargs["tool_choice"] = {
+                    "type": "function",
+                    "name": schema["function"]["name"],
+                }
         _ensure_text_format_config(
             new_kwargs,
             prepared_model,
@@ -1155,28 +1162,36 @@ class OpenAIResponsesToolsHandler(OpenAIHandlerBase):
 
         # Handle Responses API format - output is a list of items
         if hasattr(response, "output"):
+            target_name = getattr(response_model, "__name__", None)
+            matching_item = None
             for item in response.output:
                 item_type = getattr(item, "type", None)
                 if item_type in {"function_call", "tool_call"}:
-                    args = getattr(item, "arguments", None)
-                    if not args or (
-                        isinstance(args, str) and args.strip() in {"", "{}"}
-                    ):
-                        logger.warning(
-                            "RESPONSES_TOOLS: tool '%s' returned empty arguments. "
-                            "This can indicate a text.format/tool_choice conflict "
-                            "or insufficient reasoning budget.",
-                            getattr(item, "name", "unknown"),
-                        )
-                    if args:
-                        parsed = response_model.model_validate_json(
-                            args,
-                            context=validation_context,
-                            strict=strict,
-                        )
-                        return self._finalize_parsed_result(
-                            response_model, response, parsed
-                        )
+                    item_name = getattr(item, "name", None)
+                    if target_name and item_name == target_name:
+                        matching_item = item
+                        break
+                    if matching_item is None:
+                        matching_item = item
+
+            if matching_item is not None:
+                args = getattr(matching_item, "arguments", None)
+                if not args or (isinstance(args, str) and args.strip() in {"", "{}"}):
+                    logger.warning(
+                        "RESPONSES_TOOLS: tool '%s' returned empty arguments. "
+                        "This can indicate a text.format/tool_choice conflict "
+                        "or insufficient reasoning budget.",
+                        getattr(matching_item, "name", "unknown"),
+                    )
+                if args:
+                    parsed = response_model.model_validate_json(
+                        args,
+                        context=validation_context,
+                        strict=strict,
+                    )
+                    return self._finalize_parsed_result(
+                        response_model, response, parsed
+                    )
 
         # Fallback to standard tool call parsing
         json_str = self._extract_tool_call_json(response)
