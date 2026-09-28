@@ -227,3 +227,37 @@ def test_reask_does_not_mutate_caller_messages(provider: Provider, mode: Mode) -
     handlers.reask_handler(new_kwargs, response, exception)
 
     assert caller_messages == original_snapshot
+
+
+def test_gemini_md_json_does_not_mutate_caller_messages() -> None:
+    """Regression test for #2716: Gemini ``Mode.MD_JSON`` must not mutate the
+    caller's own message objects.
+
+    ``GeminiJSONHandler.prepare_request`` only performs a shallow copy of
+    ``kwargs``, so ``handle_gemini_json`` was appending the JSON instruction to
+    the caller's ``system`` dict content (and inserting a system message into
+    the caller's list when none was present). Both corrupt the caller's input.
+    """
+    # Leg A: a system message is present -> its content must not be appended to.
+    system = {"role": "system", "content": "You are terse."}
+    caller = [system, {"role": "user", "content": "hi"}]
+    original = deepcopy(caller)
+    handlers = mode_registry.get_handlers(Provider.GEMINI, Mode.MD_JSON)
+    handlers.request_handler(response_model=Answer, kwargs={"messages": caller})
+    assert caller == original
+    # A second call must not append the instruction a second time.
+    handlers.request_handler(response_model=Answer, kwargs={"messages": caller})
+    assert caller == original
+
+    # Leg B: no system message -> a system message is injected, but into a copy
+    # of the caller's list, not the caller's list itself.
+    caller2 = [{"role": "user", "content": "hi"}]
+    original2 = deepcopy(caller2)
+    handlers.request_handler(response_model=Answer, kwargs={"messages": caller2})
+    assert caller2 == original2
+
+    # Leg C: empty caller messages -> injection goes into a fresh list, leaving
+    # the caller's (empty) list untouched.
+    caller3: list[dict[str, Any]] = []
+    handlers.request_handler(response_model=Answer, kwargs={"messages": caller3})
+    assert caller3 == []
