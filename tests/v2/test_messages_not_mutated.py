@@ -227,3 +227,60 @@ def test_reask_does_not_mutate_caller_messages(provider: Provider, mode: Mode) -
     handlers.reask_handler(new_kwargs, response, exception)
 
     assert caller_messages == original_snapshot
+
+
+GEMINI_MESSAGE_SHAPES: list[list[dict[str, Any]]] = [
+    # Appends the schema instruction onto the existing system message dict.
+    [{"role": "system", "content": "keep me"}, {"role": "user", "content": "hi"}],
+    # Inserts a brand new system message at the head of the list.
+    [{"role": "user", "content": "hi"}],
+]
+
+
+@pytest.mark.parametrize(
+    "caller_messages",
+    GEMINI_MESSAGE_SHAPES,
+    ids=["existing-system-message", "no-system-message"],
+)
+def test_gemini_md_json_does_not_mutate_caller_messages(
+    caller_messages: list[dict[str, Any]],
+) -> None:
+    """Gemini MD_JSON injects its schema instruction inside `prepare_request`,
+    so a single successful call with no retry is enough to corrupt the
+    caller's messages. Both injection branches are covered because they
+    mutate different objects: one rewrites the caller's system message dict,
+    the other inserts into the caller's list. The second call guards against
+    re-injection across repeated use of the same messages.
+
+    Gemini is checked separately from `FIXED_PAIRS` above because it rejects
+    `model=` in the create kwargs, so it cannot share those parametrized
+    cases. (Regression test for https://github.com/567-labs/instructor/issues/2716)
+    """
+    original_snapshot = deepcopy(caller_messages)
+
+    handlers = mode_registry.get_handlers(Provider.GEMINI, Mode.MD_JSON)
+    handlers.request_handler(response_model=Answer, kwargs={"messages": caller_messages})
+    handlers.request_handler(response_model=Answer, kwargs={"messages": caller_messages})
+
+    assert caller_messages == original_snapshot
+
+
+def test_gemini_md_json_without_response_model_does_not_mutate_caller_messages() -> (
+    None
+):
+    """`response_model=None` skips the schema injection above and goes straight
+    to the Gemini prompt conversion, which hoists the system prompt into the
+    first message's parts. Those parts must not be the caller's own content
+    list, or the hoisted prompt lands in the caller's message.
+    (Regression test for https://github.com/567-labs/instructor/issues/2716)
+    """
+    caller_messages: list[dict[str, Any]] = [
+        {"role": "system", "content": "sys rules"},
+        {"role": "user", "content": [{"type": "text", "text": "hi"}]},
+    ]
+    original_snapshot = deepcopy(caller_messages)
+
+    handlers = mode_registry.get_handlers(Provider.GEMINI, Mode.MD_JSON)
+    handlers.request_handler(response_model=None, kwargs={"messages": caller_messages})
+
+    assert caller_messages == original_snapshot

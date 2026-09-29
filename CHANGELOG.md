@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Gemini MD_JSON message handling**: Stop mutating the caller's `messages` during request preparation. The schema instruction was appended to the caller's own system message dict (and re-appended on every call), or inserted into the caller's list when no system message was present; the prompt conversion also hoisted the system prompt into the caller's own content list. `handle_gemini_json` now works on a copy via `copy_messages_for_mutation`, and `get_message_content` always returns a new list. ([#2716](https://github.com/567-labs/instructor/issues/2716))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
