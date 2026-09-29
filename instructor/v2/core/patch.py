@@ -36,6 +36,54 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("instructor.v2")
 
+
+def _model_name(model: Any) -> str:
+    """Name a response model the way the caller wrote it.
+
+    `list[User]` is a generic alias, so `__name__` gives "list"; `str()` gives
+    "<class 'str'>". Both are unhelpful in a warning about what the caller asked
+    for, so unwrap the class form and keep everything else verbatim.
+    """
+    text = str(model)
+    if text.startswith("<class '") and text.endswith("'>"):
+        return text[len("<class '") : -len("'>")]
+    return text
+
+
+def _store_cached_result(
+    cache: Any,
+    key: str,
+    response: Any,
+    requested_model: Any,
+    ttl: int | None,
+) -> None:
+    """Write a finished result to the cache, or say why it could not be written.
+
+    Only a Pydantic result can be stored: `load_cached_response` rebuilds the
+    value with `response_model.model_validate_json`, so what the store side
+    writes has to be the model's own JSON. A list or scalar result has none --
+    `list[User]` and `str` come back from the retry loop as a `ListResponse` or a
+    plain `str` -- so the entry is skipped. That used to be silent, which reads
+    as a cache that never hits rather than a response model it cannot hold.
+    """
+    if not isinstance(response, BaseModel):
+        logger.warning(
+            "Caching is not supported for this response model: %s returned a %s, "
+            "which has no model JSON to store, so nothing was written to the cache "
+            "and every call reaches the provider.",
+            _model_name(requested_model),
+            type(response).__name__,
+        )
+        return
+
+    from instructor.v2.core.cache_response import store_cached_response
+
+    try:
+        store_cached_response(cache, key, response, ttl=ttl)
+    except ModuleNotFoundError:
+        pass
+
+
 T_Model = TypeVar("T_Model", bound=BaseModel)
 T_Retval = TypeVar("T_Retval")
 
@@ -224,6 +272,11 @@ def _create_sync_wrapper(
         # Get handlers from registry
         handlers = mode_registry.get_handlers(provider, mode)
 
+        # Kept for the cache warning: `response_model` is about to become the
+        # prepared model (IterableUser for list[User]), which says nothing useful
+        # to the caller who wrote list[User].
+        requested_model = response_model
+
         if response_model is not None and mode not in Mode.parallel_modes():
             response_model = prepare_response_model(response_model)
 
@@ -293,13 +346,8 @@ def _create_sync_wrapper(
             token_budget=token_budget,
         )
 
-        if key is not None and isinstance(response, BaseModel):
-            from instructor.v2.core.cache_response import store_cached_response
-
-            try:
-                store_cached_response(cache, key, response, ttl=cache_ttl)
-            except ModuleNotFoundError:
-                pass
+        if key is not None:
+            _store_cached_result(cache, key, response, requested_model, cache_ttl)
 
         return response  # type: ignore[return-value]
 
@@ -347,6 +395,11 @@ def _create_async_wrapper(
 
         # Get handlers from registry
         handlers = mode_registry.get_handlers(provider, mode)
+
+        # Kept for the cache warning: `response_model` is about to become the
+        # prepared model (IterableUser for list[User]), which says nothing useful
+        # to the caller who wrote list[User].
+        requested_model = response_model
 
         if response_model is not None and mode not in Mode.parallel_modes():
             response_model = prepare_response_model(response_model)
@@ -417,13 +470,8 @@ def _create_async_wrapper(
             token_budget=token_budget,
         )
 
-        if key is not None and isinstance(response, BaseModel):
-            from instructor.v2.core.cache_response import store_cached_response
-
-            try:
-                store_cached_response(cache, key, response, ttl=cache_ttl)
-            except ModuleNotFoundError:
-                pass
+        if key is not None:
+            _store_cached_result(cache, key, response, requested_model, cache_ttl)
 
         return response  # type: ignore[return-value]
 
