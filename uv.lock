@@ -293,6 +293,9 @@ wheels = [
 name = "anthropic"
 version = "0.93.0"
 source = { registry = "https://pypi.org/simple/" }
+resolution-markers = [
+    "python_full_version < '3.10'",
+]
 dependencies = [
     { name = "anyio" },
     { name = "distro" },
@@ -306,6 +309,30 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c2/70/2429d6f7c2516db99fb342c3ad89575ab3e0cd31d3d2f6cba5fdf5e9c65b/anthropic-0.93.0.tar.gz", hash = "sha256:fea8376f7d5cdf99d5e8e85a48fe7a7bd8ab307cdfee4b1e8283a18b1c0ce1b5", size = 654155, upload-time = "2026-04-09T18:13:53.522Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c9/7b/5b2c11902707c49c7a99418eb027ed3eb63876193fee5c80b5c878e3a673/anthropic-0.93.0-py3-none-any.whl", hash = "sha256:2c20b2ce6d305564c66a6cbaedddee8efdd3b9753098bf314093fcf4c662d04c", size = 627482, upload-time = "2026-04-09T18:13:51.606Z" },
+]
+
+[[package]]
+name = "anthropic"
+version = "1.6.0"
+source = { registry = "https://pypi.org/simple/" }
+resolution-markers = [
+    "python_full_version >= '3.13'",
+    "python_full_version == '3.12.*'",
+    "python_full_version == '3.11.*'",
+    "python_full_version == '3.10.*'",
+]
+dependencies = [
+    { name = "anyio" },
+    { name = "docstring-parser" },
+    { name = "httpx2" },
+    { name = "jiter" },
+    { name = "pydantic" },
+    { name = "sniffio" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a6/3d/4170318539de0c163e1806509b0bb9cd7d611ee15e7885f1d16a11a37d29/anthropic-1.6.0.tar.gz", hash = "sha256:ce3c032f940984f67c516db896375bff36959f8dc589973e386f8e6ea81bbec3", size = 1172375, upload-time = "2026-09-15T15:14:55.826Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c1/32/57a8b6c5441d9e6a1f332f70ee02375af6d9b5b65b42689ba83f7c7d010a/anthropic-1.6.0-py3-none-any.whl", hash = "sha256:049434f013d3a874acdfee696ec626e19166d58f4277e8fa34e5d0a5ec250ad0", size = 1249068, upload-time = "2026-09-15T15:14:54.326Z" },
 ]
 
 [[package]]
@@ -1861,6 +1888,19 @@ wheels = [
 ]
 
 [[package]]
+name = "httpcore2"
+version = "2.13.1"
+source = { registry = "https://pypi.org/simple/" }
+dependencies = [
+    { name = "h11" },
+    { name = "truststore" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cb/f3/1db7aa2bc2524062192bb0e0323969492d1883152a232fe36eea65f4e35c/httpcore2-2.13.1.tar.gz", hash = "sha256:e0aa977abe17e69a3b820a24542a6fa88702676d83880b8d194dcd18408e5103", size = 68071, upload-time = "2026-09-23T07:47:22.372Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/09/ba/a4568248771ce81957bfb7cc600264a40fbcda092391ee1c415c50be4bea/httpcore2-2.13.1-py3-none-any.whl", hash = "sha256:e1e05d4f25f7d7d496bfb96748f6f4b67657b03da069b3a68c36069f3db73d0a", size = 83423, upload-time = "2026-09-23T07:47:19.365Z" },
+]
+
+[[package]]
 name = "httpx"
 version = "0.28.1"
 source = { registry = "https://pypi.org/simple/" }
@@ -1897,6 +1937,32 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/56/ba/e310ccdb8f18a2b894bfacd085ef390cf6cc70bb10ff9f109d58d94f6b47/httpx_ws-0.7.2.tar.gz", hash = "sha256:93edea6c8fc313464fc287bff7d2ad20e6196b7754c76f946f73b4af79886d4e", size = 24513, upload-time = "2025-03-28T13:20:03.039Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/03/3d/2113a5c7af9a13663fa026882d0302ed4142960388536f885dacd6be7038/httpx_ws-0.7.2-py3-none-any.whl", hash = "sha256:dd7bf9dbaa96dcd5cef1af3a7e1130cfac068bebecce25a74145022f5a8427a3", size = 14424, upload-time = "2025-03-28T13:20:04.238Z" },
+]
+
+[[package]]
+name = "httpx2"
+version = "2.13.1"
+source = { registry = "https://pypi.org/simple/" }
+dependencies = [
+    { name = "anyio", marker = "sys_platform != 'emscripten'" },
+    { name = "httpcore2", marker = "sys_platform != 'emscripten'" },
+    { name = "httpx2-jsfetch", marker = "python_full_version >= '3.12' and sys_platform == 'emscripten'" },
+    { name = "idna" },
+    { name = "truststore", marker = "sys_platform != 'emscripten'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d5/44/474bef2a0e9d90f1715d32cb98b0738695ca17ba324095fb2497ed7fbd59/httpx2-2.13.1.tar.gz", hash = "sha256:e48744a19e3af5ee48313d0ce5fe941d5422fae5705ea922a4aabf94d7800dfa", size = 100405, upload-time = "2026-09-23T07:47:23.052Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d8/9c/6fe8931fd9f381042a9e4c7d5a7b4cbf7016b252bec0c99a49fce42c3326/httpx2-2.13.1-py3-none-any.whl", hash = "sha256:6dff50fabc270ee5fd25d845d0b078ed20564579744d6d962850975996d2f9a4", size = 95597, upload-time = "2026-09-23T07:47:20.995Z" },
+]
+
+[[package]]
+name = "httpx2-jsfetch"
+version = "1.0"
+source = { registry = "https://pypi.org/simple/" }
+sdist = { url = "https://files.pythonhosted.org/packages/cd/c4/0e5636363151a2a1795e0a77617168b9ca438e1748ec05fc9b5687f93d64/httpx2_jsfetch-1.0.tar.gz", hash = "sha256:70a0e3eabfef7cce5ad9c629f7d01ca05e418f586646f4ddf14782e4c1454c60", size = 6872, upload-time = "2026-08-07T00:13:07.492Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9b/43/832f631d32e4f1211caa2ba368317739fe71f0b8530e4c9d15dc454bac2a/httpx2_jsfetch-1.0-py3-none-any.whl", hash = "sha256:cb916b707601e69a07721aabc8f3f6659be3a6893bc1ff5c6f9e02241df2da32", size = 6382, upload-time = "2026-08-07T00:13:06.567Z" },
 ]
 
 [[package]]
@@ -1986,7 +2052,8 @@ dependencies = [
 
 [package.optional-dependencies]
 anthropic = [
-    { name = "anthropic" },
+    { name = "anthropic", version = "0.93.0", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version < '3.10'" },
+    { name = "anthropic", version = "1.6.0", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version >= '3.10'" },
     { name = "xmltodict" },
 ]
 bedrock = [
@@ -2003,7 +2070,8 @@ datasets = [
     { name = "datasets" },
 ]
 dev = [
-    { name = "anthropic" },
+    { name = "anthropic", version = "0.93.0", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version < '3.10'" },
+    { name = "anthropic", version = "1.6.0", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version >= '3.10'" },
     { name = "coverage" },
     { name = "jsonref" },
     { name = "pre-commit" },
@@ -2093,32 +2161,34 @@ xai = [
 requires-dist = [
     { name = "aiohttp", marker = "python_full_version < '3.10'", specifier = ">=3.9.1,<3.14.0" },
     { name = "aiohttp", marker = "python_full_version >= '3.10'", specifier = ">=3.14.3,<4.0.0" },
-    { name = "anthropic", marker = "extra == 'anthropic'", specifier = "==0.93.0" },
-    { name = "anthropic", marker = "extra == 'dev'", specifier = "==0.93.0" },
+    { name = "anthropic", marker = "python_full_version >= '3.10' and extra == 'anthropic'", specifier = "==1.6.0" },
+    { name = "anthropic", marker = "python_full_version >= '3.10' and extra == 'dev'", specifier = "==1.6.0" },
+    { name = "anthropic", marker = "python_full_version < '3.10' and extra == 'anthropic'", specifier = "==0.93.0" },
+    { name = "anthropic", marker = "python_full_version < '3.10' and extra == 'dev'", specifier = "==0.93.0" },
     { name = "boto3", marker = "extra == 'bedrock'", specifier = ">=1.42.42,<2.0.0" },
     { name = "cerebras-cloud-sdk", marker = "extra == 'cerebras-cloud-sdk'", specifier = ">=1.5.0,<2.0.0" },
     { name = "click", marker = "python_full_version >= '3.10'", specifier = ">=8.3.3" },
-    { name = "cohere", marker = "extra == 'cohere'", specifier = ">=5.1.8,<6.0.0" },
+    { name = "cohere", marker = "extra == 'cohere'", specifier = ">=5.1.8,<8.0.0" },
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.3.2,<8.0.0" },
-    { name = "datasets", marker = "extra == 'datasets'", specifier = ">=3.0.1,<5.0.0" },
+    { name = "datasets", marker = "extra == 'datasets'", specifier = ">=3.0.1,<6.0.0" },
     { name = "diskcache", marker = "extra == 'diskcache'", specifier = ">=5.6.3,<6.0.0" },
     { name = "diskcache", marker = "extra == 'test-docs'", specifier = ">=5.6.3,<6.0.0" },
     { name = "docstring-parser", specifier = ">=0.16,<1.0" },
     { name = "eval-type-backport", marker = "python_full_version < '3.10'", specifier = ">=0.2.2" },
-    { name = "fastapi", marker = "extra == 'test-docs'", specifier = ">=0.109.2,<0.129.0" },
-    { name = "fireworks-ai", marker = "extra == 'fireworks-ai'", specifier = ">=0.15.4,<1.0.0" },
-    { name = "google-cloud-aiplatform", marker = "extra == 'vertexai'", specifier = ">=1.53.0,<2.0.0" },
+    { name = "fastapi", marker = "extra == 'test-docs'", specifier = ">=0.109.2,<0.142.0" },
+    { name = "fireworks-ai", marker = "extra == 'fireworks-ai'", specifier = ">=0.15.4,<2.0.0" },
+    { name = "google-cloud-aiplatform", marker = "extra == 'vertexai'", specifier = ">=1.53.0,<3.0.0" },
     { name = "google-genai", marker = "extra == 'google-genai'", specifier = ">=1.5.0" },
     { name = "graphviz", marker = "extra == 'graphviz'", specifier = ">=0.20.3,<1.0.0" },
-    { name = "groq", marker = "extra == 'groq'", specifier = ">=0.4.2,<1.1.0" },
+    { name = "groq", marker = "extra == 'groq'", specifier = ">=0.4.2,<1.8.0" },
     { name = "idna", specifier = ">=3.15" },
     { name = "jinja2", specifier = ">=3.1.4,<4.0.0" },
-    { name = "jiter", specifier = ">=0.6.1,<0.15" },
+    { name = "jiter", specifier = ">=0.6.1,<0.18" },
     { name = "jsonref", marker = "extra == 'dev'", specifier = ">=1.1.0,<2.0.0" },
     { name = "jsonref", marker = "extra == 'google-genai'", specifier = ">=1.1.0,<2.0.0" },
     { name = "jsonref", marker = "extra == 'vertexai'", specifier = ">=1.1.0,<2.0.0" },
-    { name = "litellm", marker = "extra == 'litellm'", specifier = ">=1.35.31,<=1.83.7" },
-    { name = "litellm", marker = "extra == 'test-docs'", specifier = ">=1.35.31,<=1.83.7" },
+    { name = "litellm", marker = "extra == 'litellm'", specifier = ">=1.35.31,<=1.101.0" },
+    { name = "litellm", marker = "extra == 'test-docs'", specifier = ">=1.35.31,<=1.101.0" },
     { name = "mistralai", marker = "extra == 'mistral'", specifier = ">=1.5.1,<3.0.0" },
     { name = "mistralai", marker = "extra == 'test-docs'", specifier = ">=1.5.1,<3.0.0" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6.1,<2.0.0" },
@@ -2130,8 +2200,8 @@ requires-dist = [
     { name = "mkdocs-minify-plugin", marker = "extra == 'docs'", specifier = ">=0.8.0,<1.0.0" },
     { name = "mkdocs-redirects", marker = "extra == 'docs'", specifier = ">=1.2.1,<2.0.0" },
     { name = "mkdocs-rss-plugin", marker = "extra == 'docs'", specifier = ">=1.12.0,<2.0.0" },
-    { name = "mkdocstrings", marker = "extra == 'docs'", specifier = ">=0.27.1,<0.31.0" },
-    { name = "mkdocstrings-python", marker = "extra == 'docs'", specifier = ">=1.12.2,<2.0.0" },
+    { name = "mkdocstrings", marker = "extra == 'docs'", specifier = ">=0.27.1,<1.1.0" },
+    { name = "mkdocstrings-python", marker = "extra == 'docs'", specifier = ">=1.12.2,<3.0.0" },
     { name = "openai", specifier = ">=2.0.0,<4.0.0" },
     { name = "openai", marker = "extra == 'perplexity'", specifier = ">=2.0.0,<4.0.0" },
     { name = "pandas", marker = "extra == 'test-docs'", specifier = ">=2.2.0,<3.0.0" },
@@ -2141,17 +2211,17 @@ requires-dist = [
     { name = "pydantic-core", specifier = ">=2.18.0,<3.0.0" },
     { name = "pydantic-extra-types", marker = "extra == 'test-docs'", specifier = ">=2.6.0,<3.0.0" },
     { name = "pydub", marker = "extra == 'pydub'", specifier = ">=0.25.1,<1.0.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.3,<9.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.3,<10.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24.0,<2.0.0" },
     { name = "pytest-examples", marker = "extra == 'dev'", specifier = ">=0.0.15" },
     { name = "pytest-examples", marker = "extra == 'docs'", specifier = ">=0.0.15" },
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.8.0" },
     { name = "python-dotenv", marker = "extra == 'dev'", specifier = ">=1.0.1" },
-    { name = "redis", marker = "extra == 'test-docs'", specifier = ">=5.0.1,<8.0.0" },
+    { name = "redis", marker = "extra == 'test-docs'", specifier = ">=5.0.1,<9.0.0" },
     { name = "regex", specifier = ">=2023.0.0,<2027.0.0" },
     { name = "requests", marker = "python_full_version < '3.10'", specifier = ">=2.32.3,<2.33.0" },
     { name = "requests", marker = "python_full_version >= '3.10'", specifier = ">=2.33.0,<3.0.0" },
-    { name = "rich", specifier = ">=13.7.0,<15.0.0" },
+    { name = "rich", specifier = ">=13.7.0,<16.0.0" },
     { name = "sqlmodel", marker = "extra == 'sqlmodel'", specifier = ">=0.0.22,<1.0.0" },
     { name = "tabulate", marker = "extra == 'test-docs'", specifier = ">=0.9.0,<1.0.0" },
     { name = "tenacity", specifier = ">=8.2.3,<10.0.0" },
@@ -2160,7 +2230,7 @@ requires-dist = [
     { name = "ty", marker = "extra == 'dev'", specifier = "==0.0.44" },
     { name = "typer", specifier = ">=0.9.0,<1.0.0" },
     { name = "urllib3", marker = "python_full_version >= '3.10'", specifier = ">=2.7.0,<3.0.0" },
-    { name = "writer-sdk", marker = "extra == 'writer'", specifier = ">=2.2.0,<3.0.0" },
+    { name = "writer-sdk", marker = "extra == 'writer'", specifier = ">=2.2.0,<4.0.0" },
     { name = "xai-sdk", marker = "python_full_version >= '3.10' and extra == 'xai'", specifier = ">=0.2.0" },
     { name = "xmltodict", marker = "extra == 'anthropic'", specifier = ">=0.13,<1.1" },
     { name = "xmltodict", marker = "extra == 'dev'", specifier = ">=0.13,<1.1" },
@@ -5593,6 +5663,15 @@ source = { registry = "https://pypi.org/simple/" }
 sdist = { url = "https://files.pythonhosted.org/packages/eb/79/72064e6a701c2183016abbbfedaba506d81e30e232a68c9f0d6f6fcd1574/traitlets-5.14.3.tar.gz", hash = "sha256:9ed0579d3502c94b4b3732ac120375cda96f923114522847de4b3bb98b96b6b7", size = 161621, upload-time = "2024-04-19T11:11:49.746Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/00/c0/8f5d070730d7836adc9c9b6408dec68c6ced86b304a9b26a14df072a6e8c/traitlets-5.14.3-py3-none-any.whl", hash = "sha256:b74e89e397b1ed28cc831db7aea759ba6640cb3de13090ca145426688ff1ac4f", size = 85359, upload-time = "2024-04-19T11:11:46.763Z" },
+]
+
+[[package]]
+name = "truststore"
+version = "0.10.4"
+source = { registry = "https://pypi.org/simple/" }
+sdist = { url = "https://files.pythonhosted.org/packages/53/a3/1585216310e344e8102c22482f6060c7a6ea0322b63e026372e6dcefcfd6/truststore-0.10.4.tar.gz", hash = "sha256:9d91bd436463ad5e4ee4aba766628dd6cd7010cf3e2461756b3303710eebc301", size = 26169, upload-time = "2025-08-12T18:49:02.73Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/19/97/56608b2249fe206a67cd573bc93cd9896e1efb9e98bce9c163bcdc704b88/truststore-0.10.4-py3-none-any.whl", hash = "sha256:adaeaecf1cbb5f4de3b1959b42d41f6fab57b2b1666adb59e89cb0b53361d981", size = 18660, upload-time = "2025-08-12T18:49:01.46Z" },
 ]
 
 [[package]]
