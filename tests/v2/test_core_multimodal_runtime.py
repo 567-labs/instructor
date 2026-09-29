@@ -276,3 +276,43 @@ def test_audio_to_openai_format_follows_media_type() -> None:
     aac = Audio(source="clip.aac", media_type="audio/aac", data="ZmFrZQ==")
     with pytest.raises(ValueError, match="Expected WAV or MP3"):
         audio_to_openai(aac, Mode.TOOLS)
+
+
+@pytest.mark.parametrize("padding", [0, 1024, 8192])
+def test_pdf_autodetect_accepts_raw_base64(padding: int) -> None:
+    body = b"%PDF-1.7\n" + b" " * padding + b"\n%%EOF"
+    encoded = base64.b64encode(body).decode("ascii")
+
+    pdf = PDF.autodetect(encoded)
+
+    assert pdf.media_type == "application/pdf"
+    assert pdf.source == encoded
+    assert pdf.data == encoded
+
+
+def test_autodetect_media_recognizes_long_raw_base64_pdf() -> None:
+    encoded = base64.b64encode(b"%PDF-1.7\n" + b" " * 1024).decode("ascii")
+
+    result = autodetect_media(encoded)
+
+    assert isinstance(result, PDF)
+    assert result.data == encoded
+
+
+def test_convert_messages_sends_long_raw_base64_as_pdf() -> None:
+    encoded = base64.b64encode(b"%PDF-1.7\n" + b" " * 1024).decode("ascii")
+    messages = [{"role": "user", "content": [encoded]}]
+
+    converted = convert_messages(messages, Mode.ANTHROPIC_TOOLS, autodetect_images=True)
+
+    assert converted[0]["content"] == [
+        {
+            "type": "document",
+            "source": {
+                "type": "base64",
+                "media_type": "application/pdf",
+                "data": encoded,
+            },
+        }
+    ]
+    assert messages == [{"role": "user", "content": [encoded]}]
