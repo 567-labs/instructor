@@ -299,6 +299,18 @@ def test_autodetect_media_recognizes_long_raw_base64_pdf() -> None:
     assert result.data == encoded
 
 
+def test_pdf_autodetect_round_trips_invoice_fixture() -> None:
+    body = (Path(__file__).parents[1] / "assets" / "invoice.pdf").read_bytes()
+    encoded = base64.b64encode(body).decode("ascii")
+
+    pdf = PDF.autodetect(encoded)
+
+    assert pdf.media_type == "application/pdf"
+    assert pdf.data is not None
+    assert base64.b64decode(pdf.data) == body
+    assert isinstance(autodetect_media(encoded), PDF)
+
+
 def test_convert_messages_sends_long_raw_base64_as_pdf() -> None:
     encoded = base64.b64encode(b"%PDF-1.7\n" + b" " * 1024).decode("ascii")
     messages = [{"role": "user", "content": [encoded]}]
