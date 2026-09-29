@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+- **Dependencies**: Raise the `jiter` cap to `<0.18` so Instructor installs alongside `openai>=3.8`, apply the open Dependabot poetry-group range updates, and pin `anthropic` per Python version (`1.6.0` on Python 3.10+, `0.93.0` on 3.9). ([#2723](https://github.com/567-labs/instructor/pull/2723))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes

@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import base64
 import builtins
+import importlib
 import runpy
 from collections.abc import Iterable
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from typing import Any, Union, cast
 
 import anthropic
-import httpx
 import pytest
 from anthropic.types import Usage
 from anthropic.types.cache_creation import CacheCreation
@@ -31,6 +31,17 @@ from instructor.v2.providers.anthropic.parallel import (
     handle_parallel_model,
 )
 from instructor.v2.providers.anthropic.usage import initialize_usage, update_total_usage
+
+
+def _load_sdk_httpx() -> ModuleType:
+    """anthropic>=1 uses httpx2, anthropic<1 (Python 3.9) uses httpx."""
+    try:
+        return importlib.import_module("httpx2")
+    except ImportError:
+        return importlib.import_module("httpx")
+
+
+sdk_httpx = _load_sdk_httpx()
 
 
 def test_optional_anthropic_imports_fail_cleanly(
@@ -76,7 +87,7 @@ def test_anthropic_factory_validates_mode_and_client() -> None:
     client = anthropic.Anthropic(
         api_key="test-key",
         base_url="https://anthropic.invalid",
-        http_client=httpx.Client(trust_env=False),
+        http_client=sdk_httpx.Client(trust_env=False),
     )
 
     with pytest.raises(ModeError) as error:
@@ -115,12 +126,12 @@ async def test_anthropic_factory_uses_beta_sync_and_regular_async_create(
     sync_client = anthropic.Anthropic(
         api_key="test-key",
         base_url="https://anthropic.invalid",
-        http_client=httpx.Client(trust_env=False),
+        http_client=sdk_httpx.Client(trust_env=False),
     )
     raw_async = anthropic.AsyncAnthropic(
         api_key="test-key",
         base_url="https://anthropic.invalid",
-        http_client=httpx.AsyncClient(trust_env=False),
+        http_client=sdk_httpx.AsyncClient(trust_env=False),
     )
     monkeypatch.setattr(sync_client.messages, "create", regular_sync)
     monkeypatch.setattr(sync_client.beta.messages, "create", beta_sync)
