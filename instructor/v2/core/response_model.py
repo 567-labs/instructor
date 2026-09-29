@@ -112,6 +112,9 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
         iterable_element_class = args[0]
         if is_typed_dict(iterable_element_class):
             iterable_element_class = _typed_dict_to_model(iterable_element_class)
+        elif is_simple_type(iterable_element_class):
+            from instructor.v2.dsl.simple_type import ModelAdapter
+            iterable_element_class = ModelAdapter.__class_getitem__(iterable_element_class)
         working_model = IterableModel(cast(type[BaseModel], iterable_element_class))
 
     if is_simple_type(working_model):

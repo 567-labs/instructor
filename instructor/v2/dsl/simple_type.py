@@ -143,6 +143,9 @@ def is_simple_type(
         int,
         float,
         bool,
+        dict,
+        set,
+        tuple,
     }:
         return True
 
@@ -152,6 +155,9 @@ def is_simple_type(
         typing.Literal,
         typing.Union,
         list,  # origin of List[T] is list
+        dict,
+        set,
+        tuple,
     }:
         return True
 
