@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Partial streaming**: Validate completed objects in JSON mode so strict date, UUID, and tuple fields accept valid JSON representations, while preserving validation context and strict scalar checks.
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes

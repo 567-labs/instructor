@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import types
 import warnings
@@ -99,6 +100,18 @@ def remove_control_chars(s):
     return re.sub(r"[\x00-\x1F\x7F-\x9F]", "", s)
 
 
+def _validate_complete_json(
+    model: type[BaseModel], json_str: str, **kwargs: Any
+) -> BaseModel:
+    """Validate completed streamed data with Pydantic's JSON input semantics."""
+    validation_kwargs = {
+        key: value
+        for key, value in kwargs.items()
+        if key in {"context", "strict", "extra", "by_alias", "by_name"}
+    }
+    return model.model_validate_json(json_str, **validation_kwargs)
+
+
 def process_potential_object(potential_object, partial_mode, partial_model, **kwargs):
     """Process a potential JSON object using completeness-based validation.
 
@@ -123,16 +136,9 @@ def process_potential_object(potential_object, partial_mode, partial_model, **kw
     root_complete = tracker.is_root_complete()
     has_data = bool(parsed) if isinstance(parsed, dict) else True
 
-    validation_kwargs = {
-        key: value
-        for key, value in kwargs.items()
-        if key
-        in {"context", "strict", "extra", "from_attributes", "by_alias", "by_name"}
-    }
-
     if root_complete and has_data and original_model is not None:
         # Root object is complete with data - validate against original model
-        return original_model.model_validate(parsed, **validation_kwargs)
+        return _validate_complete_json(original_model, json_str, **kwargs)
     # Object is incomplete or empty - build instance using model_construct (no validation)
     model_for_construct = (
         original_model if original_model is not None else partial_model
@@ -176,7 +182,9 @@ def _build_partial_object(
         if field_complete and field_type is not None:
             _base_model = _unwrap_optional_base_model(field_type)
             if _base_model is not None:
-                result[field_name] = _base_model.model_validate(field_value, **kwargs)
+                result[field_name] = _validate_complete_json(
+                    _base_model, json.dumps(field_value), **kwargs
+                )
                 continue
 
         if isinstance(field_value, dict):
@@ -249,7 +257,9 @@ def _build_partial_list(
 
         _item_model = _unwrap_optional_base_model(item_type) if item_type else None
         if item_complete and _item_model is not None and isinstance(item, dict):
-            result.append(_item_model.model_validate(item, **kwargs))
+            result.append(
+                _validate_complete_json(_item_model, json.dumps(item), **kwargs)
+            )
             continue
 
         if _item_model is not None and isinstance(item, dict):
@@ -475,9 +485,7 @@ class PartialBase(Generic[T_Model]):
             if original_model is not None:
                 json_str = potential_object.strip() or "{}"
                 if is_json_complete(json_str):
-                    original_model.model_validate(
-                        from_json(json_str.encode()), **kwargs
-                    )
+                    _validate_complete_json(original_model, json_str, **kwargs)
 
     @classmethod
     async def model_from_chunks_async(
@@ -515,9 +523,7 @@ class PartialBase(Generic[T_Model]):
             if original_model is not None:
                 json_str = potential_object.strip() or "{}"
                 if is_json_complete(json_str):
-                    original_model.model_validate(
-                        from_json(json_str.encode()), **kwargs
-                    )
+                    _validate_complete_json(original_model, json_str, **kwargs)
 
     @staticmethod
     def extract_json(
