@@ -81,6 +81,12 @@ Here's a simple example showing how to extract multiple users from a single sent
 
 We also support more complex extraction patterns such as Unions as you'll see below out of the box.
 
+Each completed object in a union stream uses Pydantic's normal union validation,
+matching non-streaming extraction. If several models accept the same object,
+Pydantic chooses the best match rather than stopping at the first valid model.
+Validation context and strictness apply to each object. Invalid objects still
+raise a `ValueError`; streaming does not skip them.
+
 ???+ warning
 
     Unions don't work with Gemini because the AnyOf is not supported in the current response schema.

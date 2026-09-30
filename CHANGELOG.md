@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Iterable union streaming**: Use Pydantic's union selection for completed streamed objects, preserving fields and exact value types when several union members validate. Keep validation context, strictness, and the unmatched-object error contract.
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
