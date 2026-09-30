@@ -125,7 +125,7 @@ class Image(BaseModel):
         """
         try:
             return cls.autodetect(source)
-        except ValueError:
+        except (ValueError, OSError):
             return str(source)
 
     @classmethod
@@ -311,7 +311,7 @@ class Audio(BaseModel):
         """
         try:
             return cls.autodetect(source)
-        except ValueError:
+        except (ValueError, OSError):
             return str(source)
 
     @classmethod
@@ -515,7 +515,7 @@ class PDF(BaseModel):
         """
         try:
             return cls.autodetect(source)
-        except ValueError:
+        except (ValueError, OSError):
             return str(source)
 
     @classmethod
