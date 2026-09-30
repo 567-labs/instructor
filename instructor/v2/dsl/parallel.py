@@ -38,8 +38,27 @@ class ParallelBase(Generic[T]):
         strict: Optional[bool] = None,
     ) -> Generator[T, None, None]:
         # Validate the complete non-streaming response before it leaves retry.
+        from instructor.v2.core.errors import ResponseParsingError
+
+        choices = getattr(response, "choices", None)
+        if not choices:
+            raise ResponseParsingError(
+                "No choices in OpenAI response",
+                mode=str(mode.value),
+                raw_response=response,
+            )
+
+        message = choices[0].message
+        tool_calls = getattr(message, "tool_calls", None) or []
+        if not tool_calls:
+            raise ResponseParsingError(
+                "No tool calls in response",
+                mode=str(mode.value),
+                raw_response=response,
+            )
+
         results = []
-        for tool_call in response.choices[0].message.tool_calls:
+        for tool_call in tool_calls:
             name = tool_call.function.name
             arguments = tool_call.function.arguments
             model = model_for_tool_name(

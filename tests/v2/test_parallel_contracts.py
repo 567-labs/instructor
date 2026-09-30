@@ -24,6 +24,7 @@ from instructor.v2.core.errors import InstructorRetryException, ResponseParsingE
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.registry import mode_registry
 from instructor.v2.dsl.parallel import VertexAIParallelModel
+from tests.coverage._openai import chat_completion
 
 
 class Contract(BaseModel):
@@ -206,6 +207,13 @@ def test_unknown_call_rejected_before_iterator_escapes(
         parse(provider, mode, response, Contract, True)
     assert error.value.raw_response is response
     assert name in str(error.value)
+
+
+def test_openai_tools_parallel_missing_tool_calls_is_retryable() -> None:
+    response = chat_completion(content="Just text, no tools.")
+    with pytest.raises(ResponseParsingError, match="No tool calls") as error:
+        parse(Provider.OPENAI, Mode.TOOLS, response, Contract, True)
+    assert error.value.raw_response is response
 
 
 @pytest.fixture
