@@ -155,6 +155,28 @@ This will output the following:
 
 ![Partial Streaming Gif](../img/partial.gif)
 
+## Defaults during streaming
+
+With Pydantic 2.10 or later, a `default_factory` can accept the already validated
+values of earlier fields. During streaming, those values may still be incomplete
+or unvalidated. In the example below, a missing `username` stays `None` in partial
+snapshots until its containing object is complete and validated.
+
+```python
+from pydantic import BaseModel, Field
+
+
+class User(BaseModel):
+    email: str
+    username: str = Field(default_factory=lambda data: data["email"].split("@")[0])
+```
+
+For `{"email":"alice@example.com"}`, intermediate snapshots leave `username` as
+`None`; the completed result has `username="alice"`. A completed nested object
+can compute its defaults before the outer object finishes. An explicitly supplied
+`username` is kept. Ordinary defaults and zero-argument factories, such as
+`Field(default_factory=list)`, remain available in partial snapshots.
+
 ## Asynchronous Streaming
 
 I also just want to call out in this example that `instructor` also supports asynchronous streaming. This is useful when you want to stream a response model and process the results as they come in, but you'll need to use the `async for` syntax to iterate over the results.
