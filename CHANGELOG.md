@@ -10,7 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
-- **Partial streaming**: Defer data-aware default factories until the containing object is validated, preserving zero-argument factories and computing defaults for complete empty objects.
+- **Partial streaming**: Defer data-aware default factories until the containing object is validated, preserving zero-argument factories and computing defaults for complete empty objects. ([#2727](https://github.com/567-labs/instructor/pull/2727))
 
 ## [1.17.1] - 2026-09-09
 
