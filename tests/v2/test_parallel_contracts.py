@@ -216,6 +216,16 @@ def test_openai_tools_parallel_missing_tool_calls_is_retryable() -> None:
     assert error.value.raw_response is response
 
 
+def test_openai_tools_parallel_missing_choices_is_retryable() -> None:
+    complete_response = chat_completion(content="Just text, no tools.")
+    response = type(complete_response).model_validate(
+        {**complete_response.model_dump(), "choices": []}
+    )
+    with pytest.raises(ResponseParsingError, match="No choices") as error:
+        parse(Provider.OPENAI, Mode.TOOLS, response, Contract, True)
+    assert error.value.raw_response is response
+
+
 @pytest.fixture
 def local_http() -> Iterator[tuple[str, deque[dict[str, Any]], list[dict[str, Any]]]]:
     replies: deque[dict[str, Any]] = deque()
