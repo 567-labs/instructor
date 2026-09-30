@@ -12,7 +12,7 @@ from typing import (
 import json
 import sys
 
-from pydantic import BaseModel, Field, create_model
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError, create_model
 
 if sys.version_info >= (3, 10):
     from types import UnionType
@@ -24,6 +24,7 @@ else:  # pragma: no cover - Python 3.9 has no runtime ``X | Y`` syntax
 
 class IterableBase:
     task_type: ClassVar[type[BaseModel] | None] = None
+    _task_type_adapter: ClassVar[tuple[Any, TypeAdapter[Any]] | None] = None
 
     @classmethod
     def from_streaming_response(
@@ -140,19 +141,20 @@ class IterableBase:
         **kwargs: Any,
     ):
         assert cls.task_type is not None
-        # PEP 604 unions use types.UnionType rather than typing.Union as their origin.
         if get_origin(cls.task_type) in _UNION_ORIGINS:
-            union_members = get_args(cls.task_type)
-            for member in union_members:
-                try:
-                    return member.model_validate_json(task_json, **kwargs)
-                except Exception:
-                    pass
-        else:
-            return cls.task_type.model_validate_json(task_json, **kwargs)
-        raise ValueError(
-            f"Failed to extract task type with {task_json} for {cls.task_type}"
-        )
+            # Use the same union selection as full-response validation. Taking the
+            # first valid member can drop fields or prefer a coerced value.
+            adapter = cls._task_type_adapter
+            if adapter is None or adapter[0] is not cls.task_type:
+                adapter = (cls.task_type, TypeAdapter(cls.task_type))
+                cls._task_type_adapter = adapter
+            try:
+                return adapter[1].validate_json(task_json, **kwargs)
+            except ValidationError as exc:
+                raise ValueError(
+                    f"Failed to extract task type with {task_json} for {cls.task_type}"
+                ) from exc
+        return cls.task_type.model_validate_json(task_json, **kwargs)
 
     @staticmethod
     def extract_json(
