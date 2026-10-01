@@ -38,7 +38,9 @@ h11==0.16.0
 httpcore==1.0.9
     # via httpx
 httpx==0.28.1
-    # via openai
+    # via
+    #   instructor (pyproject.toml)
+    #   openai
 idna==3.19
     # via
     #   instructor (pyproject.toml)
@@ -100,9 +102,6 @@ typer==0.27.1
     # via instructor (pyproject.toml)
 typing-extensions==4.16.0
     # via
-    #   aiohttp
-    #   aiosignal
-    #   anyio
     #   openai
     #   pydantic
     #   pydantic-core

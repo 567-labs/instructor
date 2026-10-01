@@ -67,6 +67,7 @@ def is_simple_type(typehint: type[T]) -> bool:
 
 def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
     """Normalize user response-model inputs into runtime-ready model classes."""
+    from instructor.v2.dsl.simple_type import has_pydantic_schema
     from instructor.v2.validation.async_validators import reject_async_validators
 
     reject_async_validators(response_model)
@@ -82,10 +83,16 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
         def _is_model_type(candidate: Any) -> bool:
             if is_typed_dict(candidate):
                 return True
-            if inspect.isclass(candidate) and issubclass(candidate, BaseModel):
+            if (
+                get_origin(candidate) is None
+                and inspect.isclass(candidate)
+                and issubclass(candidate, BaseModel)
+            ):
                 return True
             return get_origin(candidate) in _UNION_ORIGINS and all(
-                inspect.isclass(member) and issubclass(member, BaseModel)
+                get_origin(member) is None
+                and inspect.isclass(member)
+                and issubclass(member, BaseModel)
                 for member in get_args(candidate)
             )
 
@@ -110,6 +117,15 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
                 "response_model must be parameterized, e.g. list[User] or Iterable[User]"
             )
         iterable_element_class = args[0]
+        if (
+            inspect.isclass(iterable_element_class)
+            and not is_typed_dict(iterable_element_class)
+            and not has_pydantic_schema(iterable_element_class)
+        ):
+            raise TypeError(
+                "response_model iterable elements must have a Pydantic validation schema; "
+                f"got {iterable_element_class!r}"
+            )
         if is_typed_dict(iterable_element_class):
             iterable_element_class = _typed_dict_to_model(iterable_element_class)
         working_model = IterableModel(cast(type[BaseModel], iterable_element_class))

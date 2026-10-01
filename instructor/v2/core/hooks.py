@@ -151,12 +151,14 @@ class Hooks:
         """
         Generic method to emit events for any hook type.
 
+        Handler additions and removals take effect on the next emission.
+
         Args:
             hook_name: The hook to emit
             *args: Positional arguments to pass to handlers
             **kwargs: Keyword arguments to pass to handlers
         """
-        for handler in self._handlers[hook_name]:
+        for handler in self._handlers[hook_name].copy():
             try:
                 if kwargs:
                     try:

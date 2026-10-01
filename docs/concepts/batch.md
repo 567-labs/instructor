@@ -181,11 +181,25 @@ if "request-1" in by_id:
         print(f"Error: {result.error_message}")
 ```
 
+### Custom IDs
+
+By default, requests get the IDs `request-0`, `request-1`, and so on. Pass `custom_ids` to use your own IDs. This makes it easier to match results, including failed ones, back to your data:
+
+```python
+processor.create_batch_from_messages(
+    messages_list,
+    file_path="batch_requests.jsonl",
+    custom_ids=["user_1", "user_2", "user_3"],  # one per conversation, same order
+)
+```
+
+IDs must be unique and match the length of `messages_list`. Anthropic also requires IDs to match `^[a-zA-Z0-9_-]{1,64}$`. Invalid IDs raise a `ValueError` before any request is written.
+
 ## API Reference
 
 | Method | Description |
 |--------|-------------|
-| `create_batch_from_messages(messages_list, file_path=None, ...)` | Create batch file or buffer |
+| `create_batch_from_messages(messages_list, file_path=None, ..., custom_ids=None)` | Create batch file or buffer |
 | `submit_batch(file_path_or_buffer, metadata=None)` | Submit batch job, returns job ID |
 | `get_batch_status(batch_id)` | Get job status |
 | `retrieve_results(batch_id)` | Download and parse results |

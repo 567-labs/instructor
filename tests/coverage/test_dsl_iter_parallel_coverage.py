@@ -10,6 +10,7 @@ import pytest
 from openai.types.chat import ChatCompletion
 from pydantic import BaseModel, ValidationError, ValidationInfo, field_validator
 
+from instructor.v2.core.errors import ResponseParsingError
 from instructor.v2.core.mode import Mode
 from instructor.v2.dsl import parallel as parallel_module
 from instructor.v2.dsl.iterable import IterableBase, IterableModel
@@ -305,7 +306,7 @@ def test_parallel_base_validates_real_tool_calls_context_and_strictness() -> Non
                 strict=True,
             )
         )
-    with pytest.raises(KeyError, match="MissingJob"):
+    with pytest.raises(ResponseParsingError, match="MissingJob"):
         list(model.from_response(tool_response(("MissingJob", "{}")), mode=Mode.TOOLS))
 
 

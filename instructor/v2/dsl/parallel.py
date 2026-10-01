@@ -23,25 +23,53 @@ class ParallelBase(Generic[T]):
         assert len(models) > 0, "At least one model is required"
         self.models = models
         self.registry: dict[str, type[T]] = {
-            model.__name__ if hasattr(model, "__name__") else str(model): model
-            for model in models
+            self._get_model_name(model): model for model in models
         }
+
+    def _get_model_name(self, model: type[T]) -> str:
+        # OpenAI and Anthropic tool declarations use the JSON schema title.
+        return model.model_json_schema()["title"]
 
     def from_response(
         self,
         response: Any,
-        mode: Mode,  # noqa: ARG002
+        mode: Mode,
         validation_context: Optional[Any] = None,
         strict: Optional[bool] = None,
     ) -> Generator[T, None, None]:
-        #! We expect this from the ResponseSchema class, We should address
-        #! this with a protocol or an abstract class... @jxnlco
-        for tool_call in response.choices[0].message.tool_calls:
+        # Validate the complete non-streaming response before it leaves retry.
+        from instructor.v2.core.errors import ResponseParsingError
+
+        choices = getattr(response, "choices", None)
+        if not choices:
+            raise ResponseParsingError(
+                "No choices in OpenAI response",
+                mode=str(mode.value),
+                raw_response=response,
+            )
+
+        message = choices[0].message
+        tool_calls = getattr(message, "tool_calls", None) or []
+        if not tool_calls:
+            raise ResponseParsingError(
+                "No tool calls in response",
+                mode=str(mode.value),
+                raw_response=response,
+            )
+
+        results = []
+        for tool_call in tool_calls:
             name = tool_call.function.name
             arguments = tool_call.function.arguments
-            yield self.registry[name].model_validate_json(
-                arguments, context=validation_context, strict=strict
+            model = model_for_tool_name(
+                self.registry, name, mode=mode, raw_response=response
             )
+            results.append(
+                model.model_validate_json(
+                    arguments, context=validation_context, strict=strict
+                )
+            )
+        return (result for result in results)
 
 
 if sys.version_info >= (3, 10):
@@ -54,6 +82,28 @@ else:
 
     def is_union_type(typehint: type[Iterable[T]]) -> bool:
         return get_origin(get_args(typehint)[0]) is Union
+
+
+def model_for_tool_name(
+    registry: dict[str, type[T]],
+    name: str,
+    *,
+    mode: Any = None,
+    raw_response: Any = None,
+) -> type[T]:
+    """Return the model for a tool name, or raise if the name was not registered."""
+    model = registry.get(name)
+    if model is not None:
+        return model
+    from instructor.v2.core.errors import ResponseParsingError
+
+    expected = ", ".join(sorted(registry))
+    mode_value = getattr(mode, "value", mode)
+    raise ResponseParsingError(
+        f"Unknown tool call {name!r}. Expected one of: {expected}.",
+        mode=None if mode_value is None else str(mode_value),
+        raw_response=raw_response,
+    )
 
 
 def get_types_array(typehint: type[Iterable[T]]) -> tuple[type[T], ...]:

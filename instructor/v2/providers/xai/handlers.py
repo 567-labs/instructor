@@ -41,6 +41,7 @@ from instructor.v2.dsl.parallel import (
     ParallelModel,
     get_types_array,
     handle_parallel_model,
+    model_for_tool_name,
 )
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.core.json import (
@@ -503,7 +504,9 @@ class XAIParallelToolsHandler(XAIHandlerBase):
     ) -> Any:
         """Parse parallel tool calls from xAI."""
         the_types = get_types_array(response_model)  # type: ignore[arg-type]
-        type_registry = {model.__name__: model for model in the_types}
+        type_registry = {
+            model.model_json_schema()["title"]: model for model in the_types
+        }
 
         results = []
         for tool_call in getattr(response, "tool_calls", []) or []:
@@ -511,14 +514,23 @@ class XAIParallelToolsHandler(XAIHandlerBase):
             args = tool_call.function.arguments
             if isinstance(args, dict):
                 args = json.dumps(args)
-            if name in type_registry:
-                results.append(
-                    type_registry[name].model_validate_json(
+            model_class = model_for_tool_name(
+                type_registry,
+                name,
+                mode=self.mode,
+                raw_response=response,
+            )
+            results.append(
+                self._finalize_parsed_result(
+                    model_class,
+                    response,
+                    model_class.model_validate_json(
                         args,
                         context=validation_context,
                         strict=strict,
-                    )
+                    ),
                 )
+            )
         return iter(results)
 
 
