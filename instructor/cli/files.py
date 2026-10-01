@@ -76,6 +76,9 @@ def upload(
             if file_status == "processed":
                 console.log(f"[bold green]File {file_id} uploaded successfully!")
                 break
+            if file_status == "error":
+                console.log(f"[bold red]File {file_id} failed processing.")
+                raise typer.Exit(1)
             time.sleep(poll)
 
 
@@ -119,6 +122,9 @@ def status(
             status.update(f"File status: {file_status}")
             if file_status in ["pending", "processed"]:
                 break
+            if file_status == "error":
+                console.log(f"[bold red]File {file_id} failed processing.")
+                raise typer.Exit(1)
             time.sleep(5)
 
 
