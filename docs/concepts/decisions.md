@@ -15,7 +15,7 @@ This example uses a reusable choice enum, an inline choice, a yes/no probability
 and a score mapped to 0–10. Outputs shown in comments are illustrative.
 
 ```python
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Union
 
 import instructor
 from instructor.decisions import Choice, Choices, Level, Noul, Score
@@ -72,20 +72,20 @@ class ModerationDecision(BaseModel):
         description="What kind of content is being reviewed?"
     )
 
-    target: (
+    target: Union[
         Annotated[
             Literal["individual"],
             Choice(description="Directed at an individual"),
-        ]
-        | Annotated[
+        ],
+        Annotated[
             Literal["group"],
             Choice(description="Directed at a group of people"),
-        ]
-        | Annotated[
+        ],
+        Annotated[
             Literal["none"],
             Choice(description="No person or group is targeted"),
-        ]
-    ) = Field(description="Who is the post directed at?")
+        ],
+    ] = Field(description="Who is the post directed at?")
 
 
 # Set OPENROUTER_API_KEY in your environment.
@@ -116,7 +116,7 @@ print(decision.target)            # "individual"
 if decision.policy_violation >= 0.80:
     print("Send to human review")
 
-# Proposed access to the provider's response.
+# Inspect the provider's response.
 print(raw["answers"]["category"]["probabilities"])
 print(raw["answers"]["category"]["confidence"])
 print(raw["answers"]["severity"]["score"])  # e.g. 1.4 on Jev's 0–2 scale

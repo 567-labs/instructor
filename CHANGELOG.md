@@ -33,7 +33,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Streaming JSON bounds**: Enforce the existing 1 MiB character and 128-level nesting limits symmetrically on sync/async streams, including an over-depth opener at EOF. Preserve incremental emission and multiple-object behavior. Revises [#2638](https://github.com/567-labs/instructor/pull/2638).
 
 ### Upgrade Notes
-- Decision mode is opt-in; existing chat modes are unchanged. TypeSafe and OpenRouter use the same typed questions but require their own credentials and model IDs. Retries, caching, streaming, and completion hooks are not supported in decision mode. Live provider compatibility has not yet been verified.
+- Decision mode is opt-in; existing chat modes are unchanged. TypeSafe and OpenRouter use the same typed questions but require their own credentials and model IDs. Retries, caching, streaming, and completion hooks are not supported in decision mode. OpenRouter Jev sync/async contracts passed live; direct TypeSafe compatibility remains unverified live.
 - Citation context may be a string or a list/tuple of strings. Other supplied source types raise a validation error; missing context retains the existing no-validation behavior.
 - Unknown parallel tool calls now raise `ResponseParsingError` and follow the configured retry policy instead of being silently omitted. Native SDK and wire formats remain provider-specific; live provider compatibility is not established by offline tests.
 - Incomplete non-streaming Responses raise `IncompleteOutputException` even when their arguments satisfy model defaults. Increase the output budget or handle the exception; incomplete responses are not cached.
