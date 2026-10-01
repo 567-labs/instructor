@@ -356,7 +356,7 @@ def test_handle_reask_kwargs_does_not_mutate_caller_messages() -> None:
     )
     exception = ValueError("1 validation error for Answer\nage\n  Field required")
 
-    handle_reask_kwargs(
+    reasked = handle_reask_kwargs(
         kwargs={"model": "gpt-4o-mini", "messages": caller_messages},
         mode=Mode.TOOLS,
         response=response,
@@ -365,6 +365,12 @@ def test_handle_reask_kwargs_does_not_mutate_caller_messages() -> None:
     )
 
     assert caller_messages == original_snapshot
+    # Guard against a no-op: the reask must still be formatted into a fresh
+    # list that carries the assistant tool call and the validation error.
+    assert reasked is not None
+    assert reasked["messages"] is not caller_messages
+    assert len(reasked["messages"]) > len(original_snapshot)
+    assert reasked["messages"][: len(original_snapshot)] == original_snapshot
 
 
 @pytest.mark.asyncio
