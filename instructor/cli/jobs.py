@@ -209,6 +209,10 @@ def create_from_file(
                     )
                 break
 
+            if "error" in (file_status, validation_file_status):
+                console.log("[bold red]File processing failed, not creating job.")
+                raise typer.Exit(1)
+
             time.sleep(poll)
 
     additional_params: FuneTuningParams = {}
