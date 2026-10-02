@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+- **OpenAI**: Allow Jiter versions through 0.17 for compatibility with recent OpenAI SDK releases ([#2734](https://github.com/567-labs/instructor/pull/2734); fixes [#2730](https://github.com/567-labs/instructor/issues/2730))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
