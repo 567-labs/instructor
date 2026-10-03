@@ -128,17 +128,24 @@ async def run_async_validators(value: Any, *, context: dict[str, Any] | None) ->
     """
     if isinstance(value, BaseModel):
         return await _run_on_model(value, context=context)
-    if isinstance(value, list):
-        return [await run_async_validators(item, context=context) for item in value]
-    if isinstance(value, tuple):
-        return tuple(
-            [await run_async_validators(item, context=context) for item in value]
-        )
-    if isinstance(value, dict):
-        return {
-            key: await run_async_validators(item, context=context)
-            for key, item in value.items()
-        }
+    if isinstance(value, (list, tuple, dict)):
+        errors: list[ValueError] = []
+        validated: list[Any] = []
+        items = value.values() if isinstance(value, dict) else value
+        for item in items:
+            try:
+                validated.append(await run_async_validators(item, context=context))
+            except AsyncValidationError as exc:
+                errors.extend(exc.errors)
+        if errors:
+            summary = "; ".join(str(error) for error in errors)
+            raise AsyncValidationError(
+                f"Async validation failed for {type(value).__name__}: {summary}",
+                errors=errors,
+            )
+        if isinstance(value, dict):
+            return dict(zip(value, validated))
+        return tuple(validated) if isinstance(value, tuple) else validated
     return value
 
 
