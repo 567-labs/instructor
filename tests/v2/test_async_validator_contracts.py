@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 import instructor
 
+from instructor.v2.core.errors import AsyncValidationError
 from instructor.v2.validation.async_validators import (
     async_field_validator,
     async_model_validator,
@@ -100,8 +101,6 @@ async def test_nested_container_transformations_preserve_original() -> None:
 
 @pytest.mark.asyncio
 async def test_model_validator_errors_are_reported() -> None:
-    from instructor.v2.core.errors import AsyncValidationError
-
     class Rejected(BaseModel):
         value: str
 
@@ -112,6 +111,70 @@ async def test_model_validator_errors_are_reported() -> None:
     with pytest.raises(AsyncValidationError, match="Rejected x") as error:
         await run_async_validators(Rejected(value="x"), context=None)
     assert len(error.value.errors) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("container", ["list", "tuple", "dict"])
+async def test_container_validation_collects_errors_from_every_item(
+    container: str,
+) -> None:
+    class Rejected(BaseModel):
+        value: str
+
+        @async_model_validator()
+        async def reject(self) -> Rejected:
+            raise ValueError(f"Rejected {self.value}")
+
+    items = [Rejected(value="first"), Rejected(value="second")]
+    value = (
+        items
+        if container == "list"
+        else tuple(items)
+        if container == "tuple"
+        else dict(enumerate(items))
+    )
+
+    with pytest.raises(AsyncValidationError, match="Rejected first") as error:
+        await run_async_validators(value, context=None)
+
+    assert [str(item) for item in error.value.errors] == [
+        "Rejected first",
+        "Rejected second",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_nested_errors_are_collected_across_model_fields() -> None:
+    class Rejected(BaseModel):
+        value: str
+
+        @async_model_validator()
+        async def reject(self) -> Rejected:
+            raise ValueError(f"Rejected {self.value}")
+
+    class Parent(BaseModel):
+        children: dict[str, tuple[Rejected, list[Rejected]]]
+        sibling: Rejected
+
+    value = Parent(
+        children={
+            "group": (
+                Rejected(value="first"),
+                [Rejected(value="second"), Rejected(value="third")],
+            )
+        },
+        sibling=Rejected(value="fourth"),
+    )
+
+    with pytest.raises(AsyncValidationError, match="Rejected first") as error:
+        await run_async_validators(value, context=None)
+
+    assert [str(item) for item in error.value.errors] == [
+        "Rejected first",
+        "Rejected second",
+        "Rejected third",
+        "Rejected fourth",
+    ]
 
 
 @pytest.mark.asyncio
