@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Recursive schemas**: Resolve recursive Pydantic root references in OpenAI and Anthropic schema helpers, preserving definitions, field defaults, and required fields for public helpers and recursive `ResponseSchema` tool requests.
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes

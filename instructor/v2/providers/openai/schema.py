@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+from copy import deepcopy
 from typing import Any
 
 from docstring_parser import parse
@@ -13,6 +14,22 @@ from pydantic import BaseModel
 def generate_openai_schema(model: type[BaseModel]) -> dict[str, Any]:
     """Generate an OpenAI function schema from a Pydantic model."""
     schema = model.model_json_schema()
+    # Recursive models put the root in $defs. Pydantic 2.8 wraps its reference
+    # in a single allOf instead of emitting $ref directly. Resolve only that
+    # root, retaining $defs and nested references to avoid expanding cycles.
+    ref = schema.get("$ref")
+    ref_key = "$ref"
+    all_of = schema.get("allOf", [])
+    if ref is None and len(all_of) == 1 and set(all_of[0]) == {"$ref"}:
+        ref = all_of[0]["$ref"]
+        ref_key = "allOf"
+    if isinstance(ref, str) and ref.startswith("#/$defs/"):
+        definition = ref[len("#/$defs/") :].replace("~1", "/").replace("~0", "~")
+        schema = {
+            **deepcopy(schema["$defs"][definition]),
+            **{key: value for key, value in schema.items() if key != ref_key},
+        }
+
     docstring = parse(model.__doc__ or "")
     parameters = {k: v for k, v in schema.items() if k not in ("title", "description")}
 
