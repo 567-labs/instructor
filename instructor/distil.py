@@ -139,7 +139,7 @@ class Instructions:
         *,
         name: Optional[str] = None,
         mode: Literal["distil", "dispatch"] = "distil",
-        model: str = "gpt-3.5-turbo",
+        model: str = "gpt-4.1-mini",
         fine_tune_format: Optional[FinetuneFormat] = None,
     ) -> Callable[P, Union[T_Retval, ChatCompletion]]: ...
 
@@ -149,7 +149,7 @@ class Instructions:
         *,
         name: Optional[str] = None,
         mode: Literal["distil", "dispatch"] = "distil",
-        model: str = "gpt-3.5-turbo",
+        model: str = "gpt-4.1-mini",
         fine_tune_format: Optional[FinetuneFormat] = None,
     ) -> Callable[
         [Callable[P, T_Retval]], Callable[P, Union[T_Retval, ChatCompletion]]
@@ -160,7 +160,7 @@ class Instructions:
         *args: Any,
         name: Optional[str] = None,
         mode: Literal["distil", "dispatch"] = "distil",
-        model: str = "gpt-3.5-turbo",
+        model: str = "gpt-4.1-mini",
         fine_tune_format: Optional[FinetuneFormat] = None,
     ) -> Callable[..., Any]:
         """
