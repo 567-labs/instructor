@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Cache**: Warn when a configured cache cannot store a non-BaseModel response instead of silently skipping it. ([#2724](https://github.com/567-labs/instructor/pull/2724))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
