@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Schema descriptions**: Match docstring parameter descriptions to aliased Pydantic fields without attaching them to another field's JSON property.
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
