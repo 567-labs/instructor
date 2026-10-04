@@ -373,6 +373,58 @@ def test_handle_reask_kwargs_does_not_mutate_caller_messages() -> None:
     assert reasked["messages"][: len(original_snapshot)] == original_snapshot
 
 
+def test_handle_reask_kwargs_does_not_mutate_caller_chat_history() -> None:
+    """`chat_history` is the third key `isolate_retry_kwargs` copies, and the
+    Cohere V1 reask path appends to it in place
+    (`instructor/v2/providers/cohere/handlers.py`). Without isolation the
+    caller's list grows from one entry to two."""
+    caller_chat_history: list[dict[str, Any]] = [{"role": "user", "message": "hi"}]
+    original_snapshot = deepcopy(caller_chat_history)
+    tool_call = ChatCompletionMessageToolCall(
+        id="call_1",
+        type="function",
+        function=Function(name="Answer", arguments='{"name": "Ada"}'),
+    )
+    response = ChatCompletion(
+        id="chatcmpl-test",
+        choices=[
+            Choice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant", content="stub", tool_calls=[tool_call]
+                ),
+                finish_reason="tool_calls",
+                logprobs=None,
+            )
+        ],
+        created=0,
+        model="command-r",
+        object="chat.completion",
+        usage=CompletionUsage(completion_tokens=1, prompt_tokens=1, total_tokens=2),
+    )
+    exception = ValueError("1 validation error for Answer\nage\n  Field required")
+
+    reasked = handle_reask_kwargs(
+        kwargs={
+            "model": "command-r",
+            "message": "Ada is 37",
+            "chat_history": caller_chat_history,
+        },
+        mode=Mode.TOOLS,
+        response=response,
+        exception=exception,
+        provider=Provider.COHERE,
+    )
+
+    assert caller_chat_history == original_snapshot
+    # Guard against a no-op: the reask must still be formatted into a fresh
+    # list, not handed back untouched.
+    assert reasked is not None
+    assert reasked["chat_history"] is not caller_chat_history
+    assert len(reasked["chat_history"]) > len(original_snapshot)
+    assert reasked["chat_history"][: len(original_snapshot)] == original_snapshot
+
+
 @pytest.mark.asyncio
 async def test_retry_async_v2_does_not_mutate_raw_caller_messages() -> None:
     """Async counterpart: `retry_async_v2` must isolate a raw caller dict."""
