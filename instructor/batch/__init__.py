@@ -97,9 +97,9 @@ class BatchJob:
                 data = json.loads(line)
                 extracted_data = cls._extract_structured_data(data)
 
-                if extracted_data:
+                if extracted_data is not None:
                     try:
-                        result = response_model(**extracted_data)
+                        result = response_model.model_validate(extracted_data)
                         res.append(result)
                     except Exception:
                         error_objs.append(data)
