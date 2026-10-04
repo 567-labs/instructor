@@ -192,7 +192,7 @@ class BatchProcessor(Generic[T]):
                 if extracted_data is not None:
                     try:
                         # Parse into response model
-                        result = self.response_model(**extracted_data)
+                        result = self.response_model.model_validate(extracted_data)
                         batch_result = BatchSuccess[T](
                             custom_id=custom_id, result=result
                         )
