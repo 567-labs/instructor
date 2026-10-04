@@ -121,6 +121,14 @@ There are some fields that are exclusively used to customise the generated JSON 
 
 These all work as great opportunities to add more information to the JSON schema as part of your prompt engineering.
 
+For OpenAI tool schemas, an `Args:` section in the model docstring can also describe
+fields. Use Python field names, even when a field has an alias. Instructor adds each
+description to the matching JSON schema property and keeps any explicit
+`Field(description=...)` value. If multiple fields share the same property alias,
+Instructor leaves that property's description unchanged rather than guessing which
+field to describe. This follows Pydantic's standard schema alias policy; custom
+`model_json_schema()` overrides that change property names need explicit descriptions.
+
 Here's an example:
 
 ```py
