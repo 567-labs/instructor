@@ -100,12 +100,18 @@ def reask_gemini_json(
     exception: Exception,
 ):
     """Build a Gemini JSON reask payload after validation failure."""
+    try:
+        text = response.text
+    except ValueError:
+        text = None
+    if text is None:
+        text = "<no readable text in the previous response>"
     kwargs["contents"].append(
         {
             "role": "user",
             "parts": [
                 "Correct the following JSON response, based on the errors given below:\n\n"
-                f"JSON:\n{response.text}\n\nExceptions:\n{exception}"
+                f"JSON:\n{text}\n\nExceptions:\n{exception}"
             ],
         }
     )
