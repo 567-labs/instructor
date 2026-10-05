@@ -414,8 +414,9 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                         Mode.PARALLEL_TOOLS,
                     }:
                         if json_chunk := chunk.choices[0].delta.tool_calls:
-                            if json_chunk[0].function.arguments is not None:
-                                yield json_chunk[0].function.arguments
+                            for tool_call in json_chunk:
+                                if tool_call.function.arguments is not None:
+                                    yield tool_call.function.arguments
                 except AttributeError:
                     continue
 
@@ -462,8 +463,9 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                         Mode.PARALLEL_TOOLS,
                     }:
                         if json_chunk := chunk.choices[0].delta.tool_calls:
-                            if json_chunk[0].function.arguments is not None:
-                                yield json_chunk[0].function.arguments
+                            for tool_call in json_chunk:
+                                if tool_call.function.arguments is not None:
+                                    yield tool_call.function.arguments
                 except AttributeError:
                     continue
 
