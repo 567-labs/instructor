@@ -64,6 +64,32 @@ def _get_model_name(response_model: Any) -> str:
     return getattr(response_model, "__name__", "Model")
 
 
+def is_truncated_at_max_tokens(response: Any) -> bool:
+    """Whether Google stopped generating because it reached the token limit.
+
+    A response cut off part-way through never emitted the remaining fields, so parsing it
+    yields schema defaults that are indistinguishable from values the model actually chose.
+    The GenAI, OpenAI, Anthropic, Mistral and Writer handlers all refuse such a response;
+    the Gemini and VertexAI handlers did not, so `from_gemini` and `from_vertexai` returned
+    defaults for every field past the cut.
+
+    The two Google SDKs expose distinct ``FinishReason`` types that both name the member
+    ``MAX_TOKENS``, so this compares the member name. Note that
+    ``google.generativeai``'s ``ProtoEnum`` renders as its integer value through ``str()``,
+    so ``str(finish_reason)`` is ``"2"`` there and cannot be compared directly.
+    """
+    candidates = getattr(response, "candidates", None)
+    if not candidates:
+        return False
+    finish_reason = getattr(candidates[0], "finish_reason", None)
+    if finish_reason is None:
+        return False
+    name = getattr(finish_reason, "name", None)
+    if name is not None:
+        return name == "MAX_TOKENS"
+    return str(finish_reason).split(".")[-1] == "MAX_TOKENS"
+
+
 def extract_gemini_chunk_text(chunk: Any) -> str:
     try:
         return chunk.text
