@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
-from instructor.v2.core.errors import ConfigurationError
+from instructor.v2.core.errors import ConfigurationError, IncompleteOutputException
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import ParallelBase, get_types_array
 from instructor.v2.dsl.partial import PartialBase
@@ -25,6 +25,7 @@ from instructor.v2.providers.gemini.utils import (
     handle_vertexai_json,
     handle_vertexai_parallel_tools,
     handle_vertexai_tools,
+    is_truncated_at_max_tokens,
 )
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
@@ -395,6 +396,8 @@ class VertexAIToolsHandler(VertexAIHandlerBase):
                 validation_context=validation_context,
                 strict=strict,
             )
+        if is_truncated_at_max_tokens(response):
+            raise IncompleteOutputException(last_completion=response)
         parsed = parse_vertexai_tools(response_model, response, validation_context)
         return self._finalize(response_model, response, parsed)
 
@@ -438,6 +441,8 @@ class VertexAIJSONHandler(VertexAIHandlerBase):
             return self._parse_streaming(
                 response_model, response, validation_context, strict
             )
+        if is_truncated_at_max_tokens(response):
+            raise IncompleteOutputException(last_completion=response)
         parsed = parse_vertexai_json(
             response_model, response, validation_context, strict
         )

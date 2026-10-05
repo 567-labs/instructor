@@ -23,10 +23,11 @@ from instructor.v2.providers.gemini.utils import (
     extract_gemini_chunk_text,
     handle_gemini_json,
     handle_gemini_tools,
+    is_truncated_at_max_tokens,
 )
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
-from instructor.v2.core.errors import ResponseParsingError
+from instructor.v2.core.errors import IncompleteOutputException, ResponseParsingError
 from instructor.v2.core.json import extract_json_from_codeblock
 
 
@@ -272,6 +273,8 @@ class GeminiToolsHandler(GeminiHandlerBase):
             return self._parse_streaming(
                 response_model, response, validation_context, strict
             )
+        if is_truncated_at_max_tokens(response):
+            raise IncompleteOutputException(last_completion=response)
         parsed = parse_gemini_tools(
             response_model, response, validation_context, strict
         )
@@ -317,6 +320,8 @@ class GeminiJSONHandler(GeminiHandlerBase):
             return self._parse_streaming(
                 response_model, response, validation_context, strict
             )
+        if is_truncated_at_max_tokens(response):
+            raise IncompleteOutputException(last_completion=response)
         parsed = parse_gemini_json(response_model, response, validation_context, strict)
         return self._finalize(response_model, response, parsed)
 
