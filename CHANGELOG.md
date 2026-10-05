@@ -9,6 +9,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Parallel tool-call streaming**: Yield argument fragments from every tool call in a chunk, not just `tool_calls[0]`. Previously the arguments of parallel tool calls after the first were silently discarded. ([#2745](https://github.com/567-labs/instructor/issues/2745))
+
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
