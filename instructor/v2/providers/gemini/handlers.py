@@ -38,6 +38,32 @@ def reask_gemini_tools(
     """Build a Gemini tool reask payload after validation failure."""
     from google.ai import generativelanguage as glm  # type: ignore
 
+    function_call = None
+    for part in getattr(response, "parts", None) or []:
+        function_call = getattr(part, "function_call", None)
+        if function_call is not None:
+            break
+
+    if function_call is None:
+        # The model answered in prose instead of calling the tool, so there
+        # is no function_call to re-attach. Mirror the sibling guards
+        # (openai/genai/mistral reask handlers): fall back to a plain user
+        # correction instead of iterating None.
+        prose = getattr(response, "text", "") or ""
+        reask_msgs = []
+        if prose:
+            reask_msgs.append({"role": "model", "parts": [prose]})
+        reask_msgs.append(
+            {
+                "role": "user",
+                "parts": [
+                    f"Validation Error(s) found:\n{exception}\nRecall the function arguments correctly and fix the errors"
+                ],
+            }
+        )
+        kwargs["contents"].extend(reask_msgs)
+        return kwargs
+
     reask_msgs = [
         {
             "role": "model",
@@ -74,12 +100,18 @@ def reask_gemini_json(
     exception: Exception,
 ):
     """Build a Gemini JSON reask payload after validation failure."""
+    try:
+        text = response.text
+    except ValueError:
+        text = None
+    if text is None:
+        text = "<no readable text in the previous response>"
     kwargs["contents"].append(
         {
             "role": "user",
             "parts": [
                 "Correct the following JSON response, based on the errors given below:\n\n"
-                f"JSON:\n{response.text}\n\nExceptions:\n{exception}"
+                f"JSON:\n{text}\n\nExceptions:\n{exception}"
             ],
         }
     )
