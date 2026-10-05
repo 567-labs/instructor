@@ -9,6 +9,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Gemini tool reask**: Fall back to a plain user correction when the model answers in prose instead of calling the tool, instead of raising `AttributeError` on `None.function_call` and aborting the retry loop on the first attempt. Mirrors the existing sibling guards in the OpenAI, GenAI and Mistral reask handlers.
+
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
