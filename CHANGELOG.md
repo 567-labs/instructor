@@ -10,7 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
-- **Bedrock templating**: Render `context=` Jinja templates into the Converse `system` list and content text blocks. The request handler reshapes messages into Converse form before templating runs, so variables previously reached the model unrendered. ([#2651](https://github.com/567-labs/instructor/pull/2651))
+- **Bedrock and Anthropic templating**: Render `context=` Jinja templates into the top-level `system` list (Converse blocks and Anthropic `{"type": "text", ...}` blocks) and Converse content text blocks. Both request handlers hoist the system prompt out of `messages` before templating runs, so system-prompt variables previously reached the model unrendered; Converse content blocks were affected as well. ([#2650](https://github.com/567-labs/instructor/issues/2650), [#2651](https://github.com/567-labs/instructor/pull/2651))
 
 ## [1.17.1] - 2026-09-09
 

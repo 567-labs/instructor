@@ -116,18 +116,32 @@ def test_templating_survives_the_bedrock_kwargs_preparation():
     ]
 
 
-def test_other_providers_keep_their_templating():
+def test_anthropic_system_list_is_templated():
+    """The Anthropic handler hoists system messages into ``system=[{"type": "text", ...}]``
+    too; ``from_anthropic(AnthropicBedrock(...))`` reaches Bedrock through this path."""
     kwargs = {
+        "system": [
+            {"type": "text", "text": "You classify {{ topic }} reports."},
+            {
+                "type": "text",
+                "text": "Cached.",
+                "cache_control": {"type": "ephemeral"},
+            },
+        ],
         "messages": [
             {
                 "role": "user",
                 "content": [{"type": "text", "text": "Report: {{ text }}"}],
             },
-        ]
+        ],
     }
 
     result = handle_templating(kwargs, Mode.ANTHROPIC_TOOLS, context=CONTEXT)
 
+    assert result["system"] == [
+        {"type": "text", "text": "You classify airports reports."},
+        {"type": "text", "text": "Cached.", "cache_control": {"type": "ephemeral"}},
+    ]
     assert result["messages"][0]["content"] == [
         {"type": "text", "text": "Report: Runway closed for snow."}
     ]
