@@ -143,8 +143,11 @@ def handle_templating(
     if isinstance(new_kwargs, list):
         return new_kwargs
 
-    # Bedrock hoists the system prompt out of messages into a top-level list of blocks.
-    if provider == Provider.BEDROCK and isinstance(new_kwargs.get("system"), list):
+    # Bedrock and Anthropic hoist the system prompt out of messages into a top-level list of
+    # blocks (Converse ``{"text": ...}`` or Anthropic ``{"type": "text", "text": ...}``).
+    if provider in (Provider.BEDROCK, Provider.ANTHROPIC) and isinstance(
+        new_kwargs.get("system"), list
+    ):
         from instructor.v2.providers.bedrock.templating import process_system
 
         new_kwargs["system"] = process_system(
