@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Multimodal data URIs**: Normalize the media type when parsing image and PDF data URIs, so case variants and optional parameters such as `data:image/PNG;base64,...` are accepted instead of silently degrading to a text content block. ([#2752](https://github.com/567-labs/instructor/pull/2752))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
