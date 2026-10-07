@@ -72,6 +72,40 @@ openai_client = OpenAI(
 client = instructor.from_openai(openai_client, mode=instructor.Mode.JSON)
 ```
 
+### Tsubasa
+
+[Tsubasa](https://tsubasa.sh/) exposes an OpenAI-compatible Chat Completions
+endpoint. Wrap an OpenAI client with `Mode.JSON_SCHEMA` to request structured
+outputs:
+
+```python
+import os
+
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel
+
+
+class User(BaseModel):
+    name: str
+    age: int
+
+
+client = instructor.from_openai(
+    OpenAI(
+        base_url="https://api.tsubasa.sh/v1",
+        api_key=os.environ["TSUBASA_API_KEY"],
+    ),
+    mode=instructor.Mode.JSON_SCHEMA,
+)
+
+user = client.create(
+    model="tsubasa-fast",  # Use "tsubasa-pro" for the larger model.
+    messages=[{"role": "user", "content": "Extract: Jason is 25 years old"}],
+    response_model=User,
+)
+```
+
 `Mode.RESPONSES_TOOLS` uses OpenAI's Responses API. Do not select it unless the
 compatible server implements that API as well as Chat Completions.
 
