@@ -9,12 +9,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
-### Added
-- **OpenAI Decisions**: Reuse typed decision models with `openai/gpt-6-luna` in `Mode.DECISIONS`, including predicate probabilities, choices, and scaled scores. Preserve the original OpenAI response and reject refusals or malformed answers. Text-context HTTP contracts cover sync/async behavior; inline images and live-provider validation are not covered.
-
 ## [1.18.0] - 2026-09-26
 
 ### Added
+- **OpenAI Decisions**: Reuse typed decision models with `openai/gpt-6-luna` in `Mode.DECISIONS`, including predicate probabilities, choices, and scaled scores. Preserve the original OpenAI response and reject refusals or malformed answers. Text-context HTTP contracts cover sync/async behavior; inline images and live-provider validation are not covered.
 - **Decisions**: Evaluate typed Choice, Noul, and Score questions with Jev through TypeSafe or OpenRouter.
 - **Decisions validation**: Add shared sync/async provider contracts, schema and configuration suites, and explicitly opt-in live checks. Preserve provider response metadata, borrowed-client timeouts, alias-disabled models, reusable examples, and finite score scaling.
 - **Batch custom IDs**: Accept optional request IDs with count, uniqueness, and Anthropic format checks before writing a batch file or buffer. Preserve generated IDs when the option is omitted. ([#2691](https://github.com/567-labs/instructor/pull/2691))
