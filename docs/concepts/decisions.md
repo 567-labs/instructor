@@ -6,7 +6,7 @@ description: Evaluate a shared context with typed choices, probabilities, and sc
 # Typed decisions
 
 Decision models evaluate one context against several questions in a single request.
-Use `Mode.DECISIONS` with Jev through OpenRouter or TypeSafe. Define the questions
+Use `Mode.DECISIONS` with Jev through OpenRouter or TypeSafe, or OpenAI's Decisions API. Define the questions
 as a Pydantic model and receive a validated instance.
 
 ## Content moderation
@@ -153,6 +153,35 @@ An owned HTTP client defaults to a 60-second timeout. When supplying
 supplied HTTP client's configuration. Closing a decision client only closes an
 HTTP client it created. Pass `timeout=None` explicitly to disable timeouts.
 
+## OpenAI Decisions
+
+Set `OPENAI_API_KEY` and use the same typed decision model:
+
+```python
+client = instructor.from_provider(
+    "openai/gpt-6-luna", mode=instructor.Mode.DECISIONS
+)
+decision, raw = client.create_with_completion(
+    response_model=ModerationDecision,
+    context={"post": {"text": "I disagree with your argument."}, "policy": ["No harassment"]},
+)
+```
+
+This route sends the JSON-serialized `context` as text `input` to
+`POST /v1/decisions`. It translates choices and score levels into ordered
+questions and maps `Noul` to OpenAI predicate probabilities. Structured criteria
+and examples are serialized into descriptions or predicate instructions, not
+sent as Jev-specific wire fields. This adapter currently supports text context,
+not OpenAI's inline-image input. Refusals, missing answers, wrong names/types,
+and out-of-range values raise errors rather than returning partial results.
+
+`raw` remains the unchanged OpenAI response, including its answer array,
+probability arrays, confidence, and usage. It is not the Jev answer dictionary.
+The HTTP adapter does not require an SDK upgrade; OpenAI's native SDK Decisions
+resource requires Python SDK 3.26.0 or later. Offline HTTP contracts cover sync
+and async paths; live OpenAI Decisions compatibility has not been tested.
+See the [OpenAI Decisions guide](https://developers.openai.com/api/docs/guides/decisions).
+
 ## Choices
 
 Use a `Literal` for a short list, a string-valued Python `Enum` for a reusable
@@ -228,7 +257,7 @@ data, make billed API requests, and skip providers whose keys are missing:
 uv run pytest tests/llm/test_decisions/ --run-decisions-live
 ```
 
-Set `TYPESAFE_API_KEY` and/or `OPENROUTER_API_KEY` for the selected providers.
-`TYPESAFE_DECISIONS_MODEL` and `OPENROUTER_DECISIONS_MODEL` optionally override
+Set `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, and/or `OPENAI_API_KEY` for the selected providers.
+`TYPESAFE_DECISIONS_MODEL`, `OPENROUTER_DECISIONS_MODEL`, and `OPENAI_DECISIONS_MODEL` optionally override
 the live model IDs. Without the explicit flag, live cases are skipped even
 when credentials are present. Local contracts do not certify a live provider.

@@ -43,10 +43,23 @@ def assert_live_contract(
     assert 0 <= result.urgency <= 10
     assert isinstance(raw["model"], str) and raw["model"]
     answers = raw["answers"]
+    if provider == "openai":
+        assert isinstance(answers, list) and len(answers) == 3
+        assert [answer["name"] for answer in answers] == [
+            "department",
+            "refund",
+            "urgency",
+        ]
+        answers = {answer["name"]: answer for answer in answers}
     assert answers["department"]["type"] == "choice"
     assert answers["department"]["choice"] == result.department
-    assert answers["refund"]["type"] == "noul"
-    assert answers["refund"]["noul"] == result.refund
+    assert answers["refund"]["type"] == (
+        "predicate" if provider == "openai" else "noul"
+    )
+    assert (
+        answers["refund"]["probability" if provider == "openai" else "noul"]
+        == result.refund
+    )
     assert answers["urgency"]["type"] == "score"
     assert result.urgency == pytest.approx(answers["urgency"]["score"] * 5)
     for name, expected_keys in (
@@ -55,6 +68,13 @@ def assert_live_contract(
     ):
         answer = answers[name]
         probabilities = answer["probabilities"]
+        if provider == "openai":
+            assert isinstance(probabilities, list) and len(probabilities) == len(
+                expected_keys
+            )
+            probabilities = {
+                str(item["value"]): item["probability"] for item in probabilities
+            }
         assert set(probabilities) == expected_keys
         assert all(
             isinstance(value, (int, float))
@@ -67,10 +87,15 @@ def assert_live_contract(
         confidence = answer["confidence"]
         assert isinstance(confidence, (int, float)) and not isinstance(confidence, bool)
         assert math.isfinite(confidence) and 0 <= confidence <= 1
-    assert set(answers["urgency"]["legend"]) == {"0", "1", "2"}
+    if provider != "openai":
+        assert set(answers["urgency"]["legend"]) == {"0", "1", "2"}
     for name in ("input_tokens", "output_tokens"):
         value = raw["usage"][name]
-        assert isinstance(value, int) and not isinstance(value, bool) and value > 0
+        assert isinstance(value, int) and not isinstance(value, bool)
+        if provider == "openai" and name == "output_tokens":
+            assert value == 0
+        else:
+            assert value > 0
     if provider == "openrouter":
         cost = raw["usage"]["cost"]
         assert isinstance(cost, (int, float)) and not isinstance(cost, bool)

@@ -8,10 +8,11 @@ from typing import Any, TypeVar
 import httpx
 from pydantic import BaseModel
 
-from .schema import build_questions, parse_answers
+from .schema import _Field, build_questions, parse_answers
 
 T = TypeVar("T", bound=BaseModel)
 _ENDPOINTS = {
+    "openai": ("https://api.openai.com/v1/decisions", "OPENAI_API_KEY"),
     "typesafe": ("https://api.typesafe.ai/v1/systemone", "TYPESAFE_API_KEY"),
     "openrouter": ("https://openrouter.ai/api/alpha/decisions", "OPENROUTER_API_KEY"),
 }
@@ -24,14 +25,35 @@ class _DefaultTimeout:
 _DEFAULT_TIMEOUT = _DefaultTimeout()
 
 
-def _request(model: str, response_model: type[T], context: dict[str, Any]):
+def _request(
+    model: str, response_model: type[T], context: dict[str, Any], provider: str
+) -> tuple[list[_Field], dict[str, Any]]:
     fields = build_questions(response_model, context)
+    if provider == "openai":
+        from .openai import request_body
+
+        return fields, request_body(model, fields, context)
     body = {
         "model": model,
         "state": context,
         "questions": {field.name: field.question for field in fields},
     }
     return fields, body
+
+
+def _parse(
+    response_model: type[T],
+    fields: list[_Field],
+    raw: Any,
+    context: dict[str, Any],
+    strict: bool,
+    provider: str,
+) -> T:
+    if provider == "openai":
+        from .openai import answer_envelope
+
+        raw = answer_envelope(fields, raw)
+    return parse_answers(response_model, fields, raw, context, strict)
 
 
 class DecisionsClient:
@@ -44,7 +66,10 @@ class DecisionsClient:
         api_key: str,
         http_client: httpx.Client | None = None,
         timeout: float | None | _DefaultTimeout = _DEFAULT_TIMEOUT,
+        *,
+        provider: str = "typesafe",
     ):
+        self._provider = provider
         self.model = model
         self.endpoint = endpoint
         self._api_key = api_key
@@ -73,7 +98,7 @@ class DecisionsClient:
     def create_with_completion(
         self, *, response_model: type[T], context: dict[str, Any], strict: bool = True
     ) -> tuple[T, dict[str, Any]]:
-        fields, body = _request(self.model, response_model, context)
+        fields, body = _request(self.model, response_model, context, self._provider)
         response = self._client.post(
             self.endpoint,
             json=body,
@@ -82,7 +107,7 @@ class DecisionsClient:
         )
         response.raise_for_status()
         raw = response.json()
-        result = parse_answers(response_model, fields, raw, context, strict)
+        result = _parse(response_model, fields, raw, context, strict, self._provider)
         return result, raw
 
     def close(self) -> None:
@@ -106,7 +131,10 @@ class AsyncDecisionsClient:
         api_key: str,
         http_client: httpx.AsyncClient | None = None,
         timeout: float | None | _DefaultTimeout = _DEFAULT_TIMEOUT,
+        *,
+        provider: str = "typesafe",
     ):
+        self._provider = provider
         self.model = model
         self.endpoint = endpoint
         self._api_key = api_key
@@ -135,7 +163,7 @@ class AsyncDecisionsClient:
     async def create_with_completion(
         self, *, response_model: type[T], context: dict[str, Any], strict: bool = True
     ) -> tuple[T, dict[str, Any]]:
-        fields, body = _request(self.model, response_model, context)
+        fields, body = _request(self.model, response_model, context, self._provider)
         response = await self._client.post(
             self.endpoint,
             json=body,
@@ -144,7 +172,7 @@ class AsyncDecisionsClient:
         )
         response.raise_for_status()
         raw = response.json()
-        result = parse_answers(response_model, fields, raw, context, strict)
+        result = _parse(response_model, fields, raw, context, strict, self._provider)
         return result, raw
 
     async def close(self) -> None:
@@ -178,7 +206,11 @@ def from_decisions_provider(
     if async_client:
         if http_client is not None and not isinstance(http_client, httpx.AsyncClient):
             raise TypeError("async decisions require an httpx.AsyncClient")
-        return AsyncDecisionsClient(model, endpoint, api_key, http_client, timeout)
+        return AsyncDecisionsClient(
+            model, endpoint, api_key, http_client, timeout, provider=provider
+        )
     if http_client is not None and not isinstance(http_client, httpx.Client):
         raise TypeError("decisions require an httpx.Client")
-    return DecisionsClient(model, endpoint, api_key, http_client, timeout)
+    return DecisionsClient(
+        model, endpoint, api_key, http_client, timeout, provider=provider
+    )

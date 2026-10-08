@@ -10,7 +10,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--run-decisions-live",
         action="store_true",
         default=False,
-        help="Run paid TypeSafe/OpenRouter decisions contracts using configured keys.",
+        help="Run paid TypeSafe/OpenRouter/OpenAI decisions contracts using configured keys.",
     )
 
 
@@ -23,8 +23,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
             "OPENROUTER_API_KEY",
             "OPENROUTER_DECISIONS_MODEL",
         ),
+        ("openai", "gpt-6-luna", "OPENAI_API_KEY", "OPENAI_DECISIONS_MODEL"),
     ],
-    ids=["typesafe", "openrouter"],
+    ids=["typesafe", "openrouter", "openai"],
 )
 def decisions_provider(request: pytest.FixtureRequest) -> tuple[str, str]:
     if not request.config.getoption("run_decisions_live"):

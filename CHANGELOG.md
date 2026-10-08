@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- **OpenAI Decisions**: Reuse typed decision models with `openai/gpt-6-luna` in `Mode.DECISIONS`, including predicate probabilities, choices, and scaled scores. Preserve the original OpenAI response and reject refusals or malformed answers. Text-context HTTP contracts cover sync/async behavior; inline images and live-provider validation are not covered.
+
 ## [1.18.0] - 2026-09-26
 
 ### Added

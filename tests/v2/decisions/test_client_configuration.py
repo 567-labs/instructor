@@ -115,7 +115,7 @@ async def test_owned_http_client_receives_timeout(async_client, timeout):
             assert client._client.timeout == httpx.Timeout(timeout)
 
 
-@pytest.mark.parametrize("provider", ["openai", "anthropic", "unknown"])
+@pytest.mark.parametrize("provider", ["anthropic", "unknown"])
 def test_unsupported_decisions_provider_is_rejected(provider):
     with pytest.raises(ValueError, match="Decisions mode does not support provider"):
         instructor.from_provider(

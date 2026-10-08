@@ -16,6 +16,7 @@ import instructor
 PROVIDERS = [
     ("typesafe", "jev-latest", "/v1/systemone"),
     ("openrouter", "typesafe/jev-1.13", "/api/alpha/decisions"),
+    ("openai", "gpt-6-luna", "/v1/decisions"),
 ]
 pytestmark = [
     pytest.mark.asyncio,
@@ -50,6 +51,21 @@ def decision_response(provider: str, action: str = "review") -> dict[str, Any]:
     usage: dict[str, Any] = {"input_tokens": 17, "output_tokens": 2}
     if provider == "openrouter":
         usage["cost"] = 0.0042
+    if provider == "openai":
+        return {
+            "model": "gpt-6-luna",
+            "usage": usage,
+            "answers": [
+                {
+                    "name": "action",
+                    "type": "choice",
+                    "choice": action,
+                    "confidence": 0.8,
+                    "probabilities": [{"value": action, "probability": 0.8}],
+                }
+            ],
+            "metadata": {"provider": provider, "trace": ["opaque", {"attempt": 1}]},
+        }
     return {
         "id": f"{provider}-request",
         "model": f"{provider}-resolved-model",
@@ -66,6 +82,36 @@ def decision_response(provider: str, action: str = "review") -> dict[str, Any]:
         },
         "usage": usage,
         "metadata": {"provider": provider, "trace": ["opaque", {"attempt": 1}]},
+    }
+
+
+def request_body(provider: str, model: str, context: dict[str, Any]) -> dict[str, Any]:
+    instructions = f"Apply {context['policy']['name']} to {context['item']['text']}"
+    if provider == "openai":
+        return {
+            "model": model,
+            "input": json.dumps(context, ensure_ascii=False),
+            "questions": [
+                {
+                    "name": "action",
+                    "type": "choice",
+                    "instructions": instructions,
+                    "choices": [
+                        {"value": choice} for choice in ("allow", "review", "block")
+                    ],
+                }
+            ],
+        }
+    return {
+        "model": model,
+        "state": context,
+        "questions": {
+            "action": {
+                "type": "choice",
+                "instructions": instructions,
+                "criteria": {choice: None for choice in ("allow", "review", "block")},
+            }
+        },
     }
 
 
@@ -192,17 +238,7 @@ async def test_switch_preserves_typed_result_and_opaque_completion(
             "method": "POST",
             "path": path,
             "authorization": "Bearer explicit-contract-key",
-            "body": {
-                "model": model,
-                "state": original_context,
-                "questions": {
-                    "action": {
-                        "type": "choice",
-                        "instructions": "Apply moderation to a disputed comment",
-                        "criteria": {"allow": None, "review": None, "block": None},
-                    }
-                },
-            },
+            "body": request_body(provider, model, original_context),
         }
     ]
 
@@ -247,10 +283,10 @@ async def test_explicit_key_precedes_environment_and_is_bound_to_client(
 
 
 @pytest.mark.parametrize(
-    "first_provider", [0, 1], ids=["typesafe-first", "openrouter-first"]
+    "provider_order", [(0, 1), (1, 0), (0, 2), (2, 0), (1, 2), (2, 1)]
 )
 async def test_alternating_clients_isolate_context_auth_and_response(
-    decision_endpoint, http_client, async_client, first_provider
+    decision_endpoint, http_client, async_client, provider_order
 ):
     clients = [
         instructor.from_provider(
@@ -265,7 +301,7 @@ async def test_alternating_clients_isolate_context_auth_and_response(
     ]
     schema_before = deepcopy(Decision.model_json_schema())
     retained = []
-    for sequence, index in enumerate([first_provider, 1 - first_provider] * 2):
+    for sequence, index in enumerate(list(provider_order) * 2):
         provider, model, path = PROVIDERS[index]
         action = ["review", "allow", "block", "review"][sequence]
         context = deepcopy(CONTEXT)
@@ -293,10 +329,7 @@ async def test_alternating_clients_isolate_context_auth_and_response(
         assert call["path"] == path
         assert call["authorization"] == f"Bearer {provider}-isolated-key"
         assert call["body"]["model"] == model
-        assert call["body"]["state"] == context_before
-        assert call["body"]["questions"]["action"]["instructions"] == (
-            f"Apply policy-{sequence} to a disputed comment"
-        )
+        assert call["body"] == request_body(provider, model, context_before)
         retained.append((result, raw, action, response_before))
 
     for result, raw, action, response_before in retained:
@@ -337,7 +370,9 @@ async def test_context_validation_failure_is_specific_and_next_request_recovers(
     assert context == context_before
     assert decision_endpoint.response == response_before
     assert len(decision_endpoint.calls) == 1
-    assert decision_endpoint.calls[0]["body"]["state"] == context_before
+    assert decision_endpoint.calls[0]["body"] == request_body(
+        provider, model, context_before
+    )
 
     allowed_context = deepcopy(context)
     allowed_context["policy"]["allowed"] = ["review"]
@@ -345,7 +380,9 @@ async def test_context_validation_failure_is_specific_and_next_request_recovers(
     result = await pending if async_client else pending
     assert result.model_dump() == {"action": "review"}
     assert len(decision_endpoint.calls) == 2
-    assert decision_endpoint.calls[1]["body"]["state"] == allowed_context
+    assert decision_endpoint.calls[1]["body"] == request_body(
+        provider, model, allowed_context
+    )
     assert context == context_before
 
 
@@ -369,7 +406,8 @@ async def test_malformed_json_envelopes_fail_without_typed_fallback(
     )
 
     with pytest.raises(
-        ValueError, match="Decision response must contain an answers object"
+        ValueError,
+        match="[Dd]ecision response must contain an answers (object|array)|answer count",
     ):
         pending = client.create(response_model=Decision, context=deepcopy(CONTEXT))
         if async_client:
@@ -447,4 +485,4 @@ async def test_invalid_http_json_raises_decode_error_without_fallback(
     assert call["path"] == path
     assert call["authorization"] == "Bearer invalid-json-contract-key"
     assert call["body"]["model"] == model
-    assert call["body"]["state"] == context_before
+    assert call["body"] == request_body(provider, model, context_before)
