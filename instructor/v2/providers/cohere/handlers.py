@@ -17,7 +17,11 @@ from pydantic import BaseModel
 
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
-from instructor.v2.core.errors import ConfigurationError, ResponseParsingError
+from instructor.v2.core.errors import (
+    ConfigurationError,
+    IncompleteOutputException,
+    ResponseParsingError,
+)
 from instructor.v2.core.json import extract_json_from_codeblock
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
@@ -282,6 +286,9 @@ Respond with JSON only. Do not include code fences, markdown, or extra text.
                 stream_extractor=self.extract_streaming_json,
                 **parse_kwargs,
             )
+        if getattr(response, "finish_reason", None) == "MAX_TOKENS":
+            raise IncompleteOutputException(last_completion=response)
+
         # Check for V1 native tool calls first
         if hasattr(response, "tool_calls") and response.tool_calls:
             tool_call = response.tool_calls[0]
@@ -350,6 +357,8 @@ class CohereJSONSchemaHandler(CohereHandlerBase):
             raise ConfigurationError(
                 "Streaming is not supported for Cohere in JSON_SCHEMA mode."
             )
+        if getattr(response, "finish_reason", None) == "MAX_TOKENS":
+            raise IncompleteOutputException(last_completion=response)
         text = _extract_text_from_response(response)
         return response_model.model_validate_json(
             text,
@@ -417,6 +426,8 @@ class CohereMDJSONHandler(CohereHandlerBase):
             raise ConfigurationError(
                 "Streaming is not supported for Cohere in MD_JSON mode."
             )
+        if getattr(response, "finish_reason", None) == "MAX_TOKENS":
+            raise IncompleteOutputException(last_completion=response)
         text = _extract_text_from_response(response)
         extra_text = extract_json_from_codeblock(text)
         return response_model.model_validate_json(
