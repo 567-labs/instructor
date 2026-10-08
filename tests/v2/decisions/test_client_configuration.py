@@ -27,11 +27,17 @@ from instructor.decisions.client import AsyncDecisionsClient, DecisionsClient
             "https://openrouter.ai/api/alpha/decisions",
             "OPENROUTER_API_KEY",
         ),
+        (
+            "openai",
+            "gpt-6-luna",
+            "https://api.openai.com/v1/decisions",
+            "OPENAI_API_KEY",
+        ),
     ],
 )
 @pytest.mark.parametrize("async_client", [False, True], ids=["sync", "async"])
 @pytest.mark.asyncio
-async def test_provider_configuration_does_not_require_openai_credentials(
+async def test_provider_configuration_uses_its_own_credentials(
     monkeypatch, provider, model, endpoint, key_name, async_client
 ):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -59,6 +65,7 @@ async def test_provider_configuration_does_not_require_openai_credentials(
     [
         ("typesafe", "TYPESAFE_API_KEY", "OPENROUTER_API_KEY"),
         ("openrouter", "OPENROUTER_API_KEY", "TYPESAFE_API_KEY"),
+        ("openai", "OPENAI_API_KEY", "OPENROUTER_API_KEY"),
     ],
 )
 @pytest.mark.parametrize("async_client", [False, True], ids=["sync", "async"])
@@ -67,7 +74,8 @@ def test_missing_provider_key_does_not_fall_back_to_another_provider(
 ):
     monkeypatch.delenv(key_name, raising=False)
     monkeypatch.setenv(other_key, "wrong-provider-key")
-    monkeypatch.setenv("OPENAI_API_KEY", "wrong-sdk-key")
+    if key_name != "OPENAI_API_KEY":
+        monkeypatch.setenv("OPENAI_API_KEY", "wrong-sdk-key")
     with pytest.raises(ValueError, match=f"Set {key_name} or pass api_key"):
         instructor.from_provider(
             f"{provider}/test-model",
@@ -76,7 +84,7 @@ def test_missing_provider_key_does_not_fall_back_to_another_provider(
         )
 
 
-@pytest.mark.parametrize("provider", ["typesafe", "openrouter"])
+@pytest.mark.parametrize("provider", ["typesafe", "openrouter", "openai"])
 @pytest.mark.parametrize("async_client", [False, True], ids=["sync", "async"])
 @pytest.mark.asyncio
 async def test_wrong_http_client_type_is_rejected(provider, async_client):
