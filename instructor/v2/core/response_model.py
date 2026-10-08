@@ -7,7 +7,7 @@ import sys
 from collections.abc import Iterable
 from typing import Any, Callable, TypeVar, Union, cast, get_args, get_origin
 
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel, Field, create_model
 from typing_extensions import NotRequired, Required
 from typing import get_type_hints
 
@@ -51,7 +51,15 @@ def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
             field_annotation = annotation
             is_required = name in required_keys or (name not in optional_keys and total)
 
-        fields[name] = (field_annotation, ... if is_required else None)
+        field_name = name
+        default: Any = ... if is_required else None
+        if name.startswith("_"):
+            # Pydantic treats underscore-prefixed field names as private attributes.
+            field_name = f"field{name}"
+            while field_name in annotations or field_name in fields:
+                field_name += "_"
+            default = Field(default=default, alias=name)
+        fields[field_name] = (field_annotation, default)
 
     return _create_dynamic_model(
         getattr(typed_dict, "__name__", "TypedDictModel"),

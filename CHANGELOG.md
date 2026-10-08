@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **TypedDict response models**: Preserve underscore-prefixed keys in request schemas, validation, and alias-based serialization, including required and optional keys. ([#2757](https://github.com/567-labs/instructor/pull/2757))
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
