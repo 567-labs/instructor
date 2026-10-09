@@ -212,7 +212,7 @@ class BatchProcessor(Generic[T]):
 
                     if self.provider_name == "anthropic" and "result" in data:
                         result = data["result"]
-                        if result.get("type") == "error":
+                        if result.get("type") in {"errored", "error"}:
                             error_info = result.get("error", {})
                             if isinstance(error_info, dict) and "error" in error_info:
                                 error_details = error_info["error"]
