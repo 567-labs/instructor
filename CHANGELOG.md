@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Multimodal**: Sanitize Bedrock PDF document names by removing underscores, limiting names to 200 characters, and using a neutral fallback when sanitization leaves an empty name.
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
