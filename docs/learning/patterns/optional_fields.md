@@ -115,7 +115,7 @@ Instructor provides a `Maybe` type for uncertain or ambiguous fields:
 ```python
 from pydantic import BaseModel
 import instructor
-from instructor.types import Maybe
+from instructor import Maybe
 client = instructor.from_provider("openai/gpt-5-nano")
 
 class PersonInfo(BaseModel):

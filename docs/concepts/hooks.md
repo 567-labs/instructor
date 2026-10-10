@@ -90,7 +90,7 @@ client.clear()
 You can use enum values or strings for hook names:
 
 ```python
-from instructor.hooks import HookName
+from instructor.core.hooks import HookName
 
 client.on(HookName.COMPLETION_KWARGS, log_kwargs)  # Using enum
 client.on("completion:kwargs", log_kwargs)  # Using string
@@ -288,7 +288,7 @@ Create custom hook systems by extending the base pattern:
 
 ```python
 from enum import Enum
-from instructor.hooks import HookName
+from instructor.core.hooks import HookName
 
 
 class CustomHookName(str, Enum):
