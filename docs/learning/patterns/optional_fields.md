@@ -110,29 +110,47 @@ else:
 
 ## Using `Maybe` for Uncertain Fields
 
-Instructor provides a `Maybe` type for uncertain or ambiguous fields:
+Instructor provides a `Maybe` model factory for extractions that might not produce a result. Use `Optional` for individual nullable fields. To represent a potentially missing extraction, pass a Pydantic model to `Maybe`:
 
 ```python
+from typing import Optional
+
+from instructor import Maybe
 from pydantic import BaseModel
-import instructor
-from instructor.types import Maybe
-client = instructor.from_provider("openai/gpt-5-nano")
+
 
 class PersonInfo(BaseModel):
     name: str
-    age: Maybe[int] = None  # Maybe type for uncertain fields
+    age: Optional[int] = None
+
+
+MaybePerson = Maybe(PersonInfo)
+person = MaybePerson(result=PersonInfo(name="Alex", age=32))
 ```
 
-Check if a `Maybe` field contains uncertain information:
+Use `MaybePerson` as the `response_model` when extracting with an Instructor client. The example above constructs a response locally, without an LLM call.
+
+The returned model has `result`, `error`, and `message` fields. Check `result` before accessing the extracted data:
 
 ```python
-if person.age and person.age.is_uncertain:
-    print(f"Uncertain age: approximately {person.age.value}")
-elif person.age:
-    print(f"Age: {person.age.value}")
+if person.result is not None:
+    print(f"Name: {person.result.name}")
+    print(f"Age: {person.result.age}")
+elif person.error:
+    print(person.message or "Could not extract person information")
 else:
-    print("Age: Unknown")
+    print("No person information available")
 ```
+
+When an extraction fails, `result` can be `None` and `message` can explain why:
+
+```python
+missing_person = MaybePerson(error=True, message="No person information found")
+print(missing_person.result)
+print(missing_person.message)
+```
+
+This prints `None` and `No person information found`.
 
 For more about the `Maybe` type, see the [Missing Concepts](../../concepts/maybe.md) page.
 
