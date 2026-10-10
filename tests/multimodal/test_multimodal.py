@@ -589,6 +589,27 @@ def test_audio_from_base64():
     assert audio.data == _b64.b64encode(raw).decode("utf-8")
 
 
+def test_audio_from_base64_wav_alias():
+    # ``audio/x-wav`` is the WAV alias that ``Audio.from_path`` already accepts;
+    # ``from_base64`` must canonicalize it the same way instead of rejecting it.
+    import base64 as _b64
+
+    raw = b"\x11\x22\x33\x44"
+    uri = "data:audio/x-wav;base64," + _b64.b64encode(raw).decode("utf-8")
+
+    audio = Audio.from_base64(uri)
+
+    assert isinstance(audio, Audio)
+    assert audio.source == uri
+    assert audio.media_type == "audio/wav"
+    assert audio.data == _b64.b64encode(raw).decode("utf-8")
+
+
+def test_audio_is_base64_dotted_aac_subtype():
+    # The dotted AAC subtype must be recognized as a base64 audio data URI.
+    assert Audio.is_base64("data:audio/vnd.dlna.adts;base64,AA==")
+
+
 def test_pdf_to_bedrock_with_s3_uri():
     """Test PDF.to_bedrock with S3 URI source."""
     pdf = PDF(
