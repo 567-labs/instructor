@@ -18,6 +18,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Batch custom IDs**: Accept optional request IDs with count, uniqueness, and Anthropic format checks before writing a batch file or buffer. Preserve generated IDs when the option is omitted. ([#2691](https://github.com/567-labs/instructor/pull/2691))
 
 ### Fixed
+- **Batch parsing**: Validate complete result payloads so Pydantic root models can wrap objects with a field named `root`, including empty objects with model defaults. ([#2743](https://github.com/567-labs/instructor/pull/2743))
+- **Anthropic batch errors**: Preserve provider error types and messages from `errored` results, while retaining request IDs and raw records. ([#2758](https://github.com/567-labs/instructor/pull/2758))
+- **TypedDict response models**: Preserve underscore-prefixed keys in request schemas, validation, and alias-based serialization, including required and optional keys. ([#2757](https://github.com/567-labs/instructor/pull/2757))
+- **Documentation**: Correct logging setup and replace unsupported `Maybe` examples with the public model factory. ([#2764](https://github.com/567-labs/instructor/pull/2764), [#2765](https://github.com/567-labs/instructor/pull/2765))
 - **Hook dispatch**: Preserve callback order when handlers register or unregister callbacks during emission. Registration changes take effect on the next emission. ([#2634](https://github.com/567-labs/instructor/pull/2634))
 - **Citations**: Resolve quotes against lists or tuples of source text without combining independent sources. Reject unsupported source types rather than retaining unchecked quotes. Revises [#2699](https://github.com/567-labs/instructor/pull/2699).
 - **Examples**: Correct query-planner dependency field names and a generation prompt typo. ([#2697](https://github.com/567-labs/instructor/pull/2697))
