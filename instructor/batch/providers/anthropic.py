@@ -110,17 +110,6 @@ class AnthropicProvider(BatchProvider):
         if batch.processing_status != "ended":
             raise Exception(f"Batch not completed, status: {batch.processing_status}")
 
-        request_counts = getattr(batch, "request_counts", None)
-        if request_counts:
-            succeeded = getattr(request_counts, "succeeded", 0)
-            errored = getattr(request_counts, "errored", 0)
-            total = getattr(request_counts, "total", 0)
-
-            if errored > 0 and succeeded == 0:
-                raise RuntimeError(
-                    f"All {total} batch requests failed. No results will be available."
-                )
-
         return (result.model_dump_json() for result in batches_client.results(batch_id))
 
     def retrieve_results(self, batch_id: str) -> str:

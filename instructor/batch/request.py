@@ -6,7 +6,8 @@ provider-specific batch requests with JSON schema generation.
 """
 
 from __future__ import annotations
-from typing import Any, Generic
+from copy import deepcopy
+from typing import Any, Generic, cast
 from pydantic import BaseModel, Field, ConfigDict
 import json
 import io
@@ -58,34 +59,71 @@ class BatchRequest(BaseModel, Generic[T]):
 
     def to_openai_format(self) -> dict[str, Any]:
         """Convert to OpenAI batch format with JSON schema"""
-        schema = self.get_json_schema()
+        from openai.lib._pydantic import resolve_ref
 
-        # OpenAI strict mode requires additionalProperties to be false
-        def make_strict_schema(schema_dict):
-            """Recursively add additionalProperties: false for OpenAI strict mode"""
-            if isinstance(schema_dict, dict):
-                if "type" in schema_dict:
-                    if schema_dict["type"] == "object":
-                        schema_dict["additionalProperties"] = False
-                    elif schema_dict["type"] == "array" and "items" in schema_dict:
-                        schema_dict["items"] = make_strict_schema(schema_dict["items"])
+        strict_schema = deepcopy(self.get_json_schema())
 
-                # Recursively process properties
-                if "properties" in schema_dict:
-                    for prop_name, prop_schema in schema_dict["properties"].items():
-                        schema_dict["properties"][prop_name] = make_strict_schema(
-                            prop_schema
-                        )
+        def make_strict_schema(schema: dict[str, Any] | bool) -> None:
+            # The SDK strict helper rejects boolean schemas, which batch callers
+            # already use. Traverse schema keywords only, leaving metadata intact.
+            if isinstance(schema, bool):
+                return
+            properties = schema.get("properties")
+            additional = schema.get("additionalProperties")
+            if (
+                isinstance(additional, dict)
+                or (additional is True and not properties)
+                or (
+                    schema.get("type") == "object"
+                    and "properties" not in schema
+                    and additional is None
+                )
+                or schema.get("patternProperties")
+            ):
+                raise ValueError(
+                    "Arbitrary mapping schemas are not supported by OpenAI batch "
+                    "strict mode; use a model with named fields instead"
+                )
+            schema_type = schema.get("type")
+            if (
+                schema_type == "object"
+                or (isinstance(schema_type, list) and "object" in schema_type)
+                or isinstance(properties, dict)
+            ):
+                schema["additionalProperties"] = False
+            if isinstance(properties, dict):
+                schema["required"] = list(properties)
+                for child in properties.values():
+                    make_strict_schema(child)
+            for keyword in ("$defs", "definitions"):
+                for child in schema.get(keyword, {}).values():
+                    make_strict_schema(child)
+            if "items" in schema:
+                make_strict_schema(schema["items"])
+            for keyword in ("anyOf", "oneOf", "allOf", "prefixItems"):
+                for child in schema.get(keyword, []):
+                    make_strict_schema(child)
+            all_of = schema.get("allOf")
+            if (
+                isinstance(all_of, list)
+                and len(all_of) == 1
+                and isinstance(all_of[0], dict)
+            ):
+                schema.update(all_of[0])
+                del schema["allOf"]
+            # Match the SDK's nullable-default handling; retain non-null defaults.
+            if "default" in schema and schema["default"] is None:
+                del schema["default"]
+            ref = schema.get("$ref")
+            if isinstance(ref, str) and len(schema) > 1:
+                resolved = cast(
+                    dict[str, Any], resolve_ref(root=strict_schema, ref=ref)
+                )
+                schema.update({**resolved, **schema})
+                del schema["$ref"]
+                make_strict_schema(schema)
 
-                # Process definitions/defs
-                for key in ["definitions", "$defs"]:
-                    if key in schema_dict:
-                        for def_name, def_schema in schema_dict[key].items():
-                            schema_dict[key][def_name] = make_strict_schema(def_schema)
-
-            return schema_dict
-
-        strict_schema = make_strict_schema(schema.copy())
+        make_strict_schema(strict_schema)
 
         return {
             "custom_id": self.custom_id,

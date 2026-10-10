@@ -25,13 +25,13 @@ from instructor.v2.core.providers import Provider
 from instructor.v2.core.errors import ConfigurationError, IncompleteOutputException
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import (
-    ParallelBase,
+    ParallelBase as ParallelBase,
 )
 from instructor.v2.providers.anthropic.parallel import (
     AnthropicParallelModel,
     handle_parallel_model as handle_anthropic_parallel_model,
 )
-from instructor.v2.dsl.simple_type import AdapterBase
+from instructor.v2.dsl.simple_type import AdapterBase as AdapterBase
 from instructor.v2.core.multimodal import Audio, Image, PDF
 from instructor.v2.core.multimodal import convert_messages as convert_messages_v1
 from instructor.v2.core.json import extract_json_from_codeblock
@@ -255,22 +255,6 @@ class AnthropicHandlerBase(StreamingModelState, ModeHandler):
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):
             return generator
         return list(generator)
-
-    def _finalize_parsed_result(
-        self,
-        response_model: type[BaseModel] | ParallelBase,
-        response: Any,
-        parsed: Any,
-    ) -> Any:
-        if isinstance(parsed, IterableBase):
-            return [task for task in parsed.tasks]
-        if isinstance(response_model, ParallelBase):
-            return parsed
-        if isinstance(parsed, AdapterBase):
-            return parsed.content
-        if isinstance(parsed, BaseModel):
-            parsed._raw_response = response  # type: ignore[attr-defined]
-        return parsed
 
     def _parse_with_callback(
         self,

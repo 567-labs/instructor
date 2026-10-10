@@ -222,7 +222,7 @@ class BatchProcessor(Generic[T]):
                 if extracted_data is not None:
                     try:
                         # Parse into response model
-                        result = self.response_model(**extracted_data)
+                        result = self.response_model.model_validate(extracted_data)
                         batch_result = BatchSuccess[T](
                             custom_id=custom_id, result=result
                         )
@@ -232,7 +232,11 @@ class BatchProcessor(Generic[T]):
                             custom_id=custom_id,
                             error_type="parsing_error",
                             error_message=f"Failed to parse into {self.response_model.__name__}: {e}",
-                            raw_data=extracted_data,
+                            raw_data=(
+                                extracted_data
+                                if isinstance(extracted_data, dict)
+                                else data
+                            ),
                         )
                         results.append(error_result)
                 else:
@@ -240,9 +244,31 @@ class BatchProcessor(Generic[T]):
                     error_message = "Unknown error"
                     error_type = "extraction_error"
 
+                    if self.provider_name == "openai":
+                        error_info = data.get("error")
+                        if not error_info:
+                            response = data.get("response")
+                            body = (
+                                response.get("body")
+                                if isinstance(response, dict)
+                                else None
+                            )
+                            error_info = (
+                                body.get("error") if isinstance(body, dict) else None
+                            )
+                        if isinstance(error_info, dict):
+                            error_message = (
+                                error_info.get("message") or "Unknown OpenAI error"
+                            )
+                            error_type = (
+                                error_info.get("type")
+                                or error_info.get("code")
+                                or "openai_error"
+                            )
+
                     if self.provider_name == "anthropic" and "result" in data:
                         result = data["result"]
-                        if result.get("type") == "error":
+                        if result.get("type") in {"errored", "error"}:
                             error_info = result.get("error", {})
                             if isinstance(error_info, dict) and "error" in error_info:
                                 error_details = error_info["error"]
@@ -302,7 +328,7 @@ class BatchProcessor(Generic[T]):
                         # Try tool_use first
                         for item in content:
                             if item.get("type") == "tool_use":
-                                return item.get("input", {})
+                                return item.get("input")
 
                         # Fallback to text content and parse JSON
                         for item in content:

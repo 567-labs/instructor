@@ -18,6 +18,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Batch custom IDs**: Accept optional request IDs with count, uniqueness, and Anthropic format checks before writing a batch file or buffer. Preserve generated IDs when the option is omitted. ([#2691](https://github.com/567-labs/instructor/pull/2691))
 
 ### Fixed
+- **Batch parsing**: Validate complete result payloads so Pydantic root models can wrap objects with a field named `root`, including empty objects with model defaults. ([#2743](https://github.com/567-labs/instructor/pull/2743))
+- **Batch failure details**: Reject absent Anthropic tool input instead of inventing an empty result. Preserve request IDs and original records when non-object payloads fail model validation.
+- **Batch retrieval**: Read both OpenAI success and error files, including completed batches where every request failed. Retrieve Anthropic ended batches with only errors, preserving request IDs, provider error details and raw records.
+- **OpenAI batch schemas**: Require every declared field in strict schemas, including defaulted and nullable nested fields. Normalize compositions and references without mutating caller-owned schemas or discarding field metadata. Reject arbitrary-key mappings instead of silently erasing their value schema.
+- **Anthropic batch errors**: Preserve provider error types and messages from `errored` results, while retaining request IDs and raw records. ([#2758](https://github.com/567-labs/instructor/pull/2758))
+- **TypedDict response models**: Preserve underscore-prefixed keys in request schemas, validation, and alias-based serialization, including required and optional keys. ([#2757](https://github.com/567-labs/instructor/pull/2757))
+- **TypedDict caching**: Preserve original keys and omitted optional fields when generated TypedDict models are serialized for cache round trips.
+- **Documentation**: Correct logging setup and replace unsupported `Maybe` examples with the public model factory. ([#2764](https://github.com/567-labs/instructor/pull/2764), [#2765](https://github.com/567-labs/instructor/pull/2765))
+- **Provider result handling**: Share identical result finalization across OpenAI, Anthropic, Mistral and xAI while preserving SDK-specific parsing, lazy parallel results and original response metadata.
 - **Hook dispatch**: Preserve callback order when handlers register or unregister callbacks during emission. Registration changes take effect on the next emission. ([#2634](https://github.com/567-labs/instructor/pull/2634))
 - **Citations**: Resolve quotes against lists or tuples of source text without combining independent sources. Reject unsupported source types rather than retaining unchecked quotes. Revises [#2699](https://github.com/567-labs/instructor/pull/2699).
 - **Examples**: Correct query-planner dependency field names and a generation prompt typo. ([#2697](https://github.com/567-labs/instructor/pull/2697))
@@ -34,6 +43,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Streaming JSON bounds**: Enforce the existing 1 MiB character and 128-level nesting limits symmetrically on sync/async streams, including an over-depth opener at EOF. Preserve incremental emission and multiple-object behavior. Revises [#2638](https://github.com/567-labs/instructor/pull/2638).
 
 ### Upgrade Notes
+- Completed batch retrieval includes failed requests as `BatchError` records instead of rejecting an all-failed batch or returning only successful requests. OpenAI retrieval waits for the files indicated by request counts; unfinished jobs remain unavailable.
+- OpenAI batch schemas use strict structured outputs: every named property is required, including fields with model defaults. Use nullable fields when the output may be null. Arbitrary-key mappings are unsupported in this path; use named model fields or a list of key/value objects. Anthropic mapping schemas are unchanged.
 - Decision mode is opt-in; existing chat modes are unchanged. TypeSafe and OpenRouter use the same typed questions but require their own credentials and model IDs. Retries, caching, streaming, and completion hooks are not supported in decision mode. OpenRouter Jev sync/async contracts passed live; direct TypeSafe compatibility remains unverified live.
 - Citation context may be a string or a list/tuple of strings. Other supplied source types raise a validation error; missing context retains the existing no-validation behavior.
 - Unknown parallel tool calls now raise `ResponseParsingError` and follow the configured retry policy instead of being silently omitted. Native SDK and wire formats remain provider-specific; live provider compatibility is not established by offline tests.
