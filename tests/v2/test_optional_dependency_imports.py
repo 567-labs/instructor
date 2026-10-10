@@ -78,4 +78,3 @@ def test_usage_helpers_survive_missing_openai(monkeypatch: pytest.MonkeyPatch) -
     resp = DummyResponse()
     assert has_compatible_usage(resp, None) is False
     assert update_total_usage(resp, cast(Any, None)) is resp
-
