@@ -244,6 +244,28 @@ class BatchProcessor(Generic[T]):
                     error_message = "Unknown error"
                     error_type = "extraction_error"
 
+                    if self.provider_name == "openai":
+                        error_info = data.get("error")
+                        if not error_info:
+                            response = data.get("response")
+                            body = (
+                                response.get("body")
+                                if isinstance(response, dict)
+                                else None
+                            )
+                            error_info = (
+                                body.get("error") if isinstance(body, dict) else None
+                            )
+                        if isinstance(error_info, dict):
+                            error_message = (
+                                error_info.get("message") or "Unknown OpenAI error"
+                            )
+                            error_type = (
+                                error_info.get("type")
+                                or error_info.get("code")
+                                or "openai_error"
+                            )
+
                     if self.provider_name == "anthropic" and "result" in data:
                         result = data["result"]
                         if result.get("type") in {"errored", "error"}:
