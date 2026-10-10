@@ -32,6 +32,35 @@ class Person(BaseModel):
     age: int
 
 
+def test_batch_file_round_trips_utf8_result_text(tmp_path: Path) -> None:
+    name = "Ren" + chr(0xE9) + "e"
+    result = {
+        "custom_id": "unicode-result",
+        "response": {
+            "body": {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {"name": name, "age": 30}, ensure_ascii=False
+                            )
+                        }
+                    }
+                ]
+            }
+        },
+    }
+    batch_file = tmp_path / "results.jsonl"
+    batch_file.write_bytes(
+        (json.dumps(result, ensure_ascii=False) + "\n").encode("utf-8")
+    )
+
+    successes, failures = BatchJob.parse_from_file(str(batch_file), Person)
+
+    assert successes == [Person(name=name, age=30)]
+    assert failures == []
+
+
 class PersonGroup(BaseModel):
     people: list[Person]
 

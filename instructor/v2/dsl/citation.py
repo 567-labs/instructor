@@ -71,10 +71,21 @@ class CitationMixin(BaseModel):
         if text_chunks is None:
             return self
 
-        # Get the spans of the substring_phrase in the context
-        spans = list(self.get_spans(text_chunks))
-        # Replace the substring_phrase with the actual substring
-        self.substring_quotes = [text_chunks[span[0] : span[1]] for span in spans]
+        if isinstance(text_chunks, str):
+            chunks = [text_chunks]
+        elif isinstance(text_chunks, (list, tuple)) and all(
+            isinstance(chunk, str) for chunk in text_chunks
+        ):
+            chunks = text_chunks
+        else:
+            raise ValueError(
+                "Citation context must be text or a list/tuple of text chunks"
+            )
+
+        # Search each source independently; joined chunks can invent cross-source quotes.
+        self.substring_quotes = [
+            chunk[start:end] for chunk in chunks for start, end in self.get_spans(chunk)
+        ]
         return self
 
     def _get_span(

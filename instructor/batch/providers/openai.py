@@ -142,7 +142,7 @@ class OpenAIProvider(BatchProvider):
         """Download OpenAI batch results to a file"""
         try:
             results_text = self._get_results_text(batch_id)
-            with open(file_path, "w") as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(results_text)
         except Exception as e:
             raise Exception(f"Failed to download OpenAI results: {e}") from e

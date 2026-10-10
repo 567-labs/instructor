@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sys
-import types
 import typing
 from enum import Enum
 
@@ -159,24 +158,10 @@ def test_model_adapter_accepts_simple_values_and_rejects_models() -> None:
         ModelAdapter[User]
 
 
-def test_validate_is_subclass_handles_generic_alias_and_legacy_python(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(sys, "version_info", (3, 11))
+def test_validate_is_subclass_distinguishes_models_from_generic_annotations() -> None:
     assert validateIsSubClass(User)
     assert not validateIsSubClass(list[User])
-
-    monkeypatch.setattr(sys, "version_info", (3, 9))
-    assert not validateIsSubClass(User)
-    assert validateIsSubClass(list[User])
-
-
-def test_validate_is_subclass_tolerates_a_broken_generic_alias_check(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(sys, "version_info", (3, 11))
-    monkeypatch.setattr(types, "GenericAlias", object())
-    assert validateIsSubClass(User)
+    assert not validateIsSubClass(typing.List[User])  # noqa: UP006
 
 
 def test_is_simple_type_handles_unions_and_type_errors(
@@ -198,12 +183,15 @@ def test_is_simple_type_covers_list_shapes_and_old_issubclass_behavior(
 ) -> None:
     assert is_simple_type(list[typing.Union[int, str]])
     assert not is_simple_type(list[User])
-    assert is_simple_type(list[object]) is hasattr(object, "__or__")
+    # ``object`` is representable by pydantic, so it keeps the content-adapter path.
+    assert is_simple_type(list[object])
     assert is_simple_type(typing.List)  # noqa: UP006
 
-    monkeypatch.setattr(simple_type, "hasattr", lambda *_: False, raising=False)
     assert is_simple_type(list[int])
-    assert not is_simple_type(list[typing.Literal["one"]])
+    # ``Literal`` members keep the content-adapter path without needing the old
+    # ``hasattr(inner_arg, "__or__")`` probe, which was true for every class on
+    # Python 3.10+ and therefore could not distinguish these shapes at all.
+    assert is_simple_type(list[typing.Literal["one"]])
 
     def legacy_issubclass(value: object, base: type) -> bool:
         if value is int:

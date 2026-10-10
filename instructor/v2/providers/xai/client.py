@@ -243,9 +243,10 @@ def from_xai(
     ) -> Any:
         model = call_kwargs.pop("model")
         # Remove instructor-specific kwargs that xAI doesn't support
-        call_kwargs.pop("max_retries", None)
-        call_kwargs.pop("validation_context", None)
-        call_kwargs.pop("context", None)
+        max_retries = call_kwargs.pop("max_retries", 3)
+        validation_context = call_kwargs.pop(
+            "validation_context", call_kwargs.pop("context", None)
+        )
         call_kwargs.pop("hooks", None)
         if call_kwargs.pop("token_budget", None) is not None:
             raise ValueError("token_budget is not supported for xAI requests")
@@ -349,27 +350,32 @@ def from_xai(
         if mode == Mode.PARALLEL_TOOLS:
             for model_type in get_types_array(response_model):  # type: ignore[arg-type]
                 tool_obj = xchat.tool(
-                    name=_get_model_name(model_type),
+                    name=_get_model_schema(model_type)["title"],
                     description=model_type.__doc__ or "",
                     parameters=_get_model_schema(model_type),
                 )
                 chat.proto.tools.append(cast(Any, tool_obj))
-            resp = await chat.sample()  # type: ignore[misc]
-            type_registry = {
-                model_type.__name__: model_type
-                for model_type in get_types_array(response_model)  # type: ignore[arg-type]
-            }
-            from instructor.v2.core.function_calls import _validate_model_from_json
+            from instructor.v2.core.retry import retry_async_v2
 
-            return iter(
-                _validate_model_from_json(
-                    type_registry[tool_call.function.name],
-                    tool_call.function.arguments,
-                    None,
-                    strict,
+            async def sample_parallel(**retry_kwargs: Any) -> Any:
+                request = dict(call_kwargs)
+                request.update(
+                    model=model,
+                    messages=_convert_messages(retry_kwargs["messages"]),
+                    tools=list(chat.proto.tools),
                 )
-                for tool_call in resp.tool_calls
-                if tool_call.function.name in type_registry
+                return await cast(AsyncClient, client).chat.create(**request).sample()
+
+            return await retry_async_v2(
+                func=sample_parallel,
+                response_model=response_model,
+                provider=Provider.XAI,
+                mode=mode,
+                context=validation_context,
+                max_retries=max_retries,
+                args=(),
+                kwargs={"messages": list(messages)},
+                strict=strict,
             )
         # MD_JSON mode - use sample() and extract from text
         resp = await chat.sample()  # type: ignore[misc]
@@ -405,9 +411,10 @@ def from_xai(
     ) -> Any:
         model = call_kwargs.pop("model")
         # Remove instructor-specific kwargs that xAI doesn't support
-        call_kwargs.pop("max_retries", None)
-        call_kwargs.pop("validation_context", None)
-        call_kwargs.pop("context", None)
+        max_retries = call_kwargs.pop("max_retries", 3)
+        validation_context = call_kwargs.pop(
+            "validation_context", call_kwargs.pop("context", None)
+        )
         call_kwargs.pop("hooks", None)
         if call_kwargs.pop("token_budget", None) is not None:
             raise ValueError("token_budget is not supported for xAI requests")
@@ -511,27 +518,32 @@ def from_xai(
         if mode == Mode.PARALLEL_TOOLS:
             for model_type in get_types_array(response_model):  # type: ignore[arg-type]
                 tool_obj = xchat.tool(
-                    name=_get_model_name(model_type),
+                    name=_get_model_schema(model_type)["title"],
                     description=model_type.__doc__ or "",
                     parameters=_get_model_schema(model_type),
                 )
                 chat.proto.tools.append(cast(Any, tool_obj))
-            resp = chat.sample()  # type: ignore[misc]
-            type_registry = {
-                model_type.__name__: model_type
-                for model_type in get_types_array(response_model)  # type: ignore[arg-type]
-            }
-            from instructor.v2.core.function_calls import _validate_model_from_json
+            from instructor.v2.core.retry import retry_sync_v2
 
-            return iter(
-                _validate_model_from_json(
-                    type_registry[tool_call.function.name],
-                    tool_call.function.arguments,
-                    None,
-                    strict,
+            def sample_parallel(**retry_kwargs: Any) -> Any:
+                request = dict(call_kwargs)
+                request.update(
+                    model=model,
+                    messages=_convert_messages(retry_kwargs["messages"]),
+                    tools=list(chat.proto.tools),
                 )
-                for tool_call in resp.tool_calls
-                if tool_call.function.name in type_registry
+                return client.chat.create(**request).sample()
+
+            return retry_sync_v2(
+                func=sample_parallel,
+                response_model=response_model,
+                provider=Provider.XAI,
+                mode=mode,
+                context=validation_context,
+                max_retries=max_retries,
+                args=(),
+                kwargs={"messages": list(messages)},
+                strict=strict,
             )
         # MD_JSON mode - use sample() and extract from text
         resp = chat.sample()  # type: ignore[misc]

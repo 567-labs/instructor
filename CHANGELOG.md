@@ -9,6 +9,37 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-09-26
+
+### Added
+- **OpenAI Decisions**: Reuse typed decision models with `openai/gpt-6-luna` in `Mode.DECISIONS`, including predicate probabilities, choices, and scaled scores. Preserve the original OpenAI response and reject refusals or malformed answers. Text-context HTTP contracts cover sync/async behavior; inline images and live-provider validation are not covered.
+- **Decisions**: Evaluate typed Choice, Noul, and Score questions with Jev through TypeSafe or OpenRouter.
+- **Decisions validation**: Add shared sync/async provider contracts, schema and configuration suites, and explicitly opt-in live checks. Preserve provider response metadata, borrowed-client timeouts, alias-disabled models, reusable examples, and finite score scaling.
+- **Batch custom IDs**: Accept optional request IDs with count, uniqueness, and Anthropic format checks before writing a batch file or buffer. Preserve generated IDs when the option is omitted. ([#2691](https://github.com/567-labs/instructor/pull/2691))
+
+### Fixed
+- **Hook dispatch**: Preserve callback order when handlers register or unregister callbacks during emission. Registration changes take effect on the next emission. ([#2634](https://github.com/567-labs/instructor/pull/2634))
+- **Citations**: Resolve quotes against lists or tuples of source text without combining independent sources. Reject unsupported source types rather than retaining unchecked quotes. Revises [#2699](https://github.com/567-labs/instructor/pull/2699).
+- **Examples**: Correct query-planner dependency field names and a generation prompt typo. ([#2697](https://github.com/567-labs/instructor/pull/2697))
+- **Cached models**: Serialize cached responses in round-trip mode so `Json` fields and computed fields remain valid on cache reads, including strict and extra-forbid models. ([#2688](https://github.com/567-labs/instructor/pull/2688))
+- **Batch encoding**: Read and write batch request/result files as UTF-8 instead of depending on the platform locale. ([#2667](https://github.com/567-labs/instructor/pull/2667))
+- **GenAI retries**: Preserve native model parts and thought signatures, then append validation feedback as a user turn without mutating caller history. ([#2632](https://github.com/567-labs/instructor/pull/2632))
+- **Response types**: Distinguish unsupported custom classes from union types while preserving Pydantic-supported scalars, dataclasses, annotated models and iterable types, including Python 3.9. ([#2629](https://github.com/567-labs/instructor/pull/2629))
+- **Parallel tools**: Dispatch by declared tool names across OpenAI, Anthropic, Mistral and xAI; retain VertexAI's class-name declarations. Reject unknown calls and validate non-streaming results inside the retry boundary rather than silently dropping calls or returning unchecked iterators. Consolidates [#2675](https://github.com/567-labs/instructor/pull/2675) and [#2698](https://github.com/567-labs/instructor/pull/2698).
+- **Incomplete Responses**: Reject incomplete OpenAI Responses before model validation or caching, even when defaults could produce a valid model. Preserve the original response and incomplete reason on the exception. ([#2705](https://github.com/567-labs/instructor/issues/2705))
+- **Retry isolation**: Preserve caller-owned request lists through public sync/async retry and reask helpers. ([#2646](https://github.com/567-labs/instructor/pull/2646))
+
+### Security
+- **IPv6 remote media**: Reject transition addresses carrying non-public IPv4 destinations, including well-known NAT64, mapped/compatible addresses, 6to4 and Teredo. Reject the local-use NAT64 prefix entirely because its translation layout is network-specific; retain public-address checks on both the wrapper and known embedded destinations. Revises [#2673](https://github.com/567-labs/instructor/pull/2673).
+- **Streaming JSON bounds**: Enforce the existing 1 MiB character and 128-level nesting limits symmetrically on sync/async streams, including an over-depth opener at EOF. Preserve incremental emission and multiple-object behavior. Revises [#2638](https://github.com/567-labs/instructor/pull/2638).
+
+### Upgrade Notes
+- Decision mode is opt-in; existing chat modes are unchanged. TypeSafe and OpenRouter use the same typed questions but require their own credentials and model IDs. Retries, caching, streaming, and completion hooks are not supported in decision mode. OpenRouter Jev sync/async contracts passed live; direct TypeSafe compatibility remains unverified live.
+- Citation context may be a string or a list/tuple of strings. Other supplied source types raise a validation error; missing context retains the existing no-validation behavior.
+- Unknown parallel tool calls now raise `ResponseParsingError` and follow the configured retry policy instead of being silently omitted. Native SDK and wire formats remain provider-specific; live provider compatibility is not established by offline tests.
+- Incomplete non-streaming Responses raise `IncompleteOutputException` even when their arguments satisfy model defaults. Increase the output budget or handle the exception; incomplete responses are not cached.
+- Streaming JSON exceeding the input or nesting limit raises `ValueError`. IPv6 transition URLs targeting private networks are rejected even if a platform classifies the outer address as public.
+
 ## [1.17.1] - 2026-09-09
 
 ### Upgrade Notes
@@ -366,7 +397,8 @@ previous published version is 1.16.0.
 ### Fixed
 - Pydantic v2 deprecation warnings resolved by migrating from class `Config` to `ConfigDict` ([#1782](https://github.com/567-labs/instructor/pull/1782))
 
-[Unreleased]: https://github.com/567-labs/instructor/compare/v1.17.1...HEAD
+[Unreleased]: https://github.com/567-labs/instructor/compare/v1.18.0...HEAD
+[1.18.0]: https://github.com/567-labs/instructor/compare/v1.17.1...v1.18.0
 [1.17.1]: https://github.com/567-labs/instructor/compare/v1.17.0...v1.17.1
 [1.17.0]: https://github.com/567-labs/instructor/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/567-labs/instructor/compare/v1.15.4...v1.16.0
