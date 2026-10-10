@@ -141,7 +141,7 @@ class BatchJob:
                     # Tool use response
                     for item in content:
                         if item.get("type") == "tool_use":
-                            return item.get("input", {})
+                            return item.get("input")
                     # Text response with JSON
                     for item in content:
                         if item.get("type") == "text":

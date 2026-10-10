@@ -52,6 +52,55 @@ def batch_result(provider: str, payload: dict[str, object]) -> str:
     )
 
 
+@pytest.mark.parametrize("input_present", [False, True])
+def test_anthropic_missing_tool_input_is_not_an_empty_result(
+    input_present: bool,
+) -> None:
+    record = json.loads(batch_result("anthropic", {}))
+    tool = record["result"]["message"]["content"][0]
+    if input_present:
+        tool["input"] = None
+    else:
+        del tool["input"]
+    content = json.dumps(record)
+
+    results = BatchProcessor("anthropic/model", RootDefaultDocument).parse_results(
+        content
+    )
+
+    assert len(results) == 1
+    assert isinstance(results[0], BatchError)
+    assert results[0].custom_id == "document-1"
+    assert results[0].raw_data == record
+    assert BatchJob.parse_from_string(content, RootDefaultDocument) == ([], [record])
+
+
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+@pytest.mark.parametrize("payload", [[1], "invalid", 17])
+def test_invalid_non_object_payload_preserves_request_id(
+    provider: str, payload: object
+) -> None:
+    record = json.loads(batch_result(provider, {}))
+    if provider == "openai":
+        record["response"]["body"]["choices"][0]["message"]["content"] = json.dumps(
+            payload
+        )
+    else:
+        record["result"]["message"]["content"] = [
+            {"type": "text", "text": json.dumps(payload)}
+        ]
+    results = BatchProcessor(f"{provider}/model", RootDocument).parse_results(
+        json.dumps(record) + "\n" + batch_result(provider, {"root": "Ada"})
+    )
+
+    assert len(results) == 2
+    assert isinstance(results[0], BatchError)
+    assert results[0].custom_id == "document-1"
+    assert results[0].error_type == "parsing_error"
+    assert results[0].raw_data == record
+    assert isinstance(results[1], BatchSuccess)
+
+
 @pytest.mark.parametrize("provider", ["openai", "anthropic"])
 @pytest.mark.parametrize("payload", [{"root": "Ada"}, {"root": "Ada", "label": "note"}])
 @pytest.mark.parametrize("response_model", [Document, RootDocument])

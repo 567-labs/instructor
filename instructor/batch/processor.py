@@ -232,7 +232,11 @@ class BatchProcessor(Generic[T]):
                             custom_id=custom_id,
                             error_type="parsing_error",
                             error_message=f"Failed to parse into {self.response_model.__name__}: {e}",
-                            raw_data=extracted_data,
+                            raw_data=(
+                                extracted_data
+                                if isinstance(extracted_data, dict)
+                                else data
+                            ),
                         )
                         results.append(error_result)
                 else:
@@ -302,7 +306,7 @@ class BatchProcessor(Generic[T]):
                         # Try tool_use first
                         for item in content:
                             if item.get("type") == "tool_use":
-                                return item.get("input", {})
+                                return item.get("input")
 
                         # Fallback to text content and parse JSON
                         for item in content:

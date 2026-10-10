@@ -7,7 +7,14 @@ import sys
 from collections.abc import Iterable
 from typing import Any, Callable, TypeVar, Union, cast, get_args, get_origin
 
-from pydantic import BaseModel, Field, create_model
+from pydantic import (
+    BaseModel,
+    Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    create_model,
+    model_serializer,
+)
 from typing_extensions import NotRequired, Required
 from typing import get_type_hints
 
@@ -29,6 +36,24 @@ def is_typed_dict(cls: Any) -> bool:
         and issubclass(cls, dict)
         and hasattr(cls, "__annotations__")
     )
+
+
+class _TypedDictModel(BaseModel):
+    @model_serializer(mode="wrap")
+    def _round_trip_keys(
+        self, handler: SerializerFunctionWrapHandler, info: SerializationInfo
+    ) -> Any:
+        values = handler(self)
+        if not info.round_trip:
+            return values
+        # Cache round trips need original keys and must not invent omitted keys.
+        return {
+            field.alias or name: values[key]
+            for name, field in type(self).model_fields.items()
+            if name in self.model_fields_set
+            if (key := (field.serialization_alias or name) if info.by_alias else name)
+            in values
+        }
 
 
 def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
@@ -63,6 +88,7 @@ def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
 
     return _create_dynamic_model(
         getattr(typed_dict, "__name__", "TypedDictModel"),
+        __base__=_TypedDictModel,
         **fields,
     )
 
