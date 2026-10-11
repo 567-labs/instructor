@@ -79,11 +79,11 @@ print(generate_question(text_chunk).model_dump_json(indent=2))
 
 As the number of chunks we'd like to generate these synthetic questions for increases, the cost will grow proportionally.
 
-Let's see how we can use the `BatchJob` object to create a `.jsonl` file which is compatible with the Batch API.
+Let's see how we can use the `BatchProcessor` object to create a `.jsonl` file which is compatible with the Batch API.
 
-```python hl_lines="9-18 35-40"
+```python hl_lines="9-18 35-39"
 from datasets import load_dataset
-from instructor.batch import BatchJob
+from instructor.batch import BatchProcessor
 from pydantic import BaseModel, Field
 from datasets import load_dataset
 
@@ -116,17 +116,16 @@ class QuestionAnswerPair(BaseModel):
     answer: str = Field(description="The answer to the generated question.")
 
 
-BatchJob.create_from_messages(
-    messages_batch=get_messages(dataset),
-    model="gpt-4o",
+processor = BatchProcessor("openai/gpt-4o", QuestionAnswerPair)
+processor.create_batch_from_messages(
+    messages_list=list(get_messages(dataset)),
     file_path="./test.jsonl",
-    response_model=QuestionAnswerPair,
 )  # (2)!
 ```
 
 1.  We first define a generator which generates a list of messages which we would have made in a normal `openai` api call
 
-2.  We then use the `create_from_messages` class method to specify the model and response_model that we want. `instructor` will handle the generation of the openai schema behind the scenes as well as write the output to the file path you specify
+2.  We then create a `BatchProcessor` with the model and response_model that we want, and call its `create_batch_from_messages` method. `instructor` will handle the generation of the openai schema behind the scenes as well as write the output to the file path you specify
 
 Once we've got this new `.jsonl` file, we can then use the new `instructor` cli's `batch` command to create a new batch job.
 
