@@ -2,7 +2,8 @@ import importlib
 import json
 import logging
 import warnings
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from types import FunctionType
 from typing import Any, Literal, cast, get_args
 
 import pytest
@@ -78,6 +79,18 @@ def lookup_without_doc(user_id: int) -> UserRecord:
     return UserRecord(name=str(user_id), age=user_id)
 
 
+def lookup_user_with_forward_ref(user_id: int, region: str = "us") -> "UserRecord":
+    return lookup_user(user_id, region)
+
+
+def fetch_user(user_id: int, active: bool = True) -> UserRecord:
+    raise AssertionError(f"dispatch called the function body: {user_id}, {active}")
+
+
+def fetch_user_with_forward_ref(user_id: int, active: bool = True) -> "UserRecord":
+    raise AssertionError(f"dispatch called the function body: {user_id}, {active}")
+
+
 def test_distil_function_formatters_keep_signature_source_and_help_text() -> None:
     documented = get_signature_from_fn(lookup_user)
     assert documented.startswith(
@@ -94,21 +107,32 @@ def test_distil_function_formatters_keep_signature_source_and_help_text() -> Non
     assert "Look up a user" not in format_function(lookup_without_doc)
 
 
-def test_distil_return_type_checks_accept_models_and_reject_invalid_hints() -> None:
-    assert is_return_type_base_model_or_instance(lookup_user)
+@pytest.mark.parametrize("lookup", [lookup_user, lookup_user_with_forward_ref])
+def test_distil_return_type_checks_accept_models_and_reject_invalid_hints(
+    lookup: Callable[..., UserRecord],
+) -> None:
+    assert is_return_type_base_model_or_instance(lookup)
 
     def returns_number() -> int:
+        return 1
+
+    def returns_number_with_forward_ref() -> "int":
         return 1
 
     def no_hint():
         return UserRecord(name="unknown", age=0)
 
     assert not is_return_type_base_model_or_instance(returns_number)
+    assert not is_return_type_base_model_or_instance(returns_number_with_forward_ref)
     with pytest.raises(AssertionError, match="Must have a return type hint"):
         is_return_type_base_model_or_instance(no_hint)
 
 
-def test_distil_decorator_tracks_message_and_raw_training_examples() -> None:
+@pytest.mark.parametrize("lookup", [lookup_user, lookup_user_with_forward_ref])
+def test_distil_decorator_tracks_message_and_raw_training_examples(
+    lookup: Callable[..., UserRecord],
+) -> None:
+    assert isinstance(lookup, FunctionType)
     message_handler = RecordingHandler()
     message_instructions = Instructions(
         name="coverage.distil.messages",
@@ -119,14 +143,17 @@ def test_distil_decorator_tracks_message_and_raw_training_examples() -> None:
     message_instructions.logger.setLevel(logging.INFO)
     message_instructions.logger.propagate = False
 
-    decorated = message_instructions.distil(lookup_user)
+    decorated = message_instructions.distil(lookup)
     result = decorated(7, region="eu")
 
     assert result == UserRecord(name="eu-7", age=7)
     assert message_instructions.id == "messages-id"
     assert message_instructions.unique_id
     logged = json.loads(message_handler.messages[-1])
-    assert logged["messages"][1]["content"] == 'Return `lookup_user(7, region="eu")`'
+    assert (
+        logged["messages"][1]["content"]
+        == f'Return `{lookup.__name__}(7, region="eu")`'
+    )
     assert logged["messages"][2]["function_call"] == {
         "name": "UserRecord",
         "arguments": '{\n  "name": "eu-7",\n  "age": 7\n}',
@@ -146,20 +173,24 @@ def test_distil_decorator_tracks_message_and_raw_training_examples() -> None:
 
     raw_decorated = raw_instructions.distil(
         name="find_user", fine_tune_format=FinetuneFormat.RAW
-    )(lookup_user)
+    )(lookup)
     raw_result = raw_decorated(3)
 
     assert raw_result == UserRecord(name="us-3", age=3)
     raw = json.loads(raw_handler.messages[-1])
     assert raw["fn_name"] == "find_user"
-    assert "def lookup_user(" in raw["fn_repr"]
+    assert f"def {lookup.__name__}(" in raw["fn_repr"]
     assert raw["args"] == [3]
     assert raw["kwargs"] == {}
     assert raw["resp"] == {"name": "us-3", "age": 3}
     assert raw["schema"]["properties"]["name"]["type"] == "string"
 
 
-def test_distil_dispatch_sends_model_schema_and_never_calls_original() -> None:
+@pytest.mark.parametrize("fetch", [fetch_user, fetch_user_with_forward_ref])
+def test_distil_dispatch_sends_model_schema_and_never_calls_original(
+    fetch: Callable[..., UserRecord],
+) -> None:
+    assert isinstance(fetch, FunctionType)
     client = RecordingClient()
     instructions = Instructions(
         name="coverage.distil.dispatch",
@@ -167,19 +198,17 @@ def test_distil_dispatch_sends_model_schema_and_never_calls_original() -> None:
         include_code_body=True,
     )
 
-    @instructions.distil(name="fetch", mode="dispatch", model="gpt-4o-mini")
-    def fetch(user_id: int, active: bool = True) -> UserRecord:
-        """Fetch one user."""
-        raise AssertionError(f"dispatch called the function body: {user_id}, {active}")
-
-    response = fetch(12, active=False)
+    decorated = instructions.distil(name="fetch", mode="dispatch", model="gpt-4o-mini")(
+        fetch
+    )
+    response = decorated(12, active=False)
 
     assert response == UserRecord(name="dispatched", age=41)
     assert len(client.completions.calls) == 1
     call = client.completions.calls[0]
     assert call["model"] == "gpt-4o-mini"
     assert call["response_model"] is UserRecord
-    assert "def fetch(" in call["messages"][0]["content"]
+    assert f"def {fetch.__name__}(" in call["messages"][0]["content"]
     assert call["messages"][1]["content"] == "Return `fetch(12, active=false)`"
 
 

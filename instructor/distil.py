@@ -14,6 +14,7 @@ from typing import (
     Literal,
     Union,
     cast,
+    get_type_hints,
     overload,
 )
 from typing_extensions import ParamSpec, NotRequired
@@ -84,6 +85,13 @@ def format_function(func: Callable[..., Any]) -> str:
     return f"{definition}\n{formatted_docstring}\n{body}"
 
 
+def _get_return_type(func: Callable[..., Any]) -> Any:
+    return_type = inspect.signature(func).return_annotation
+    if isinstance(return_type, str):
+        return get_type_hints(func)["return"]
+    return return_type
+
+
 def is_return_type_base_model_or_instance(func: Callable[..., Any]) -> bool:
     """
     Check if the return type of a function is a pydantic BaseModel or an instance of it.
@@ -91,7 +99,7 @@ def is_return_type_base_model_or_instance(func: Callable[..., Any]) -> bool:
     :param func: Function to check.
     :return: True if the return type is a pydantic BaseModel or an instance of it.
     """
-    return_type = inspect.signature(func).return_annotation
+    return_type = _get_return_type(func)
     assert return_type != inspect.Signature.empty, (
         "Must have a return type hint that is a pydantic BaseModel"
     )
@@ -193,7 +201,7 @@ class Instructions:
         ) -> Callable[P, Union[T_Retval, ChatCompletion]]:
             msg = f"Return type hint for {fn} must subclass `pydantic.BaseModel'"
             assert is_return_type_base_model_or_instance(fn), msg
-            return_base_model = inspect.signature(fn).return_annotation
+            return_base_model = _get_return_type(fn)
 
             @functools.wraps(fn)
             def _dispatch(
