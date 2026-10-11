@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Async validation**: Run nested async validators inside `set` and `frozenset` fields while preserving container types. ([#2643](https://github.com/567-labs/instructor/pull/2643))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 from openai import AsyncOpenAI, OpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 import instructor
 
@@ -96,6 +96,32 @@ async def test_nested_container_transformations_preserve_original() -> None:
     assert result.children["group"][1][0].value == "prefix:b:suffix"
     assert original.children["group"][0].value == "a"
     assert original.children["group"][1][0].value == "b"
+
+
+@pytest.mark.asyncio
+async def test_set_container_transformations_preserve_type_and_original() -> None:
+    class HashableOrdered(Ordered):
+        model_config = ConfigDict(frozen=True)
+
+        def __hash__(self) -> int:
+            return hash(self.value)
+
+    class Parent(BaseModel):
+        mutable: set[HashableOrdered]
+        immutable: frozenset[HashableOrdered]
+
+    original = Parent(
+        mutable={HashableOrdered(value="a")},
+        immutable=frozenset({HashableOrdered(value="b")}),
+    )
+    result = await run_async_validators(original, context=None)
+
+    assert isinstance(result.mutable, set)
+    assert isinstance(result.immutable, frozenset)
+    assert {item.value for item in result.mutable} == {"prefix:a:suffix"}
+    assert {item.value for item in result.immutable} == {"prefix:b:suffix"}
+    assert {item.value for item in original.mutable} == {"a"}
+    assert {item.value for item in original.immutable} == {"b"}
 
 
 @pytest.mark.asyncio
