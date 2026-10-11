@@ -61,9 +61,14 @@ When specifying a `create_partial` and setting `stream=True`, the response from 
 {"name": "John", "age": 25}  => User(name="John", age=25)
 ```
 
-!!! warning "Limited Validator Support"
+!!! note "Validation during streaming"
 
-    Due to the streaming nature of the response model, we do not support validators since they would not be able to be applied to the streaming response.
+    Incomplete snapshots may contain unfinished strings or missing required fields,
+    so they are built without full validation. Completed objects use Pydantic's
+    JSON validation rules, including `strict`, validation context, and
+    `ValidationInfo.mode == "json"`. For example, a strict `date` field accepts
+    an ISO date string in JSON, while a strict `int` field still rejects a quoted
+    number. Completed nested models and list items follow the same rules.
 
 Let's look at an example of streaming an extraction of conference information, that would be used to stream in an react component.
 
