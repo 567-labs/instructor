@@ -316,5 +316,5 @@ In general, we recommend using `Mode.Tools` because it's the most flexible and f
 ## Additional Resources
 
 - [Azure OpenAI Documentation](https://learn.microsoft.com/en-us/azure/ai-services/openai/)
-- [Instructor Documentation](https://instructor-ai.github.io/instructor/)
+- [Instructor Documentation](https://python.useinstructor.com/)
 - [Azure OpenAI Pricing](https://azure.microsoft.com/en-us/pricing/details/cognitive-services/openai-service/)

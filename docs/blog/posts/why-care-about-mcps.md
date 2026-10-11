@@ -30,7 +30,7 @@ There are three components to the MCP ecosystem:
 
 When interacting with Clients, Hosts have access to two primary options: **Tools**, which are model-controlled functions that retrieve or modify data, and **Resources**, which are application-controlled data like files.
 
-There's also the intention of eventually allowing servers themselves to have the capability of requesting completions/approval from Clients and Hosts while executing their tasks [through the `sampling` endpoint](https://modelcontextprotocol.io/docs../../concepts/sampling.md).
+There's also the intention of eventually allowing servers themselves to have the capability of requesting completions/approval from Clients and Hosts while executing their tasks [through the `sampling` endpoint](https://modelcontextprotocol.io/specification/latest/client/sampling).
 
 ### The Integration Problem MCP Solves
 

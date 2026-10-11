@@ -42,7 +42,7 @@ Instructor's patch enhances an create call it with the following features:
 
 Recently llama-cpp-python added support for structured outputs via JSON schema mode. This is a time-saving alternative to extensive prompt engineering and can be used to obtain structured outputs.
 
-In this example we'll cover a more advanced use case of JSON_SCHEMA mode to stream out partial models. To learn more [partial streaming](https://github.com/jxnl/instructor/concepts/partial.md) check out partial streaming.
+In this example we'll cover a more advanced use case of JSON_SCHEMA mode to stream out partial models. To learn more [partial streaming](https://python.useinstructor.com/concepts/partial/) check out partial streaming.
 
 ## Quick Start with `from_provider`
 

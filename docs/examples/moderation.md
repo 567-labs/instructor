@@ -9,7 +9,7 @@ This example uses OpenAI's moderation endpoint to check content compliance with 
 
 The model flags content and classifies it into categories including hate, harassment, self-harm, sexual content, and violence. Each category has subcategories for detailed classification.
 
-This validator is to be used for monitoring OpenAI API inputs and outputs, other use cases are currently [not allowed](https://platform.openai.com/docs/guides/moderation/overview).
+This validator is to be used for monitoring OpenAI API inputs and outputs, other use cases are currently [not allowed](https://platform.openai.com/docs/guides/moderation).
 
 ## Incorporating OpenAI moderation validator
 
