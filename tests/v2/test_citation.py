@@ -140,3 +140,29 @@ def test_quote_beyond_error_tolerance_is_dropped() -> None:
     )
 
     assert answer.substring_quotes == []
+
+
+@pytest.mark.parametrize("quote", ["", "a", "abcd", "abcde"])
+def test_empty_source_drops_quotes_instead_of_creating_empty_citations(
+    quote: str,
+) -> None:
+    answer = Answer.model_validate(
+        {"substring_quotes": [quote]}, context={"context": ""}
+    )
+    assert answer.substring_quotes == []
+    assert list(Answer(substring_quotes=[quote]).get_spans("")) == []
+
+
+def test_empty_quote_is_not_a_citation_in_nonempty_source() -> None:
+    answer = Answer.model_validate(
+        {"substring_quotes": ["", "source text"]},
+        context={"context": "source text"},
+    )
+    assert answer.substring_quotes == ["source text"]
+
+
+def test_empty_chunk_does_not_add_a_citation_for_a_short_quote() -> None:
+    answer = Answer.model_validate(
+        {"substring_quotes": ["cat"]}, context={"context": ["", "The cat sleeps."]}
+    )
+    assert answer.substring_quotes == ["cat"]

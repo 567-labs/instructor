@@ -93,6 +93,9 @@ class CitationMixin(BaseModel):
     ) -> Generator[tuple[int, int], None, None]:
         import regex
 
+        if not quote or not context:
+            return
+
         # Escape the quote so regex metacharacters in LLM-generated text
         # (e.g. unbalanced parentheses or brackets) are matched literally
         # instead of crashing the fuzzy search with a regex compile error.
