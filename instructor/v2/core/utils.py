@@ -32,7 +32,7 @@ class classproperty(Generic[R_co]):
 
 
 def disable_pydantic_error_url() -> None:
-    """Disable URLs in Pydantic ValidationError messages."""
+    """Disable generated documentation links in Pydantic ValidationError messages."""
     global _validation_error_original_str
     if _validation_error_original_str is None:
         _validation_error_original_str = ValidationError.__str__
@@ -44,7 +44,9 @@ def disable_pydantic_error_url() -> None:
         return "\n".join(
             line
             for line in output.split("\n")
-            if "https://errors.pydantic.dev" not in line
+            if not line.lstrip().startswith(
+                "For further information visit https://errors.pydantic.dev"
+            )
         )
 
     cast(Any, ValidationError).__str__ = __str__
