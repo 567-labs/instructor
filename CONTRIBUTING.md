@@ -154,47 +154,53 @@ Key Poetry commands:
 
 ### Working with Optional Dependencies
 
-Instructor uses optional dependencies to support different LLM providers. Provider-specific utilities live under `instructor/utils`. When adding integration for a new provider:
+Instructor uses optional dependencies to support different LLM providers. Provider clients and handlers live under `instructor/v2/providers/`. To add a new provider:
 
-1. **Update pyproject.toml**: Add your provider's dependencies to both `[project.optional-dependencies]` and `[dependency-groups]`:
+1. **Add Dependencies to `pyproject.toml`**: Add the SDK to both optional dependencies and dependency groups:
 
    ```toml
    [project.optional-dependencies]
-   # Add your provider here
    my-provider = ["my-provider-sdk>=1.0.0,<2.0.0"]
-   
+
    [dependency-groups]
-   # Also add to dependency groups
    my-provider = ["my-provider-sdk>=1.0.0,<2.0.0"]
    ```
 
-2. **Create Provider Client**: Implement your provider client in `instructor/clients/client_myprovider.py`
+2. **Add Provider Identity and Client**:
+   - Add a value to `Provider` in `instructor/v2/core/providers.py`; extend `get_provider` if the provider can be detected from its base URL
+   - Implement `from_myprovider` in `instructor/v2/providers/myprovider/client.py`, with sync/async support as applicable
+   - Follow an existing provider package, such as `instructor/v2/providers/perplexity/`
 
-3. **Add Tests**: Create tests in `tests/llm/test_myprovider/`
+3. **Implement Mode Handlers**:
+   - Add `handlers.py` in the provider package for request preparation, validation retries and response parsing
+   - Register handler classes with `register_mode_handler` from `instructor/v2/core/decorators.py`
+   - Use the supported modes in `instructor/v2/core/mode.py`; do not assume every provider supports every mode
 
-4. **Document Installation**: Update the documentation to include installation instructions:
-   ```
-   # Install with your provider support
+4. **Declare Provider Capabilities**:
+   - Add an entry to `PROVIDER_SPECS` in `instructor/v2/core/provider_specs.py` with the SDK module, aliases, client factory, handler module and supported modes
+   - `HANDLER_SPECS` is derived from this manifest and used by `instructor/v2/core/registry.py` to load handlers lazily
+
+5. **Wire Public Factories and `from_provider`**:
+   - The manifest supplies `PUBLIC_FACTORY_ATTRS` for `instructor/v2/__init__.py`; also update the explicit exports in `instructor/__init__.py`, keeping optional SDK imports lazy
+   - Add the provider builder to `_PROVIDER_BUILDERS` in `instructor/v2/auto_client.py` for `from_provider` support. Its supported aliases come from `ALIAS_TO_PROVIDER`, but the builder mapping must be updated separately
+
+6. **Add Real-API Tests and CI Coverage**:
+   - Add the provider/model, supported mode, credential environment variable and SDK import path to `PROVIDER_CONFIGS` in `tests/llm/shared_config.py`. See `tests/llm/test_core_providers/README.md` for the shared extraction, streaming and validation/retry tests
+   - Add tests in `tests/llm/test_myprovider/` for provider-specific behavior not covered by the shared suite. Use real API calls, not mocked provider responses
+   - Update the credentialed jobs in `.github/workflows/test.yml`. For shared tests, update the appropriate job (such as `core-other`), including secret exports, `PROVIDER_TEST_REQUIREMENTS`, credential skip/run conditions and the initial/retry `pytest -k` filters
+   - For a provider-specific test directory, add a `provider-tests` matrix entry with `name`, `env_key` and `test_path`. Coordinate repository secrets with maintainers; tests skipped for missing credentials or not collected do not establish provider coverage
+
+7. **Document Installation**:
+
+   ```bash
    uv add "instructor[my-provider]"
-   # or
+   # or with poetry
    poetry add "instructor[my-provider]"
    ```
 
-5. **Create Provider Utilities and Handlers**:
-   - Add a new module at `instructor/utils/myprovider.py`
-   - Implement `reask` functions for validation errors and `handle_*` functions
-     for formatting requests
-   - Define `MYPROVIDER_HANDLERS` mapping `Mode` values to these functions
-
-6. **Register the Provider**:
-   - Add a value in `instructor/utils/providers.py` to the `Provider` enum
-   - Extend `get_provider` with detection logic for your base URL
-
-7. **Update `process_response.py`**:
-   - Import your handler functions and include them in the `mode_handlers`
-     dictionary so the library can route requests to your provider
-   - `process_response.py` relies on these handlers to format arguments and
-     parse results for each `Mode`
+8. **Write Integration Documentation**:
+   - Add a page in `docs/integrations/` with installation, a complete example and supported modes
+   - Add the page to `mkdocs.yml` navigation
 
 ## How to Contribute
 
