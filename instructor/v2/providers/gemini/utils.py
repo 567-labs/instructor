@@ -14,7 +14,10 @@ from pydantic import BaseModel
 from instructor.v2.dsl.partial import Partial, PartialBase
 from instructor.v2.core.errors import ConfigurationError
 from instructor.v2.core.multimodal import Audio, Image, PDF
-from instructor.v2.core.messages import get_message_content
+from instructor.v2.core.messages import (
+    copy_messages_for_mutation,
+    get_message_content,
+)
 
 if TYPE_CHECKING:
     from google.genai.types import Content as GenAIContent
@@ -427,11 +430,10 @@ def handle_gemini_json(
         """
     )
 
-    messages = new_kwargs.get("messages") or []
+    messages = copy_messages_for_mutation(new_kwargs.get("messages") or [])
+    new_kwargs["messages"] = messages
     if not messages or messages[0].get("role") != "system":
-        new_kwargs.setdefault("messages", []).insert(
-            0, {"role": "system", "content": message}
-        )
+        messages.insert(0, {"role": "system", "content": message})
     else:
         messages[0]["content"] += f"\n\n{message}"
 

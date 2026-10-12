@@ -385,9 +385,11 @@ def test_gemini_handlers_prepare_expected_tool_and_json_requests(
     }
     assert json_model is Answer
     assert json_request["generation_config"]["response_mime_type"] == "application/json"
-    assert original["messages"][0]["role"] == "system"
-    assert "json_schema" in original["messages"][0]["content"]
-    assert original["messages"][1] == {"role": "user", "content": "extract 4"}
+    # The schema instruction is hoisted into the outgoing Gemini contents, and
+    # the caller's own `messages` stays exactly as it was passed in.
+    assert "json_schema" in json_request["contents"][0]["parts"][0]
+    assert json_request["contents"][0]["parts"][1] == "extract 4"
+    assert original == {"messages": [{"role": "user", "content": "extract 4"}]}
 
 
 def test_gemini_tools_handler_parses_and_finalizes_a_valid_tool_response() -> None:
