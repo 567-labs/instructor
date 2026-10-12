@@ -91,6 +91,111 @@ class MockCohereToolCall:
         self.parameters = parameters
 
 
+@pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.JSON_SCHEMA, Mode.MD_JSON])
+@pytest.mark.parametrize("api_version", ["v1", "v2"])
+@pytest.mark.parametrize("finish_reason", ["MAX_TOKENS", "COMPLETE", "STOP_SEQUENCE"])
+def test_non_streaming_responses_respect_finish_reason(
+    mode: Mode, api_version: str, finish_reason: str
+) -> None:
+    cohere = pytest.importorskip("cohere")
+    from instructor.core.exceptions import IncompleteOutputException
+
+    class DefaultAnswer(BaseModel):
+        answer: float = 0
+
+    if api_version == "v1":
+        response = cohere.NonStreamedChatResponse(
+            text="{}", finish_reason=finish_reason
+        )
+    else:
+        response = cohere.ChatResponse(
+            id="test",
+            finish_reason=finish_reason,
+            message={"role": "assistant", "content": [{"type": "text", "text": "{}"}]},
+        )
+    handler = mode_registry.get_handlers(Provider.COHERE, mode)
+
+    if finish_reason == "MAX_TOKENS":
+        with pytest.raises(IncompleteOutputException) as exc_info:
+            handler.response_parser(response, DefaultAnswer)
+        assert exc_info.value.last_completion is response
+    else:
+        assert handler.response_parser(response, DefaultAnswer).answer == 0
+
+
+def test_truncated_v1_tool_calls_are_not_accepted() -> None:
+    cohere = pytest.importorskip("cohere")
+    from instructor.core.exceptions import IncompleteOutputException
+
+    response = cohere.NonStreamedChatResponse(
+        text="",
+        finish_reason="MAX_TOKENS",
+        tool_calls=[{"name": "Answer", "parameters": {"answer": 4.0}}],
+    )
+    handler = mode_registry.get_handlers(Provider.COHERE, Mode.TOOLS)
+
+    with pytest.raises(IncompleteOutputException) as exc_info:
+        handler.response_parser(response, Answer)
+    assert exc_info.value.last_completion is response
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.JSON_SCHEMA, Mode.MD_JSON])
+@pytest.mark.parametrize("is_async", [False, True])
+async def test_public_cohere_client_does_not_retry_truncated_response(
+    mode: Mode, is_async: bool
+) -> None:
+    cohere = pytest.importorskip("cohere")
+    import httpx
+
+    from instructor import from_cohere
+    from instructor.core.exceptions import IncompleteOutputException
+
+    class DefaultAnswer(BaseModel):
+        answer: float = 0
+
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "id": "truncated",
+                "finish_reason": "MAX_TOKENS",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "{}"}],
+                },
+            },
+        )
+
+    kwargs = {
+        "model": "command-r-plus",
+        "messages": [{"role": "user", "content": "Extract the answer"}],
+        "response_model": DefaultAnswer,
+        "max_retries": 3,
+    }
+    transport = httpx.MockTransport(respond)
+    with pytest.raises(IncompleteOutputException) as exc_info:
+        if is_async:
+            async with httpx.AsyncClient(transport=transport) as http_client:
+                client = from_cohere(
+                    cohere.AsyncClientV2(api_key="test", httpx_client=http_client),
+                    mode=mode,
+                )
+                await client.chat.completions.create(**kwargs)
+        else:
+            with httpx.Client(transport=transport) as http_client:
+                client = from_cohere(
+                    cohere.ClientV2(api_key="test", httpx_client=http_client), mode=mode
+                )
+                client.chat.completions.create(**kwargs)
+
+    assert len(requests) == 1
+    assert exc_info.value.last_completion.id == "truncated"
+
+
 # ============================================================================
 # CohereToolsHandler Tests
 # ============================================================================
