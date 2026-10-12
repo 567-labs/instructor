@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Bedrock tools**: Preserve an explicit caller `toolConfig.toolChoice` in tool modes while keeping forced response-model tool use as the default. ([#2775](https://github.com/567-labs/instructor/pull/2775))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added

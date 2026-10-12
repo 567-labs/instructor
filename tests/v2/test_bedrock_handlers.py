@@ -131,6 +131,41 @@ class TestBedrockToolsHandler:
         assert "tools" in result_kwargs["toolConfig"]
         assert "toolChoice" in result_kwargs["toolConfig"]
 
+    @pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.TOOLS_STRICT])
+    @pytest.mark.parametrize(
+        "tool_choice", [{"auto": {}}, {"any": {}}, {"tool": {"name": "Answer"}}]
+    )
+    def test_prepare_request_keeps_caller_tool_choice(self, mode, tool_choice):
+        handler = mode_registry.get_handlers(Provider.BEDROCK, mode)
+        kwargs = {
+            "messages": [{"role": "user", "content": "What is 2+2?"}],
+            "toolConfig": {"toolChoice": tool_choice},
+        }
+        original = deepcopy(kwargs)
+
+        result_model, result_kwargs = handler.request_handler(Answer, kwargs)
+
+        assert result_model is not None
+        assert result_kwargs["toolConfig"]["toolChoice"] == tool_choice
+        assert result_kwargs["toolConfig"]["tools"][0]["toolSpec"]["name"] == "Answer"
+        assert kwargs == original
+        assert result_kwargs["toolConfig"] is not kwargs["toolConfig"]
+
+    @pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.TOOLS_STRICT])
+    @pytest.mark.parametrize("tool_config", [None, {}, {"tools": []}])
+    def test_prepare_request_defaults_to_forced_tool(self, mode, tool_config):
+        handler = mode_registry.get_handlers(Provider.BEDROCK, mode)
+        kwargs = {
+            "messages": [{"role": "user", "content": "What is 2+2?"}],
+            "toolConfig": tool_config,
+        }
+        original = deepcopy(kwargs)
+
+        _, result_kwargs = handler.request_handler(Answer, kwargs)
+
+        assert result_kwargs["toolConfig"]["toolChoice"] == {"tool": {"name": "Answer"}}
+        assert kwargs == original
+
     def test_prepare_request_does_not_mutate_nested_config(self, handler):
         """Preparing Bedrock kwargs treats nested caller config as read-only."""
         kwargs = {
