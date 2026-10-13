@@ -140,3 +140,23 @@ def test_quote_beyond_error_tolerance_is_dropped() -> None:
     )
 
     assert answer.substring_quotes == []
+
+
+@pytest.mark.parametrize(
+    ("quote", "context"),
+    [
+        ("dog", "The cat sleeps."),
+        ("zebra", "The cat sleeps."),
+        ("1999", "Revenue grew 12% in 2021."),
+        ("Paris", "The capital of Germany is Berlin."),
+    ],
+)
+def test_short_unrelated_quotes_are_dropped_instead_of_fuzzy_matching_arbitrary_spans(
+    quote: str, context: str
+) -> None:
+    """Short quotes must not allow full replacement into arbitrary unrelated context spans."""
+    answer = Answer.model_validate(
+        {"substring_quotes": [quote]},
+        context={"context": context},
+    )
+    assert answer.substring_quotes == []

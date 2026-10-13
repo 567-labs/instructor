@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Citations**: Cap fuzzy error budget proportional to quote length to prevent short quotes from matching arbitrary unrelated context spans, and drop empty quotes or sources. ([#2776](https://github.com/567-labs/instructor/issues/2776))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
