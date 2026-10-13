@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 from openai.types import CompletionUsage
 from openai.types.chat import ChatCompletion
+from openai.types.responses import Response
 
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.retry import (
@@ -19,7 +20,39 @@ from instructor.v2.core.retry import (
     _usage_snapshot,
     _usage_total_tokens,
 )
-from instructor.v2.core.usage import update_total_usage
+from instructor.v2.core.usage import has_compatible_usage, update_total_usage
+
+
+def _responses_response(
+    input_tokens: int,
+    output_tokens: int,
+    total_tokens: int,
+    cached_tokens: int,
+    reasoning_tokens: int,
+) -> Response:
+    """Build an OpenAI Responses-API ``Response`` the way the SDK returns one."""
+    return Response.model_validate(
+        {
+            "id": "usage-audit",
+            "created_at": 0,
+            "object": "response",
+            "model": "audit",
+            "output": [],
+            "parallel_tool_calls": False,
+            "tool_choice": "auto",
+            "tools": [],
+            "usage": {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": total_tokens,
+                "input_tokens_details": {
+                    "cached_tokens": cached_tokens,
+                    "cache_write_tokens": 0,
+                },
+                "output_tokens_details": {"reasoning_tokens": reasoning_tokens},
+            },
+        }
+    )
 
 
 def anthropic_message(usage: dict[str, Any]) -> Any:
@@ -87,6 +120,46 @@ def test_openai_subsets_are_not_added_again_to_total() -> None:
     assert total.prompt_tokens_details.cached_tokens == 160
     assert total.completion_tokens_details.reasoning_tokens == 60
     assert total.model_extra["is_billable"] is True
+
+
+def test_openai_responses_api_usage_accumulates_into_chat_total() -> None:
+    """OpenAI Responses API ``ResponseUsage`` must accumulate like Chat usage.
+
+    The Responses API reports ``input_tokens``/``output_tokens`` while the
+    running total is a Chat ``CompletionUsage`` (``prompt_tokens``/
+    ``completion_tokens``). Without mapping, Responses-API retries silently
+    drop every token, so ``token_budget`` enforcement and cumulative usage
+    both read zero.
+    """
+    total = _initialize_usage(Provider.OPENAI)
+    first = _responses_response(
+        input_tokens=10,
+        output_tokens=5,
+        total_tokens=15,
+        cached_tokens=8,
+        reasoning_tokens=2,
+    )
+    assert has_compatible_usage(first, total) is True
+
+    update_total_usage(first, total)
+    second = _responses_response(
+        input_tokens=20,
+        output_tokens=7,
+        total_tokens=27,
+        cached_tokens=5,
+        reasoning_tokens=3,
+    )
+    update_total_usage(second, total)
+
+    assert _usage_total_tokens(total) == 42
+    assert total.prompt_tokens == 30
+    assert total.completion_tokens == 12
+    assert total.prompt_tokens_details.cached_tokens == 13
+    assert total.completion_tokens_details.reasoning_tokens == 5
+    # Latest response echoes the running totals back (matches Chat behavior).
+    assert second.usage.total_tokens == 42
+    assert second.usage.input_tokens == 30
+    assert second.usage.output_tokens == 12
 
 
 def test_anthropic_cache_ttl_and_tools_have_separate_semantics() -> None:
