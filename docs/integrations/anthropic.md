@@ -286,10 +286,10 @@ print(response)
 #> Receipt(total=220, items=['English Tea', 'Tofu'])
 ```
 
-If you'd like to cache the PDF and use it across multiple different requests, we support that with the `PdfWithCacheControl` class which we can see below.
+If you'd like to cache the PDF and use it across multiple different requests, we support that with the `PDFWithCacheControl` class which we can see below.
 
 ```python
-from instructor.processing.multimodal import PdfWithCacheControl
+from instructor.processing.multimodal import PDFWithCacheControl
 from pydantic import BaseModel
 import instructor
 
@@ -311,7 +311,7 @@ response, completion = client.create_with_completion(
             "content": [
                 "Extract out the total and line items from the invoice",
                 # Option 1: Direct URL
-                PdfWithCacheControl.from_url(url),
+                PDFWithCacheControl.from_url(url),
                 # Option 2: Local file
                 # PDF.from_path("path/to/local/invoice.pdf"),
                 # Option 3: Base64 string
