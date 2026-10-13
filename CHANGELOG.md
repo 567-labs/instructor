@@ -1,4 +1,5 @@
 # Changelog
+- **Response types**: Fix custom classes being misclassified as simple types on Python 3.10+ (PEP 604 `__or__` on `type`); raise a clear `TypeError` for unsupported iterable element classes. ([#2642])
 
 All notable changes to instructor are documented here.
 

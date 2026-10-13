@@ -1,5 +1,6 @@
 from __future__ import annotations
 from inspect import isclass
+import sys
 import typing
 import types
 from pydantic import BaseModel, TypeAdapter, create_model
@@ -7,6 +8,13 @@ from pydantic.errors import PydanticSchemaGenerationError
 from enum import Enum
 
 from instructor.v2.dsl.partial import Partial
+
+if sys.version_info >= (3, 10):
+    from types import UnionType
+
+    _UNION_ORIGINS: tuple[typing.Any, ...] = (typing.Union, UnionType)
+else:  # pragma: no cover - Python 3.9 has no runtime ``X | Y`` syntax
+    _UNION_ORIGINS = (typing.Union,)
 
 T = typing.TypeVar("T")
 

@@ -65,6 +65,18 @@ def is_simple_type(typehint: type[T]) -> bool:
     return _is_simple_type(typehint)
 
 
+def _is_model_type(candidate: Any) -> bool:
+    """True for BaseModel subclasses, TypedDicts, and unions of those."""
+    if is_typed_dict(candidate):
+        return True
+    if inspect.isclass(candidate) and issubclass(candidate, BaseModel):
+        return True
+    return get_origin(candidate) in _UNION_ORIGINS and all(
+        inspect.isclass(member) and issubclass(member, BaseModel)
+        for member in get_args(candidate)
+    )
+
+
 def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
     """Normalize user response-model inputs into runtime-ready model classes."""
     from instructor.v2.dsl.simple_type import has_pydantic_schema
@@ -79,22 +91,6 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
     if origin is list and is_simple_type(working_model):
         args = get_args(working_model)
         inner = args[0] if args else None
-
-        def _is_model_type(candidate: Any) -> bool:
-            if is_typed_dict(candidate):
-                return True
-            if (
-                get_origin(candidate) is None
-                and inspect.isclass(candidate)
-                and issubclass(candidate, BaseModel)
-            ):
-                return True
-            return get_origin(candidate) in _UNION_ORIGINS and all(
-                get_origin(member) is None
-                and inspect.isclass(member)
-                and issubclass(member, BaseModel)
-                for member in get_args(candidate)
-            )
 
         if inner is not None and _is_model_type(inner):
             origin = list

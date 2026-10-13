@@ -216,6 +216,14 @@ def test_routing_does_not_depend_on_the_dunder_or_probe():
 
     assert is_simple_type(list[Color])
     assert not is_simple_type(list[NotPydantic])
+def test_prepare_response_model_with_custom_class_raises_clear_error():
+    """A custom class inside list[...] must fail with a clear TypeError."""
+
+    class MyClass:
+        pass
+
+    with pytest.raises(TypeError, match="Pydantic validation schema"):
+        prepare_response_model(list[MyClass])
 
 
 @pytest.mark.skipif(
