@@ -70,3 +70,60 @@ class TestAnthropicToolsHandlerToolChoice:
         _, result_kwargs = handler.request_handler(Answer, kwargs)
 
         assert result_kwargs["tool_choice"] == {"type": "auto"}
+
+    def test_explicit_tool_choice_preserved_with_adaptive_thinking_and_new_models(
+        self, handler
+    ):
+        kwargs = {
+            "messages": [{"role": "user", "content": "What is 2+2?"}],
+            "max_tokens": 100,
+            "thinking": {"type": "adaptive"},
+            "model": "claude-opus-5-5",
+            "tool_choice": {"type": "any"},
+        }
+
+        _, result_kwargs = handler.request_handler(Answer, kwargs)
+
+        assert result_kwargs["tool_choice"] == {"type": "any"}
+
+    def test_adaptive_thinking_sets_tool_choice_auto(self, handler):
+        kwargs = {
+            "messages": [{"role": "user", "content": "What is 2+2?"}],
+            "max_tokens": 100,
+            "thinking": {"type": "adaptive"},
+        }
+
+        _, result_kwargs = handler.request_handler(Answer, kwargs)
+
+        assert result_kwargs["tool_choice"] == {"type": "auto"}
+        assert any(
+            isinstance(m, dict)
+            and m.get("text") == "Return only the tool call and no additional text."
+            for m in result_kwargs.get("system", [])
+        )
+
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "claude-opus-5-5",
+            "claude-sonnet-5-5",
+            "claude-fable-5-1",
+            "us.anthropic.claude-opus-5-5",
+            "claude-opus-5.5-20261001",
+        ],
+    )
+    def test_models_rejecting_forced_tool_choice_use_auto(self, handler, model):
+        kwargs = {
+            "messages": [{"role": "user", "content": "What is 2+2?"}],
+            "max_tokens": 100,
+            "model": model,
+        }
+
+        _, result_kwargs = handler.request_handler(Answer, kwargs)
+
+        assert result_kwargs["tool_choice"] == {"type": "auto"}
+        assert any(
+            isinstance(m, dict)
+            and m.get("text") == "Return only the tool call and no additional text."
+            for m in result_kwargs.get("system", [])
+        )

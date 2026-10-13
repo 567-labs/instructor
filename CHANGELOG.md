@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Anthropic tool choice**: Fall back to `auto` tool choice and append system instructions when adaptive thinking is active or when targeting models that reject forced tool choice.
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
