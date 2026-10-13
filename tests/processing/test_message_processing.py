@@ -152,6 +152,33 @@ class TestMergeConsecutiveMessages:
             {"type": "text", "text": "second"},
         ]
 
+    def test_large_string_run_preserves_order_and_input(self):
+        contents = [f"fragment {index}" for index in range(2000)]
+        messages = [{"role": "user", "content": content} for content in contents]
+
+        assert merge_consecutive_messages(messages) == [
+            {"role": "user", "content": "\n\n".join(contents)}
+        ]
+        assert [message["content"] for message in messages] == contents
+
+    def test_string_runs_stop_at_role_and_protocol_boundaries(self):
+        messages = [
+            {"role": "user", "content": "first"},
+            {"role": "user", "content": "second"},
+            {"role": "assistant", "content": "third"},
+            {"role": "assistant", "content": "fourth"},
+            {"role": "assistant", "content": "named", "name": "helper"},
+            {"role": "assistant", "content": "fifth"},
+            {"role": "assistant", "content": "sixth"},
+        ]
+
+        assert merge_consecutive_messages(messages) == [
+            {"role": "user", "content": "first\n\nsecond"},
+            {"role": "assistant", "content": "third\n\nfourth"},
+            {"role": "assistant", "content": "named", "name": "helper"},
+            {"role": "assistant", "content": "fifth\n\nsixth"},
+        ]
+
 
 class TestGetMessageContent:
     """Test the get_message_content function."""

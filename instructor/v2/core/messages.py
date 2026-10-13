@@ -87,6 +87,7 @@ def merge_consecutive_messages(messages: list[dict[str, Any]]) -> list[dict[str,
             isinstance(message.get("content", ""), str) for message in messages[10:]
         )
 
+    content_parts: list[str] | None = None
     for message in messages:
         role = message.get("role", "user")
         new_content = message.get("content", "")
@@ -105,16 +106,23 @@ def merge_consecutive_messages(messages: list[dict[str, Any]]) -> list[dict[str,
             and set(new_messages[-1]).issubset({"role", "content"})
         ):
             if flat_string:
-                new_messages[-1]["content"] += f"\n\n{new_content}"
+                if content_parts is None:
+                    content_parts = [new_messages[-1]["content"]]
+                content_parts.append(new_content)
             elif isinstance(new_content, list):
                 new_messages[-1]["content"].extend(new_content)
             else:
                 new_messages[-1]["content"].append(new_content)
         else:
+            if content_parts is not None:
+                new_messages[-1]["content"] = "\n\n".join(content_parts)
+                content_parts = None
             new_message = dict(message)
             new_message.update(role=role, content=new_content)
             new_messages.append(new_message)
 
+    if content_parts is not None:
+        new_messages[-1]["content"] = "\n\n".join(content_parts)
     return new_messages
 
 
