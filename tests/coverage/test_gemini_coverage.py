@@ -407,6 +407,7 @@ def test_gemini_stream_extractors_keep_valid_chunks_and_skip_incomplete_chunks()
         Completion(function_call=FunctionCall(args={"value": 1})),
         Completion(function_call=NameOnlyFunctionCall()),
         SimpleNamespace(),
+        SimpleNamespace(candidates=[]),  # e.g. a safety-blocked chunk
     ]
     assert list(tool_handler.extract_streaming_json(tool_chunks)) == ['{"value": 1}']
 
@@ -416,6 +417,7 @@ def test_gemini_stream_extractors_keep_valid_chunks_and_skip_incomplete_chunks()
         Completion(part_text=" 2}", text_error=AttributeError),
         Completion(part_text="", text_error=AttributeError),
         SimpleNamespace(),
+        SimpleNamespace(candidates=[]),  # e.g. a safety-blocked chunk
     ]
     assert list(json_handler.extract_streaming_json(json_chunks)) == [
         '{"value":',
@@ -435,6 +437,7 @@ async def test_gemini_async_stream_extractors_keep_valid_chunks_and_skip_incompl
         Completion(function_call=FunctionCall(args={"value": 1})),
         Completion(function_call=NameOnlyFunctionCall()),
         SimpleNamespace(),
+        SimpleNamespace(candidates=[]),  # e.g. a safety-blocked chunk
     ]
     assert [
         chunk
@@ -448,6 +451,7 @@ async def test_gemini_async_stream_extractors_keep_valid_chunks_and_skip_incompl
         Completion(part_text=" 2}", text_error=AttributeError),
         Completion(part_text="", text_error=AttributeError),
         SimpleNamespace(),
+        SimpleNamespace(candidates=[]),  # e.g. a safety-blocked chunk
     ]
     assert [
         chunk

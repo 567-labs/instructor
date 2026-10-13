@@ -265,13 +265,16 @@ class VertexAIHandlerBase(ModeHandler):
         """Extract JSON chunks from VertexAI streaming responses."""
         for chunk in completion:
             try:
+                # `candidates` can be empty (e.g. a safety-blocked chunk),
+                # which raises IndexError rather than AttributeError — skip
+                # the chunk either way.
                 if self.mode == Mode.TOOLS:
                     yield json.dumps(
                         chunk.candidates[0].content.parts[0].function_call.args
                     )
                 else:
                     yield chunk.candidates[0].content.parts[0].text
-            except AttributeError:
+            except (AttributeError, IndexError):
                 continue
 
     async def extract_streaming_json_async(
@@ -286,7 +289,7 @@ class VertexAIHandlerBase(ModeHandler):
                     )
                 else:
                     yield chunk.candidates[0].content.parts[0].text
-            except AttributeError:
+            except (AttributeError, IndexError):
                 continue
 
     def _parse_streaming(

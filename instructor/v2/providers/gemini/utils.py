@@ -68,6 +68,12 @@ def extract_gemini_chunk_text(chunk: Any) -> str:
     try:
         return chunk.text
     except (AttributeError, ValueError):
+        # `candidates` (and a candidate's `parts`) can be empty — e.g. a
+        # safety-blocked chunk or a trailing usage-only chunk — in which
+        # case this raises IndexError. Both callers of this function
+        # already wrap the call in `except (AttributeError, IndexError)`
+        # to skip such chunks, so let it propagate rather than swallowing
+        # it here and returning an empty string.
         part_text = chunk.candidates[0].content.parts[0].text
         if part_text:
             return part_text
