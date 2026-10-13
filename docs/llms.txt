@@ -558,9 +558,8 @@ Handle uncertain responses gracefully:
 
 ```python
 import instructor
-from openai import OpenAI
 from pydantic import BaseModel
-from instructor.dsl.maybe import Maybe
+from instructor import Maybe
 
 class Person(BaseModel):
     name: str
@@ -569,23 +568,24 @@ class Person(BaseModel):
 
 client = instructor.from_provider("openai/gpt-5.4-mini")
 
-# Use Maybe to handle potential missing information
+# Maybe is a factory: Maybe(Person), not Maybe[Person]
+MaybePerson = Maybe(Person)
+
 result = client.create(
     model="gpt-5.4-mini",
-    response_model=Maybe[Person],
+    response_model=MaybePerson,
     messages=[
         {"role": "user", "content": "Extract info about Jane Doe who is 28 years old."}
     ]
 )
 
-if result.value:
-    print(f"Name: {result.value.name}, Age: {result.value.age}")
-    if hasattr(result.value, 'occupation'):
-        print(f"Occupation: {result.value.occupation}")
-    else:
-        print("Occupation information not available")
+if result.result:
+    print(f"Name: {result.result.name}, Age: {result.result.age}")
+    print(f"Occupation: {result.result.occupation}")
+elif result.error:
+    print(f"Unable to extract person. Message: {result.message}")
 else:
-    print(f"Unable to extract person. Reason: {result.reason}")
+    print("No person extracted")
 ```
 
 ## Examples
