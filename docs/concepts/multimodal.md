@@ -329,6 +329,8 @@ We provide examples of how to use all three object classes below.
 
 For Bedrock, you can convert a `PDF` into the Bedrock-native document format with `PDF.to_bedrock()` and include the result in the message content list.
 
+`PDF.to_bedrock(name=...)` removes unsupported characters, including underscores, collapses whitespace, and limits the document name to 200 characters. If no characters remain, it uses `document`. Unicode letters and numbers are preserved.
+
 ### Usage
 
 ```python

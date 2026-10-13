@@ -635,7 +635,7 @@ class PDF(BaseModel):
         return pdf_to_genai(self)
 
     def to_bedrock(self, name: str | None = None) -> dict[str, Any]:
-        """Convert to Bedrock's document format."""
+        """Convert to Bedrock's document format with a sanitized 1-200 character name."""
         # Determine the document name
         if name is None:
             if isinstance(self.source, Path):
@@ -655,9 +655,9 @@ class PDF(BaseModel):
 
         # Sanitize name according to Bedrock requirements
         # Only allow alphanumeric, whitespace (max one in row), hyphens, parentheses, square brackets
-        name = re.sub(r"[^\w\s\-\(\)\[\]]", "", name)
+        name = re.sub(r"[^\w\s\-\(\)\[\]]|_", "", name)
         name = re.sub(r"\s+", " ", name)  # Consolidate whitespace
-        name = name.strip()
+        name = name.strip()[:200].rstrip() or "document"
 
         # Handle S3 URIs
         if isinstance(self.source, str) and self.source.startswith("s3://"):

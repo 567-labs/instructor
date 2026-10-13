@@ -663,7 +663,7 @@ def test_pdf_to_bedrock_with_path_source(tmp_path):
     bedrock_format = pdf.to_bedrock()
 
     assert bedrock_format["document"]["format"] == "pdf"
-    assert bedrock_format["document"]["name"] == "test_documentpdf"
+    assert bedrock_format["document"]["name"] == "testdocumentpdf"
     assert bedrock_format["document"]["source"]["bytes"] == pdf_content
 
 
