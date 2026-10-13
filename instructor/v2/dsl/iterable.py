@@ -110,6 +110,7 @@ class IterableBase:
                     yield obj
                 else:
                     break
+        cls._raise_if_unfinished(potential_object)
 
     @classmethod
     async def tasks_from_chunks_async(
@@ -132,6 +133,28 @@ class IterableBase:
                     yield obj
                 else:
                     break
+        cls._raise_if_unfinished(potential_object)
+
+    @staticmethod
+    def _raise_if_unfinished(remainder: str) -> None:
+        # An object still open when the stream ends is an item that was never
+        # closed: the output was cut off (e.g. at max_tokens) and is incomplete.
+        depth, in_string, escape_next = 0, False, False
+        for c in remainder:
+            if escape_next:
+                escape_next = False
+            elif c == "\\" and in_string:
+                escape_next = True
+            elif c == '"':
+                in_string = not in_string
+            elif not in_string:
+                depth += {"{": 1, "}": -1}.get(c, 0)
+        if depth > 0:
+            from instructor.v2.core.errors import IncompleteOutputException
+
+            raise IncompleteOutputException(
+                message="The stream ended inside an unfinished item; the output is incomplete."
+            )
 
     @classmethod
     def extract_cls_task_type(
