@@ -4,15 +4,15 @@ from collections.abc import Generator
 
 class CitationMixin(BaseModel):
     """
-    Helpful mixing that can use `validation_context={"context": context}` in `from_response` to find the span of the substring_phrase in the context.
+    Validate extracted quotations against source text supplied in validation context.
 
     ## Usage
 
     ```python
-    from pydantic import BaseModel, Field
+    from pydantic import Field
     from instructor import CitationMixin
 
-    class User(BaseModel):
+    class User(CitationMixin):
         name: str = Field(description="The name of the person")
         age: int = Field(description="The age of the person")
         role: str = Field(description="The role of the person")
@@ -20,34 +20,32 @@ class CitationMixin(BaseModel):
 
     context = "Betty was a student. Jason was a student. Jason is 20 years old"
 
-    user = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {
-                "role": "user",
-                "content": "Extract jason from {context}",
-            },
-        response_model=User,
-        validation_context={"context": context},
-        ]
+    user = User.model_validate(
+        {
+            "name": "Jason",
+            "age": 20,
+            "role": "student",
+            "substring_quotes": ["Jason was a student", "Jason is 20 years old"],
+        },
+        context={"context": context},
     )
 
     for quote in user.substring_quotes:
         assert quote in context
 
-    print(user.model_dump())
+    print(user.model_dump_json(indent=4))
     ```
 
     ## Result
-    ```
+    ```json
     {
-        "name": "Jason Liu",
-        "age": 20,
-        "role": "student",
         "substring_quotes": [
             "Jason was a student",
-            "Jason is 20 years old",
-        ]
+            "Jason is 20 years old"
+        ],
+        "name": "Jason",
+        "age": 20,
+        "role": "student"
     }
     ```
 
