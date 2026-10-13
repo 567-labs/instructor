@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Usage**: Guard `openai` imports in usage helpers so environments without the OpenAI SDK do not raise `ModuleNotFoundError`.
+
 ## [1.18.0] - 2026-09-26
 
 ### Added

@@ -1,8 +1,14 @@
+import sys
+import pytest
 from openai.types.completion_usage import CompletionUsage
 from openai.types.chat.chat_completion import ChatCompletion, Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 
 from instructor.utils.core import update_total_usage
+from instructor.v2.core.usage import (
+    has_compatible_usage as v2_has_compatible_usage,
+    update_total_usage as v2_update_total_usage,
+)
 
 
 class ProviderSpecificUsage(CompletionUsage):
@@ -41,3 +47,16 @@ def test_update_total_usage_preserves_openai_usage_subclass() -> None:
     assert updated.usage.get("prompt_tokens") == 16
     assert updated.usage.get("completion_tokens") == 10
     assert updated.usage.total_tokens == 26
+
+
+def test_v2_usage_helpers_survive_missing_openai(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(sys.modules, "openai", None)
+    monkeypatch.setitem(sys.modules, "openai.types", None)
+
+    dummy_response = type("DummyResponse", (), {"usage": object()})()
+    dummy_total = object()
+
+    assert v2_has_compatible_usage(dummy_response, dummy_total) is False
+    assert v2_update_total_usage(dummy_response, dummy_total) is dummy_response
