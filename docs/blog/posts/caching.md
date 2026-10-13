@@ -40,19 +40,21 @@ tags:
 >
 > ```python
 > from instructor import from_provider
-> from instructor.cache import AutoCache, RedisCache
+> from instructor.cache import AutoCache, DiskCache
 >
 > client = from_provider(
 >     "openai/gpt-4o",  # or any other provider
 >     cache=AutoCache(maxsize=10_000),   # in-process LRU
->     # or cache=RedisCache(host="localhost")
+>     # or cache=DiskCache(directory=".instructor_cache")
 > )
 > ```
 >
-> Under the hood this uses the very same techniques explained below, so
-> you can still roll your own adapter if you need a bespoke backend.  The
-> remainder of the post walks through the design rationale in detail and
-> is fully compatible with the built-in implementation.
+> Built-in adapters today are `AutoCache` and `DiskCache`. For Redis or
+> other backends, subclass `BaseCache` (see
+> [native caching](native_caching.md)). Under the hood this uses the
+> same techniques explained below. The remainder of the post walks
+> through the design rationale in detail and is fully compatible with
+> the built-in implementation.
 
 ## Built-in cache – feature matrix
 
