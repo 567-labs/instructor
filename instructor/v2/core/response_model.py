@@ -5,10 +5,10 @@ from __future__ import annotations
 import inspect
 import sys
 from collections.abc import Iterable
-from typing import Any, Callable, TypeVar, Union, cast, get_args, get_origin
+from typing import Annotated, Any, Callable, TypeVar, Union, cast, get_args, get_origin
 
 from pydantic import BaseModel, create_model
-from typing_extensions import NotRequired, Required
+from typing_extensions import NotRequired, ReadOnly, Required
 from typing import get_type_hints
 
 T = TypeVar("T")
@@ -32,7 +32,7 @@ def is_typed_dict(cls: Any) -> bool:
 
 
 def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
-    """Convert a TypedDict while preserving per-key requiredness."""
+    """Convert a TypedDict while preserving key requiredness and field metadata."""
     annotations = get_type_hints(typed_dict, include_extras=True)
     required_keys = set(getattr(typed_dict, "__required_keys__", set()))
     optional_keys = set(getattr(typed_dict, "__optional_keys__", set()))
@@ -40,18 +40,25 @@ def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
     fields: dict[str, tuple[Any, Any]] = {}
 
     for name, annotation in annotations.items():
-        annotation_origin = get_origin(annotation)
-        if annotation_origin is Required:
-            field_annotation = get_args(annotation)[0]
-            is_required = True
-        elif annotation_origin is NotRequired:
-            field_annotation = get_args(annotation)[0]
-            is_required = False
-        else:
-            field_annotation = annotation
-            is_required = name in required_keys or (name not in optional_keys and total)
+        is_required = name in required_keys or (name not in optional_keys and total)
+        metadata: list[Any] = []
+        while (annotation_origin := get_origin(annotation)) in (
+            Required,
+            NotRequired,
+            ReadOnly,
+            Annotated,
+        ):
+            if annotation_origin is Required:
+                is_required = True
+            elif annotation_origin is NotRequired:
+                is_required = False
+            elif annotation_origin is Annotated:
+                metadata = [*get_args(annotation)[1:], *metadata]
+            annotation = get_args(annotation)[0]
 
-        fields[name] = (field_annotation, ... if is_required else None)
+        if metadata:
+            annotation = Annotated[(annotation, *metadata)]
+        fields[name] = (annotation, ... if is_required else None)
 
     return _create_dynamic_model(
         getattr(typed_dict, "__name__", "TypedDictModel"),
