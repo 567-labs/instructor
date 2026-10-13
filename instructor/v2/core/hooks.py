@@ -164,7 +164,7 @@ class Hooks:
                     try:
                         sig = inspect.signature(handler)
                         sig.bind(*args, **kwargs)
-                    except TypeError:
+                    except (TypeError, ValueError):
                         handler(*args)
                         continue
                 handler(*args, **kwargs)

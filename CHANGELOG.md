@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Hook dispatch**: Fall back to positional arguments when retry hook callback signatures cannot be inspected, preserving compatibility with opaque callables.
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
