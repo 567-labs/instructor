@@ -14,11 +14,15 @@ _validation_error_original_str: Callable[[ValidationError], str] | None = None
 
 def is_async(func: Callable[..., Any]) -> bool:
     """Return whether a callable is async, following wrapped callables."""
-    is_coroutine = inspect.iscoroutinefunction(func)
-    while callable(wrapped := getattr(func, "__wrapped__", None)):
+    while True:
+        if inspect.iscoroutinefunction(func) or inspect.iscoroutinefunction(
+            type(func).__call__
+        ):
+            return True
+        wrapped = getattr(func, "__wrapped__", None)
+        if not callable(wrapped):
+            return False
         func = wrapped
-        is_coroutine = is_coroutine or inspect.iscoroutinefunction(func)
-    return is_coroutine
 
 
 class classproperty(Generic[R_co]):
