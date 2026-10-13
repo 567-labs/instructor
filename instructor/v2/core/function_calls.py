@@ -4,6 +4,7 @@ import inspect
 import json
 import logging
 import warnings
+import weakref
 from functools import wraps
 from typing import Any, TypeVar, cast
 from typing_extensions import Self
@@ -592,6 +593,14 @@ class ResponseSchema(BaseModel):
         )
 
 
+# Cache for response_schema: avoids creating a new Pydantic class on every
+# create() call.  Keyed weakly on the input model so dynamically-generated
+# classes are cleaned up when the caller drops them.
+_response_schema_cache: weakref.WeakKeyDictionary[type, type[BaseModel]] = (
+    weakref.WeakKeyDictionary()
+)
+
+
 def response_schema(cls: type[Model]) -> type[Model]:
     """Wrap a Pydantic model class to add ResponseSchema behavior."""
     if not inspect.isclass(cls) or not issubclass(cls, BaseModel):
@@ -599,6 +608,10 @@ def response_schema(cls: type[Model]) -> type[Model]:
         raise TypeError(
             f"response_model must be a subclass of pydantic.BaseModel, got {got}"
         )
+
+    cached = _response_schema_cache.get(cls)
+    if cached is not None:
+        return cast(type[Model], cached)
 
     # Create the wrapped model
     schema = cast(
@@ -614,6 +627,7 @@ def response_schema(cls: type[Model]) -> type[Model]:
         ),
     )
 
+    _response_schema_cache[cls] = schema
     return cast(type[Model], schema)
 
 
