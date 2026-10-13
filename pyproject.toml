@@ -88,7 +88,7 @@ test-docs = [
     "pandas<3.0.0,>=2.2.0",
     "tabulate<1.0.0,>=0.9.0",
     "pydantic-extra-types<3.0.0,>=2.6.0",
-    "litellm>=1.35.31,<=1.83.7",
+    "litellm>=1.35.31,<2,!=1.82.7,!=1.82.8",
     "mistralai<3.0.0,>=1.5.1",
 ]
 anthropic = ["anthropic==0.93.0", "xmltodict>=0.13,<1.1"]
@@ -102,7 +102,7 @@ bedrock = ["boto3<2.0.0,>=1.42.42"]
 mistral = ["mistralai<3.0.0,>=1.5.1"]
 perplexity = ["openai>=2.0.0,<4.0.0"]
 google-genai = ["google-genai>=1.5.0","jsonref<2.0.0,>=1.1.0"]
-litellm = ["litellm>=1.35.31,<=1.83.7"]
+litellm = ["litellm>=1.35.31,<2,!=1.82.7,!=1.82.8"]
 xai = ["xai-sdk>=0.2.0 ; python_version >= '3.10'"]
 phonenumbers = ["phonenumbers>=8.13.33,<10.0.0"]
 graphviz = ["graphviz<1.0.0,>=0.20.3"]
