@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Anthropic batch errors**: Preserve provider error types and messages from `errored` results, while retaining request IDs and raw records. ([#2758](https://github.com/567-labs/instructor/pull/2758))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
