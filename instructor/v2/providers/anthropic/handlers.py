@@ -333,11 +333,21 @@ class AnthropicToolsHandler(AnthropicHandlerBase):
             thinking_enabled = (
                 "thinking" in new_kwargs
                 and isinstance(new_kwargs.get("thinking"), dict)
-                and new_kwargs.get("thinking", {}).get("type") == "enabled"
+                and new_kwargs.get("thinking", {}).get("type")
+                in ("enabled", "adaptive")
             )
-            if thinking_enabled or is_parallel:
+            model_name = str(new_kwargs.get("model", "")).lower().replace(".", "-")
+            models_rejecting_forced_tool = (
+                "claude-opus-5",
+                "claude-sonnet-5",
+                "claude-fable-5",
+            )
+            model_unsupported = any(
+                prefix in model_name for prefix in models_rejecting_forced_tool
+            )
+            if thinking_enabled or is_parallel or model_unsupported:
                 new_kwargs["tool_choice"] = {"type": "auto"}
-                if thinking_enabled:
+                if thinking_enabled or model_unsupported:
                     new_kwargs["system"] = combine_system_messages(
                         new_kwargs.get("system"),
                         [
