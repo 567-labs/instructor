@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import errno
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -331,7 +332,7 @@ def test_pdf_rejects_raw_base64_with_non_pdf_content() -> None:
     ("error", "message"),
     [
         (FileNotFoundError("gone"), "PDF file not found"),
-        (OSError(63, "too long"), "PDF file name too long"),
+        (OSError(errno.ENAMETOOLONG, "too long"), "PDF file name too long"),
         (OSError(5, "read error"), "Unable to read PDF file"),
     ],
 )
