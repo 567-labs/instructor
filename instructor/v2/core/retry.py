@@ -107,21 +107,6 @@ def _finalize_parsed_response(
 
 
 def _initialize_usage(provider: Provider | Mode) -> Any:
-    from openai.types.completion_usage import (
-        CompletionTokensDetails,
-        CompletionUsage,
-        PromptTokensDetails,
-    )
-
-    total_usage: Any = CompletionUsage(
-        completion_tokens=0,
-        prompt_tokens=0,
-        total_tokens=0,
-        completion_tokens_details=CompletionTokensDetails(
-            audio_tokens=0, reasoning_tokens=0
-        ),
-        prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0),
-    )
     anthropic_modes = {
         Mode.ANTHROPIC_TOOLS,
         Mode.ANTHROPIC_REASONING_TOOLS,
@@ -131,8 +116,26 @@ def _initialize_usage(provider: Provider | Mode) -> Any:
     if provider is Provider.ANTHROPIC or provider in anthropic_modes:
         from instructor.v2.providers.anthropic.usage import initialize_usage
 
-        total_usage = initialize_usage()
-    return total_usage
+        return initialize_usage()
+
+    try:
+        from openai.types.completion_usage import (
+            CompletionTokensDetails,
+            CompletionUsage,
+            PromptTokensDetails,
+        )
+
+        return CompletionUsage(
+            completion_tokens=0,
+            prompt_tokens=0,
+            total_tokens=0,
+            completion_tokens_details=CompletionTokensDetails(
+                audio_tokens=0, reasoning_tokens=0
+            ),
+            prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0),
+        )
+    except ImportError:
+        return None
 
 
 def retry_sync_v2(

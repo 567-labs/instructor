@@ -60,3 +60,39 @@ def test_openai_connection_errors_only_skip_outside_strict_provider_runs(
 
     monkeypatch.setenv("CI", "true")
     _skip_on_provider_quota(Provider.OPENAI, exc)
+
+
+def test_usage_helpers_survive_missing_openai(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure has_compatible_usage and update_total_usage do not raise ModuleNotFoundError when openai is not installed."""
+    import sys
+    from instructor.v2.core.usage import has_compatible_usage, update_total_usage
+
+    # Simulate environment where openai is absent
+    monkeypatch.setitem(sys.modules, "openai", None)
+    monkeypatch.setitem(sys.modules, "openai.types", None)
+
+    class DummyResponse:
+        def __init__(self) -> None:
+            self.usage = None
+
+    resp = DummyResponse()
+    assert has_compatible_usage(resp, None) is False
+    assert update_total_usage(resp, cast(Any, None)) is resp
+
+
+def test_initialize_usage_survives_missing_openai(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure _initialize_usage returns None for non-Anthropic providers and initializes Anthropic usage when openai is missing."""
+    import sys
+    from instructor.v2.core.retry import _initialize_usage
+
+    monkeypatch.setitem(sys.modules, "openai", None)
+    monkeypatch.setitem(sys.modules, "openai.types", None)
+    monkeypatch.setitem(sys.modules, "openai.types.completion_usage", None)
+
+    assert _initialize_usage(Provider.OPENAI) is None
+
+    pytest.importorskip("instructor.v2.providers.anthropic.usage")
+    usage = _initialize_usage(Provider.ANTHROPIC)
+    assert usage is not None
