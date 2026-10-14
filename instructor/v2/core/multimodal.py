@@ -135,7 +135,7 @@ class Image(BaseModel):
     @classmethod  # Caching likely unnecessary
     def from_base64(cls, data_uri: str) -> Image:
         header, encoded = data_uri.split(",", 1)
-        media_type = header.split(":")[1].split(";")[0]
+        media_type = _normalize_media_type(header.split(":")[1])
         if media_type not in VALID_MIME_TYPES:
             raise MultimodalError(
                 f"Unsupported image format: {media_type}. Supported formats: {', '.join(VALID_MIME_TYPES)}",
@@ -525,7 +525,7 @@ class PDF(BaseModel):
     @classmethod
     def from_base64(cls, data_uri: str) -> PDF:
         header, encoded = data_uri.split(",", 1)
-        media_type = header.split(":")[1].split(";")[0]
+        media_type = _normalize_media_type(header.split(":")[1])
         if media_type not in VALID_PDF_MIME_TYPES:
             raise ValueError(f"Unsupported PDF format: {media_type}")
         return cls(
