@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Batch parsing**: Validate complete result payloads so Pydantic root models can wrap objects with a field named `root`, including empty objects with model defaults. ([#2743](https://github.com/567-labs/instructor/pull/2743))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
