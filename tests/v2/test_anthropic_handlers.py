@@ -70,3 +70,79 @@ class TestAnthropicToolsHandlerToolChoice:
         _, result_kwargs = handler.request_handler(Answer, kwargs)
 
         assert result_kwargs["tool_choice"] == {"type": "auto"}
+
+
+class TestAnthropicToolsHandlerAdaptiveAndModelToolChoice:
+    """Regression tests for #2792: adaptive thinking and Opus/Sonnet/Fable 5.x
+    must not receive a forced tool_choice (API returns 400)."""
+
+    def test_adaptive_thinking_uses_auto_tool_choice(self, handler):
+        kwargs = {
+            "messages": [{"role": "user", "content": "What is 2+2?"}],
+            "max_tokens": 1000,
+            "model": "claude-sonnet-4-6",
+            "thinking": {"type": "adaptive"},
+        }
+
+        _, result_kwargs = handler.request_handler(Answer, kwargs)
+
+        assert result_kwargs["tool_choice"] == {"type": "auto"}
+        assert result_kwargs["system"] == [
+            {
+                "type": "text",
+                "text": "Return only the tool call and no additional text.",
+            }
+        ]
+
+    def test_enabled_thinking_still_uses_auto_tool_choice(self, handler):
+        kwargs = {
+            "messages": [{"role": "user", "content": "What is 2+2?"}],
+            "max_tokens": 1000,
+            "model": "claude-sonnet-4-5",
+            "thinking": {"type": "enabled", "budget_tokens": 1024},
+        }
+
+        _, result_kwargs = handler.request_handler(Answer, kwargs)
+
+        assert result_kwargs["tool_choice"] == {"type": "auto"}
+
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "claude-opus-5-5",
+            "claude-sonnet-5-5",
+            "claude-fable-5-1",
+            "anthropic.claude-opus-5-5-20261001",
+        ],
+    )
+    def test_models_without_forced_tool_choice_use_auto(self, handler, model):
+        kwargs = {
+            "messages": [{"role": "user", "content": "What is 2+2?"}],
+            "max_tokens": 1000,
+            "model": model,
+        }
+
+        _, result_kwargs = handler.request_handler(Answer, kwargs)
+
+        assert result_kwargs["tool_choice"] == {"type": "auto"}
+        assert result_kwargs["system"] == [
+            {
+                "type": "text",
+                "text": "Return only the tool call and no additional text.",
+            }
+        ]
+
+    def test_older_claude_still_forces_single_tool(self, handler):
+        kwargs = {
+            "messages": [{"role": "user", "content": "What is 2+2?"}],
+            "max_tokens": 100,
+            "model": "claude-sonnet-4-5",
+        }
+
+        _, result_kwargs = handler.request_handler(Answer, kwargs)
+
+        assert result_kwargs["tool_choice"] == {
+            "type": "tool",
+            "name": "Answer",
+            "disable_parallel_tool_use": True,
+        }

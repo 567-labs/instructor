@@ -145,6 +145,26 @@ def serialize_message_content(content: Any) -> Any:
     return content
 
 
+
+# Claude Opus/Sonnet/Fable 5.x reject forced tool_choice ("tool" / "any").
+# Matching the family prefix also covers later 5.x point releases.
+_ANTHROPIC_MODELS_WITHOUT_FORCED_TOOL_CHOICE = (
+    "claude-opus-5",
+    "claude-sonnet-5",
+    "claude-fable-5",
+)
+
+
+def _anthropic_model_rejects_forced_tool_choice(model: Any) -> bool:
+    """Return True when the model rejects forced tool_choice."""
+    if not isinstance(model, str):
+        return False
+    lowered = model.lower()
+    return any(
+        token in lowered for token in _ANTHROPIC_MODELS_WITHOUT_FORCED_TOOL_CHOICE
+    )
+
+
 def _anthropic_supports_output_format() -> bool:
     """Detect if the installed anthropic SDK supports output_format parameter."""
 
@@ -346,14 +366,18 @@ class AnthropicToolsHandler(AnthropicHandlerBase):
             new_kwargs["tools"] = [tool_descriptions]
 
         if "tool_choice" not in new_kwargs:
-            thinking_enabled = (
-                "thinking" in new_kwargs
-                and isinstance(new_kwargs.get("thinking"), dict)
-                and new_kwargs.get("thinking", {}).get("type") == "enabled"
+            # Anthropic rejects a forced tool_choice while thinking is on
+            # (enabled or adaptive) and on Opus/Sonnet/Fable 5.x families.
+            thinking = new_kwargs.get("thinking")
+            thinking_blocks_forced = isinstance(thinking, dict) and thinking.get(
+                "type"
+            ) in ("enabled", "adaptive")
+            model_blocks_forced = _anthropic_model_rejects_forced_tool_choice(
+                new_kwargs.get("model")
             )
-            if thinking_enabled or is_parallel:
+            if thinking_blocks_forced or model_blocks_forced or is_parallel:
                 new_kwargs["tool_choice"] = {"type": "auto"}
-                if thinking_enabled:
+                if thinking_blocks_forced or model_blocks_forced:
                     new_kwargs["system"] = combine_system_messages(
                         new_kwargs.get("system"),
                         [
