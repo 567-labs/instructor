@@ -97,9 +97,12 @@ def has_compatible_usage(response: object, total_usage: object) -> bool:
     """Return whether a response exposes usage supported by the accumulator."""
     response_usage = getattr(response, "usage", None)
 
-    from openai.types import CompletionUsage as _OpenAIUsage
+    try:
+        from openai.types import CompletionUsage as _OpenAIUsage
+    except ImportError:
+        _OpenAIUsage = None  # type: ignore[assignment,misc]
 
-    if isinstance(response_usage, _OpenAIUsage) and isinstance(
+    if _OpenAIUsage is not None and isinstance(response_usage, _OpenAIUsage) and isinstance(
         total_usage, _OpenAIUsage
     ):
         return True
@@ -121,11 +124,16 @@ def update_total_usage(
     if response is None:
         return None
 
-    from openai.types import CompletionUsage as _OpenAIUsage
+    try:
+        from openai.types import CompletionUsage as _OpenAIUsage
+    except ImportError:
+        _OpenAIUsage = None  # type: ignore[assignment,misc]
 
     response_usage = getattr(response, "usage", None)
-    if isinstance(response_usage, _OpenAIUsage) and isinstance(
-        total_usage, _OpenAIUsage
+    if (
+        _OpenAIUsage is not None
+        and isinstance(response_usage, _OpenAIUsage)
+        and isinstance(total_usage, _OpenAIUsage)
     ):
         _accumulate_models(response_usage, total_usage)
         return response
