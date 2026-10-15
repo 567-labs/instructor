@@ -162,3 +162,59 @@ def test_prepare_response_model_preserves_iterable_typed_dict_keys() -> None:
     assert task_model.model_fields["name"].is_required()
     assert not task_model.model_fields["age"].is_required()
     assert task_model(name="Ada").model_dump(exclude_unset=True) == {"name": "Ada"}
+
+
+class RecordWithUnderscore(TypedDict):
+    _id: str
+    name: str
+
+
+class OptionalRecordWithUnderscore(TypedDict, total=False):
+    _id: str
+    name: str
+
+
+def test_prepare_response_model_preserves_typed_dict_underscore_keys() -> None:
+    from pydantic import ValidationError
+    from instructor.processing.response import handle_response_model
+
+    model = cast(Any, prepare_response_model(RecordWithUnderscore))
+    schema = model.model_json_schema()
+    assert "_id" in schema["properties"]
+    assert "_id" in schema["required"]
+
+    validated = model.model_validate({"_id": "doc-1", "name": "Report"})
+    assert validated.model_dump(by_alias=True) == {"_id": "doc-1", "name": "Report"}
+
+    with pytest.raises(ValidationError):
+        model.model_validate({"name": "Report"})
+
+    # Check handle_response_model integration
+    resp_model, request = handle_response_model(
+        RecordWithUnderscore,
+        mode=Mode.TOOLS,
+        messages=[{"role": "user", "content": "Extract"}],
+    )
+    tools = request["tools"][0]["function"]["parameters"]
+    assert "_id" in tools["properties"]
+    assert "_id" in tools["required"]
+
+    # Check optional underscore keys
+    opt_model = cast(Any, prepare_response_model(OptionalRecordWithUnderscore))
+    opt_schema = opt_model.model_json_schema()
+    assert "_id" in opt_schema["properties"]
+    assert "_id" not in opt_schema.get("required", [])
+    assert opt_model.model_validate({"name": "Report"}).model_dump(
+        by_alias=True, exclude_unset=True
+    ) == {"name": "Report"}
+    assert opt_model.model_validate({"_id": "doc-2"}).model_dump(
+        by_alias=True, exclude_unset=True
+    ) == {"_id": "doc-2"}
+
+    # Check iterable / list of TypedDict with underscore keys
+    iterable_model = cast(Any, prepare_response_model(list[RecordWithUnderscore]))
+    task_model = iterable_model.task_type
+    task_schema = task_model.model_json_schema()
+    assert "_id" in task_schema["properties"]
+    assert "_id" in task_schema["required"]
+
