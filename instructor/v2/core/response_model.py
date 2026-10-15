@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import inspect
+import keyword
+import re
 import sys
 from collections.abc import Iterable
 from typing import Any, Callable, TypeVar, Union, cast, get_args, get_origin
 
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel, ConfigDict, Field, create_model
 from typing_extensions import NotRequired, Required
 from typing import get_type_hints
 
@@ -23,6 +25,42 @@ else:  # pragma: no cover - Python 3.9 has no runtime ``X | Y`` syntax
     _UNION_ORIGINS = (Union,)
 
 
+class TypedDictBaseModel(BaseModel):
+    """Dynamic base model for converted TypedDict instances supporting alias preservation."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    def __iter__(self):
+        yield from self.model_dump(by_alias=True).items()
+
+    def __getattr__(self, item: str) -> Any:
+        if item.startswith("__") and item.endswith("__"):
+            raise AttributeError(
+                f"'{self.__class__.__name__}' object has no attribute '{item}'"
+            )
+        for field_name, field_info in self.__class__.model_fields.items():
+            if field_info.alias == item:
+                return getattr(self, field_name)
+        raise AttributeError(
+            f"'{self.__class__.__name__}' object has no attribute '{item}'"
+        )
+
+
+def _safe_field_name(
+    name: str, existing_names: set[str], allocated_names: set[str]
+) -> str:
+    if name.isidentifier() and not name.startswith("_") and not keyword.iskeyword(name):
+        return name
+    clean = re.sub(r"[^a-zA-Z0-9_]", "_", name.lstrip("_"))
+    base = f"field_{clean}" if clean else "field"
+    candidate = base
+    counter = 1
+    while candidate in existing_names or candidate in allocated_names:
+        candidate = f"{base}_{counter}"
+        counter += 1
+    return candidate
+
+
 def is_typed_dict(cls: Any) -> bool:
     return (
         isinstance(cls, type)
@@ -32,12 +70,14 @@ def is_typed_dict(cls: Any) -> bool:
 
 
 def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
-    """Convert a TypedDict while preserving per-key requiredness."""
+    """Convert a TypedDict while preserving per-key requiredness and underscore/special keys."""
     annotations = get_type_hints(typed_dict, include_extras=True)
     required_keys = set(getattr(typed_dict, "__required_keys__", set()))
     optional_keys = set(getattr(typed_dict, "__optional_keys__", set()))
     total = getattr(typed_dict, "__total__", True)
     fields: dict[str, tuple[Any, Any]] = {}
+    existing_names = set(annotations.keys())
+    allocated_names: set[str] = set()
 
     for name, annotation in annotations.items():
         annotation_origin = get_origin(annotation)
@@ -51,10 +91,21 @@ def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
             field_annotation = annotation
             is_required = name in required_keys or (name not in optional_keys and total)
 
-        fields[name] = (field_annotation, ... if is_required else None)
+        attr_name = _safe_field_name(name, existing_names, allocated_names)
+        allocated_names.add(attr_name)
+
+        if attr_name != name:
+            default_val = ... if is_required else None
+            fields[attr_name] = (
+                field_annotation,
+                Field(default=default_val, alias=name),
+            )
+        else:
+            fields[attr_name] = (field_annotation, ... if is_required else None)
 
     return _create_dynamic_model(
         getattr(typed_dict, "__name__", "TypedDictModel"),
+        __base__=TypedDictBaseModel,
         **fields,
     )
 

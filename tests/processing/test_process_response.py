@@ -22,6 +22,85 @@ def test_typed_dict_conversion() -> None:
     assert user_tool_definition == pydantic_user_tool_definition
 
 
+def test_typed_dict_underscore_prefixed_keys() -> None:
+    import pytest
+    from typing_extensions import NotRequired
+    from pydantic import ValidationError
+
+    class Record(TypedDict):
+        _id: str
+        name: str
+        _opt: NotRequired[int]
+        field_id: NotRequired[str]
+
+    model, tool_def = handle_response_model(Record)
+    params = tool_def["tools"][0]["function"]["parameters"]
+
+    # 1. Schema must include _id and field_id in properties, and only required keys in required
+    assert "_id" in params["properties"]
+    assert "name" in params["properties"]
+    assert "_opt" in params["properties"]
+    assert "field_id" in params["properties"]
+    assert set(params["required"]) == {"_id", "name"}
+
+    # 2. Validation preserves _id with by_alias=True and dict()
+    inst = model.model_validate(
+        {"_id": "doc-1", "name": "Report", "_opt": 42, "field_id": "cust-9"}
+    )
+    assert inst.model_dump(by_alias=True) == {
+        "_id": "doc-1",
+        "name": "Report",
+        "_opt": 42,
+        "field_id": "cust-9",
+    }
+    assert dict(inst) == {
+        "_id": "doc-1",
+        "name": "Report",
+        "_opt": 42,
+        "field_id": "cust-9",
+    }
+    attr_key = "_id"
+    assert getattr(inst, attr_key) == "doc-1"
+    assert inst._id == "doc-1"
+    assert inst.field_id == "cust-9"
+
+    # Optional _opt omitted
+    inst_no_opt = model.model_validate({"_id": "doc-2", "name": "Doc"})
+    assert inst_no_opt._opt is None
+    assert inst_no_opt.model_dump(by_alias=True, exclude_unset=True) == {
+        "_id": "doc-2",
+        "name": "Doc",
+    }
+
+    # 3. Missing required _id must raise ValidationError
+    with pytest.raises(ValidationError):
+        model.model_validate({"name": "Report"})
+
+
+def test_typed_dict_iterable_with_underscore_prefixed_keys() -> None:
+    class Item(TypedDict):
+        _id: str
+        label: str
+
+    model, tool_def = handle_response_model(list[Item])
+    params = tool_def["tools"][0]["function"]["parameters"]
+    item_schema = (
+        params.get("$defs", {}).get("Item") or params["properties"]["tasks"]["items"]
+    )
+    item_props = item_schema["properties"]
+    item_req = item_schema["required"]
+
+    assert "_id" in item_props
+    assert "label" in item_props
+    assert "_id" in item_req
+
+    inst = model.model_validate(
+        {"tasks": [{"_id": "1", "label": "first"}, {"_id": "2", "label": "second"}]}
+    )
+    assert inst.tasks[0]._id == "1"
+    assert dict(inst.tasks[1]) == {"_id": "2", "label": "second"}
+
+
 def test_redact_kwargs_hides_nested_sensitive_fields() -> None:
     kwargs = {
         "api_key": "top-level",

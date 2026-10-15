@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **TypedDict response models**: Preserve underscore-prefixed and non-standard identifier keys in dynamic model conversion using aliases, supporting schema generation, attribute access, and dictionary serialization ([#2756](https://github.com/instructor-ai/instructor/issues/2756)).
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
