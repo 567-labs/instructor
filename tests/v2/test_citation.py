@@ -140,3 +140,54 @@ def test_quote_beyond_error_tolerance_is_dropped() -> None:
     )
 
     assert answer.substring_quotes == []
+
+
+# Regression tests for #2769: empty quote/context guards
+
+
+def test_empty_source_chunk_yields_no_empty_citation() -> None:
+    """An empty source chunk must not produce an empty-string citation (#2769)."""
+    answer = Answer.model_validate(
+        {"substring_quotes": ["cat"]},
+        context={"context": ["", "The cat sleeps."]},
+    )
+    assert answer.substring_quotes == ["cat"]
+
+
+def test_empty_quote_is_dropped() -> None:
+    """An empty quote string must not match a zero-width span (#2769)."""
+    answer = Answer.model_validate(
+        {"substring_quotes": [""]},
+        context={"context": "non-empty source"},
+    )
+    assert answer.substring_quotes == []
+
+
+def test_empty_string_context_returns_empty_list() -> None:
+    """An empty string context must not yield any citation (#2769)."""
+    answer = Answer.model_validate(
+        {"substring_quotes": ["abcd"]},
+        context={"context": ""},
+    )
+    assert answer.substring_quotes == []
+
+
+# Regression tests for #2776: short-quote over-matching
+
+
+@pytest.mark.parametrize(
+    "quote,context",
+    [
+        ("dog", "The cat sleeps."),
+        ("zebra", "The cat sleeps."),
+        ("1999", "Revenue grew 12% in 2021."),
+        ("Paris", "The capital of Germany is Berlin."),
+    ],
+)
+def test_short_quote_does_not_match_unrelated_text(quote: str, context: str) -> None:
+    """Short quotes (≤5 chars) must not match unrelated text via mass substitution (#2776)."""
+    answer = Answer.model_validate(
+        {"substring_quotes": [quote]},
+        context={"context": context},
+    )
+    assert answer.substring_quotes == []

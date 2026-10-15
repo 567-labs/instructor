@@ -91,6 +91,9 @@ class CitationMixin(BaseModel):
     def _get_span(
         self, quote: str, context: str, errs: int = 5
     ) -> Generator[tuple[int, int], None, None]:
+        if not quote or not context:
+            return
+
         import regex
 
         # Escape the quote so regex metacharacters in LLM-generated text
@@ -98,6 +101,11 @@ class CitationMixin(BaseModel):
         # instead of crashing the fuzzy search with a regex compile error.
         minor = regex.escape(quote)
         major = context
+
+        # Cap the error budget proportionally so short quotes (< 15 chars)
+        # cannot match unrelated text via mass substitution.  Longer quotes
+        # keep the original 5-edit ceiling.
+        errs = min(errs, len(quote) // 3)
 
         errs_ = 0
         s = regex.search(f"({minor}){{e<={errs_}}}", major)
