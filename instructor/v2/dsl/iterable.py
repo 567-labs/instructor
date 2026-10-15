@@ -145,11 +145,19 @@ class IterableBase:
             union_members = get_args(cls.task_type)
             for member in union_members:
                 try:
-                    return member.model_validate_json(task_json, **kwargs)
+                    result = member.model_validate_json(task_json, **kwargs)
+                    from instructor.v2.dsl.simple_type import AdapterBase
+                    if isinstance(result, AdapterBase):
+                        return result.content
+                    return result
                 except Exception:
                     pass
         else:
-            return cls.task_type.model_validate_json(task_json, **kwargs)
+            result = cls.task_type.model_validate_json(task_json, **kwargs)
+            from instructor.v2.dsl.simple_type import AdapterBase
+            if isinstance(result, AdapterBase):
+                return result.content
+            return result
         raise ValueError(
             f"Failed to extract task type with {task_json} for {cls.task_type}"
         )
