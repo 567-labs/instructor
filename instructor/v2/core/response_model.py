@@ -7,7 +7,7 @@ import sys
 from collections.abc import Iterable
 from typing import Any, Callable, TypeVar, Union, cast, get_args, get_origin
 
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel, ConfigDict, Field, create_model
 from typing_extensions import NotRequired, Required
 from typing import get_type_hints
 
@@ -32,12 +32,14 @@ def is_typed_dict(cls: Any) -> bool:
 
 
 def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
-    """Convert a TypedDict while preserving per-key requiredness."""
+    """Convert a TypedDict while preserving per-key requiredness and underscore keys."""
     annotations = get_type_hints(typed_dict, include_extras=True)
     required_keys = set(getattr(typed_dict, "__required_keys__", set()))
     optional_keys = set(getattr(typed_dict, "__optional_keys__", set()))
     total = getattr(typed_dict, "__total__", True)
     fields: dict[str, tuple[Any, Any]] = {}
+    used_field_names: set[str] = set(annotations.keys())
+    has_aliased_field = False
 
     for name, annotation in annotations.items():
         annotation_origin = get_origin(annotation)
@@ -51,10 +53,26 @@ def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
             field_annotation = annotation
             is_required = name in required_keys or (name not in optional_keys and total)
 
-        fields[name] = (field_annotation, ... if is_required else None)
+        if name.startswith("_"):
+            has_aliased_field = True
+            candidate = f"field_{name}"
+            counter = 1
+            while candidate in used_field_names:
+                candidate = f"field_{name}_{counter}"
+                counter += 1
+            used_field_names.add(candidate)
+            field_def = Field(... if is_required else None, alias=name)
+            fields[candidate] = (field_annotation, field_def)
+        else:
+            fields[name] = (field_annotation, ... if is_required else None)
+
+    model_kwargs: dict[str, Any] = {}
+    if has_aliased_field:
+        model_kwargs["__config__"] = ConfigDict(populate_by_name=True)
 
     return _create_dynamic_model(
         getattr(typed_dict, "__name__", "TypedDictModel"),
+        **model_kwargs,
         **fields,
     )
 
