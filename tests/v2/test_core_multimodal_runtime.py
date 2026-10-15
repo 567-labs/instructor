@@ -276,3 +276,26 @@ def test_audio_to_openai_format_follows_media_type() -> None:
     aac = Audio(source="clip.aac", media_type="audio/aac", data="ZmFrZQ==")
     with pytest.raises(ValueError, match="Expected WAV or MP3"):
         audio_to_openai(aac, Mode.TOOLS)
+
+
+@pytest.mark.parametrize("cls", [Image, Audio, PDF])
+def test_autodetect_safely_returns_source_str_for_missing_path(
+    cls: type[Image | Audio | PDF], tmp_path: Path
+) -> None:
+    """A missing Path must fall back to the source string, like a missing str.
+
+    ``autodetect_safely`` documents that any source it cannot detect is
+    returned unchanged as a string, but ``from_path`` raises
+    ``FileNotFoundError`` (an ``OSError``, not a ``ValueError``), so Path
+    inputs used to leak the exception instead of honoring the contract.
+    """
+    missing = tmp_path / "missing-file.bin"
+
+    assert cls.autodetect_safely(missing) == str(missing)
+
+
+def test_autodetect_safely_returns_source_str_for_missing_str() -> None:
+    for cls in (Image, Audio, PDF):
+        assert cls.autodetect_safely("/definitely/not/a/real/file.bin") == (
+            "/definitely/not/a/real/file.bin"
+        )
