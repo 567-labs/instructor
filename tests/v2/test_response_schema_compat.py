@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+from pydantic import ValidationError
 import pytest
 from typing_extensions import NotRequired, Required, TypedDict
 
 from instructor import Mode, Provider
 from instructor.v2.core.function_calls import ResponseSchema
 from instructor.v2.core.response_model import prepare_response_model
+from instructor.processing.response import handle_response_model
 
 
 class Answer(ResponseSchema):
@@ -143,6 +145,12 @@ class PartialUser(TypedDict, total=False):
     user_id: Required[int]
 
 
+class UnderscoreKeyRecord(TypedDict):
+    _id: str
+    typed_dict_field_0: str
+    name: str
+
+
 def test_prepare_response_model_preserves_typed_dict_key_semantics() -> None:
     model = cast(Any, prepare_response_model(OptionalUser))
 
@@ -162,3 +170,23 @@ def test_prepare_response_model_preserves_iterable_typed_dict_keys() -> None:
     assert task_model.model_fields["name"].is_required()
     assert not task_model.model_fields["age"].is_required()
     assert task_model(name="Ada").model_dump(exclude_unset=True) == {"name": "Ada"}
+
+
+def test_typed_dict_underscore_keys_are_schema_fields_and_validate_by_alias() -> None:
+    model, request = handle_response_model(UnderscoreKeyRecord)
+    schema = request["tools"][0]["function"]["parameters"]
+
+    assert schema["properties"]["_id"]["type"] == "string"
+    assert set(schema["required"]) == {"_id", "typed_dict_field_0", "name"}
+
+    parsed = model.model_validate(
+        {"_id": "doc-1", "typed_dict_field_0": "collision-safe", "name": "Report"}
+    )
+    assert parsed.model_dump(by_alias=True) == {
+        "_id": "doc-1",
+        "typed_dict_field_0": "collision-safe",
+        "name": "Report",
+    }
+
+    with pytest.raises(ValidationError):
+        model.model_validate({"typed_dict_field_0": "collision-safe", "name": "Report"})
