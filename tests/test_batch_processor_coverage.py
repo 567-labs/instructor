@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 
 import instructor.batch.processor as processor_module
 from instructor.batch.models import BatchError, BatchJobInfo, BatchSuccess
@@ -25,6 +25,15 @@ class Person(BaseModel):
 
 class DefaultedResult(BaseModel):
     status: str = "ok"
+
+
+class DocumentWithRoot(BaseModel):
+    root: str
+    label: str = "document"
+
+
+class RootDocument(RootModel[DocumentWithRoot]):
+    pass
 
 
 class RecordingProvider:
@@ -365,6 +374,52 @@ def test_parse_results_accepts_empty_object_for_defaulted_model(
 
     assert results == [
         BatchSuccess(custom_id="empty", result=DefaultedResult(status="ok"))
+    ]
+
+
+@pytest.mark.parametrize(
+    ("model", "content"),
+    [
+        (
+            "openai/gpt-4.1-mini",
+            openai_result("doc-1", json.dumps({"root": "Ada", "label": "note"})),
+        ),
+        (
+            "anthropic/claude-sonnet",
+            json.dumps(
+                {
+                    "custom_id": "doc-1",
+                    "result": {
+                        "type": "succeeded",
+                        "message": {
+                            "content": [
+                                {
+                                    "type": "tool_use",
+                                    "input": {"root": "Ada", "label": "note"},
+                                }
+                            ]
+                        },
+                    },
+                }
+            ),
+        ),
+    ],
+)
+def test_parse_results_handles_root_model_with_root_field(
+    provider: RecordingProvider,
+    model: str,
+    content: str,
+) -> None:
+    del provider
+    processor = BatchProcessor(model, RootDocument)
+
+    results = processor.parse_results(content)
+
+    assert results == [
+        BatchSuccess(
+            custom_id="doc-1",
+            result=RootDocument(root=DocumentWithRoot(root="Ada", label="note")),
+        )
     ]
 
 

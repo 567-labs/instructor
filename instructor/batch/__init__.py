@@ -97,9 +97,14 @@ class BatchJob:
                 data = json.loads(line)
                 extracted_data = cls._extract_structured_data(data)
 
-                if extracted_data:
+                if extracted_data is not None:
                     try:
-                        result = response_model(**extracted_data)
+                        if hasattr(response_model, "model_validate"):
+                            result = response_model.model_validate(extracted_data)
+                        elif isinstance(extracted_data, dict):
+                            result = response_model(**extracted_data)
+                        else:
+                            result = response_model(extracted_data)
                         res.append(result)
                     except Exception:
                         error_objs.append(data)
@@ -112,7 +117,7 @@ class BatchJob:
         return res, error_objs
 
     @classmethod
-    def _extract_structured_data(cls, data: dict[str, Any]) -> Optional[dict[str, Any]]:
+    def _extract_structured_data(cls, data: dict[str, Any]) -> Optional[Any]:
         """Extract structured data from various provider response formats"""
         import json
 
