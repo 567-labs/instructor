@@ -842,10 +842,16 @@ def convert_messages(
                 continue
             raise ValueError(f"Unsupported message type: {message['type']}")
         role = message["role"]
-        content = message["content"] or []
         other_kwargs = {
             k: v for k, v in message.items() if k not in ["role", "content", "type"]
         }
+        if message.get("tool_calls") and message.get("content") is None:
+            # An assistant turn that only carries tool_calls has no content, either
+            # absent or null. Keep it as it came instead of sending an empty list.
+            kept = {"content": None} if "content" in message else {}
+            converted_messages.append({"role": role, **kept, **other_kwargs})
+            continue
+        content = message["content"] or []
         if autodetect_images:
             if isinstance(content, list):
                 new_content: list[str | dict[str, Any] | Image | Audio | PDF] = []  # noqa: UP007

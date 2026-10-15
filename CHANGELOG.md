@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Tool-call turns**: Keep an assistant message that only carries `tool_calls` as it came when its `content` is `null` or absent, instead of sending `content: []` or raising `KeyError`.
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
