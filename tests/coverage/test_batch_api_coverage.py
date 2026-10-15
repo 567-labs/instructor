@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 
 from instructor.batch import (
     BatchError,
@@ -30,6 +30,19 @@ pytestmark = pytest.mark.unit
 class Person(BaseModel):
     name: str
     age: int
+
+
+class DocumentWithRoot(BaseModel):
+    root: str
+    label: str = "document"
+
+
+class RootDocument(RootModel[DocumentWithRoot]):
+    pass
+
+
+class DefaultedModel(BaseModel):
+    status: str = "ok"
 
 
 def test_batch_file_round_trips_utf8_result_text(tmp_path: Path) -> None:
@@ -184,6 +197,65 @@ def test_legacy_batch_job_parses_provider_results_and_preserves_errors(
     ]
     assert errors[:3] == [invalid_model, malformed_content, unsupported_shape]
     assert errors[3] == {"error": "Failed to parse JSON", "raw_line": "{not-valid-json"}
+
+
+def test_legacy_batch_job_parses_root_model_with_root_field() -> None:
+    openai_line = json.dumps(
+        {
+            "custom_id": "root-openai",
+            "response": {
+                "body": {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": json.dumps(
+                                    {"root": "Ada", "label": "note"}
+                                )
+                            }
+                        }
+                    ]
+                }
+            },
+        }
+    )
+    anthropic_line = json.dumps(
+        {
+            "custom_id": "root-anthropic",
+            "result": {
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "input": {"root": "Grace", "label": "memo"},
+                        }
+                    ]
+                }
+            },
+        }
+    )
+    content = f"{openai_line}\n{anthropic_line}"
+    results, errors = BatchJob.parse_from_string(content, RootDocument)
+
+    assert results == [
+        RootDocument(root=DocumentWithRoot(root="Ada", label="note")),
+        RootDocument(root=DocumentWithRoot(root="Grace", label="memo")),
+    ]
+    assert errors == []
+
+
+def test_legacy_batch_job_accepts_empty_object_for_defaulted_model() -> None:
+    line = json.dumps(
+        {
+            "custom_id": "empty-openai",
+            "response": {
+                "body": {"choices": [{"message": {"content": "{}"}}]}
+            },
+        }
+    )
+    results, errors = BatchJob.parse_from_string(line, DefaultedModel)
+
+    assert results == [DefaultedModel(status="ok")]
+    assert errors == []
 
 
 @pytest.mark.parametrize(

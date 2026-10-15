@@ -222,16 +222,26 @@ class BatchProcessor(Generic[T]):
                 if extracted_data is not None:
                     try:
                         # Parse into response model
-                        result = self.response_model(**extracted_data)
+                        if hasattr(self.response_model, "model_validate"):
+                            result = self.response_model.model_validate(extracted_data)
+                        elif isinstance(extracted_data, dict):
+                            result = self.response_model(**extracted_data)
+                        else:
+                            result = self.response_model(extracted_data)
                         batch_result = BatchSuccess[T](
                             custom_id=custom_id, result=result
                         )
                         results.append(batch_result)
                     except Exception as e:
+                        model_name = getattr(
+                            self.response_model,
+                            "__name__",
+                            str(self.response_model),
+                        )
                         error_result = BatchError(
                             custom_id=custom_id,
                             error_type="parsing_error",
-                            error_message=f"Failed to parse into {self.response_model.__name__}: {e}",
+                            error_message=f"Failed to parse into {model_name}: {e}",
                             raw_data=extracted_data,
                         )
                         results.append(error_result)
@@ -275,7 +285,7 @@ class BatchProcessor(Generic[T]):
 
         return results
 
-    def _extract_from_response(self, data: dict[str, Any]) -> dict[str, Any] | None:
+    def _extract_from_response(self, data: dict[str, Any]) -> Any | None:
         """Extract structured data from provider-specific response format"""
         try:
             if self.provider_name == "openai":
