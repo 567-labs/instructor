@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Core**: Detect async callable objects in `is_async` and route them through the asynchronous wrapper in `patch(create=...)`. ([#2740](https://github.com/instructor-ai/instructor/issues/2740))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added

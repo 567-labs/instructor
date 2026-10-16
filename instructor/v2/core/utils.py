@@ -12,12 +12,22 @@ R_co = TypeVar("R_co", covariant=True)
 _validation_error_original_str: Callable[[ValidationError], str] | None = None
 
 
+def _is_coroutine_callable(target: Any) -> bool:
+    if inspect.iscoroutinefunction(target):
+        return True
+    if callable(target) and not isinstance(target, type):
+        call_method = getattr(target, "__call__", None)  # noqa: B004
+        if inspect.iscoroutinefunction(call_method):
+            return True
+    return False
+
+
 def is_async(func: Callable[..., Any]) -> bool:
     """Return whether a callable is async, following wrapped callables."""
-    is_coroutine = inspect.iscoroutinefunction(func)
+    is_coroutine = _is_coroutine_callable(func)
     while callable(wrapped := getattr(func, "__wrapped__", None)):
         func = wrapped
-        is_coroutine = is_coroutine or inspect.iscoroutinefunction(func)
+        is_coroutine = is_coroutine or _is_coroutine_callable(func)
     return is_coroutine
 
 
