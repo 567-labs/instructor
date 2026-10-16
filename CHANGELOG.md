@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Iterable streaming**: Resume the object scan where the previous chunk stopped instead of rescanning the buffered item from the start, so streaming a large `Iterable[...]` item takes linear rather than quadratic time.
+
 ## [1.18.0] - 2026-09-26
 
 ### Added

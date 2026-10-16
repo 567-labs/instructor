@@ -51,6 +51,32 @@ def test_iterable_get_object_handles_even_backslashes_before_quote() -> None:
     assert rest == '{"bio": "next"}'
 
 
+def test_iterable_scan_object_resumes_like_a_full_rescan() -> None:
+    payload = (
+        '{"bio": "quote \\" } {"}, {"bio": "ends \\\\"}, '
+        '{"x": {"y": "}"}, "z": [1, {"w": 2}]}, {"tail": "cut'
+    )
+    buffer = ""
+    state = (0, 0, False, False)
+    objects = []
+    for char in payload:
+        buffer += char
+        while True:
+            expected = IterableBase.get_object(buffer, 0)
+            obj, buffer, state = IterableBase._scan_object(buffer, state)
+            assert (obj, buffer) == expected
+            if obj is None:
+                break
+            objects.append(obj)
+
+    assert objects == [
+        '{"bio": "quote \\" } {"}',
+        '{"bio": "ends \\\\"}',
+        '{"x": {"y": "}"}, "z": [1, {"w": 2}]}',
+    ]
+    assert state[0] == len(buffer)
+
+
 def test_iterable_tasks_from_chunks_handles_braces_inside_strings() -> None:
     chunks = [
         '{"tasks": [',

@@ -22,6 +22,11 @@ else:  # pragma: no cover - Python 3.9 has no runtime ``X | Y`` syntax
     _UNION_ORIGINS = (Union,)
 
 
+# Resumable object scanner state: (next index, brace depth, in string, escape next).
+_ScanState = tuple[int, int, bool, bool]
+_SCAN_START: _ScanState = (0, 0, False, False)
+
+
 class IterableBase:
     task_type: ClassVar[type[BaseModel] | None] = None
 
@@ -95,15 +100,19 @@ class IterableBase:
     ) -> Generator[BaseModel, None, None]:
         started = False
         potential_object = ""
+        scan_state = _SCAN_START
         for chunk in json_chunks:
             potential_object += chunk
             if not started:
                 if "[" in chunk:
                     started = True
                     potential_object = chunk[chunk.find("[") + 1 :]
+                    scan_state = _SCAN_START
 
             while True:
-                task_json, potential_object = cls.get_object(potential_object, 0)
+                task_json, potential_object, scan_state = cls._scan_object(
+                    potential_object, scan_state
+                )
                 if task_json:
                     assert cls.task_type is not None
                     obj = cls.extract_cls_task_type(task_json, **kwargs)
@@ -117,15 +126,19 @@ class IterableBase:
     ) -> AsyncGenerator[BaseModel, None]:
         started = False
         potential_object = ""
+        scan_state = _SCAN_START
         async for chunk in json_chunks:
             potential_object += chunk
             if not started:
                 if "[" in chunk:
                     started = True
                     potential_object = chunk[chunk.find("[") + 1 :]
+                    scan_state = _SCAN_START
 
             while True:
-                task_json, potential_object = cls.get_object(potential_object, 0)
+                task_json, potential_object, scan_state = cls._scan_object(
+                    potential_object, scan_state
+                )
                 if task_json:
                     assert cls.task_type is not None
                     obj = cls.extract_cls_task_type(task_json, **kwargs)
@@ -177,10 +190,19 @@ class IterableBase:
 
     @staticmethod
     def get_object(s: str, stack: int) -> tuple[str | None, str]:
-        start_index = s.find("{")
-        in_string = False
-        escape_next = False
-        for i, c in enumerate(s):
+        task_json, remaining, _ = IterableBase._scan_object(s, (0, stack, False, False))
+        return task_json, remaining
+
+    @staticmethod
+    def _scan_object(s: str, state: _ScanState) -> tuple[str | None, str, _ScanState]:
+        """Find the first complete object in ``s``, resuming from ``state``.
+
+        ``state`` is the state returned by a previous call on a prefix of ``s``,
+        so a buffer that grows one chunk at a time is scanned once instead of
+        from the start on every chunk.
+        """
+        start, stack, in_string, escape_next = state
+        for i, c in enumerate(s[start:], start):
             if escape_next:
                 escape_next = False
             elif c == "\\" and in_string:
@@ -197,8 +219,8 @@ class IterableBase:
             elif c == "}":
                 stack -= 1
                 if stack == 0:
-                    return s[start_index : i + 1], s[i + 2 :]
-        return None, s
+                    return s[s.find("{") : i + 1], s[i + 2 :], _SCAN_START
+        return None, s, (len(s), stack, in_string, escape_next)
 
 
 def IterableModel(
