@@ -78,3 +78,38 @@ def test_is_async_returns_true_if_triple_wrapped_function_is_async():
         pass
 
     assert is_async(triple_wrapped_function) is True
+
+
+def test_is_async_returns_true_for_callable_object_with_async_call():
+    """Callable objects with async __call__ must be detected as async (issue #2740)."""
+
+    class AsyncCallable:
+        async def __call__(self, **kwargs):
+            pass
+
+    assert is_async(AsyncCallable()) is True
+
+
+def test_is_async_returns_false_for_callable_object_with_sync_call():
+    class SyncCallable:
+        def __call__(self, **kwargs):
+            pass
+
+    assert is_async(SyncCallable()) is False
+
+
+def test_is_async_returns_true_for_sync_wrapper_delegating_to_async_callable():
+    """A sync wrapper with __wrapped__ pointing to an async callable is async."""
+
+    class AsyncCallable:
+        async def __call__(self, **kwargs):
+            pass
+
+    ac = AsyncCallable()
+
+    def sync_wrapper(**kwargs):
+        return ac(**kwargs)
+
+    sync_wrapper.__wrapped__ = ac  # type: ignore[attr-defined]
+
+    assert is_async(sync_wrapper) is True
