@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from instructor import Provider
+from instructor import Mode, Provider
 from instructor.v2.auto_client import _PROVIDER_BUILDERS, supported_providers
+from instructor.v2.core.mode import DEPRECATED_TO_CORE
 from instructor.v2.core.provider_specs import ALIAS_TO_PROVIDER, PROVIDER_SPECS
 
 
@@ -30,3 +31,14 @@ def test_first_class_specs_are_self_canonical() -> None:
         }:
             continue
         assert spec.canonical_provider is spec.provider
+
+
+def test_deprecated_modes_keep_canonical_mode_classification() -> None:
+    tool_modes = Mode.tool_modes()
+    json_modes = Mode.json_modes()
+
+    for deprecated, canonical in DEPRECATED_TO_CORE.items():
+        if canonical in tool_modes:
+            assert deprecated in tool_modes
+        if canonical in json_modes:
+            assert deprecated in json_modes

@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Mode classification**: Classify deprecated Google GenAI JSON aliases consistently with their canonical JSON modes. ([#2814](https://github.com/567-labs/instructor/pull/2814))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
