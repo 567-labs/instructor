@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Documentation**: Clarify that `from_provider` splits on the first slash and permits slashes within model names; distinguish malformed strings from provider model availability.
+
 ## [1.18.0] - 2026-09-26
 
 ### Added

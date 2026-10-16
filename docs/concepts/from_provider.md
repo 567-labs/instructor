@@ -82,18 +82,23 @@ See the [Integrations](../integrations/index.md) section for complete provider d
 
 ## Provider String Format
 
-The provider string follows the format: `"provider/model-name"`
+The provider string follows the format: `"provider/model-name"`. The first slash
+separates the provider from the model name. Both parts must be non-empty, but the
+model name can contain more slashes, as in Together and OpenRouter identifiers.
+A valid format does not guarantee that a model is available from the provider.
 
 ```python
 # Correct formats
 "openai/gpt-4o"
 "anthropic/claude-3-5-sonnet-20241022"
 "google/gemini-2.5-flash"
+"together/meta-llama/Llama-3-70b"
+"openrouter/meta-llama/llama-3.1-70b"
 
 # Incorrect formats (will raise errors)
 "gpt-4o"  # Missing provider prefix
-"openai"  # Missing model name
-"openai/gpt-4o/mini"  # Too many slashes
+"openai/"  # Empty model name
+"/gpt-4o"  # Empty provider
 ```
 
 ## Async Clients
