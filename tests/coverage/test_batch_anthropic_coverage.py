@@ -241,6 +241,21 @@ def test_retrieve_results_serializes_every_sdk_result(monkeypatch, beta):
     assert batches.result_ids == ["batch_123"]
 
 
+def test_download_results_writes_utf8_for_non_ascii(monkeypatch, tmp_path):
+    """Non-ASCII model output is written as UTF-8 rather than crashing on a
+    non-UTF-8 default locale (e.g. cp1252 on Windows)."""
+    result = make_result("one", "Café ☕ 東京")
+    batches = RecordingBatches(results=[result])
+    install_client(monkeypatch, batches)
+    path = tmp_path / "results.jsonl"
+
+    AnthropicProvider().download_results("batch_123", str(path))
+
+    written = path.read_text(encoding="utf-8")
+    assert written == f"{result.model_dump_json()}\n"
+    assert "Café ☕ 東京" in written
+
+
 @pytest.mark.parametrize("status", ["failed", "cancelled", "expired"])
 def test_retrieve_results_rejects_terminal_failure_states(monkeypatch, status):
     batch = SimpleNamespace(id="batch_123", processing_status=status)

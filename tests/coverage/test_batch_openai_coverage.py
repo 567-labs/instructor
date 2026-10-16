@@ -263,6 +263,25 @@ def test_completed_batch_reads_or_writes_results(
     assert client.files.content_ids == ["file_output"]
 
 
+def test_download_results_writes_utf8_for_non_ascii(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Non-ASCII result text is written as UTF-8 rather than crashing on a
+    non-UTF-8 default locale (e.g. cp1252 on Windows)."""
+    counts = SimpleNamespace(total=2, completed=1, failed=1)
+    batch = BatchResponse(request_counts=counts)
+    client = OpenAIClient([batch])
+    client.files.text = '{"custom_id": "one", "response": "Café ☕ 東京"}\n'
+    provider = install_client(monkeypatch, client)
+    destination = tmp_path / "results.jsonl"
+
+    provider.download_results("batch_123", str(destination))
+
+    written = destination.read_text(encoding="utf-8")
+    assert written == client.files.text
+    assert "Café ☕ 東京" in written
+
+
 @pytest.mark.parametrize("operation", ["retrieve", "download"])
 def test_results_wait_for_output_file_then_succeed(
     monkeypatch: pytest.MonkeyPatch,
