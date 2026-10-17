@@ -62,6 +62,9 @@ if status["status"] in ["completed", "ended", "JOB_STATE_SUCCEEDED"]:
         print(f"Name: {user.name}, Age: {user.age}")
 ```
 
+File-based batches replace the destination only after every request has been written.
+If a request cannot be serialized, the existing file stays unchanged and the temporary file is removed.
+
 ## In-Memory Processing
 
 For serverless deployments, use in-memory mode by setting `file_path=None`:

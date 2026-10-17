@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Batch files**: Preserve the destination when a request cannot be serialized, and remove incomplete temporary files. ([#2816](https://github.com/567-labs/instructor/pull/2816))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
