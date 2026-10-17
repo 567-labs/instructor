@@ -500,3 +500,106 @@ def test_extract_returns_none_for_missing_malformed_or_unknown_provider_response
         openai._extract_from_response({"response": {"body": {"choices": []}}}) is None
     )
     assert unknown._extract_from_response({"anything": "goes"}) is None
+
+
+def test_openai_results_preserve_provider_error_details() -> None:
+    processor = BatchProcessor("openai/gpt-4.1-mini", Person)
+    lines = [
+        openai_result("req-1", '{"name": "Ada", "age": 36}'),
+        json.dumps(
+            {
+                "custom_id": "req-2",
+                "response": None,
+                "error": {
+                    "code": "batch_expired",
+                    "message": "Completion window expired",
+                },
+            }
+        ),
+        json.dumps(
+            {
+                "custom_id": "req-3",
+                "response": {
+                    "status_code": 400,
+                    "body": {
+                        "error": {
+                            "code": "context_length_exceeded",
+                            "message": "Maximum context length exceeded",
+                            "type": "invalid_request_error",
+                        }
+                    },
+                },
+                "error": None,
+            }
+        ),
+        json.dumps(
+            {
+                "custom_id": "req-4",
+                "response": {
+                    "status_code": 400,
+                    "body": {
+                        "error": {
+                            "message": "Invalid parameter",
+                            "type": "invalid_request_error",
+                        }
+                    },
+                },
+                "error": None,
+            }
+        ),
+    ]
+
+    results = processor.parse_results("\n".join(lines))
+
+    assert len(results) == 4
+    assert isinstance(results[0], BatchSuccess)
+    assert results[0].custom_id == "req-1"
+    assert results[0].result == Person(name="Ada", age=36)
+
+    assert isinstance(results[1], BatchError)
+    assert results[1].custom_id == "req-2"
+    assert results[1].error_type == "batch_expired"
+    assert results[1].error_message == "Completion window expired"
+
+    assert isinstance(results[2], BatchError)
+    assert results[2].custom_id == "req-3"
+    assert results[2].error_type == "context_length_exceeded"
+    assert results[2].error_message == "Maximum context length exceeded"
+
+    assert isinstance(results[3], BatchError)
+    assert results[3].custom_id == "req-4"
+    assert results[3].error_type == "invalid_request_error"
+    assert results[3].error_message == "Invalid parameter"
+
+    edge_lines = [
+        json.dumps(
+            {
+                "custom_id": "req-5",
+                "response": {"status_code": 500, "body": {}},
+            }
+        ),
+        json.dumps(
+            {
+                "custom_id": "req-6",
+                "response": None,
+                "error": "rate limit reached",
+            }
+        ),
+        json.dumps(
+            {
+                "custom_id": "req-7",
+                "response": {
+                    "status_code": 400,
+                    "body": {"error": "bad request"},
+                },
+            }
+        ),
+    ]
+    edge_results = processor.parse_results("\n".join(edge_lines))
+    assert len(edge_results) == 3
+    assert edge_results[0].error_type == "openai_error"
+    assert edge_results[0].error_message == "HTTP 500 error"
+    assert edge_results[1].error_type == "openai_error"
+    assert edge_results[1].error_message == "rate limit reached"
+    assert edge_results[2].error_type == "openai_error"
+    assert edge_results[2].error_message == "bad request"

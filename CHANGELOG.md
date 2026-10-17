@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Batch processing**: Preserve OpenAI error codes and messages from top-level and response-body error objects in `BatchProcessor.parse_results`. ([#2819](https://github.com/instructor-ai/instructor/issues/2819))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added

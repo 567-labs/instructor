@@ -255,6 +255,42 @@ class BatchProcessor(Generic[T]):
                             else:
                                 error_message = str(error_info)
                                 error_type = "anthropic_error"
+                    elif self.provider_name == "openai":
+                        if data.get("error"):
+                            error_info = data["error"]
+                            if isinstance(error_info, dict):
+                                error_message = (
+                                    error_info.get("message") or "Unknown OpenAI error"
+                                )
+                                error_type = (
+                                    error_info.get("code")
+                                    or error_info.get("type")
+                                    or "openai_error"
+                                )
+                            else:
+                                error_message = str(error_info)
+                                error_type = "openai_error"
+                        elif isinstance(data.get("response"), dict):
+                            resp = data["response"]
+                            body = resp.get("body")
+                            if isinstance(body, dict) and body.get("error"):
+                                error_info = body["error"]
+                                if isinstance(error_info, dict):
+                                    error_message = (
+                                        error_info.get("message")
+                                        or "Unknown OpenAI error"
+                                    )
+                                    error_type = (
+                                        error_info.get("code")
+                                        or error_info.get("type")
+                                        or "openai_error"
+                                    )
+                                else:
+                                    error_message = str(error_info)
+                                    error_type = "openai_error"
+                            elif "status_code" in resp and resp["status_code"] != 200:
+                                error_type = "openai_error"
+                                error_message = f"HTTP {resp['status_code']} error"
 
                     error_result = BatchError(
                         custom_id=custom_id,
