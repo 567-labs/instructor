@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Batch processing**: Reject token-limited truncated responses (`finish_reason="length"` for OpenAI, `stop_reason="max_tokens"` for Anthropic) as `BatchError` with `token_limit_exceeded` instead of treating partial contents as successful when defaults satisfy the model. ([#2817](https://github.com/instructor-ai/instructor/issues/2817))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added

@@ -217,6 +217,17 @@ class BatchProcessor(Generic[T]):
             try:
                 data = json.loads(line)
                 custom_id = data.get("custom_id", "unknown")
+
+                if self._is_truncated(data):
+                    error_result = BatchError(
+                        custom_id=custom_id,
+                        error_type="token_limit_exceeded",
+                        error_message="Response truncated due to token limit",
+                        raw_data=data,
+                    )
+                    results.append(error_result)
+                    continue
+
                 extracted_data = self._extract_from_response(data)
 
                 if extracted_data is not None:
@@ -274,6 +285,31 @@ class BatchProcessor(Generic[T]):
                 results.append(error_result)
 
         return results
+
+    def _is_truncated(self, data: dict[str, Any]) -> bool:
+        """Check if provider response was truncated due to token limits."""
+        try:
+            if self.provider_name == "openai":
+                response = data.get("response")
+                if isinstance(response, dict):
+                    body = response.get("body")
+                    if isinstance(body, dict):
+                        choices = body.get("choices")
+                        if isinstance(choices, list) and len(choices) > 0:
+                            first_choice = choices[0]
+                            if isinstance(first_choice, dict):
+                                return first_choice.get("finish_reason") == "length"
+
+            elif self.provider_name == "anthropic":
+                result = data.get("result")
+                if isinstance(result, dict) and result.get("type") == "succeeded":
+                    message = result.get("message")
+                    if isinstance(message, dict):
+                        return message.get("stop_reason") == "max_tokens"
+        except Exception:
+            return False
+
+        return False
 
     def _extract_from_response(self, data: dict[str, Any]) -> dict[str, Any] | None:
         """Extract structured data from provider-specific response format"""

@@ -500,3 +500,72 @@ def test_extract_returns_none_for_missing_malformed_or_unknown_provider_response
         openai._extract_from_response({"response": {"body": {"choices": []}}}) is None
     )
     assert unknown._extract_from_response({"anything": "goes"}) is None
+
+
+def test_batch_processor_rejects_truncated_token_limited_responses() -> None:
+    openai_proc = BatchProcessor("openai/gpt-4.1-mini", DefaultedResult)
+    anthropic_proc = BatchProcessor("anthropic/claude-sonnet", DefaultedResult)
+
+    # 1. OpenAI with finish_reason="length"
+    openai_truncated = json.dumps(
+        {
+            "custom_id": "openai-trunc",
+            "response": {
+                "body": {
+                    "choices": [
+                        {
+                            "finish_reason": "length",
+                            "message": {"content": "{}"},
+                        }
+                    ]
+                }
+            },
+        }
+    )
+    results = openai_proc.parse_results(openai_truncated)
+    assert len(results) == 1
+    assert isinstance(results[0], BatchError)
+    assert results[0].custom_id == "openai-trunc"
+    assert results[0].error_type == "token_limit_exceeded"
+    assert results[0].error_message == "Response truncated due to token limit"
+    assert results[0].raw_data is not None
+
+    # 2. Anthropic tool_use with stop_reason="max_tokens"
+    anthropic_tool_trunc = json.dumps(
+        {
+            "custom_id": "anthropic-tool-trunc",
+            "result": {
+                "type": "succeeded",
+                "message": {
+                    "stop_reason": "max_tokens",
+                    "content": [{"type": "tool_use", "input": {}}],
+                },
+            },
+        }
+    )
+    results = anthropic_proc.parse_results(anthropic_tool_trunc)
+    assert len(results) == 1
+    assert isinstance(results[0], BatchError)
+    assert results[0].custom_id == "anthropic-tool-trunc"
+    assert results[0].error_type == "token_limit_exceeded"
+    assert results[0].error_message == "Response truncated due to token limit"
+
+    # 3. Anthropic text with stop_reason="max_tokens"
+    anthropic_text_trunc = json.dumps(
+        {
+            "custom_id": "anthropic-text-trunc",
+            "result": {
+                "type": "succeeded",
+                "message": {
+                    "stop_reason": "max_tokens",
+                    "content": [{"type": "text", "text": "{}"}],
+                },
+            },
+        }
+    )
+    results = anthropic_proc.parse_results(anthropic_text_trunc)
+    assert len(results) == 1
+    assert isinstance(results[0], BatchError)
+    assert results[0].custom_id == "anthropic-text-trunc"
+    assert results[0].error_type == "token_limit_exceeded"
+    assert results[0].error_message == "Response truncated due to token limit"
