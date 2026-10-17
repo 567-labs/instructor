@@ -456,6 +456,92 @@ def test_anthropic_error_and_empty_results_keep_provider_details(
     assert parsed[0].error_message == expected_message
 
 
+@pytest.mark.parametrize(
+    ("record", "expected_type", "expected_message"),
+    [
+        (
+            {
+                "custom_id": "failed",
+                "response": None,
+                "error": {
+                    "code": "batch_expired",
+                    "message": "Completion window expired",
+                },
+            },
+            "batch_expired",
+            "Completion window expired",
+        ),
+        (
+            {
+                "custom_id": "req-400",
+                "response": {
+                    "status_code": 400,
+                    "body": {
+                        "error": {
+                            "message": "The model xyz does not exist",
+                            "type": "invalid_request_error",
+                            "code": "model_not_found",
+                        }
+                    },
+                },
+                "error": None,
+            },
+            "model_not_found",
+            "The model xyz does not exist",
+        ),
+        (
+            {
+                "custom_id": "req-type-only",
+                "response": {
+                    "status_code": 400,
+                    "body": {
+                        "error": {
+                            "message": "Bad request",
+                            "type": "invalid_request_error",
+                        }
+                    },
+                },
+                "error": None,
+            },
+            "invalid_request_error",
+            "Bad request",
+        ),
+        (
+            {
+                "custom_id": "req-str-error",
+                "response": None,
+                "error": "service unavailable",
+            },
+            "openai_error",
+            "service unavailable",
+        ),
+        (
+            {
+                "custom_id": "missing-response",
+            },
+            "extraction_error",
+            "Unknown error",
+        ),
+    ],
+)
+def test_openai_error_results_keep_provider_details(
+    provider: RecordingProvider,
+    record: dict[str, Any],
+    expected_type: str,
+    expected_message: str,
+) -> None:
+    del provider
+    processor = BatchProcessor("openai/gpt-4.1-mini", Person)
+
+    parsed = processor.parse_results(json.dumps(record))
+
+    assert len(parsed) == 1
+    assert isinstance(parsed[0], BatchError)
+    assert parsed[0].custom_id == record.get("custom_id", "unknown")
+    assert parsed[0].error_type == expected_type
+    assert parsed[0].error_message == expected_message
+
+
 def test_extract_returns_none_for_missing_malformed_or_unknown_provider_responses(
     provider: RecordingProvider,
 ) -> None:
