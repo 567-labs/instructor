@@ -368,6 +368,64 @@ def test_parse_results_accepts_empty_object_for_defaulted_model(
     ]
 
 
+@pytest.mark.parametrize(
+    "provider_name,content_type",
+    [
+        ("openai", "text"),
+        ("anthropic", "tool_use"),
+        ("anthropic", "text"),
+    ],
+)
+@pytest.mark.parametrize("truncated", [False, True])
+def test_parse_results_checks_token_limit_before_applying_defaults(
+    provider_name: str, content_type: str, truncated: bool
+) -> None:
+    if provider_name == "openai":
+        record = {
+            "custom_id": "request-1",
+            "response": {
+                "body": {
+                    "choices": [
+                        {
+                            "finish_reason": "length" if truncated else "stop",
+                            "message": {"content": "{}"},
+                        }
+                    ]
+                }
+            },
+        }
+    else:
+        stop_reason = "tool_use" if content_type == "tool_use" else "end_turn"
+        record = {
+            "custom_id": "request-1",
+            "result": {
+                "type": "succeeded",
+                "message": {
+                    "stop_reason": "max_tokens" if truncated else stop_reason,
+                    "content": [{"type": "tool_use", "input": {}}]
+                    if content_type == "tool_use"
+                    else [{"type": "text", "text": "{}"}],
+                },
+            },
+        }
+    processor = BatchProcessor(f"{provider_name}/test-model", DefaultedResult)
+
+    results = processor.parse_results(json.dumps(record))
+
+    if truncated:
+        assert len(results) == 1
+        error = results[0]
+        assert isinstance(error, BatchError)
+        assert error.custom_id == "request-1"
+        assert error.error_type == "incomplete_output"
+        assert "max_tokens" in error.error_message
+        assert error.raw_data == record
+    else:
+        assert results == [
+            BatchSuccess(custom_id="request-1", result=DefaultedResult())
+        ]
+
+
 def test_anthropic_results_support_tool_use_and_text_fallback(
     provider: RecordingProvider,
 ) -> None:

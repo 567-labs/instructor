@@ -181,6 +181,10 @@ if "request-1" in by_id:
         print(f"Error: {result.error_message}")
 ```
 
+Responses that hit the token limit return `BatchError` with `error_type="incomplete_output"`.
+This also applies when the partial JSON is valid or missing fields have defaults.
+The error keeps the request's `custom_id` and raw response so you can retry it with a higher token limit.
+
 ### Custom IDs
 
 By default, requests get the IDs `request-0`, `request-1`, and so on. Pass `custom_ids` to use your own IDs. This makes it easier to match results, including failed ones, back to your data:

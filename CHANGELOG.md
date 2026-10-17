@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Batch parsing**: Return an incomplete-output error for OpenAI and Anthropic responses that hit their token limit, even when the partial data satisfies the response model. ([#2818](https://github.com/567-labs/instructor/pull/2818))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added

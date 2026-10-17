@@ -14,6 +14,7 @@ import re
 from .models import BatchResult, BatchSuccess, BatchError, BatchJobInfo, T
 from .request import BatchRequest
 from .providers import get_provider
+from instructor.v2.core.errors import IncompleteOutputException
 
 _ANTHROPIC_CUSTOM_ID = re.compile(r"[a-zA-Z0-9_-]{1,64}")
 
@@ -264,6 +265,15 @@ class BatchProcessor(Generic[T]):
                     )
                     results.append(error_result)
 
+            except IncompleteOutputException as e:
+                results.append(
+                    BatchError(
+                        custom_id=custom_id,
+                        error_type="incomplete_output",
+                        error_message=str(e),
+                        raw_data=data,
+                    )
+                )
             except Exception as e:
                 error_result = BatchError(
                     custom_id="unknown",
@@ -280,7 +290,10 @@ class BatchProcessor(Generic[T]):
         try:
             if self.provider_name == "openai":
                 # OpenAI JSON schema response
-                content = data["response"]["body"]["choices"][0]["message"]["content"]
+                choice = data["response"]["body"]["choices"][0]
+                if choice.get("finish_reason") == "length":
+                    raise IncompleteOutputException(last_completion=data)
+                content = choice["message"]["content"]
                 return json.loads(content)
 
             if self.provider_name == "anthropic":
@@ -297,6 +310,8 @@ class BatchProcessor(Generic[T]):
 
                 # Handle successful message result
                 if result.get("type") == "succeeded" and "message" in result:
+                    if result["message"].get("stop_reason") == "max_tokens":
+                        raise IncompleteOutputException(last_completion=data)
                     content = result["message"]["content"]
                     if isinstance(content, list) and len(content) > 0:
                         # Try tool_use first
@@ -315,6 +330,8 @@ class BatchProcessor(Generic[T]):
 
                 return None
 
+        except IncompleteOutputException:
+            raise
         except Exception:
             return None
 
