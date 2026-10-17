@@ -500,3 +500,81 @@ def test_extract_returns_none_for_missing_malformed_or_unknown_provider_response
         openai._extract_from_response({"response": {"body": {"choices": []}}}) is None
     )
     assert unknown._extract_from_response({"anything": "goes"}) is None
+
+
+@pytest.mark.parametrize(
+    "record,error_type,error_message",
+    [
+        (
+            {
+                "custom_id": "failed",
+                "response": None,
+                "error": {
+                    "code": "batch_expired",
+                    "message": "Completion window expired",
+                },
+            },
+            "batch_expired",
+            "Completion window expired",
+        ),
+        (
+            {
+                "custom_id": "failed",
+                "response": {
+                    "status_code": 400,
+                    "body": {
+                        "error": {
+                            "type": "invalid_request_error",
+                            "code": None,
+                            "message": "Invalid request",
+                        }
+                    },
+                },
+                "error": None,
+            },
+            "invalid_request_error",
+            "Invalid request",
+        ),
+        (
+            {
+                "custom_id": "failed",
+                "response": {
+                    "status_code": 400,
+                    "body": {
+                        "error": {
+                            "type": "invalid_request_error",
+                            "code": "invalid_parameter",
+                            "message": "Unsupported parameter",
+                        }
+                    },
+                },
+            },
+            "invalid_parameter",
+            "Unsupported parameter",
+        ),
+    ],
+)
+def test_parse_results_preserves_openai_error_details_in_mixed_batch(
+    record: dict[str, Any], error_type: str, error_message: str
+) -> None:
+    processor = BatchProcessor("openai/test-model", Person)
+    content = "\n".join(
+        [
+            openai_result("first", '{"name":"Ada","age":36}'),
+            json.dumps(record),
+            openai_result("last", '{"name":"Lin","age":28}'),
+        ]
+    )
+
+    results = processor.parse_results(content)
+
+    assert results == [
+        BatchSuccess(custom_id="first", result=Person(name="Ada", age=36)),
+        BatchError(
+            custom_id="failed",
+            error_type=error_type,
+            error_message=error_message,
+            raw_data=record,
+        ),
+        BatchSuccess(custom_id="last", result=Person(name="Lin", age=28)),
+    ]

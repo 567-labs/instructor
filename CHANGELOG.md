@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **OpenAI batch errors**: Preserve provider codes, types and messages from failed batch records instead of returning an unknown extraction error. ([#2820](https://github.com/567-labs/instructor/pull/2820))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added

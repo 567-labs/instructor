@@ -255,6 +255,20 @@ class BatchProcessor(Generic[T]):
                             else:
                                 error_message = str(error_info)
                                 error_type = "anthropic_error"
+                    elif self.provider_name == "openai":
+                        response = data.get("response") or {}
+                        error_info = data.get("error") or response.get("body", {}).get(
+                            "error"
+                        )
+                        if isinstance(error_info, dict):
+                            error_message = (
+                                error_info.get("message") or "Unknown OpenAI error"
+                            )
+                            error_type = (
+                                error_info.get("code")
+                                or error_info.get("type")
+                                or "openai_error"
+                            )
 
                     error_result = BatchError(
                         custom_id=custom_id,

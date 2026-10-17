@@ -228,6 +228,9 @@ instructor batch results --batch-id "batch_abc123" --output-file results.jsonl
 
 ## Troubleshooting
 
+When parsing OpenAI error records, `BatchError` keeps the provider's error code
+(or error type), message, `custom_id` and raw record. This includes expired requests in an error file.
+
 | Issue | Solution |
 |-------|----------|
 | Missing GCS_BUCKET (Google) | Set the `GCS_BUCKET` environment variable |
