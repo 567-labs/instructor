@@ -8,7 +8,6 @@ for batch processing across different LLM providers.
 from __future__ import annotations
 from typing import Any, Generic
 import json
-import os
 import io
 import re
 from .models import BatchResult, BatchSuccess, BatchError, BatchJobInfo, T
@@ -67,26 +66,8 @@ class BatchProcessor(Generic[T]):
         else:
             self._validate_custom_ids(custom_ids, len(messages_list))
 
-        if file_path is not None:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-
-            batch_requests = []
-            for custom_id, messages in zip(custom_ids, messages_list):
-                batch_request = BatchRequest[T](
-                    custom_id=custom_id,
-                    messages=messages,
-                    response_model=self.response_model,
-                    model=self.model_name,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                )
-                batch_request.save_to_file(file_path, self.provider_name)
-                batch_requests.append(batch_request)
-
-            print(f"Created batch file {file_path} with {len(batch_requests)} requests")
-            return file_path
-        # Create BytesIO buffer - caller is responsible for cleanup
+        # Serialize the complete batch before replacing an on-disk file. This keeps
+        # existing output intact and avoids leaving a partial new file on errors.
         buffer = io.BytesIO()
         batch_requests = []
         for custom_id, messages in zip(custom_ids, messages_list):
@@ -101,6 +82,13 @@ class BatchProcessor(Generic[T]):
             batch_request.save_to_file(buffer, self.provider_name)
             batch_requests.append(batch_request)
 
+        if file_path is not None:
+            with open(file_path, "wb") as file:
+                file.write(buffer.getbuffer())
+            print(f"Created batch file {file_path} with {len(batch_requests)} requests")
+            return file_path
+
+        # Caller is responsible for cleaning up the in-memory buffer.
         print(f"Created batch buffer with {len(batch_requests)} requests")
         buffer.seek(0)  # Reset buffer position for reading
         return buffer

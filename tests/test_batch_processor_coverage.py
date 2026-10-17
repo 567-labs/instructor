@@ -149,6 +149,31 @@ def test_create_batch_file_creates_a_new_output_file(
     assert request["body"]["messages"] == [{"role": "user", "content": "Ada is 36"}]
 
 
+@pytest.mark.parametrize("existing_file", [False, True], ids=["new", "existing"])
+def test_create_batch_file_does_not_write_partial_output_on_serialization_error(
+    provider: RecordingProvider, tmp_path: Path, existing_file: bool
+) -> None:
+    del provider
+    batch_file = tmp_path / "requests.jsonl"
+    if existing_file:
+        batch_file.write_text("previous batch\n")
+
+    processor = BatchProcessor("openai/gpt-4.1-mini", Person)
+    with pytest.raises(TypeError, match="not JSON serializable"):
+        processor.create_batch_from_messages(
+            [
+                [{"role": "user", "content": "Ada is 36"}],
+                [{"role": "user", "content": object()}],
+            ],
+            str(batch_file),
+        )
+
+    if existing_file:
+        assert batch_file.read_text() == "previous batch\n"
+    else:
+        assert not batch_file.exists()
+
+
 def test_create_batch_buffer_is_readable_from_start(
     provider: RecordingProvider, capsys: pytest.CaptureFixture[str]
 ) -> None:
