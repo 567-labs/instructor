@@ -11,6 +11,8 @@ import json
 import os
 import io
 import re
+import stat
+import tempfile
 from .models import BatchResult, BatchSuccess, BatchError, BatchJobInfo, T
 from .request import BatchRequest
 from .providers import get_provider
@@ -68,21 +70,44 @@ class BatchProcessor(Generic[T]):
             self._validate_custom_ids(custom_ids, len(messages_list))
 
         if file_path is not None:
-            if os.path.exists(file_path):
-                os.remove(file_path)
+            dir_name = os.path.dirname(os.path.abspath(file_path)) or "."
+            os.makedirs(dir_name, exist_ok=True)
+            existing_mode = (
+                stat.S_IMODE(os.stat(file_path).st_mode)
+                if os.path.exists(file_path)
+                else None
+            )
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                dir=dir_name,
+                delete=False,
+                encoding="utf-8",
+                suffix=".tmp",
+            ) as temp_file:
+                temp_path = temp_file.name
 
-            batch_requests = []
-            for custom_id, messages in zip(custom_ids, messages_list):
-                batch_request = BatchRequest[T](
-                    custom_id=custom_id,
-                    messages=messages,
-                    response_model=self.response_model,
-                    model=self.model_name,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                )
-                batch_request.save_to_file(file_path, self.provider_name)
-                batch_requests.append(batch_request)
+            try:
+                batch_requests = []
+                for custom_id, messages in zip(custom_ids, messages_list):
+                    batch_request = BatchRequest[T](
+                        custom_id=custom_id,
+                        messages=messages,
+                        response_model=self.response_model,
+                        model=self.model_name,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                    )
+                    batch_request.save_to_file(temp_path, self.provider_name)
+                    batch_requests.append(batch_request)
+
+                if existing_mode is not None:
+                    os.chmod(temp_path, existing_mode)
+
+                os.replace(temp_path, file_path)
+            except Exception:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                raise
 
             print(f"Created batch file {file_path} with {len(batch_requests)} requests")
             return file_path

@@ -500,3 +500,63 @@ def test_extract_returns_none_for_missing_malformed_or_unknown_provider_response
         openai._extract_from_response({"response": {"body": {"choices": []}}}) is None
     )
     assert unknown._extract_from_response({"anything": "goes"}) is None
+
+
+def test_create_batch_file_preserves_previous_file_on_serialization_failure(
+    provider: RecordingProvider, tmp_path: Path
+) -> None:
+    del provider
+    batch_file = tmp_path / "requests.jsonl"
+    batch_file.write_text("previous batch\n")
+    processor = BatchProcessor("openai/gpt-4.1-mini", Person)
+
+    with pytest.raises(TypeError):
+        processor.create_batch_from_messages(
+            [
+                [{"role": "user", "content": "Ada"}],
+                [{"role": "user", "content": object()}],
+            ],
+            str(batch_file),
+        )
+
+    assert batch_file.read_text() == "previous batch\n"
+    assert list(tmp_path.iterdir()) == [batch_file]
+
+
+def test_create_batch_file_does_not_leave_partial_file_on_failure(
+    provider: RecordingProvider, tmp_path: Path
+) -> None:
+    del provider
+    batch_file = tmp_path / "new_requests.jsonl"
+    processor = BatchProcessor("openai/gpt-4.1-mini", Person)
+
+    with pytest.raises(TypeError):
+        processor.create_batch_from_messages(
+            [
+                [{"role": "user", "content": "Ada"}],
+                [{"role": "user", "content": object()}],
+            ],
+            str(batch_file),
+        )
+
+    assert not batch_file.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_create_batch_file_preserves_existing_file_permissions(
+    provider: RecordingProvider, tmp_path: Path
+) -> None:
+    import stat
+
+    del provider
+    batch_file = tmp_path / "requests_perm.jsonl"
+    batch_file.write_text("old\n")
+    batch_file.chmod(0o644)
+    processor = BatchProcessor("openai/gpt-4.1-mini", Person)
+
+    processor.create_batch_from_messages(
+        [[{"role": "user", "content": "Ada is 36"}]],
+        str(batch_file),
+    )
+
+    assert stat.S_IMODE(batch_file.stat().st_mode) == 0o644

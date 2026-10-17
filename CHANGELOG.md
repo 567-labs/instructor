@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Batch file creation**: Atomically write batch requests to a temporary file before replacing the destination in `BatchProcessor.create_batch_from_messages`, preserving the existing batch file on serialization failures. ([#2815](https://github.com/instructor-ai/instructor/issues/2815))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
