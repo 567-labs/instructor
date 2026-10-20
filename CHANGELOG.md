@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **PDF autodetection**: Recognize raw Base64 PDF input when probing it as a path exceeds the filesystem's filename limit, so automatic message conversion sends document content instead of plain text. ([#2722](https://github.com/567-labs/instructor/pull/2722))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
