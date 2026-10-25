@@ -221,3 +221,45 @@ def test_unserializable_raw_response_uses_string_fallback(caplog: Any) -> None:
     assert restored.name == "fallback"
     assert restored._raw_response == "[[...]]"
     assert "Raw response could not be serialized as JSON" in caplog.text
+
+
+class Device(BaseModel):
+    model: str
+    year: int
+
+
+class ProductWithRaw(BaseModel):
+    model: str
+    raw: str
+
+
+def test_load_cached_response_accepts_legacy_model_with_model_field() -> None:
+    cache = AutoCache()
+    original = Device(model="ThinkPad", year=2026)
+    cache.set("device", original.model_dump_json())
+
+    restored = load_cached_response(cache, "device", Device)
+
+    assert restored == original
+    assert not hasattr(restored, "_raw_response")
+
+
+def test_load_cached_response_accepts_legacy_model_with_model_and_raw_fields() -> None:
+    cache = AutoCache()
+    original = ProductWithRaw(model="ThinkPad", raw="payload")
+    cache.set("product", original.model_dump_json())
+
+    restored = load_cached_response(cache, "product", ProductWithRaw)
+
+    assert restored == original
+
+
+def test_envelope_with_model_field_roundtrips() -> None:
+    cache = AutoCache()
+    original = Device(model="ThinkPad", year=2026)
+    store_cached_response(cache, "envelope_device", original)
+
+    restored = load_cached_response(cache, "envelope_device", Device)
+
+    assert restored == original
+

@@ -33,13 +33,31 @@ def load_cached_response(
 
     try:
         data = json.loads(cached)
+    except Exception:
+        data = None
+
+    if isinstance(data, dict) and "model" in data and "raw" in data:
         model_json = data["model"]
         raw_json = data.get("raw")
-    except Exception:
+    else:
         model_json = cached
         raw_json = None
 
-    obj = response_model.model_validate_json(model_json, context=context, strict=strict)
+    try:
+        obj = response_model.model_validate_json(
+            model_json, context=context, strict=strict
+        )
+    except (ValueError, TypeError) as exc:
+        if model_json is not cached:
+            try:
+                obj = response_model.model_validate_json(
+                    cached, context=context, strict=strict
+                )
+                raw_json = None
+            except Exception:
+                raise exc from None
+        else:
+            raise
     if raw_json is not None:
         # `_raw_response` is an internal attribute used by Instructor; it may not
         # be declared on the Pydantic model type.
