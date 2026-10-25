@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Anthropic batch requests**: Omit `temperature` when it is `None` instead of serializing JSON `null`, while preserving numeric values including zero.
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
