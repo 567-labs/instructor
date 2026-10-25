@@ -179,7 +179,6 @@ class BatchRequest(BaseModel, Generic[T]):
         params: dict[str, Any] = {
             "model": self.model,
             "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
             "messages": filtered_messages,
             "tools": [
                 {
@@ -190,6 +189,9 @@ class BatchRequest(BaseModel, Generic[T]):
             ],
             "tool_choice": {"type": "tool", "name": "extract_data"},
         }
+
+        if self.temperature is not None:
+            params["temperature"] = self.temperature
 
         # Add system parameter if system message exists
         if system_message:
