@@ -1,5 +1,9 @@
 # Instructor: Structured Outputs for LLMs
 
+<p align="center">
+  <b>English</b> · <a href="https://github.com/567-labs/instructor/blob/main/README.zh.md">简体中文</a>
+</p>
+
 Get reliable JSON from any LLM. Built on Pydantic for validation, type safety, and IDE support.
 
 ```python
