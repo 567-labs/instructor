@@ -66,7 +66,7 @@ By participating in this project, you agree to abide by our code of conduct: tre
    uv sync --extra dev --extra docs --extra test-docs
    
    # Using poetry
-   poetry install --with dev,docs,test-docs
+   poetry install --extras "dev docs test-docs"
    
    # For specific providers, add the provider name as an extra
    # Example: uv sync --extra dev --extra docs --extra test-docs --extra anthropic
@@ -133,12 +133,14 @@ Key UV commands:
 
 Poetry provides more comprehensive dependency management and packaging.
 
+The development and documentation dependencies are project extras in `pyproject.toml`. Select them with `--extras`.
+
 ```bash
 # Install Poetry
 curl -sSL https://install.python-poetry.org | python3 -
 
 # Install dependencies including development deps
-poetry install --with dev,docs
+poetry install --extras "dev docs"
 
 # Add a new dependency
 poetry add package-name
