@@ -217,6 +217,19 @@ class BatchProcessor(Generic[T]):
             try:
                 data = json.loads(line)
                 custom_id = data.get("custom_id", "unknown")
+
+                token_limit = self._token_limit_reason(data)
+                if token_limit is not None:
+                    results.append(
+                        BatchError(
+                            custom_id=custom_id,
+                            error_type="token_limit",
+                            error_message=token_limit,
+                            raw_data=data,
+                        )
+                    )
+                    continue
+
                 extracted_data = self._extract_from_response(data)
 
                 if extracted_data is not None:
@@ -300,6 +313,31 @@ class BatchProcessor(Generic[T]):
                 results.append(error_result)
 
         return results
+
+    def _token_limit_reason(self, data: dict[str, Any]) -> str | None:
+        """Return a reason string when the response hit its token limit.
+
+        The ordinary OpenAI and Anthropic parsers reject truncated completions;
+        batch parsing must do the same, or model defaults can turn a partial
+        response into a "successful" extraction.
+        """
+        try:
+            if self.provider_name == "openai":
+                choice = data["response"]["body"]["choices"][0]
+                if choice.get("finish_reason") == "length":
+                    return "Response truncated: finish_reason=length"
+            if self.provider_name == "anthropic":
+                result = data.get("result")
+                if (
+                    isinstance(result, dict)
+                    and result.get("type") == "succeeded"
+                    and isinstance(result.get("message"), dict)
+                    and result["message"].get("stop_reason") == "max_tokens"
+                ):
+                    return "Response truncated: stop_reason=max_tokens"
+        except (KeyError, IndexError, TypeError):
+            return None
+        return None
 
     def _extract_from_response(self, data: dict[str, Any]) -> dict[str, Any] | None:
         """Extract structured data from provider-specific response format"""
