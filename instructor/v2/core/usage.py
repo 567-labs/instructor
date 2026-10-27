@@ -97,12 +97,15 @@ def has_compatible_usage(response: object, total_usage: object) -> bool:
     """Return whether a response exposes usage supported by the accumulator."""
     response_usage = getattr(response, "usage", None)
 
-    from openai.types import CompletionUsage as _OpenAIUsage
+    try:
+        from openai.types import CompletionUsage as _OpenAIUsage
 
-    if isinstance(response_usage, _OpenAIUsage) and isinstance(
-        total_usage, _OpenAIUsage
-    ):
-        return True
+        if isinstance(response_usage, _OpenAIUsage) and isinstance(
+            total_usage, _OpenAIUsage
+        ):
+            return True
+    except ImportError:
+        pass
 
     try:
         from anthropic.types import Usage as _AnthropicUsage
@@ -121,14 +124,18 @@ def update_total_usage(
     if response is None:
         return None
 
-    from openai.types import CompletionUsage as _OpenAIUsage
-
     response_usage = getattr(response, "usage", None)
-    if isinstance(response_usage, _OpenAIUsage) and isinstance(
-        total_usage, _OpenAIUsage
-    ):
-        _accumulate_models(response_usage, total_usage)
-        return response
+
+    try:
+        from openai.types import CompletionUsage as _OpenAIUsage
+
+        if isinstance(response_usage, _OpenAIUsage) and isinstance(
+            total_usage, _OpenAIUsage
+        ):
+            _accumulate_models(response_usage, total_usage)
+            return response
+    except ImportError:
+        pass
 
     try:
         from instructor.v2.providers.anthropic.usage import (

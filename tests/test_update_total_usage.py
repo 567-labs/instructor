@@ -41,3 +41,31 @@ def test_update_total_usage_preserves_openai_usage_subclass() -> None:
     assert updated.usage.get("prompt_tokens") == 16
     assert updated.usage.get("completion_tokens") == 10
     assert updated.usage.total_tokens == 26
+
+
+def test_usage_helpers_gracefully_handle_missing_openai() -> None:
+    import sys
+    from typing import Any
+    from unittest.mock import patch
+    from instructor.v2.core.usage import has_compatible_usage, update_total_usage
+    from instructor.v2.core.retry import _initialize_usage
+    from instructor.v2.core.providers import Provider
+
+    class DummyResponse:
+        def __init__(self, usage=None):
+            self.usage = usage
+
+    with patch.dict(
+        sys.modules,
+        {
+            "openai": None,
+            "openai.types": None,
+            "openai.types.completion_usage": None,
+        },
+    ):
+        dummy_total: Any = object()
+        assert not has_compatible_usage(DummyResponse(), dummy_total)
+        res = update_total_usage(DummyResponse(), dummy_total)
+        assert res is not None
+        assert _initialize_usage(Provider.OPENAI) is None
+
