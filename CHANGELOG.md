@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Iterable streaming**: Release upstream streams when started iterable parsing is closed early or fails validation, and forward asynchronous client closure to the underlying parser.
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
