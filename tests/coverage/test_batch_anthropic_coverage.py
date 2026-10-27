@@ -258,18 +258,31 @@ def test_retrieve_results_rejects_in_progress_batch(monkeypatch):
         AnthropicProvider().retrieve_results("batch_123")
 
 
-def test_retrieve_results_rejects_batch_where_every_request_errored(monkeypatch):
+def test_retrieve_results_reads_batch_where_every_request_errored(monkeypatch):
     batch = SimpleNamespace(
         id="batch_123",
         processing_status="ended",
         request_counts=SimpleNamespace(succeeded=0, errored=2, total=2),
     )
-    install_client(monkeypatch, RecordingBatches(batch))
-
-    with pytest.raises(Exception, match="All 2 batch requests failed") as exc:
-        AnthropicProvider().retrieve_results("batch_123")
-
-    assert isinstance(exc.value.__cause__, RuntimeError)
+    result = MessageBatchIndividualResponse.model_validate(
+        {
+            "custom_id": "failed_request",
+            "result": {
+                "type": "errored",
+                "error": {
+                    "type": "error",
+                    "error": {
+                        "type": "invalid_request_error",
+                        "message": "Invalid model",
+                    },
+                },
+            },
+        }
+    )
+    batches = RecordingBatches(batch, results=[result])
+    install_client(monkeypatch, batches)
+    assert AnthropicProvider().retrieve_results("batch_123") == result.model_dump_json()
+    assert batches.result_ids == ["batch_123"]
 
 
 def test_retrieve_results_wraps_results_stream_failure(monkeypatch):
@@ -323,7 +336,7 @@ def test_download_results_rejects_in_progress_batch(monkeypatch, tmp_path):
     assert not path.exists()
 
 
-def test_download_results_rejects_batch_where_every_request_errored(
+def test_download_results_reads_batch_where_every_request_errored(
     monkeypatch, tmp_path
 ):
     batch = SimpleNamespace(
@@ -331,14 +344,28 @@ def test_download_results_rejects_batch_where_every_request_errored(
         processing_status="ended",
         request_counts=SimpleNamespace(succeeded=0, errored=3, total=3),
     )
-    install_client(monkeypatch, RecordingBatches(batch))
+    result = MessageBatchIndividualResponse.model_validate(
+        {
+            "custom_id": "failed_request",
+            "result": {
+                "type": "errored",
+                "error": {
+                    "type": "error",
+                    "error": {
+                        "type": "invalid_request_error",
+                        "message": "Invalid model",
+                    },
+                },
+            },
+        }
+    )
+    batches = RecordingBatches(batch, results=[result])
+    install_client(monkeypatch, batches)
     path = tmp_path / "results.jsonl"
 
-    with pytest.raises(Exception, match="All 3 batch requests failed") as exc:
-        AnthropicProvider().download_results("batch_123", str(path))
-
-    assert isinstance(exc.value.__cause__, RuntimeError)
-    assert not path.exists()
+    AnthropicProvider().download_results("batch_123", str(path))
+    assert path.read_text() == result.model_dump_json() + "\n"
+    assert batches.result_ids == ["batch_123"]
 
 
 def test_download_results_wraps_results_stream_failure(monkeypatch, tmp_path):

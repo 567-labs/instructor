@@ -1,6 +1,12 @@
-from typing_extensions import TypedDict
-from pydantic import BaseModel
-from instructor.processing.response import handle_response_model
+import json
+from typing import Any, Callable, cast
+
+import pytest
+from openai.types.chat import ChatCompletion
+from typing_extensions import NotRequired, TypedDict
+from pydantic import BaseModel, ValidationError
+from instructor import Mode
+from instructor.processing.response import handle_response_model, process_response
 from instructor.v2.core.response import _redact_kwargs
 from instructor.v2.providers.bedrock.handlers import (
     _prepare_bedrock_converse_kwargs_internal,
@@ -20,6 +26,83 @@ def test_typed_dict_conversion() -> None:
 
     _, pydantic_user_tool_definition = handle_response_model(User)
     assert user_tool_definition == pydantic_user_tool_definition
+
+
+@pytest.mark.parametrize(
+    "keys",
+    [
+        ["_id"],
+        ["_"],
+        ["__dunder__"],
+        ["__config__"],
+        ["_id", "field_id", "field_id_"],
+        ["_", "__", "field_", "field__"],
+    ],
+)
+def test_typed_dict_underscore_keys_survive_tool_requests_and_responses(
+    keys: list[str],
+) -> None:
+    typed_dict_factory = cast(Callable[..., type[Any]], TypedDict)
+    record = typed_dict_factory("Record", {key: str for key in keys})
+    model, request = handle_response_model(record, mode=Mode.TOOLS)
+    assert isinstance(model, type) and issubclass(model, BaseModel)
+    schema = request["tools"][0]["function"]["parameters"]
+    assert set(schema["properties"]) == set(keys)
+    assert set(schema["required"]) == set(keys)
+
+    payload = {key: f"value-{index}" for index, key in enumerate(keys)}
+    completion = ChatCompletion.model_validate(
+        {
+            "id": "offline-completion",
+            "object": "chat.completion",
+            "created": 0,
+            "model": "offline-model",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": "tool_calls",
+                    "message": {
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "id": "call-1",
+                                "type": "function",
+                                "function": {
+                                    "name": "Record",
+                                    "arguments": json.dumps(payload),
+                                },
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+    )
+    result = process_response(
+        completion, response_model=model, mode=Mode.TOOLS, stream=False
+    )
+    assert result.model_dump(by_alias=True) == payload
+    assert json.loads(result.model_dump_json(by_alias=True)) == payload
+
+    missing_required = dict(payload)
+    del missing_required[keys[0]]
+    with pytest.raises(ValidationError):
+        model.model_validate(missing_required)
+
+
+def test_iterable_typed_dict_preserves_optional_underscore_key() -> None:
+    class Record(TypedDict):
+        name: str
+        _id: NotRequired[str]
+
+    model, _ = handle_response_model(list[Record], mode=Mode.TOOLS)
+    assert isinstance(model, type) and issubclass(model, BaseModel)
+    result = model.model_validate(
+        {"tasks": [{"name": "first", "_id": "doc-1"}, {"name": "second"}]}
+    )
+    assert result.model_dump(by_alias=True, exclude_unset=True) == {
+        "tasks": [{"name": "first", "_id": "doc-1"}, {"name": "second"}]
+    }
 
 
 def test_redact_kwargs_hides_nested_sensitive_fields() -> None:
