@@ -164,6 +164,19 @@ We also support more complex extraction patterns such as Unions as you'll see be
 
 ---
 
+## Stopping Iteration Early
+
+Once iteration has started, close the iterable if you stop before consuming all
+results. Put synchronous iteration in a `try`/`finally` block and call
+`resp.close()` in `finally`. For asynchronous iteration, use
+`await resp.aclose()` instead. A `break` statement alone does not close a Python
+generator.
+
+The shared iterable parser releases a closable upstream source when parsing ends,
+including validation failures. OpenAI chat-completion and Responses modes use this
+path. This cleanup does not cover partial-model streaming or providers with their
+own iterable parsers.
+
 ## See Also
 
 - [Streaming Lists](./lists.md) - Similar functionality with different API
