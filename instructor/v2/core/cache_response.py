@@ -33,9 +33,25 @@ def load_cached_response(
 
     try:
         data = json.loads(cached)
+    except Exception:
+        data = None
+
+    # store_cached_response writes {"model": <json str>, "raw": <json str|None>},
+    # where the model value is always the JSON object of the response model. A
+    # legacy entry holds the model's JSON directly, and a model with a business
+    # field named "model" (e.g. "ThinkPad") used to satisfy the old data["model"]
+    # probe while not being an envelope. Require the raw key and an object-shaped
+    # model payload so only real envelopes take the envelope path; validation
+    # errors then keep their original meaning on both paths.
+    if (
+        isinstance(data, dict)
+        and "raw" in data
+        and isinstance(data.get("model"), str)
+        and data["model"].lstrip().startswith("{")
+    ):
         model_json = data["model"]
         raw_json = data.get("raw")
-    except Exception:
+    else:
         model_json = cached
         raw_json = None
 
