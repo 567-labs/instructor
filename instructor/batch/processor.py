@@ -11,6 +11,7 @@ import json
 import os
 import io
 import re
+import tempfile
 from .models import BatchResult, BatchSuccess, BatchError, BatchJobInfo, T
 from .request import BatchRequest
 from .providers import get_provider
@@ -68,21 +69,34 @@ class BatchProcessor(Generic[T]):
             self._validate_custom_ids(custom_ids, len(messages_list))
 
         if file_path is not None:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-
-            batch_requests = []
-            for custom_id, messages in zip(custom_ids, messages_list):
-                batch_request = BatchRequest[T](
-                    custom_id=custom_id,
-                    messages=messages,
-                    response_model=self.response_model,
-                    model=self.model_name,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                )
-                batch_request.save_to_file(file_path, self.provider_name)
-                batch_requests.append(batch_request)
+            # Serialize every request into a temporary file first and swap it
+            # into place only after the whole batch serializes, so a failure
+            # cannot overwrite the previous batch or publish a partial one.
+            directory = os.path.dirname(os.path.abspath(file_path))
+            descriptor, temp_path = tempfile.mkstemp(
+                dir=directory, prefix=".batch-", suffix=".jsonl"
+            )
+            os.close(descriptor)
+            try:
+                batch_requests = []
+                for custom_id, messages in zip(custom_ids, messages_list):
+                    batch_request = BatchRequest[T](
+                        custom_id=custom_id,
+                        messages=messages,
+                        response_model=self.response_model,
+                        model=self.model_name,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                    )
+                    batch_request.save_to_file(temp_path, self.provider_name)
+                    batch_requests.append(batch_request)
+            except Exception:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+                raise
+            os.replace(temp_path, file_path)
 
             print(f"Created batch file {file_path} with {len(batch_requests)} requests")
             return file_path
