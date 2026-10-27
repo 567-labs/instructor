@@ -10,6 +10,7 @@ from typing import (
     Union,
 )
 import json
+import inspect
 import sys
 
 from pydantic import BaseModel, Field, create_model
@@ -35,9 +36,14 @@ class IterableBase:
     ) -> Generator[BaseModel, None, None]:
         if stream_extractor is None:
             raise ValueError("stream_extractor is required for streaming responses")
-        json_chunks = stream_extractor(completion)
-        parser = task_parser or cls.tasks_from_chunks
-        yield from parser(json_chunks, **kwargs)
+        try:
+            json_chunks = stream_extractor(completion)
+            parser = task_parser or cls.tasks_from_chunks
+            yield from parser(json_chunks, **kwargs)
+        finally:
+            close = getattr(completion, "close", None)
+            if callable(close):
+                close()
 
     @classmethod
     async def from_streaming_response_async(
@@ -51,10 +57,19 @@ class IterableBase:
     ) -> AsyncGenerator[BaseModel, None]:
         if stream_extractor is None:
             raise ValueError("stream_extractor is required for streaming responses")
-        json_chunks = stream_extractor(completion)
-        parser = task_parser or cls.tasks_from_chunks_async
-        async for item in parser(json_chunks, **kwargs):
-            yield item
+        try:
+            json_chunks = stream_extractor(completion)
+            parser = task_parser or cls.tasks_from_chunks_async
+            async for item in parser(json_chunks, **kwargs):
+                yield item
+        finally:
+            close = getattr(completion, "aclose", None) or getattr(
+                completion, "close", None
+            )
+            if callable(close):
+                result = close()
+                if inspect.isawaitable(result):
+                    await result
 
     @classmethod
     async def tasks_from_task_list_chunks_async(
