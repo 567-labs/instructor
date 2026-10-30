@@ -145,6 +145,16 @@ PROVIDER_SPECS: Mapping[Provider, ProviderSpec] = MappingProxyType(
             alias="deepseek",
             from_function="from_deepseek",
         ),
+        Provider.ZHIPUAI: _openai_compat_spec(
+            Provider.ZHIPUAI,
+            alias="zhipuai",
+            from_function="from_zhipuai",
+        ),
+        Provider.ZAI: _openai_compat_spec(
+            Provider.ZAI,
+            alias="zai",
+            from_function="from_zai",
+        ),
         Provider.OPENROUTER: _spec(
             Provider.OPENROUTER,
             aliases=("openrouter",),
