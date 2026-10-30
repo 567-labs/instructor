@@ -187,6 +187,18 @@ def update_total_usage(
             response_usage.input_tokens = total_usage.prompt_tokens
             response_usage.output_tokens = total_usage.completion_tokens
             response_usage.total_tokens = total_usage.total_tokens
+            if response_usage.input_tokens_details is not None:
+                details = total_usage.prompt_tokens_details
+                if details is not None:
+                    response_usage.input_tokens_details.cached_tokens = (
+                        details.cached_tokens
+                    )
+            if response_usage.output_tokens_details is not None:
+                details = total_usage.completion_tokens_details
+                if details is not None:
+                    response_usage.output_tokens_details.reasoning_tokens = (
+                        details.reasoning_tokens
+                    )
             return response
     except ImportError:
         pass

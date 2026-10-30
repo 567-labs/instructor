@@ -157,9 +157,14 @@ def test_openai_responses_api_usage_accumulates_into_chat_total() -> None:
     assert total.prompt_tokens_details.cached_tokens == 13
     assert total.completion_tokens_details.reasoning_tokens == 5
     # Latest response echoes the running totals back (matches Chat behavior).
+    assert second.usage is not None
+    assert second.usage.input_tokens_details is not None
+    assert second.usage.output_tokens_details is not None
     assert second.usage.total_tokens == 42
     assert second.usage.input_tokens == 30
     assert second.usage.output_tokens == 12
+    assert second.usage.input_tokens_details.cached_tokens == 13
+    assert second.usage.output_tokens_details.reasoning_tokens == 5
 
 
 def test_anthropic_cache_ttl_and_tools_have_separate_semantics() -> None:
