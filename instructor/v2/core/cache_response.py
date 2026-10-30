@@ -102,7 +102,7 @@ def store_cached_response(
         raw_json = None
 
     payload = {
-        "model": model.model_dump_json(),
+        "model": model.model_dump_json(round_trip=True),
         "raw": raw_json,
     }
     cache.set(key, json.dumps(payload), ttl=ttl)

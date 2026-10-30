@@ -420,7 +420,7 @@ def download_file(
             if not results_url:
                 raise ValueError("Results URL not available")
 
-            with open(download_file_path, "w") as file:
+            with open(download_file_path, "w", encoding="utf-8") as file:
                 for result in tqdm(client.messages.batches.results(batch_id)):
                     file.write(json.dumps(result.model_dump()) + "\n")
         else:
@@ -438,7 +438,7 @@ def download_file(
             assert file_id, f"Equivalent Output File not found for {batch_id}"
             file_response = client.files.content(file_id)
 
-            with open(download_file_path, "w") as file:
+            with open(download_file_path, "w", encoding="utf-8") as file:
                 file.write(file_response.text)
 
     except Exception as e:
@@ -476,7 +476,7 @@ def results(
                 return
 
             file_response = client.files.content(file_id)
-            with open(output_file, "w") as f:
+            with open(output_file, "w", encoding="utf-8") as f:
                 f.write(file_response.text)
             console.print(f"[bold green]Results saved to: {output_file}[/bold green]")
 
@@ -495,7 +495,7 @@ def results(
             # Get results from Anthropic batch API
             results_iter = client.beta.messages.batches.results(batch_id)
 
-            with open(output_file, "w") as f:
+            with open(output_file, "w", encoding="utf-8") as f:
                 for result in results_iter:
                     f.write(json.dumps(result.model_dump()) + "\n")
             console.print(f"[bold green]Results saved to: {output_file}[/bold green]")
@@ -534,7 +534,7 @@ def create(
 
         # Load messages from file
         messages_list = []
-        with open(messages_file) as f:
+        with open(messages_file, encoding="utf-8") as f:
             for line in f:
                 if line.strip():
                     messages_list.append(json.loads(line))

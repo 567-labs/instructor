@@ -93,7 +93,7 @@ jobs:
         run: |
           uv run --frozen coverage erase
           uv run --frozen coverage run -m pytest \
-            tests/coverage tests/test_batch_processor_coverage.py \
+            tests/coverage tests/test_batch_processor_coverage.py tests/v2/decisions \
             --asyncio-mode=auto --strict-config --strict-markers \
             -W error::pytest.PytestUnraisableExceptionWarning \
             -W error::pytest.PytestUnhandledThreadExceptionWarning \

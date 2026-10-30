@@ -154,7 +154,21 @@ Required permissions: `roles/aiplatform.user` and `roles/storage.objectUser`.
 
 ## Processing Results
 
+OpenAI batch requests use strict JSON schemas. All named fields are required in
+the output, even when the Pydantic model has defaults. Nullable fields still
+allow `null`. Arbitrary-key dictionaries are not supported by this strict batch
+path; use named model fields or a list of key/value objects instead. Anthropic
+batch requests keep their provider-specific tool schema, including mapping
+value types.
+
 Results use a Maybe/Result pattern for type-safe handling:
+
+For completed OpenAI batches, retrieval reads both the output and error files.
+For ended Anthropic batches, it reads every result, including errors. A batch
+where every request failed returns `BatchError` records rather than raising
+because no requests succeeded. Errors retain the request's `custom_id`, provider
+error details, and original record in `raw_data`. Jobs that are still running
+cannot be retrieved.
 
 ```python
 from instructor.batch import (
@@ -181,11 +195,25 @@ if "request-1" in by_id:
         print(f"Error: {result.error_message}")
 ```
 
+### Custom IDs
+
+By default, requests get the IDs `request-0`, `request-1`, and so on. Pass `custom_ids` to use your own IDs. This makes it easier to match results, including failed ones, back to your data:
+
+```python
+processor.create_batch_from_messages(
+    messages_list,
+    file_path="batch_requests.jsonl",
+    custom_ids=["user_1", "user_2", "user_3"],  # one per conversation, same order
+)
+```
+
+IDs must be unique and match the length of `messages_list`. Anthropic also requires IDs to match `^[a-zA-Z0-9_-]{1,64}$`. Invalid IDs raise a `ValueError` before any request is written.
+
 ## API Reference
 
 | Method | Description |
 |--------|-------------|
-| `create_batch_from_messages(messages_list, file_path=None, ...)` | Create batch file or buffer |
+| `create_batch_from_messages(messages_list, file_path=None, ..., custom_ids=None)` | Create batch file or buffer |
 | `submit_batch(file_path_or_buffer, metadata=None)` | Submit batch job, returns job ID |
 | `get_batch_status(batch_id)` | Get job status |
 | `retrieve_results(batch_id)` | Download and parse results |

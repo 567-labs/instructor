@@ -31,8 +31,13 @@ from instructor.v2.core.errors import (
     ResponseParsingError,
 )
 from instructor.v2.dsl.iterable import IterableBase
-from instructor.v2.dsl.parallel import ParallelBase, ParallelModel, get_types_array
-from instructor.v2.dsl.simple_type import AdapterBase
+from instructor.v2.dsl.parallel import (
+    ParallelBase as ParallelBase,
+    ParallelModel,
+    get_types_array,
+    model_for_tool_name,
+)
+from instructor.v2.dsl.simple_type import AdapterBase as AdapterBase
 from instructor.v2.core.multimodal import convert_messages as convert_messages_v1
 from instructor.v2.core.json import (
     extract_json_from_codeblock,
@@ -524,23 +529,6 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
             return generator
         return list(generator)
 
-    def _finalize_parsed_result(
-        self,
-        response_model: type[BaseModel] | ParallelBase,
-        response: Any,
-        parsed: Any,
-    ) -> Any:
-        """Finalize parsed result, handling DSL types."""
-        if isinstance(parsed, IterableBase):
-            return [task for task in parsed.tasks]  # type: ignore[attr-defined]
-        if isinstance(response_model, ParallelBase):
-            return parsed
-        if isinstance(parsed, AdapterBase):
-            return parsed.content  # type: ignore[attr-defined]
-        if isinstance(parsed, BaseModel):
-            parsed._raw_response = response  # type: ignore[attr-defined]
-        return parsed
-
     def _extract_tool_call_json(self, response: Any) -> str:
         """Extract JSON from tool call response."""
         choices = getattr(response, "choices", None)
@@ -725,21 +713,9 @@ class OpenAIToolsHandler(OpenAIHandlerBase):
         # Handle parallel tools (Iterable[Union[...]])
         origin = get_origin(response_model)
         if origin is TypingIterable:
-            the_types = get_types_array(response_model)  # type: ignore[arg-type]
-            type_registry = {t.__name__: t for t in the_types}
-
-            def parallel_generator() -> Generator[BaseModel, None, None]:
-                for tool_call in response.choices[0].message.tool_calls:
-                    name = tool_call.function.name
-                    if name in type_registry:
-                        model_class = type_registry[name]
-                        yield model_class.model_validate_json(
-                            tool_call.function.arguments,
-                            context=validation_context,
-                            strict=strict,
-                        )
-
-            return parallel_generator()
+            return ParallelModel(response_model).from_response(
+                response, self.mode, validation_context, strict
+            )
 
         # Standard tool call parsing
         json_str = self._extract_tool_call_json(response)
@@ -1040,7 +1016,7 @@ class OpenAIParallelToolsHandler(OpenAIHandlerBase):
 
         # Extract model types from response_model
         the_types = get_types_array(response_model)  # type: ignore[arg-type]
-        type_registry = {t.__name__: t for t in the_types}
+        type_registry = {t.model_json_schema()["title"]: t for t in the_types}
 
         results = []
         tool_calls = choices[0].message.tool_calls
@@ -1053,13 +1029,19 @@ class OpenAIParallelToolsHandler(OpenAIHandlerBase):
         for tool_call in tool_calls:
             name = tool_call.function.name
             args = tool_call.function.arguments
-            if name in type_registry:
-                model = type_registry[name].model_validate_json(
+            model_class = model_for_tool_name(
+                type_registry,
+                name,
+                mode=self.mode,
+                raw_response=response,
+            )
+            results.append(
+                model_class.model_validate_json(
                     args,
                     context=validation_context,
                     strict=strict,
                 )
-                results.append(model)
+            )
 
         return iter(results)
 
@@ -1152,6 +1134,15 @@ class OpenAIResponsesToolsHandler(OpenAIHandlerBase):
                 validation_context,
                 strict,
             )
+
+        if getattr(response, "status", None) == "incomplete":
+            reason = getattr(
+                getattr(response, "incomplete_details", None), "reason", None
+            )
+            message = "The Responses API output is incomplete."
+            if reason is not None:
+                message = f"The Responses API output is incomplete due to {reason}."
+            raise IncompleteOutputException(last_completion=response, message=message)
 
         # Handle Responses API format - output is a list of items
         if hasattr(response, "output"):

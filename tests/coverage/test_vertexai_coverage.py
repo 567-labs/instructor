@@ -388,7 +388,6 @@ def test_vertexai_parallel_parsers_validate_known_calls_and_skip_empty_candidate
                         SimpleNamespace(text="No function call was requested."),
                         SimpleNamespace(function_call=None),
                         _part(name="Weather", args={"city": "Paris"}),
-                        _part(name="Ignored", args={"other": True}),
                         _part(name="Score", args={"value": 9}),
                     ]
                 )

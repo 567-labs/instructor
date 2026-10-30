@@ -169,6 +169,62 @@ def test_create_batch_buffer_is_readable_from_start(
     assert "Created batch buffer with 1 requests" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("model", ["openai/gpt-4.1-mini", "anthropic/claude-sonnet"])
+@pytest.mark.parametrize("write_file", [False, True])
+def test_create_batch_uses_custom_ids(
+    model: str, write_file: bool, tmp_path: Path
+) -> None:
+    processor = BatchProcessor(model, Person)
+
+    output = processor.create_batch_from_messages(
+        [
+            [{"role": "user", "content": "Ada is 36"}],
+            [{"role": "user", "content": "Lin is 28"}],
+        ],
+        file_path=str(tmp_path / "requests.jsonl") if write_file else None,
+        custom_ids=["user_ada", "user-lin"],
+    )
+
+    if isinstance(output, io.BytesIO):
+        contents = output.read().decode("utf-8")
+    else:
+        contents = Path(output).read_text(encoding="utf-8")
+    lines = [json.loads(line) for line in contents.splitlines()]
+    assert [line["custom_id"] for line in lines] == ["user_ada", "user-lin"]
+
+
+@pytest.mark.parametrize(
+    ("model", "custom_ids", "match"),
+    [
+        ("openai/gpt-4.1-mini", ["only-one"], "has 1 items but messages_list has 2"),
+        ("openai/gpt-4.1-mini", ["same", "same"], "must be unique"),
+        ("anthropic/claude-sonnet", ["ok", "user:42"], "Anthropic custom_ids"),
+        ("anthropic/claude-sonnet", ["ok", "x" * 65], "Anthropic custom_ids"),
+    ],
+)
+def test_create_batch_rejects_invalid_custom_ids_before_writing(
+    tmp_path: Path,
+    model: str,
+    custom_ids: list[str],
+    match: str,
+) -> None:
+    batch_file = tmp_path / "requests.jsonl"
+    batch_file.write_text("existing\n")
+    processor = BatchProcessor(model, Person)
+
+    with pytest.raises(ValueError, match=match):
+        processor.create_batch_from_messages(
+            [
+                [{"role": "user", "content": "Ada is 36"}],
+                [{"role": "user", "content": "Lin is 28"}],
+            ],
+            str(batch_file),
+            custom_ids=custom_ids,
+        )
+
+    assert batch_file.read_text() == "existing\n"
+
+
 def test_provider_operations_forward_arguments_and_parse_downloaded_results(
     provider: RecordingProvider, tmp_path: Path
 ) -> None:

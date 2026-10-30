@@ -439,7 +439,6 @@ def test_parallel_tool_request_and_response_support_multiple_models() -> None:
             response(
                 tool_calls=[
                     tool_call("User", {"name": "Ada", "age": 36}, "user"),
-                    tool_call("Unknown", {"ignored": True}, "unknown"),
                     tool_call("Answer", '{"answer": 42.0}', "answer"),
                 ]
             ),
@@ -454,6 +453,15 @@ def test_parallel_tool_request_and_response_support_multiple_models() -> None:
     assert request["tool_choice"] == "any"
     assert "tools" not in original
     assert parsed == [User(name="Ada", age=36), Answer(answer=42.0)]
+    with pytest.raises(ResponseParsingError, match="Unknown"):
+        list(
+            handler.parse_response(
+                response(
+                    tool_calls=[tool_call("Unknown", {"ignored": True}, "unknown")]
+                ),
+                returned_model,
+            )
+        )
 
 
 def test_tools_handler_survives_prose_response_without_tool_calls() -> None:

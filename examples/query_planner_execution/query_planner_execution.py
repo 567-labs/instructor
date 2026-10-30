@@ -47,9 +47,9 @@ class Query(BaseModel):
         ...,
         description="Question we are asking using a question answer system, if we are asking multiple questions, this question is asked by also providing the answers to the sub questions",
     )
-    dependancies: list[int] = Field(
+    dependencies: list[int] = Field(
         default_factory=list,
-        description="List of sub questions that need to be answered before we can ask the question. Use a subquery when anything may be unknown, and we need to ask multiple questions to get the answer. Dependences must only be other queries.",
+        description="List of sub questions that need to be answered before we can ask the question. Use a subquery when anything may be unknown, and we need to ask multiple questions to get the answer. Dependencies must only be other queries.",
     )
     node_type: QueryType = Field(
         default=QueryType.SINGLE_QUESTION,
@@ -58,7 +58,7 @@ class Query(BaseModel):
 
     async def execute(self, dependency_func):
         print("Executing", "`self.question`")
-        print("Executing with", len(self.dependancies), "dependancies")
+        print("Executing with", len(self.dependencies), "dependencies")
 
         if self.node_type == QueryType.SINGLE_QUESTION:
             resp = ComputeQuery(
@@ -68,7 +68,7 @@ class Query(BaseModel):
             pprint(resp.model_dump())
             return resp
 
-        sub_queries = dependency_func(self.dependancies)
+        sub_queries = dependency_func(self.dependencies)
         computed_queries = await asyncio.gather(
             *[q.execute(dependency_func=dependency_func) for q in sub_queries]
         )
@@ -165,19 +165,19 @@ if __name__ == "__main__":
     )
     pprint(plan.dict())
     """
-    {'query_graph': [{'dependancies': [],
+    {'query_graph': [{'dependencies': [],
                     'id': 1,
                     'node_type': <QueryType.SINGLE_QUESTION: 'SINGLE'>,
                     'question': "Identify Jason's home country"},
-                    {'dependancies': [],
+                    {'dependencies': [],
                     'id': 2,
                     'node_type': <QueryType.SINGLE_QUESTION: 'SINGLE'>,
                     'question': 'Find the population of Canada'},
-                    {'dependancies': [1],
+                    {'dependencies': [1],
                     'id': 3,
                     'node_type': <QueryType.SINGLE_QUESTION: 'SINGLE'>,
                     'question': "Find the population of Jason's home country"},
-                    {'dependancies': [2, 3],
+                    {'dependencies': [2, 3],
                     'id': 4,
                     'node_type': <QueryType.SINGLE_QUESTION: 'SINGLE'>,
                     'question': 'Calculate the difference in populations between '
@@ -188,7 +188,7 @@ if __name__ == "__main__":
     """
     Executing query plan from `What is the difference in populations of Canada and Jason's home country?`
     Executing `What is the difference in populations of Canada and Jason's home country?`
-    Executing with 2 dependancies
+    Executing with 2 dependencies
     Executing `What is the population of Canada?`
     Executing `What is the population of Jason's home country?`
     {'query': 'What is the population of Canada?', 'response': '...'}

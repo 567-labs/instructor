@@ -57,7 +57,7 @@ if __name__ == "__main__":
         Create a fastapi app with a readme.md file and a main.py file with
         some basic math functions. the datamodels should use pydantic and
         the main.py should use fastapi. the readme.md should have a title
-        and a description. The readme should contain some helpful infromation
+        and a description. The readme should contain some helpful information
         and a curl example"""
     )
 

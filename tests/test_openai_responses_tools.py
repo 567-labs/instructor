@@ -1,9 +1,16 @@
+from __future__ import annotations
+
+from typing import Literal
 from unittest.mock import MagicMock
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+import pytest
 
 from openai import pydantic_function_tool
+from openai.types.responses import Response, ResponseFunctionToolCall
+from openai.types.responses.response import IncompleteDetails
 
+from instructor.core.exceptions import IncompleteOutputException
 from instructor.v2.providers.openai.handlers import (
     OpenAIResponsesToolsHandler,
     reask_responses_tools,
@@ -196,3 +203,95 @@ def test_parse_response_warns_on_empty_args(caplog) -> None:
             pass
 
     assert any("empty arguments" in record.message for record in caplog.records)
+
+
+@pytest.mark.parametrize("reason", ["max_output_tokens", "content_filter", None])
+@pytest.mark.parametrize("arguments", ['{"name":"Ada"}', "{}", '{"name":1}'])
+def test_incomplete_responses_fail_before_validation(
+    reason: Literal["max_output_tokens", "content_filter"] | None, arguments: str
+) -> None:
+    validation_calls: list[str] = []
+
+    class DefaultedAnswer(BaseModel):
+        name: str = "Ada"
+
+        @model_validator(mode="after")
+        def record_validation(self) -> DefaultedAnswer:
+            validation_calls.append(self.name)
+            return self
+
+    response = Response(
+        id="resp_incomplete",
+        created_at=1,
+        model="local-contract",
+        object="response",
+        status="incomplete",
+        incomplete_details=IncompleteDetails(reason=reason),
+        metadata={"trace": "incomplete-contract"},
+        output=[
+            ResponseFunctionToolCall(
+                type="function_call",
+                call_id="call_incomplete",
+                name="DefaultedAnswer",
+                arguments=arguments,
+                status="completed",
+            )
+        ],
+        parallel_tool_calls=False,
+        tool_choice="auto",
+        tools=[],
+    )
+    original_response = response.model_dump()
+
+    with pytest.raises(IncompleteOutputException) as caught:
+        OpenAIResponsesToolsHandler().parse_response(response, DefaultedAnswer)
+
+    assert caught.value.last_completion is response
+    assert caught.value.last_completion.incomplete_details.reason == reason
+    assert caught.value.last_completion.metadata == {"trace": "incomplete-contract"}
+    assert "incomplete" in str(caught.value)
+    if reason is not None:
+        assert reason in str(caught.value)
+    else:
+        assert "max_tokens" not in str(caught.value)
+    assert validation_calls == []
+    assert response.model_dump() == original_response
+
+
+def test_completed_response_validates_empty_arguments_with_model_defaults() -> None:
+    validation_calls: list[str] = []
+
+    class DefaultedAnswer(BaseModel):
+        name: str = "Ada"
+
+        @model_validator(mode="after")
+        def record_validation(self) -> DefaultedAnswer:
+            validation_calls.append(self.name)
+            return self
+
+    response = Response(
+        id="resp_completed",
+        created_at=1,
+        model="local-contract",
+        object="response",
+        status="completed",
+        output=[
+            ResponseFunctionToolCall(
+                type="function_call",
+                call_id="call_completed",
+                name="DefaultedAnswer",
+                arguments="{}",
+                status="completed",
+            )
+        ],
+        parallel_tool_calls=False,
+        tool_choice="auto",
+        tools=[],
+    )
+
+    result = OpenAIResponsesToolsHandler().parse_response(response, DefaultedAnswer)
+
+    assert type(result) is DefaultedAnswer
+    assert result.name == "Ada"
+    assert validation_calls == ["Ada"]
+    assert result._raw_response is response

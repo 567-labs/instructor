@@ -75,6 +75,9 @@ class Mode(enum.Enum):
     PERPLEXITY_JSON = "perplexity_json"
     OPENROUTER_STRUCTURED_OUTPUTS = "openrouter_structured_outputs"
 
+    # Typed decisions endpoints (not chat completions)
+    DECISIONS = "decisions"
+
     # Classification helpers
     @classmethod
     def tool_modes(cls) -> set["Mode"]:

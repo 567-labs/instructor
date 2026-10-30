@@ -32,8 +32,12 @@ from instructor.v2.core.errors import (
     ResponseParsingError,
 )
 from instructor.v2.dsl.iterable import IterableBase
-from instructor.v2.dsl.parallel import ParallelBase, get_types_array
-from instructor.v2.dsl.simple_type import AdapterBase
+from instructor.v2.dsl.parallel import (
+    ParallelBase as ParallelBase,
+    get_types_array,
+    model_for_tool_name,
+)
+from instructor.v2.dsl.simple_type import AdapterBase as AdapterBase
 from instructor.v2.core.multimodal import convert_messages as convert_messages_v1
 from instructor.v2.core.json import (
     extract_json_from_codeblock,
@@ -166,23 +170,6 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):
             return generator
         return list(generator)
-
-    def _finalize_parsed_result(
-        self,
-        response_model: type[BaseModel] | ParallelBase,
-        response: Any,
-        parsed: Any,
-    ) -> Any:
-        """Finalize parsed result, handling DSL types."""
-        if isinstance(parsed, IterableBase):
-            return [task for task in parsed.tasks]
-        if isinstance(response_model, ParallelBase):
-            return parsed
-        if isinstance(parsed, AdapterBase):
-            return parsed.content
-        if isinstance(parsed, BaseModel):
-            parsed._raw_response = response  # type: ignore[attr-defined]
-        return parsed
 
     def _extract_tool_call_json(self, response: Any) -> str:
         """Extract JSON from tool call response.
@@ -334,23 +321,24 @@ class MistralToolsHandler(MistralHandlerBase):
         origin = get_origin(response_model)
         if origin is TypingIterable:
             the_types = get_types_array(response_model)  # type: ignore[arg-type]
-            type_registry = {t.__name__: t for t in the_types}
-
-            def parallel_generator() -> Generator[BaseModel, None, None]:
-                for tool_call in response.choices[0].message.tool_calls or []:
-                    name = tool_call.function.name
-                    if name in type_registry:
-                        model_class = type_registry[name]
-                        args = tool_call.function.arguments
-                        if isinstance(args, dict):
-                            args = json.dumps(args)
-                        yield model_class.model_validate_json(
-                            args,
-                            context=validation_context,
-                            strict=strict,
-                        )
-
-            return parallel_generator()
+            type_registry = {generate_openai_schema(t)["name"]: t for t in the_types}
+            results = []
+            for tool_call in response.choices[0].message.tool_calls or []:
+                model_class = model_for_tool_name(
+                    type_registry,
+                    tool_call.function.name,
+                    mode=self.mode,
+                    raw_response=response,
+                )
+                args = tool_call.function.arguments
+                if isinstance(args, dict):
+                    args = json.dumps(args)
+                results.append(
+                    model_class.model_validate_json(
+                        args, context=validation_context, strict=strict
+                    )
+                )
+            return iter(results)
 
         # Standard tool call parsing
         json_str = self._extract_tool_call_json(response)

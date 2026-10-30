@@ -102,6 +102,11 @@ def model_declares_async_validators(model_cls: Any) -> bool:
     visited: set[type[BaseModel]] = set()
 
     def declares(annotation: Any) -> bool:
+        origin = get_origin(annotation)
+        if origin is not None and origin is not annotation:
+            return any(declares(arg) for arg in get_args(annotation)) or declares(
+                origin
+            )
         if isinstance(annotation, type) and issubclass(annotation, BaseModel):
             if annotation in visited:
                 return False
@@ -216,10 +221,12 @@ def reject_async_validators(response_model: Any) -> None:
         if isinstance(model, TypeAliasType):
             visit(model.__value__)
         origin = get_origin(model)
-        if isinstance(origin, TypeAliasType):
-            visit(origin.__value__)
         for argument in get_args(model):
             visit(argument)
+        if origin is not None:
+            # Python 3.9 treats GenericAlias as a type, but issubclass rejects it.
+            visit(origin)
+            return
         if not isinstance(model, type):
             for child in getattr(model, "models", ()):
                 visit(child)

@@ -10,7 +10,11 @@ from pydantic import BaseModel
 
 from instructor.v2.core.function_calls import openai_schema
 from instructor.v2.core.mode import Mode
-from instructor.v2.dsl.parallel import ParallelBase, get_types_array
+from instructor.v2.dsl.parallel import (
+    ParallelBase,
+    get_types_array,
+    model_for_tool_name,
+)
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -26,22 +30,28 @@ class AnthropicParallelBase(ParallelBase[T]):
     def from_response(
         self,
         response: Any,
-        mode: Mode,  # noqa: ARG002
+        mode: Mode,
         validation_context: Any | None = None,
         strict: bool | None = None,
     ) -> Generator[T, None, None]:
         if not response or not hasattr(response, "content"):
-            return
+            return (result for result in ())
 
+        results = []
         for content in response.content:
             if getattr(content, "type", None) == "tool_use":
                 name = content.name
                 arguments = content.input
-                if name in self.registry:
-                    json_str = json.dumps(arguments)
-                    yield self.registry[name].model_validate_json(
+                model = model_for_tool_name(
+                    self.registry, name, mode=mode, raw_response=response
+                )
+                json_str = json.dumps(arguments)
+                results.append(
+                    model.model_validate_json(
                         json_str, context=validation_context, strict=strict
                     )
+                )
+        return (result for result in results)
 
 
 def AnthropicParallelModel(typehint: type[Iterable[T]]) -> AnthropicParallelBase[T]:

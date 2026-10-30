@@ -53,6 +53,7 @@ from instructor.v2.dsl.simple_type import AdapterBase
 
 if TYPE_CHECKING:
     from instructor.v2.core.function_calls import ResponseSchema
+from instructor.v2.core.messages import isolate_retry_kwargs
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import (
     Provider,
@@ -536,8 +537,8 @@ def handle_reask_kwargs(
     Note:
         Provider-specific formatting still lives on each registered mode handler.
     """
-    # Create a shallow copy of kwargs to avoid modifying the original
-    kwargs_copy = kwargs.copy()
+    # Reask handlers append to request history lists.
+    kwargs_copy = isolate_retry_kwargs(kwargs)
 
     exception = InstructorError.from_exception(
         exception, failed_attempts=failed_attempts

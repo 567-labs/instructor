@@ -8,6 +8,7 @@ compiled as a pattern.
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from instructor.v2.dsl.citation import CitationMixin
 
@@ -78,6 +79,45 @@ def test_no_context_leaves_quotes_untouched() -> None:
     answer = Answer.model_validate({"substring_quotes": ["anything (raw"]})
 
     assert answer.substring_quotes == ["anything (raw"]
+
+
+@pytest.mark.parametrize("container", [list, tuple])
+def test_list_context_chunks_resolve_without_typeerror(container: type) -> None:
+    """List/tuple RAG contexts must resolve quotes, not raise TypeError."""
+    chunks = [
+        "Betty was a student.",
+        "Jason was a student. Jason is 20 years old.",
+    ]
+
+    answer = Answer.model_validate(
+        {"substring_quotes": ["Jason is 20 years old", "missing quote"]},
+        context={"context": container(chunks)},
+    )
+
+    assert answer.substring_quotes == ["Jason is 20 years old"]
+
+
+@pytest.mark.parametrize("context", [{"nested": "dict"}, 42, ["source", 42]])
+def test_non_text_context_fails_validation(context: object) -> None:
+    with pytest.raises(ValidationError, match="Citation context must be text"):
+        Answer.model_validate(
+            {"substring_quotes": ["unverified quote"]}, context={"context": context}
+        )
+
+
+def test_quotes_cannot_span_independent_chunks() -> None:
+    answer = Answer.model_validate(
+        {"substring_quotes": ["abcdefghijklmnop\nqrstuvwxyzabcdef"]},
+        context={"context": ["abcdefghijklmnop", "qrstuvwxyzabcdef"]},
+    )
+    assert answer.substring_quotes == []
+
+
+def test_empty_chunks_drop_unverified_quotes() -> None:
+    answer = Answer.model_validate(
+        {"substring_quotes": ["unverified quote"]}, context={"context": []}
+    )
+    assert answer.substring_quotes == []
 
 
 def test_quote_within_error_tolerance_matches() -> None:

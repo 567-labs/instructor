@@ -524,12 +524,12 @@ def test_tools_parse_single_parallel_invalid_and_incomplete_responses() -> None:
         tool("Job", {"title": "Engineer"}, "toolu_three"),
         stop_reason="tool_use",
     )
-    assert list(
-        handler.parse_response(parallel_response, cast(Any, Iterable[Union[User, Job]]))
-    ) == [
-        User(name="Ada"),
-        Job(title="Engineer"),
-    ]
+    with pytest.raises(ResponseParsingError, match="Unknown"):
+        list(
+            handler.parse_response(
+                parallel_response, cast(Any, Iterable[Union[User, Job]])
+            )
+        )
 
     with pytest.raises(ValidationError):
         handler.parse_response(message(TextBlock(type="text", text="no tool")), User)
@@ -577,10 +577,8 @@ def test_parallel_tools_prepare_reask_and_parse_real_tool_blocks() -> None:
         tool("Job", {"title": "Engineer"}, "toolu_three"),
         stop_reason="tool_use",
     )
-    assert list(handler.parse_response(response, parallel_type, strict=True)) == [
-        User(name="Ada"),
-        Job(title="Engineer"),
-    ]
+    with pytest.raises(ResponseParsingError, match="Unknown"):
+        list(handler.parse_response(response, parallel_type, strict=True))
     assert list(handler.parse_response(None, parallel_type)) == []
     assert list(handler.parse_response(object(), parallel_type)) == []
     reask = handler.handle_reask({"messages": []}, response, ValueError("bad job"))

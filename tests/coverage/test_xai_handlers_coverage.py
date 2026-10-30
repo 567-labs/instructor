@@ -476,9 +476,7 @@ def test_finalize_unwraps_iterable_parallel_and_simple_type_results() -> None:
     }
 
 
-def test_parallel_tools_build_schemas_parse_known_calls_and_skip_unknown_calls() -> (
-    None
-):
+def test_parallel_tools_build_schemas_and_parse_known_calls() -> None:
     handler = handlers.XAIParallelToolsHandler()
     model = cast(type[BaseModel], Iterable[Union[Answer, User]])
     request = {"messages": [{"role": "user", "content": "answer and user"}]}
@@ -490,7 +488,6 @@ def test_parallel_tools_build_schemas_parse_known_calls_and_skip_unknown_calls()
             SimpleNamespace(
                 tool_calls=[
                     _tool_call("Answer", {"answer": 4.0}),
-                    _tool_call("Ignored", '{"anything": true}'),
                     _tool_call("User", '{"name": "Ada", "age": 31}'),
                 ]
             ),
