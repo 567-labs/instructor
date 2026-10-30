@@ -16,6 +16,7 @@ from contextvars import ContextVar
 from copy import deepcopy
 from functools import cache
 from functools import reduce
+from inspect import Parameter, signature
 from operator import or_
 from typing import (  # noqa: UP035
     Any,
@@ -25,6 +26,7 @@ from typing import (  # noqa: UP035
     Optional,
     TypeVar,
     Union,
+    cast,
     get_args,
     get_origin,
 )
@@ -110,7 +112,9 @@ def process_potential_object(potential_object, partial_mode, partial_model, **kw
     adds BaseModel support in the future, this could potentially be simplified.
     See: https://docs.pydantic.dev/latest/concepts/partial_validation/
     """
-    json_str = potential_object.strip() or "{}"
+    json_str = potential_object.strip()
+    has_json = bool(json_str)
+    json_str = json_str or "{}"
     parsed = from_json(json_str.encode(), partial_mode=partial_mode)
 
     tracker = JsonCompleteness()
@@ -119,9 +123,9 @@ def process_potential_object(potential_object, partial_mode, partial_model, **kw
     # Get original model for validation
     original_model = getattr(partial_model, "_original_model", None)
 
-    # Check if root is complete AND has actual data (not just empty {})
+    # Distinguish an actual complete object (including {}) from the placeholder
+    # used before any JSON arrives.
     root_complete = tracker.is_root_complete()
-    has_data = bool(parsed) if isinstance(parsed, dict) else True
 
     validation_kwargs = {
         key: value
@@ -130,14 +134,38 @@ def process_potential_object(potential_object, partial_mode, partial_model, **kw
         in {"context", "strict", "extra", "from_attributes", "by_alias", "by_name"}
     }
 
-    if root_complete and has_data and original_model is not None:
-        # Root object is complete with data - validate against original model
+    if root_complete and has_json and original_model is not None:
+        # Root object is complete - validate against original model
         return original_model.model_validate(parsed, **validation_kwargs)
-    # Object is incomplete or empty - build instance using model_construct (no validation)
+    # JSON is incomplete or absent - build instance without validation
     model_for_construct = (
         original_model if original_model is not None else partial_model
     )
     return _build_partial_object(parsed, model_for_construct, tracker, "", **kwargs)
+
+
+def _get_partial_default(field: FieldInfo) -> Any:
+    factory = field.default_factory
+    if factory is None:
+        return field.get_default()
+
+    # Match Pydantic's single-required-argument factory contract without relying
+    # on FieldInfo.default_factory_takes_validated_data (absent in early 2.10).
+    try:
+        parameters = list(signature(factory).parameters.values())
+    except (TypeError, ValueError):
+        parameters = []
+    if (
+        len(parameters) == 1
+        and parameters[0].kind
+        in {Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD}
+        and parameters[0].default is Parameter.empty
+    ):
+        # Partial fields are not validated yet. Let model_validate compute this
+        # default once the containing object's JSON is complete.
+        return None
+
+    return cast(Callable[[], Any], factory)()
 
 
 def _build_partial_object(
@@ -210,7 +238,7 @@ def _build_partial_object(
             elif field_info.is_required():
                 result[field_name] = None
             else:
-                result[field_name] = field_info.get_default(call_default_factory=True)
+                result[field_name] = _get_partial_default(field_info)
 
     return model.model_construct(**result)
 
