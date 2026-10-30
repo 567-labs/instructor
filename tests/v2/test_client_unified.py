@@ -23,6 +23,8 @@ _HANDLER_MODULE_PATHS: dict[Provider, Path] = {
     Provider.TOGETHER: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
     Provider.DATABRICKS: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
     Provider.DEEPSEEK: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
+    Provider.ZHIPUAI: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
+    Provider.ZAI: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
     Provider.ANTHROPIC: _PROJECT_ROOT / "instructor/v2/providers/anthropic/handlers.py",
     Provider.GENAI: _PROJECT_ROOT / "instructor/v2/providers/genai/handlers.py",
     Provider.GEMINI: _PROJECT_ROOT / "instructor/v2/providers/gemini/handlers.py",

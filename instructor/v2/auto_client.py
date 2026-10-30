@@ -1400,6 +1400,142 @@ def _build_deepseek(
         raise
 
 
+def _build_zhipuai(
+    *,
+    provider: str,
+    model_name: str,
+    async_client: bool,
+    mode: Mode | None,
+    api_key: str | None,
+    kwargs: dict[str, Any],
+    provider_info: dict[str, str],
+) -> InstructorType:
+    try:
+        import os
+        import openai
+        from instructor.v2.providers.openai.client import from_zhipuai
+
+        # Get API key from kwargs or environment (supports cascaded fallbacks)
+        api_key = (
+            api_key
+            or os.environ.get("ZHIPUAI_API_KEY")
+            or os.environ.get("BIGMODEL_API_KEY")
+            or os.environ.get("ZAI_API_KEY")
+        )
+
+        if not api_key:
+            from instructor.v2.core.errors import ConfigurationError
+
+            raise ConfigurationError(
+                "ZHIPUAI_API_KEY is not set. "
+                "Set it with `export ZHIPUAI_API_KEY=<your-api-key>` or pass it as kwarg api_key=<your-api-key>"
+            )
+
+        base_url = kwargs.pop("base_url", "https://open.bigmodel.cn/api/paas/v4/")
+
+        client = (
+            openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
+            if async_client
+            else openai.OpenAI(api_key=api_key, base_url=base_url)
+        )
+
+        result = from_zhipuai(
+            client,
+            model=model_name,
+            mode=mode if mode else Mode.TOOLS,
+            **kwargs,
+        )
+        logger.info(
+            "Client initialized",
+            extra={**provider_info, "status": "success"},
+        )
+        return result
+    except ImportError:
+        from instructor.v2.core.errors import ConfigurationError
+
+        raise ConfigurationError(
+            "The openai package is required to use the ZhipuAI provider. "
+            "Install it with `pip install openai`."
+        ) from None
+    except Exception as e:
+        logger.error(
+            "Error initializing %s client: %s",
+            provider,
+            e,
+            exc_info=True,
+            extra={**provider_info, "status": "error"},
+        )
+        raise
+
+
+def _build_zai(
+    *,
+    provider: str,
+    model_name: str,
+    async_client: bool,
+    mode: Mode | None,
+    api_key: str | None,
+    kwargs: dict[str, Any],
+    provider_info: dict[str, str],
+) -> InstructorType:
+    try:
+        import os
+        import openai
+        from instructor.v2.providers.openai.client import from_zai
+
+        # Get API key from kwargs or environment (supports cascaded fallbacks)
+        api_key = (
+            api_key
+            or os.environ.get("ZAI_API_KEY")
+            or os.environ.get("BIGMODEL_API_KEY")
+            or os.environ.get("ZHIPUAI_API_KEY")
+        )
+
+        if not api_key:
+            from instructor.v2.core.errors import ConfigurationError
+
+            raise ConfigurationError(
+                "ZAI_API_KEY is not set. "
+                "Set it with `export ZAI_API_KEY=<your-api-key>` or pass it as kwarg api_key=<your-api-key>"
+            )
+
+        base_url = kwargs.pop("base_url", "https://api.z.ai/api/paas/v4/")
+
+        client = (
+            openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
+            if async_client
+            else openai.OpenAI(api_key=api_key, base_url=base_url)
+        )
+
+        result = from_zai(
+            client,
+            model=model_name,
+            mode=mode if mode else Mode.TOOLS,
+            **kwargs,
+        )
+        logger.info(
+            "Client initialized",
+            extra={**provider_info, "status": "success"},
+        )
+        return result
+    except ImportError:
+        from instructor.v2.core.errors import ConfigurationError
+
+        raise ConfigurationError(
+            "The openai package is required to use the Z.ai provider. "
+            "Install it with `pip install openai`."
+        ) from None
+    except Exception as e:
+        logger.error(
+            "Error initializing %s client: %s",
+            provider,
+            e,
+            exc_info=True,
+            extra={**provider_info, "status": "error"},
+        )
+        raise
+
+
 def _build_xai(
     *,
     provider: str,
@@ -1589,6 +1725,10 @@ _PROVIDER_BUILDERS: dict[str, ProviderBuilder] = {
     "generative-ai": _build_generative_ai,
     "ollama": _build_ollama,
     "deepseek": _build_deepseek,
+    "zhipuai": _build_zhipuai,
+    "zhipu": _build_zhipuai,
+    "bigmodel": _build_zhipuai,
+    "zai": _build_zai,
     "xai": _build_xai,
     "openrouter": _build_openrouter,
     "litellm": _build_litellm,

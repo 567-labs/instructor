@@ -527,3 +527,189 @@ def from_deepseek(
         model=model,
         **kwargs,
     )
+
+
+@overload
+def from_zhipuai(
+    model_or_client: str,
+    mode: Mode = Mode.TOOLS,
+    model: None = None,
+    async_client: Literal[False] = False,
+    **kwargs: Any,
+) -> Instructor: ...
+
+
+@overload
+def from_zhipuai(
+    model_or_client: str,
+    mode: Mode = Mode.TOOLS,
+    model: None = None,
+    async_client: Literal[True] = True,
+    **kwargs: Any,
+) -> AsyncInstructor: ...
+
+
+@overload
+def from_zhipuai(
+    model_or_client: openai.OpenAI,
+    mode: Mode = Mode.TOOLS,
+    model: str | None = None,
+    **kwargs: Any,
+) -> Instructor: ...
+
+
+@overload
+def from_zhipuai(
+    model_or_client: openai.AsyncOpenAI,
+    mode: Mode = Mode.TOOLS,
+    model: str | None = None,
+    **kwargs: Any,
+) -> AsyncInstructor: ...
+
+
+def from_zhipuai(
+    model_or_client: str | openai.OpenAI | openai.AsyncOpenAI,
+    mode: Mode = Mode.TOOLS,
+    model: str | None = None,
+    async_client: bool = False,
+    **kwargs: Any,
+) -> Instructor | AsyncInstructor:
+    """Create an Instructor instance for ZhipuAI / BigModel.
+
+    Supports two usage patterns:
+
+    1. String-based (recommended): Pass a model name string
+       >>> from instructor.v2 import from_zhipuai
+       >>> client = from_zhipuai("glm-5.3-flash", mode=Mode.TOOLS)
+
+    2. Client-based (backward compatible): Pass an OpenAI client instance pointing to ZhipuAI
+       >>> from openai import OpenAI
+       >>> client = OpenAI(base_url="https://open.bigmodel.cn/api/paas/v4/")
+       >>> instructor_client = from_zhipuai(client, mode=Mode.TOOLS)
+
+    Args:
+        model_or_client: Model name string (delegates to from_provider) or OpenAI client instance
+        mode: The mode to use (defaults to Mode.TOOLS)
+        model: Optional model name (only used with client-based usage)
+        async_client: Whether to return async client (only used with string-based usage)
+        **kwargs: Additional keyword arguments passed to from_provider or Instructor constructor
+
+    Returns:
+        An Instructor instance (sync or async depending on usage pattern)
+
+    Raises:
+        ModeError: If mode is not registered for ZhipuAI
+        ClientError: If client is not a valid OpenAI client instance (client-based usage)
+    """
+    # String-based: delegate to from_provider
+    if isinstance(model_or_client, str):
+        from instructor import from_provider
+
+        return from_provider(
+            f"zhipuai/{model_or_client}",
+            mode=mode,
+            async_client=async_client,
+            **kwargs,
+        )
+
+    # Client-based: existing behavior
+    return _from_openai_compat(
+        model_or_client,
+        provider=Provider.ZHIPUAI,
+        mode=mode,
+        model=model,
+        **kwargs,
+    )
+
+
+@overload
+def from_zai(
+    model_or_client: str,
+    mode: Mode = Mode.TOOLS,
+    model: None = None,
+    async_client: Literal[False] = False,
+    **kwargs: Any,
+) -> Instructor: ...
+
+
+@overload
+def from_zai(
+    model_or_client: str,
+    mode: Mode = Mode.TOOLS,
+    model: None = None,
+    async_client: Literal[True] = True,
+    **kwargs: Any,
+) -> AsyncInstructor: ...
+
+
+@overload
+def from_zai(
+    model_or_client: openai.OpenAI,
+    mode: Mode = Mode.TOOLS,
+    model: str | None = None,
+    **kwargs: Any,
+) -> Instructor: ...
+
+
+@overload
+def from_zai(
+    model_or_client: openai.AsyncOpenAI,
+    mode: Mode = Mode.TOOLS,
+    model: str | None = None,
+    **kwargs: Any,
+) -> AsyncInstructor: ...
+
+
+def from_zai(
+    model_or_client: str | openai.OpenAI | openai.AsyncOpenAI,
+    mode: Mode = Mode.TOOLS,
+    model: str | None = None,
+    async_client: bool = False,
+    **kwargs: Any,
+) -> Instructor | AsyncInstructor:
+    """Create an Instructor instance for Z.ai.
+
+    Supports two usage patterns:
+
+    1. String-based (recommended): Pass a model name string
+       >>> from instructor.v2 import from_zai
+       >>> client = from_zai("glm-5.3-flash", mode=Mode.TOOLS)
+
+    2. Client-based (backward compatible): Pass an OpenAI client instance pointing to Z.ai
+       >>> from openai import OpenAI
+       >>> client = OpenAI(base_url="https://api.z.ai/api/paas/v4/")
+       >>> instructor_client = from_zai(client, mode=Mode.TOOLS)
+
+    Args:
+        model_or_client: Model name string (delegates to from_provider) or OpenAI client instance
+        mode: The mode to use (defaults to Mode.TOOLS)
+        model: Optional model name (only used with client-based usage)
+        async_client: Whether to return async client (only used with string-based usage)
+        **kwargs: Additional keyword arguments passed to from_provider or Instructor constructor
+
+    Returns:
+        An Instructor instance (sync or async depending on usage pattern)
+
+    Raises:
+        ModeError: If mode is not registered for Z.ai
+        ClientError: If client is not a valid OpenAI client instance (client-based usage)
+    """
+    # String-based: delegate to from_provider
+    if isinstance(model_or_client, str):
+        from instructor import from_provider
+
+        return from_provider(
+            f"zai/{model_or_client}",
+            mode=mode,
+            async_client=async_client,
+            **kwargs,
+        )
+
+    # Client-based: existing behavior
+    return _from_openai_compat(
+        model_or_client,
+        provider=Provider.ZAI,
+        mode=mode,
+        model=model,
+        **kwargs,
+    )

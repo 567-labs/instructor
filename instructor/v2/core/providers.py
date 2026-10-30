@@ -36,6 +36,8 @@ class Provider(Enum):
     BEDROCK = "bedrock"
     PERPLEXITY = "perplexity"
     OPENROUTER = "openrouter"
+    ZHIPUAI = "zhipuai"
+    ZAI = "zai"
 
 
 def provider_from_mode(mode: Mode, default: Provider = Provider.OPENAI) -> Provider:
@@ -119,6 +121,9 @@ def get_provider(base_url: str) -> Provider:
         ("openrouter", Provider.OPENROUTER),
         ("x.ai", Provider.XAI),
         ("xai", Provider.XAI),
+        ("bigmodel", Provider.ZHIPUAI),
+        ("zhipuai", Provider.ZHIPUAI),
+        ("z.ai", Provider.ZAI),
     )
     for token, provider in providers:
         if token in normalized:
