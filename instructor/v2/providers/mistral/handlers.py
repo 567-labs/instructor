@@ -34,6 +34,7 @@ from instructor.v2.core.errors import (
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import (
     ParallelBase as ParallelBase,
+    ParallelModel,
     get_types_array,
     model_for_tool_name,
 )
@@ -235,7 +236,7 @@ class MistralToolsHandler(MistralHandlerBase):
 
         if is_parallel:
             # Handle parallel model - generate tools for each type
-            the_types = get_types_array(cast(Any, response_model))
+            the_types = ParallelModel(cast(Any, response_model)).models
             tools = []
             for model_type in the_types:
                 schema = generate_openai_schema(model_type)
