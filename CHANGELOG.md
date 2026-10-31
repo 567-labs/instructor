@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Parallel response models**: Reject duplicate tool names before generating OpenAI, Anthropic, or Mistral tool schemas, instead of silently routing two response models to the last registered model. VertexAI registries check class names, while other registries check JSON-schema titles. ([#2862](https://github.com/567-labs/instructor/pull/2862))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
