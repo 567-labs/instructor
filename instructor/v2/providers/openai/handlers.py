@@ -92,8 +92,13 @@ OPENAI_JSON_SCHEMA_PROVIDERS = [
 
 
 def _is_stream_response(response: Any) -> bool:
-    """Check if response is a Stream object rather than a ChatCompletion."""
-    return response is None or not hasattr(response, "choices")
+    """Return whether the response has no completion choice to replay.
+
+    Covers Stream objects (no ``choices`` attribute) and the empty
+    ``choices`` lists some gateways return for filtered or failed turns,
+    where a reask handler has no assistant message to append.
+    """
+    return response is None or not getattr(response, "choices", None)
 
 
 def _filter_responses_tool_calls(output_items: list[Any]) -> list[Any]:

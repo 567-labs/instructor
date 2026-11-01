@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Reask handlers**: Treat an empty `choices` list, such as a gateway or content-filtered response that returns HTTP 200 with no choice, as a retryable parse failure instead of crashing with `IndexError` while reasking.
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
