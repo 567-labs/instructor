@@ -645,11 +645,18 @@ class PDF(BaseModel):
                 if self.source.startswith(("http://", "https://", "gs://")):
                     name = Path(urlparse(self.source).path).name or "document"
                 else:
-                    name = (
-                        Path(self.source).name
-                        if Path(self.source).exists()
-                        else "document"
-                    )
+                    # `source` is not always a path: `from_raw_base64` stores the
+                    # payload there. Asking the filesystem about a long Base64
+                    # string raises OSError (file name too long) instead of
+                    # answering, so treat anything unstatable as inline data.
+                    try:
+                        name = (
+                            Path(self.source).name
+                            if Path(self.source).exists()
+                            else "document"
+                        )
+                    except (OSError, ValueError):
+                        name = "document"
             else:
                 name = "document"
 

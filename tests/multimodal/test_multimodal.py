@@ -815,3 +815,29 @@ def test_image_from_url_head_passes_timeout():
         mock_requests.head.assert_called_once()
         _, kwargs = mock_requests.head.call_args
         assert kwargs["timeout"] == 30
+
+
+def test_pdf_to_bedrock_with_raw_base64_source():
+    """A Base64 payload stored as the source is not a filesystem path."""
+    import base64
+
+    pdf_bytes = (Path(__file__).parent.parent / "assets/invoice.pdf").read_bytes()
+    pdf = PDF.from_raw_base64(base64.b64encode(pdf_bytes).decode("ascii"))
+
+    bedrock_format = pdf.to_bedrock()
+
+    assert bedrock_format["document"]["name"] == "document"
+    assert bedrock_format["document"]["source"]["bytes"] == pdf_bytes
+
+
+def test_pdf_to_bedrock_with_raw_base64_source_custom_name():
+    """An explicit name still wins for a Base64 payload."""
+    import base64
+
+    pdf_bytes = b"%PDF-1.4\nfake pdf content"
+    pdf = PDF.from_raw_base64(base64.b64encode(pdf_bytes).decode("ascii"))
+
+    bedrock_format = pdf.to_bedrock(name="Invoice")
+
+    assert bedrock_format["document"]["name"] == "Invoice"
+    assert bedrock_format["document"]["source"]["bytes"] == pdf_bytes
