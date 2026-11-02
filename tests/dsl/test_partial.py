@@ -1,3 +1,4 @@
+import json
 import os
 from collections.abc import AsyncGenerator, Generator, Iterable
 from copy import deepcopy
@@ -71,6 +72,33 @@ class UnionWithNested(BaseModel):
 
 class PEP604UnionField(BaseModel):
     value: str | int
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("asynchronous", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("ensure_ascii", [False, True], ids=["literal", "escaped"])
+@pytest.mark.parametrize("split", [False, True], ids=["whole", "characters"])
+async def test_partial_preserves_json_unicode(
+    asynchronous: bool, ensure_ascii: bool, split: bool
+) -> None:
+    class Text(BaseModel):
+        text: str
+
+    value = "before" + "".join(chr(i) for i in range(0x7F, 0xA0)) + "after"
+    payload = json.dumps({"text": value}, ensure_ascii=ensure_ascii)
+    chunks = list(payload) if split else [payload]
+    api = _partial_api(Partial[Text])
+    if asynchronous:
+
+        async def source() -> AsyncGenerator[str, None]:
+            for chunk in chunks:
+                yield chunk
+
+        models = [model async for model in api.model_from_chunks_async(source())]
+    else:
+        models = list(api.model_from_chunks(chunks))
+
+    assert models[-1].text == Text.model_validate_json(payload).text == value
 
 
 def test_partial():

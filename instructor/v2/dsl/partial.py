@@ -96,7 +96,7 @@ class PartialLiteralMixin:
 
 
 def remove_control_chars(s):
-    return re.sub(r"[\x00-\x1F\x7F-\x9F]", "", s)
+    return re.sub(r"[\x00-\x1F]", "", s)
 
 
 def process_potential_object(potential_object, partial_mode, partial_model, **kwargs):
