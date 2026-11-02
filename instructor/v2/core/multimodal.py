@@ -335,6 +335,8 @@ class Audio(BaseModel):
         """Create an Audio instance from a URL."""
         if url.startswith("gs://"):
             return cls.from_gs_url(url)
+        if cls.is_base64(url):
+            return cls.from_base64(url)
         response = fetch_remote_content(url, max_bytes=MAX_AUDIO_BYTES, timeout=30)
         content_type = response.content_type
         if content_type not in VALID_AUDIO_MIME_TYPES:
@@ -601,6 +603,8 @@ class PDF(BaseModel):
     def from_url(cls, url: str) -> PDF:
         if url.startswith("gs://"):
             return cls.from_gs_url(url)
+        if cls.is_base64(url):
+            return cls.from_base64(url)
         parsed_url = urlparse(url)
         media_type, _ = mimetypes.guess_type(parsed_url.path)
 
