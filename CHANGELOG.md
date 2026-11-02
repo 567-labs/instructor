@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Bedrock PDFs**: Fall back to `document` when a source cannot be queried as a path while inferring its name, so raw Base64 PDFs convert without an explicit name. ([#2867](https://github.com/567-labs/instructor/issues/2867))
+
 ## [1.18.0] - 2026-09-26
 
 ### Added

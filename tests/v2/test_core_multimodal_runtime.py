@@ -194,6 +194,31 @@ def test_pdf_to_bedrock_decodes_base64_bytes() -> None:
     assert result["document"]["source"]["bytes"] == b"%PDF-1.7 demo"
 
 
+@pytest.mark.parametrize("name", [None, "Invoice"])
+def test_pdf_to_bedrock_with_raw_base64_source(name: str | None) -> None:
+    body = (Path(__file__).parents[1] / "assets" / "invoice.pdf").read_bytes()
+    encoded = base64.b64encode(body).decode("ascii")
+    pdf = PDF.from_raw_base64(encoded)
+    original = pdf.model_dump()
+
+    result = pdf.to_bedrock(name=name)
+
+    assert result["document"] == {
+        "format": "pdf",
+        "name": name or "document",
+        "source": {"bytes": body},
+    }
+    assert pdf.model_dump() == original
+
+
+def test_pdf_to_bedrock_requires_data_with_long_base64_source() -> None:
+    body = (Path(__file__).parents[1] / "assets" / "invoice.pdf").read_bytes()
+    pdf = PDF(source=base64.b64encode(body).decode("ascii"))
+
+    with pytest.raises(ValueError, match="PDF data is missing"):
+        pdf.to_bedrock()
+
+
 def test_pdf_to_bedrock_requires_data_for_non_s3_source() -> None:
     pdf = PDF(source="https://example.com/report.pdf", data=None)
 

@@ -645,11 +645,15 @@ class PDF(BaseModel):
                 if self.source.startswith(("http://", "https://", "gs://")):
                     name = Path(urlparse(self.source).path).name or "document"
                 else:
-                    name = (
-                        Path(self.source).name
-                        if Path(self.source).exists()
-                        else "document"
-                    )
+                    try:
+                        name = (
+                            Path(self.source).name
+                            if Path(self.source).exists()
+                            else "document"
+                        )
+                    except OSError:
+                        # Raw Base64 sources can exceed filesystem path limits.
+                        name = "document"
             else:
                 name = "document"
 
