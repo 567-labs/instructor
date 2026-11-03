@@ -140,15 +140,25 @@ def process_potential_object(potential_object, partial_mode, partial_model, **kw
     return _build_partial_object(parsed, model_for_construct, tracker, "", **kwargs)
 
 
-def _alias_keys(field: FieldInfo) -> set[str]:
-    """Every JSON key a field may legitimately arrive under."""
-    keys = {field.alias, field.validation_alias, field.serialization_alias}
-    aliases = {key for key in keys if isinstance(key, str)}
-    for alias in keys:
-        choices = getattr(alias, "choices", None)
-        if choices is not None:
-            aliases.update(key for key in choices if isinstance(key, str))
-    return {key for key in aliases if key}
+def _alias_keys(field: FieldInfo) -> tuple[str, ...]:
+    """Every flat JSON key a field may legitimately arrive under.
+
+    Pydantic aliases can be strings, AliasChoices (several accepted keys) or
+    AliasPath (a nested validation path). Only strings can name a flat streaming
+    key: AliasChoices contributes each string choice, while AliasPath is
+    intentionally not expanded (known limitation) and must not be hashed, as the
+    alias objects themselves are unhashable.
+    """
+    keys: list[str] = []
+    for alias in (field.alias, field.validation_alias, field.serialization_alias):
+        if isinstance(alias, str):
+            keys.append(alias)
+        else:
+            choices = getattr(alias, "choices", None)
+            if choices:
+                keys.extend(choice for choice in choices if isinstance(choice, str))
+    # Deduplicate strings only, keeping the declared alias first.
+    return tuple(dict.fromkeys(key for key in keys if key))
 
 
 def canonical_field_name(model: type[BaseModel], key: str) -> str:

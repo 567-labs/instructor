@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, AliasPath, BaseModel, Field
 
 from instructor.v2.dsl.partial import Partial
 
@@ -40,6 +40,16 @@ class AliasedListEnvelope(BaseModel):
     meta: Optional[Tag] = Field(default=None, alias="m")  # noqa: UP007, UP045
 
 
+class ChoicesEnvelope(BaseModel):
+    answer: str
+    location: Location = Field(validation_alias=AliasChoices("loc", "location"))
+
+
+class PathEnvelope(BaseModel):
+    answer: str
+    city: str = Field(validation_alias=AliasPath("payload", "city"))
+
+
 def _last(model: type[BaseModel], chunk: str):
     partial_model = Partial[model]
     return list(partial_model.model_from_chunks(iter([chunk])))[-1]
@@ -53,6 +63,11 @@ LIST_CHUNK = (
     '{"title": "x", "t": [{"name": "a", "score": 1.0}], '
     '"m": {"name": "b", "score": 2.0}, "z": '
 )
+CHOICES_CHUNK = '{"answer": "hi", "loc": {"city": "NYC", "lat": 1.5}, "tail": '
+CHOICES_ALTERNATE_CHUNK = (
+    '{"answer": "hi", "location": {"city": "NYC", "lat": 1.5}, "tail": '
+)
+PATH_CHUNK = '{"answer": "hi", "other": 1, "tail": '
 
 
 def test_complete_nested_object_without_alias_is_validated() -> None:
@@ -71,3 +86,26 @@ def test_alias_list_and_optional_nested_are_models() -> None:
     obj = _last(AliasedListEnvelope, LIST_CHUNK)
     assert all(isinstance(tag, Tag) for tag in obj.tags), f"got {obj.tags!r}"
     assert isinstance(obj.meta, Tag), f"got {obj.meta!r}"
+
+
+def test_alias_choices_are_expanded_into_flat_keys() -> None:
+    """Every string choice of a validation AliasChoices is a valid streamed key."""
+
+    for chunk in (CHOICES_CHUNK, CHOICES_ALTERNATE_CHUNK):
+        obj = _last(ChoicesEnvelope, chunk)
+        assert isinstance(obj.location, Location), f"got {type(obj.location).__name__}"
+        assert obj.location.city == "NYC"
+
+
+def test_alias_path_does_not_crash_and_is_a_known_limitation() -> None:
+    """AliasPath names a nested validation path; streaming keys are flat.
+
+    Resolving that path from a flat JSON snapshot is explicitly out of scope, but
+    walking the model's fields must not raise when a field uses AliasPath.
+    """
+
+    obj = _last(PathEnvelope, PATH_CHUNK)
+    assert obj.answer == "hi"
+    # Known limitation: a nested validation path is not expanded from flat
+    # streamed keys, so the field stays unset instead of being guessed.
+    assert obj.city is None
