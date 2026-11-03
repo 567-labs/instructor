@@ -11,9 +11,13 @@ import json
 import os
 import io
 import re
+import stat
+import tempfile
+from pathlib import Path
 from .models import BatchResult, BatchSuccess, BatchError, BatchJobInfo, T
 from .request import BatchRequest
 from .providers import get_provider
+from instructor.v2.core.errors import IncompleteOutputException
 
 _ANTHROPIC_CUSTOM_ID = re.compile(r"[a-zA-Z0-9_-]{1,64}")
 
@@ -68,21 +72,34 @@ class BatchProcessor(Generic[T]):
             self._validate_custom_ids(custom_ids, len(messages_list))
 
         if file_path is not None:
-            if os.path.exists(file_path):
-                os.remove(file_path)
+            with tempfile.NamedTemporaryFile(
+                dir=os.path.dirname(os.path.abspath(file_path)), delete=False
+            ) as temporary_file:
+                temporary_path = temporary_file.name
 
-            batch_requests = []
-            for custom_id, messages in zip(custom_ids, messages_list):
-                batch_request = BatchRequest[T](
-                    custom_id=custom_id,
-                    messages=messages,
-                    response_model=self.response_model,
-                    model=self.model_name,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                )
-                batch_request.save_to_file(file_path, self.provider_name)
-                batch_requests.append(batch_request)
+            try:
+                batch_requests = []
+                for custom_id, messages in zip(custom_ids, messages_list):
+                    batch_request = BatchRequest[T](
+                        custom_id=custom_id,
+                        messages=messages,
+                        response_model=self.response_model,
+                        model=self.model_name,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                    )
+                    batch_request.save_to_file(temporary_path, self.provider_name)
+                    batch_requests.append(batch_request)
+                try:
+                    existing_mode = os.lstat(file_path).st_mode
+                except FileNotFoundError:
+                    pass
+                else:
+                    if stat.S_ISREG(existing_mode):
+                        os.chmod(temporary_path, stat.S_IMODE(existing_mode) & 0o777)
+                os.replace(temporary_path, file_path)
+            finally:
+                Path(temporary_path).unlink(missing_ok=True)
 
             print(f"Created batch file {file_path} with {len(batch_requests)} requests")
             return file_path
@@ -290,6 +307,15 @@ class BatchProcessor(Generic[T]):
                     )
                     results.append(error_result)
 
+            except IncompleteOutputException as e:
+                results.append(
+                    BatchError(
+                        custom_id=custom_id,
+                        error_type="incomplete_output",
+                        error_message=str(e),
+                        raw_data=data,
+                    )
+                )
             except Exception as e:
                 error_result = BatchError(
                     custom_id="unknown",
@@ -306,7 +332,10 @@ class BatchProcessor(Generic[T]):
         try:
             if self.provider_name == "openai":
                 # OpenAI JSON schema response
-                content = data["response"]["body"]["choices"][0]["message"]["content"]
+                choice = data["response"]["body"]["choices"][0]
+                if choice.get("finish_reason") == "length":
+                    raise IncompleteOutputException(last_completion=data)
+                content = choice["message"]["content"]
                 return json.loads(content)
 
             if self.provider_name == "anthropic":
@@ -323,6 +352,8 @@ class BatchProcessor(Generic[T]):
 
                 # Handle successful message result
                 if result.get("type") == "succeeded" and "message" in result:
+                    if result["message"].get("stop_reason") == "max_tokens":
+                        raise IncompleteOutputException(last_completion=data)
                     content = result["message"]["content"]
                     if isinstance(content, list) and len(content) > 0:
                         # Try tool_use first
@@ -341,6 +372,8 @@ class BatchProcessor(Generic[T]):
 
                 return None
 
+        except IncompleteOutputException:
+            raise
         except Exception:
             return None
 
