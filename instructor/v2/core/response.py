@@ -73,40 +73,6 @@ T_Retval = TypeVar("T_Retval")
 T_ParamSpec = ParamSpec("T_ParamSpec")
 T = TypeVar("T")
 
-_SENSITIVE_KEYS: frozenset[str] = frozenset(
-    {
-        "access_token",
-        "api_key",
-        "api_secret",
-        "authorization",
-        "client_secret",
-        "refresh_token",
-        "token",
-        "x_api_key",
-        "x_goog_api_key",
-    }
-)
-
-
-def _redact_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
-    """Return a redacted copy of kwargs suitable for debug logging."""
-
-    def redact(value: Any) -> Any:
-        if isinstance(value, dict):
-            return {
-                key: "[redacted]"
-                if key.lower().replace("-", "_") in _SENSITIVE_KEYS
-                else redact(item)
-                for key, item in value.items()
-            }
-        if isinstance(value, list):
-            return [redact(item) for item in value]
-        if isinstance(value, tuple):
-            return tuple(redact(item) for item in value)
-        return value
-
-    return redact(kwargs)
-
 
 def _ensure_registry_loaded() -> None:
     """Ensure v2 handlers are imported so the registry is populated."""
@@ -417,18 +383,12 @@ def handle_response_model(
             autodetect_images=autodetect_images,
         )
 
-    redacted_kwargs = _redact_kwargs(new_kwargs)
+    model_name = getattr(response_model, "__name__", None)
     logger.debug(
-        f"Instructor Request: {mode.value=}, {response_model=}, {redacted_kwargs=}",
-        extra={
-            "mode": mode.value,
-            "response_model": (
-                response_model.__name__
-                if response_model is not None and hasattr(response_model, "__name__")
-                else str(response_model)
-            ),
-            "new_kwargs": redacted_kwargs,
-        },
+        "Instructor Request: mode=%s, response_model=%s",
+        mode.value,
+        model_name,
+        extra={"mode": mode.value, "response_model": model_name},
     )
     return response_model, new_kwargs
 

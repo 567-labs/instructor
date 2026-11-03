@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Any, Callable, cast
 
 import pytest
@@ -7,7 +8,6 @@ from typing_extensions import NotRequired, TypedDict
 from pydantic import BaseModel, ValidationError
 from instructor import Mode
 from instructor.processing.response import handle_response_model, process_response
-from instructor.v2.core.response import _redact_kwargs
 from instructor.v2.providers.bedrock.handlers import (
     _prepare_bedrock_converse_kwargs_internal,
 )
@@ -105,26 +105,26 @@ def test_iterable_typed_dict_preserves_optional_underscore_key() -> None:
     }
 
 
-def test_redact_kwargs_hides_nested_sensitive_fields() -> None:
-    kwargs = {
-        "api_key": "top-level",
-        "headers": {
-            "Authorization": "Bearer secret",
-            "x-api-key": "nested secret",
-            "safe": "visible",
-        },
-        "messages": [{"token": "inner secret", "content": "hello"}],
-    }
+def test_request_log_omits_provider_options(caplog: pytest.LogCaptureFixture) -> None:
+    class User(BaseModel):
+        name: str
 
-    assert _redact_kwargs(kwargs) == {
-        "api_key": "[redacted]",
-        "headers": {
-            "Authorization": "[redacted]",
-            "x-api-key": "[redacted]",
-            "safe": "visible",
-        },
-        "messages": [{"token": "[redacted]", "content": "hello"}],
-    }
+    headers = {"Cookie": "session-canary", "X-Custom-Auth": "gateway-canary"}
+    with caplog.at_level(logging.DEBUG, logger="instructor"):
+        _, kwargs = handle_response_model(
+            User, messages=[], extra_headers=headers, api_key="provider-canary"
+        )
+
+    assert kwargs["extra_headers"] == headers
+    assert kwargs["api_key"] == "provider-canary"
+    record = next(
+        r for r in caplog.records if r.getMessage().startswith("Instructor Request")
+    )
+    assert record.__dict__["mode"] == Mode.TOOLS.value
+    assert record.__dict__["response_model"] == "User"
+    for value in (*headers.values(), kwargs["api_key"]):
+        assert value not in record.getMessage()
+        assert value not in repr(vars(record))
 
 
 def test_openai_to_bedrock_conversion() -> None:
