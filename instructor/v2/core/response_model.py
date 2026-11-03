@@ -108,6 +108,12 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
     if response_model is None:
         return None
 
+    if isinstance(response_model, BaseModel):
+        raise TypeError(
+            "response_model must be a class, not an instance; got "
+            f"{type(response_model).__name__}() - pass the class itself."
+        )
+
     working_model: Any = response_model
     origin = get_origin(working_model)
     if origin is list and is_simple_type(working_model):

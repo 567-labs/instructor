@@ -125,12 +125,10 @@ def is_simple_type(
         # For other iterable patterns, return False (e.g., streaming types)
         return False
 
-    if response_model in {
-        str,
-        int,
-        float,
-        bool,
-    }:
+    # Compare against a tuple instead of a set: an unhashable input (a pydantic
+    # model instance, for example) made the set membership raise a bare
+    # TypeError: unhashable type, which said nothing about the argument.
+    if response_model in (str, int, float, bool):
         return True
 
     # If the response_model is a simple type like annotated
