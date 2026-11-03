@@ -11,23 +11,20 @@ This guide shows how to quickly inspect inputs/outputs, capture retries, and rep
 
 ### Quick Debug Mode (Recommended)
 
-The fastest way to enable debug logging is with the `INSTRUCTOR_DEBUG` environment variable:
+Use Python's `logging` module at the start of your script, before creating the Instructor client:
 
-```bash
-export INSTRUCTOR_DEBUG=1
-python your_script.py
+```python
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("instructor").setLevel(logging.DEBUG)
 ```
 
-Or inline:
-```bash
-INSTRUCTOR_DEBUG=1 python your_script.py
-```
-
-This automatically enables debug logging with correlation IDs for request tracing.
+This enables debug messages from `instructor` and its child loggers while keeping other loggers at INFO. Instructor does not read an `INSTRUCTOR_DEBUG` environment variable.
 
 ### Manual Debug Configuration
 
-You can also use the standard Python `logging` module for more control:
+To include debug messages from other libraries too, set the root logger to DEBUG:
 
 ```python
 import logging
@@ -40,7 +37,6 @@ You will see messages for:
 - Handler/mode selection
 - Retry attempts and parse errors
 - Reask adjustments to `messages`
-- **Correlation IDs** for tracing requests (format: `[a1b2c3d4]`)
 
 Tip: Set a handler/formatter to include timestamps and module names.
 
