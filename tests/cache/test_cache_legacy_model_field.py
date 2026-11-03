@@ -118,3 +118,19 @@ def test_rejected_envelope_cannot_be_reinterpreted_as_business_fields() -> None:
     cache.set("restricted", json.dumps({"model": '{"model":"blocked"}', "raw": None}))
     with pytest.raises(ValidationError, match="blocked model"):
         load_cached_response(cache, "restricted", Restricted)
+
+
+def test_invalid_cache_document_reports_json_error() -> None:
+    cache = AutoCache()
+    cache.set("broken", "incomplete{")
+    with pytest.raises(ValidationError) as caught:
+        load_cached_response(cache, "broken", Device)
+    assert caught.value.errors()[0]["type"] == "json_invalid"
+
+
+def test_invalid_inner_and_outer_documents_report_inner_error() -> None:
+    cache = AutoCache()
+    cache.set("broken", json.dumps({"model": '{"year":2026}', "raw": None}))
+    with pytest.raises(ValidationError) as caught:
+        load_cached_response(cache, "broken", Device)
+    assert [error["loc"] for error in caught.value.errors()] == [("model",)]
