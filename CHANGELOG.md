@@ -11,6 +11,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 - Request preparation logs only the mode and response model, keeping provider credentials and custom authentication headers out of debug records.
+- Gemini MD_JSON now prepares requests without changing the caller’s messages or nested content lists. ([#2716](https://github.com/567-labs/instructor/issues/2716))
 
 ## [1.18.0] - 2026-09-26
 
