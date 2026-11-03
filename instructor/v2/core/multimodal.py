@@ -53,6 +53,26 @@ VALID_AUDIO_MIME_TYPES = [
 ]
 VALID_PDF_MIME_TYPES = ["application/pdf"]
 CacheControlType = Mapping[str, str]
+
+
+def _split_data_uri(data_uri: str, *, content_type: str) -> tuple[str, str]:
+    """Split a data URI into its media type and its encoded payload.
+
+    A data URI is ``data:<media_type>;base64,<data>``; a value missing the comma
+    or the ``data:`` prefix used to fail here as a bare ValueError from the
+    unpacking or an IndexError from the split, naming neither the URI nor the
+    content type that was being built.
+    """
+    header, separator, encoded = data_uri.partition(",")
+    _, colon, rest = header.partition(":")
+    media_type = rest.split(";")[0]
+    if not separator or not colon or not media_type:
+        raise MultimodalError(
+            f"Invalid data URI: {data_uri!r}. Expected format: "
+            "data:<media_type>;base64,<data>",
+            content_type=content_type,
+        )
+    return media_type, encoded
 OptionalCacheControlType = Optional[CacheControlType]
 
 
@@ -134,8 +154,7 @@ class Image(BaseModel):
 
     @classmethod  # Caching likely unnecessary
     def from_base64(cls, data_uri: str) -> Image:
-        header, encoded = data_uri.split(",", 1)
-        media_type = header.split(":")[1].split(";")[0]
+        media_type, encoded = _split_data_uri(data_uri, content_type="image")
         if media_type not in VALID_MIME_TYPES:
             raise MultimodalError(
                 f"Unsupported image format: {media_type}. Supported formats: {', '.join(VALID_MIME_TYPES)}",
@@ -320,8 +339,7 @@ class Audio(BaseModel):
 
     @classmethod
     def from_base64(cls, data_uri: str) -> Audio:
-        header, encoded = data_uri.split(",", 1)
-        media_type = header.split(":")[1].split(";")[0]
+        media_type, encoded = _split_data_uri(data_uri, content_type="audio")
         if media_type not in VALID_AUDIO_MIME_TYPES:
             raise ValueError(f"Unsupported audio format: {media_type}")
         return cls(
@@ -524,8 +542,7 @@ class PDF(BaseModel):
 
     @classmethod
     def from_base64(cls, data_uri: str) -> PDF:
-        header, encoded = data_uri.split(",", 1)
-        media_type = header.split(":")[1].split(";")[0]
+        media_type, encoded = _split_data_uri(data_uri, content_type="pdf")
         if media_type not in VALID_PDF_MIME_TYPES:
             raise ValueError(f"Unsupported PDF format: {media_type}")
         return cls(
