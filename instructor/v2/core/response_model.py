@@ -101,12 +101,17 @@ def is_simple_type(typehint: type[T]) -> bool:
 
 def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
     """Normalize user response-model inputs into runtime-ready model classes."""
-    from instructor.v2.dsl.simple_type import has_pydantic_schema
+    from instructor.v2.dsl.simple_type import (
+        _reject_empty_literal,
+        has_pydantic_schema,
+    )
     from instructor.v2.validation.async_validators import reject_async_validators
 
     reject_async_validators(response_model)
     if response_model is None:
         return None
+
+    _reject_empty_literal(response_model)
 
     working_model: Any = response_model
     origin = get_origin(working_model)
