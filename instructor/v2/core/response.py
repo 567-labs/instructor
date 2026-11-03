@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import os
 from typing import Any, TypeVar, TYPE_CHECKING, cast
 
 from openai.types.chat import ChatCompletion
@@ -72,6 +73,11 @@ T_Model = TypeVar("T_Model", bound=BaseModel)
 T_Retval = TypeVar("T_Retval")
 T_ParamSpec = ParamSpec("T_ParamSpec")
 T = TypeVar("T")
+
+
+def _log_raw_response(response: object) -> None:
+    if os.getenv("INSTRUCTOR_LOG_RAW_RESPONSES") == "1":
+        logger.debug("Instructor Raw Response: %s", response)
 
 
 def _ensure_registry_loaded() -> None:
@@ -161,9 +167,7 @@ async def process_response_async(
         Parallel, Adapter) and applies appropriate processing logic for each.
     """
 
-    logger.debug(
-        f"Instructor Raw Response: {response}",
-    )
+    _log_raw_response(response)
     from instructor.v2.validation.async_validators import reject_async_validators
 
     reject_async_validators(response_model)
@@ -278,9 +282,7 @@ def process_response(
         as `_raw_response`. This allows access to metadata like token usage, model
         info, and other provider-specific fields after parsing.
     """
-    logger.debug(
-        f"Instructor Raw Response: {response}",
-    )
+    _log_raw_response(response)
 
     from instructor.v2.validation.async_validators import reject_async_validators
 

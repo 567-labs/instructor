@@ -10,6 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- Sync and async response helpers now log raw provider responses only when DEBUG is enabled and `INSTRUCTOR_LOG_RAW_RESPONSES=1` is set.
 - Request preparation logs only the mode and response model, keeping provider credentials and custom authentication headers out of debug records.
 
 ## [1.18.0] - 2026-09-26

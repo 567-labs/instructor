@@ -49,6 +49,10 @@ tags:
 > )
 > ```
 >
+> `DiskCache` persists the parsed result and, when available, the raw provider
+> response. Choose a private directory outside your checkout, or add the cache
+> directory to your project's `.gitignore` before running the example.
+>
 > Built-in adapters today are `AutoCache` and `DiskCache`. For Redis or
 > other backends, subclass `BaseCache` (see
 > [native caching](native_caching.md)). Under the hood this uses the
