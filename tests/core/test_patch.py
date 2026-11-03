@@ -186,5 +186,5 @@ def test_cyclic_wrapped_callable_stays_sync():
     def create():
         pass
 
-    create.__wrapped__ = create
+    functools.update_wrapper(create, create)
     assert not is_async(create)
