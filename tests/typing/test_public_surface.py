@@ -11,6 +11,7 @@ from typing_extensions import assert_type
 import openai
 from pydantic import BaseModel
 
+from instructor import patch
 from instructor.v2.auto_client import from_provider
 from instructor.v2.core.client import (
     AsyncInstructor,
@@ -194,6 +195,13 @@ def _sync_completion(*_args: Any, **_kwargs: Any) -> object:
 
 async def _async_completion(*_args: Any, **_kwargs: Any) -> object:
     return None
+
+
+async def check_patch_create() -> None:
+    sync_create = patch(create=_sync_completion)
+    async_create = patch(create=_async_completion)
+    assert_type(sync_create(response_model=User), User)
+    assert_type(await async_create(response_model=User), User)
 
 
 def check_litellm_factory() -> None:
