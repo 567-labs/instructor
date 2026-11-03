@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **Partial streaming**: Resolve `AliasPath` and `AliasChoices` input keys back to their model fields before looking up the field type. A field behind a nested `validation_alias` now arrives as a partial model instead of a raw dict, because the lookup used to miss when an alias path's first segment is not a field name.
+
 ## [1.18.0] - 2026-09-26
 
 ### Added

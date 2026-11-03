@@ -6,7 +6,7 @@ from typing import Any, Literal, Optional, Protocol, TypeVar, Union, cast
 
 import pytest
 from jiter import from_json
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import AliasPath, BaseModel, Field, ValidationError
 
 import instructor
 from instructor.dsl.partial import Partial, PartialLiteralMixin, _make_field_optional
@@ -1370,3 +1370,80 @@ class TestOptionalNestedBaseModelDuringPartialStreaming:
         # Would be a raw dict before the fix, raising AttributeError on .name
         assert isinstance(obj.items[-1], Item)
         assert obj.items[-1].name == "banana"
+
+
+class AliasPathInner(BaseModel):
+    value: int
+
+
+class AliasPathOuter(BaseModel):
+    payload: AliasPathInner = Field(validation_alias=AliasPath("container", "payload"))
+
+
+class AliasPathSibling(BaseModel):
+    label: str
+    payload: AliasPathInner = Field(validation_alias=AliasPath("container", "payload"))
+
+
+@pytest.mark.parametrize("model", [AliasPathOuter, AliasPathSibling])
+def test_partial_lifts_nested_alias_path_fields(model: type[BaseModel]) -> None:
+    """A field behind a nested ``validation_alias`` must be built as a model.
+
+    The partial builder resolves a JSON key against ``model_fields`` to learn
+    the field's type. An ``AliasPath`` field's key is not a field name, so the
+    lookup missed, the subtree was carried over as a plain dict, and the
+    snapshot had no attribute for the field at all.
+    """
+    chunks = ['{"container": {"payload": {"value": 1}']
+
+    snapshot = list(_partial_api(Partial[model]).model_from_chunks(chunks))[-1]
+
+    assert isinstance(snapshot.payload, AliasPathInner)
+    assert snapshot.payload.value == 1
+
+
+def test_partial_alias_path_waits_for_the_subtree() -> None:
+    """Before the alias subtree arrives the field is a partial, not a raw dict.
+
+    Skipping the key must not drop the field: the missing-field pass still
+    creates the empty nested model, so attribute access keeps working while the
+    rest of the stream is on its way.
+    """
+    chunks = ['{"label": "first"']
+
+    snapshot = list(_partial_api(Partial[AliasPathSibling]).model_from_chunks(chunks))[
+        -1
+    ]
+
+    assert snapshot.label == "first"
+    assert isinstance(snapshot.payload, AliasPathInner)
+
+
+def test_partial_alias_path_matches_a_completed_stream() -> None:
+    """The completed stream and the partial snapshots agree on the shape."""
+    chunks = ['{"container": {"payload": {"value": 2}}}']
+
+    snapshots = list(_partial_api(Partial[AliasPathOuter]).model_from_chunks(chunks))
+
+    assert all(
+        isinstance(s.payload, AliasPathInner)
+        for s in snapshots
+        if s.payload is not None
+    )
+    assert snapshots[-1] == AliasPathOuter.model_validate_json(chunks[0])
+
+
+class AliasPathIndexedOuter(BaseModel):
+    first: AliasPathInner = Field(validation_alias=AliasPath("items", 0))
+
+
+def test_partial_alias_path_can_address_a_list_item() -> None:
+    """``AliasPath`` segments may be list indexes, not just dict keys."""
+    chunks = ['{"items": [{"value": 3}, {"value": 4}']
+
+    snapshot = list(
+        _partial_api(Partial[AliasPathIndexedOuter]).model_from_chunks(chunks)
+    )[-1]
+
+    assert isinstance(snapshot.first, AliasPathInner)
+    assert snapshot.first.value == 3

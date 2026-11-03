@@ -30,7 +30,7 @@ from typing import (  # noqa: UP035
 )
 
 from jiter import from_json
-from pydantic import BaseModel, create_model
+from pydantic import AliasChoices, AliasPath, BaseModel, create_model
 from pydantic.fields import FieldInfo
 
 from instructor.v2.dsl.json_tracker import JsonCompleteness, is_json_complete
@@ -140,6 +140,52 @@ def process_potential_object(potential_object, partial_mode, partial_model, **kw
     return _build_partial_object(parsed, model_for_construct, tracker, "", **kwargs)
 
 
+_MISSING = object()
+
+
+def _field_alias_heads(field_info: FieldInfo) -> Iterable[tuple[str, tuple[Any, ...]]]:
+    """Yield every input key that feeds this field, with the path left to walk.
+
+    Pydantic accepts a field under its own name, under a plain alias, or under
+    the first segment of an ``AliasPath``/``AliasChoices``. The partial builder
+    looks a JSON key up in ``model_fields`` to learn the field's type, so an
+    ``AliasPath`` field was never found: its key is not a field name, the
+    subtree stayed a plain dict, and the snapshot carried the raw data instead
+    of the nested model.
+    """
+    for attr in ("validation_alias", "alias"):
+        alias = getattr(field_info, attr, None)
+        choices = alias.choices if isinstance(alias, AliasChoices) else [alias]
+        for choice in choices:
+            if isinstance(choice, str):
+                yield choice, ()
+            elif isinstance(choice, AliasPath) and choice.path:
+                head, *rest = choice.path
+                if isinstance(head, str):
+                    yield head, tuple(rest)
+
+
+def _walk_alias_path(value: Any, rest: tuple[Any, ...], path: str) -> tuple[Any, str]:
+    """Follow the remaining alias segments, returning the JSON path walked too.
+
+    ``_MISSING`` means the subtree has not arrived yet, which is normal in the
+    middle of a stream: the caller skips the field and lets the missing-field
+    pass below build its empty partial shape.
+    """
+    cursor, cursor_path = value, path
+    for part in rest:
+        if isinstance(part, int):
+            if not isinstance(cursor, list) or part >= len(cursor):
+                return _MISSING, cursor_path
+            cursor = cursor[part]
+        elif isinstance(cursor, dict) and part in cursor:
+            cursor = cursor[part]
+        else:
+            return _MISSING, cursor_path
+        cursor_path = f"{cursor_path}.{part}"
+    return cursor, cursor_path
+
+
 def _build_partial_object(
     data: Any,
     model: type[BaseModel],
@@ -161,9 +207,26 @@ def _build_partial_object(
 
     result: dict[str, Any] = {}
 
-    for field_name in data:
-        field_value = data[field_name]
-        field_path = f"{path}.{field_name}" if path else field_name
+    alias_index: dict[str, tuple[str, tuple[Any, ...]]] = {}
+    for name, info in model.model_fields.items():
+        for head, rest in _field_alias_heads(info):
+            alias_index.setdefault(head, (name, rest))
+
+    for key in data:
+        field_value = data[key]
+        field_path = f"{path}.{key}" if path else key
+        field_name, rest = key, ()
+
+        if key not in model.model_fields:
+            target = alias_index.get(key)
+            if target is not None:
+                field_name, rest = target
+
+        if rest:
+            lifted, field_path = _walk_alias_path(field_value, rest, field_path)
+            if lifted is _MISSING:
+                continue
+            field_value = lifted
 
         if field_value is None:
             result[field_name] = None
