@@ -10,6 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- Bedrock tool modes now preserve the caller’s explicit tool choice and still force the response-model tool by default. ([#2775](https://github.com/567-labs/instructor/pull/2775))
 - Request preparation logs only the mode and response model, keeping provider credentials and custom authentication headers out of debug records.
 
 ## [1.18.0] - 2026-09-26
