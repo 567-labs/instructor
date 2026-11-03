@@ -10,6 +10,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- File-backed batch requests replace the destination after all records serialize. Failed writes preserve the previous batch.
+- OpenAI and Anthropic batch results that hit the token limit return an incomplete-output error, even when the partial JSON validates.
+- Anthropic batch requests omit an unset temperature and preserve explicit numeric values, including zero.
 - Request preparation logs only the mode and response model, keeping provider credentials and custom authentication headers out of debug records.
 
 ## [1.18.0] - 2026-09-26
