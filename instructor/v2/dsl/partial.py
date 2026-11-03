@@ -30,8 +30,9 @@ from typing import (  # noqa: UP035
 )
 
 from jiter import from_json
-from pydantic import BaseModel, create_model
+from pydantic import AliasPath, BaseModel, create_model
 from pydantic.fields import FieldInfo
+from pydantic_core import PydanticUndefined
 
 from instructor.v2.dsl.json_tracker import JsonCompleteness, is_json_complete
 
@@ -67,6 +68,16 @@ def _unwrap_optional_base_model(annotation: Any) -> type[BaseModel] | None:
             if isinstance(arg, type) and issubclass(arg, BaseModel):
                 return arg
     return None
+
+
+def _alias_path_to_tracker_path(path: str, alias_path: AliasPath) -> str:
+    """Build a JsonCompleteness path from an AliasPath's raw JSON segments."""
+    for segment in alias_path.path:
+        if isinstance(segment, int):
+            path = f"{path}[{segment}]"
+        else:
+            path = f"{path}.{segment}" if path else segment
+    return path
 
 
 class MakeFieldsOptional:
@@ -160,6 +171,7 @@ def _build_partial_object(
         return data
 
     result: dict[str, Any] = {}
+    alias_path_values: dict[str, Any] = {}
 
     for field_name in data:
         field_value = data[field_name]
@@ -199,6 +211,32 @@ def _build_partial_object(
         else:
             result[field_name] = field_value
 
+    # ``model_construct`` resolves AliasPath values from the raw input, but it
+    # leaves nested models as dictionaries. Build those values explicitly so
+    # incomplete snapshots keep the same nested-model shape as direct fields.
+    for field_name, field_info in model.model_fields.items():
+        alias_path = field_info.validation_alias
+        if field_name in result or not isinstance(alias_path, AliasPath):
+            continue
+
+        field_value = alias_path.search_dict_for_path(data)
+        if field_value is PydanticUndefined:
+            continue
+
+        field_path = _alias_path_to_tracker_path(path, alias_path)
+        field_type = field_info.annotation
+        nested_model = _unwrap_optional_base_model(field_type)
+        if isinstance(field_value, dict) and nested_model is not None:
+            alias_path_values[field_name] = _build_partial_object(
+                field_value, nested_model, tracker, field_path, **kwargs
+            )
+        elif isinstance(field_value, list):
+            alias_path_values[field_name] = _build_partial_list(
+                field_value, model, field_name, tracker, field_path, **kwargs
+            )
+        else:
+            alias_path_values[field_name] = field_value
+
     # Set missing fields to None or empty nested models
     for field_name, field_info in model.model_fields.items():
         if field_name not in result:
@@ -212,7 +250,10 @@ def _build_partial_object(
             else:
                 result[field_name] = field_info.get_default(call_default_factory=True)
 
-    return model.model_construct(**result)
+    partial_object = model.model_construct(**result)
+    for field_name, field_value in alias_path_values.items():
+        setattr(partial_object, field_name, field_value)
+    return partial_object
 
 
 def _build_partial_list(
