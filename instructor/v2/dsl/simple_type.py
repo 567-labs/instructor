@@ -25,6 +25,25 @@ def has_pydantic_schema(typehint: type) -> bool:
     return True
 
 
+def _reject_empty_literal(response_model: typing.Any) -> None:
+    """Reject empty ``Literal`` annotations with a clear, named error.
+
+    An empty ``Literal`` (``Literal[()]``) cannot validate any value, but
+    pydantic-core only guards it with a bare ``assert`` deep in schema
+    generation, which leaks a confusing ``AssertionError``. Walk the
+    annotation and its nested args and fail fast with a ``ValueError``.
+    """
+    stack = [response_model]
+    while stack:
+        current = stack.pop()
+        if typing.get_origin(current) is typing.Literal and not typing.get_args(current):
+            raise ValueError(
+                "Literal response_model must declare at least one value, "
+                f"got an empty Literal in {response_model!r}"
+            )
+        stack.extend(typing.get_args(current))
+
+
 class AdapterBase(BaseModel):
     pass
 
@@ -39,6 +58,7 @@ class ModelAdapter(typing.Generic[T]):
         from instructor.v2.core.function_calls import ResponseSchema
 
         assert is_simple_type(response_model), "Only simple types are supported"
+        _reject_empty_literal(response_model)
         return create_model(
             "Response",
             content=(response_model, ...),

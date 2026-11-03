@@ -11,7 +11,7 @@ import pytest
 from pydantic import BaseModel, Field
 from pydantic_core import core_schema
 
-from instructor.dsl import is_simple_type, Partial
+from instructor.dsl import is_simple_type, ModelAdapter, Partial
 from instructor.utils.core import prepare_response_model
 
 
@@ -342,3 +342,13 @@ def test_list_of_model_three_way_union_generates_clean_name():
     prepared = prepare_response_model(list[A | B | C])
     assert prepared is not None
     assert prepared.__name__ == "IterableAOrBOrC"
+
+def test_empty_literal_response_model_raises_clear_error():
+    """An empty Literal cannot validate anything, so it must fail with a named error"""
+
+    for hint in (Literal[()], list[Literal[()]], Iterable[Literal[()]]):
+        with pytest.raises(ValueError, match="must declare at least one value"):
+            prepare_response_model(hint)
+
+    with pytest.raises(ValueError, match="must declare at least one value"):
+        ModelAdapter[Literal[()]]
