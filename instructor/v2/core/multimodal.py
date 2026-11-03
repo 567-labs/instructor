@@ -130,7 +130,7 @@ class Image(BaseModel):
 
     @classmethod
     def is_base64(cls, s: str) -> bool:
-        return bool(re.match(r"^data:image/[a-zA-Z]+;base64,", s))
+        return bool(re.match(r"^data:image/[a-zA-Z0-9+\-.]+(?:;[^,;]+)*;base64,", s))
 
     @classmethod  # Caching likely unnecessary
     def from_base64(cls, data_uri: str) -> Image:
@@ -316,7 +316,7 @@ class Audio(BaseModel):
 
     @classmethod
     def is_base64(cls, s: str) -> bool:
-        return bool(re.match(r"^data:audio/[a-zA-Z0-9+-]+;base64,", s))
+        return bool(re.match(r"^data:audio/[a-zA-Z0-9+\-.]+(?:;[^,;]+)*;base64,", s))
 
     @classmethod
     def from_base64(cls, data_uri: str) -> Audio:
@@ -520,7 +520,7 @@ class PDF(BaseModel):
 
     @classmethod
     def is_base64(cls, s: str) -> bool:
-        return bool(re.match(r"^data:application/pdf;base64,", s))
+        return bool(re.match(r"^data:application/pdf(?:;[^,;]+)*;base64,", s))
 
     @classmethod
     def from_base64(cls, data_uri: str) -> PDF:
