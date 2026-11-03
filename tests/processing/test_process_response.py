@@ -1,13 +1,17 @@
 import json
 import logging
-from typing import Any, Callable, cast
+from typing import Any, Callable, Optional, cast
 
 import pytest
 from openai.types.chat import ChatCompletion
 from typing_extensions import NotRequired, TypedDict
 from pydantic import BaseModel, ValidationError
 from instructor import Mode
-from instructor.processing.response import handle_response_model, process_response
+from instructor.processing.response import (
+    handle_response_model,
+    process_response,
+    process_response_async,
+)
 from instructor.v2.providers.bedrock.handlers import (
     _prepare_bedrock_converse_kwargs_internal,
 )
@@ -125,6 +129,45 @@ def test_request_log_omits_provider_options(caplog: pytest.LogCaptureFixture) ->
     for value in (*headers.values(), kwargs["api_key"]):
         assert value not in record.getMessage()
         assert value not in repr(vars(record))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("opt_in", [None, "0", "1"])
+async def test_raw_response_logging_requires_opt_in(
+    opt_in: Optional[str],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    if opt_in is None:
+        monkeypatch.delenv("INSTRUCTOR_LOG_RAW_RESPONSES", raising=False)
+    else:
+        monkeypatch.setenv("INSTRUCTOR_LOG_RAW_RESPONSES", opt_in)
+
+    canary = "private-response-canary"
+    response = ChatCompletion.model_validate(
+        {
+            "id": "test",
+            "object": "chat.completion",
+            "created": 0,
+            "model": "test-model",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": "stop",
+                    "message": {"role": "assistant", "content": canary},
+                }
+            ],
+        }
+    )
+    with caplog.at_level(logging.DEBUG, logger="instructor"):
+        assert process_response(response, response_model=None, stream=False) is response
+        assert await process_response_async(response, response_model=None) is response
+
+    assert sum(canary in record.getMessage() for record in caplog.records) == (
+        2 if opt_in == "1" else 0
+    )
+    if opt_in != "1":
+        assert all(canary not in repr(vars(record)) for record in caplog.records)
 
 
 def test_openai_to_bedrock_conversion() -> None:

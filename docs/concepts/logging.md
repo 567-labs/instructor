@@ -33,6 +33,14 @@ user = client.create(
 
 ```
 
+## Inspecting raw responses
+
+To include full provider responses from the sync and async response helpers, set
+`INSTRUCTOR_LOG_RAW_RESPONSES=1` in the application environment and enable DEBUG
+on the `instructor` logger. Use this for local debugging with data you can safely
+write to logs. The flag controls Instructor's raw-response messages. Provider SDK
+loggers have separate settings.
+
 ## Provider initialization logs
 
 `from_provider()` now emits structured logs at the `INFO` level when a provider
