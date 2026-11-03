@@ -213,3 +213,45 @@ async def test_extract_json_from_stream_async_discards_non_json_brace_span_befor
         "".join([chunk async for chunk in extract_json_from_stream_async(chunks())])
         == '{"name":"Ada","age":30}'
     )
+
+
+def test_extract_json_from_codeblock_exact_1mb_boundary_allowed() -> None:
+    from instructor.v2.core.json import MAX_JSON_EXTRACTION_CHARS
+    pad_len = MAX_JSON_EXTRACTION_CHARS - 6
+    content_1mb = '{"a":' + '0' * pad_len + '}'
+    assert len(content_1mb) == MAX_JSON_EXTRACTION_CHARS
+    assert extract_json_from_codeblock(content_1mb) == content_1mb
+
+
+def test_extract_json_from_codeblock_leading_object_with_trailing_prose() -> None:
+    # A JSON object starting at index 0 must be captured when trailing prose exists
+    content = '{"only": 1} trailing prose'
+    assert extract_json_from_codeblock(content) == '{"only": 1}'
+
+
+def test_extract_json_from_codeblock_exact_work_budget_boundary() -> None:
+    # At index 16, remaining_work exactly equals len(content) - index (120 == 120),
+    # so remaining_work < len(content) - index is False, successfully decoding the valid JSON
+    valid_json = '{"valid":1}'
+    content = '{' * 16 + valid_json + ' ' * (136 - 16 - len(valid_json))
+    assert len(content) == 136
+    assert extract_json_from_codeblock(content) == valid_json
+
+
+def test_extract_json_from_codeblock_multiple_valid_objects_span_offset_budget() -> None:
+    # Multiple valid objects must only decrement by span length (end - index), not end + index
+    content = " ".join(['{"x": 1}'] * 25)
+    assert extract_json_from_codeblock(content) == '{"x": 1}'
+
+
+def test_extract_json_from_codeblock_exact_128_depth_boundary_allowed() -> None:
+    # MAX_JSON_DEPTH is 128. Exact depth of 128 dict nesting must succeed without error
+    content = '{"a": ' * 127 + '{"a": 1}' + '}' * 127
+    assert extract_json_from_codeblock(content) == content
+
+
+def test_extract_json_from_codeblock_depth_exceeds_128_rejected() -> None:
+    # Nesting depth > 128 must be rejected with ValueError
+    content = '{"a": ' * 128 + '{"a": 1}' + '}' * 129
+    with pytest.raises(ValueError, match="128 level limit"):
+        extract_json_from_codeblock(content)
