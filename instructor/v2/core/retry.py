@@ -27,6 +27,7 @@ from instructor.v2.core.budget import (
 )
 from instructor.v2.core.errors import (
     AsyncValidationError,
+    ConfigurationError,
     FailedAttempt,
     IncompleteOutputException,
     InstructorRetryException,
@@ -64,6 +65,32 @@ _RETRYABLE_PARSE_ERRORS = (
 
 def _max_attempts(max_retries: int | Retrying | AsyncRetrying) -> int | None:
     return max(max_retries, 0) + 1 if isinstance(max_retries, int) else None
+
+def _validate_max_retries(
+    max_retries: Any,
+    retrying_type: type[Retrying] | type[AsyncRetrying],
+) -> None:
+    """Reject a max_retries the retry loop could not use.
+
+    A value that is not an int falls into the tenacity branch and is iterated as a
+    policy: a float raised "'float' object is not iterable" and an AsyncRetrying
+    handed to the sync path raised "'for' loop expected", both wrapped in an
+    InstructorRetryException claiming the retries were exhausted although no
+    request had run.
+    """
+    if isinstance(max_retries, retrying_type):
+        return
+    if isinstance(max_retries, int):
+        if max_retries < 0:
+            raise ConfigurationError(
+                f"max_retries must not be negative, got {max_retries}"
+            )
+        return
+    raise ConfigurationError(
+        "max_retries must be a non-negative int or a tenacity "
+        f"{retrying_type.__name__} instance, got "
+        f"{type(max_retries).__name__}: {max_retries!r}"
+    )
 
 
 def _attempt_metadata(
@@ -171,6 +198,7 @@ def retry_sync_v2(
         TokenBudgetExceeded: If a failed attempt exhausts the retry budget
         TokenUsageUnavailableError: If a retry budget cannot be enforced
     """
+    _validate_max_retries(max_retries, Retrying)
     from instructor.v2.validation.async_validators import reject_async_validators
 
     reject_async_validators(response_model)
@@ -470,6 +498,7 @@ async def retry_async_v2(
         TokenBudgetExceeded: If a failed attempt exhausts the retry budget
         TokenUsageUnavailableError: If a retry budget cannot be enforced
     """
+    _validate_max_retries(max_retries, AsyncRetrying)
     from instructor.v2.validation.async_validators import reject_async_validators
 
     reject_async_validators(response_model)
