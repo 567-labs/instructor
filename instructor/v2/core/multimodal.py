@@ -645,11 +645,11 @@ class PDF(BaseModel):
                 if self.source.startswith(("http://", "https://", "gs://")):
                     name = Path(urlparse(self.source).path).name or "document"
                 else:
-                    name = (
-                        Path(self.source).name
-                        if Path(self.source).exists()
-                        else "document"
-                    )
+                    try:
+                        source_path = Path(self.source)
+                        name = source_path.name if source_path.exists() else "document"
+                    except (OSError, ValueError):
+                        name = "document"
             else:
                 name = "document"
 

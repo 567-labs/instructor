@@ -815,3 +815,25 @@ def test_image_from_url_head_passes_timeout():
         mock_requests.head.assert_called_once()
         _, kwargs = mock_requests.head.call_args
         assert kwargs["timeout"] == 30
+
+
+def test_pdf_to_bedrock_from_raw_base64_default_name():
+    """Test that PDF.from_raw_base64 infers 'document' as default Bedrock name without OSError."""
+    import base64
+
+    # Large enough base64 payload to exceed filesystem path limits (e.g. >4096 characters)
+    raw_pdf_bytes = b"%PDF-1.4\n1 0 obj\n<<\n>>\nendobj\n" + b"X" * 10000
+    b64_str = base64.b64encode(raw_pdf_bytes).decode("ascii")
+
+    pdf = PDF.from_raw_base64(b64_str)
+
+    # Calling to_bedrock without explicit name should safely fall back to 'document'
+    bedrock_format = pdf.to_bedrock()
+    assert bedrock_format["document"]["format"] == "pdf"
+    assert bedrock_format["document"]["name"] == "document"
+    assert bedrock_format["document"]["source"]["bytes"] == raw_pdf_bytes
+
+    # Explicit name should still be respected
+    custom_bedrock = pdf.to_bedrock(name="Custom Invoice")
+    assert custom_bedrock["document"]["name"] == "Custom Invoice"
+    assert custom_bedrock["document"]["source"]["bytes"] == raw_pdf_bytes
