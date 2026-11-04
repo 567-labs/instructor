@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable
+from functools import partial
 from typing import Any, Generic, TypeVar, cast
 
 from pydantic import ValidationError
@@ -13,12 +14,23 @@ _validation_error_original_str: Callable[[ValidationError], str] | None = None
 
 
 def is_async(func: Callable[..., Any]) -> bool:
-    """Return whether a callable is async, following wrapped callables."""
-    is_coroutine = inspect.iscoroutinefunction(func)
-    while callable(wrapped := getattr(func, "__wrapped__", None)):
+    """Detect async functions and callable instances through wrappers and partials."""
+    seen: set[int] = set()
+    while id(func) not in seen:
+        seen.add(id(func))
+        if inspect.iscoroutinefunction(func) or inspect.iscoroutinefunction(
+            type(func).__call__
+        ):
+            return True
+        wrapped = (
+            func.func
+            if isinstance(func, partial)
+            else getattr(func, "__wrapped__", None)
+        )
+        if not callable(wrapped):
+            break
         func = wrapped
-        is_coroutine = is_coroutine or inspect.iscoroutinefunction(func)
-    return is_coroutine
+    return False
 
 
 class classproperty(Generic[R_co]):

@@ -91,6 +91,9 @@ class CitationMixin(BaseModel):
     def _get_span(
         self, quote: str, context: str, errs: int = 5
     ) -> Generator[tuple[int, int], None, None]:
+        if not quote or not context:
+            return
+
         import regex
 
         # Escape the quote so regex metacharacters in LLM-generated text
@@ -99,14 +102,20 @@ class CitationMixin(BaseModel):
         minor = regex.escape(quote)
         major = context
 
+        # Cap the error budget to 1/3 of the quote length (up to max `errs`)
+        # so short quotes do not match arbitrary substrings via excessive fuzzy edits.
+        max_errs = min(errs, len(quote) // 3)
+
         errs_ = 0
         s = regex.search(f"({minor}){{e<={errs_}}}", major)
-        while s is None and errs_ < errs:
+        while s is None and errs_ < max_errs:
             errs_ += 1
             s = regex.search(f"({minor}){{e<={errs_}}}", major)
 
         if s is not None:
-            yield from s.spans()
+            for start, end in s.spans():
+                if start != end:
+                    yield (start, end)
 
     def get_spans(self, context: str) -> Generator[tuple[int, int], None, None]:
         for quote in self.substring_quotes:

@@ -33,11 +33,11 @@ from instructor.v2.core.errors import (
 )
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import (
-    ParallelBase,
+    ParallelBase as ParallelBase,
     get_types_array,
     model_for_tool_name,
 )
-from instructor.v2.dsl.simple_type import AdapterBase
+from instructor.v2.dsl.simple_type import AdapterBase as AdapterBase
 from instructor.v2.core.multimodal import convert_messages as convert_messages_v1
 from instructor.v2.core.json import (
     extract_json_from_codeblock,
@@ -170,23 +170,6 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):
             return generator
         return list(generator)
-
-    def _finalize_parsed_result(
-        self,
-        response_model: type[BaseModel] | ParallelBase,
-        response: Any,
-        parsed: Any,
-    ) -> Any:
-        """Finalize parsed result, handling DSL types."""
-        if isinstance(parsed, IterableBase):
-            return [task for task in parsed.tasks]
-        if isinstance(response_model, ParallelBase):
-            return parsed
-        if isinstance(parsed, AdapterBase):
-            return parsed.content
-        if isinstance(parsed, BaseModel):
-            parsed._raw_response = response  # type: ignore[attr-defined]
-        return parsed
 
     def _extract_tool_call_json(self, response: Any) -> str:
         """Extract JSON from tool call response.

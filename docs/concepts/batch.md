@@ -154,7 +154,21 @@ Required permissions: `roles/aiplatform.user` and `roles/storage.objectUser`.
 
 ## Processing Results
 
+OpenAI batch requests use strict JSON schemas. All named fields are required in
+the output, even when the Pydantic model has defaults. Nullable fields still
+allow `null`. Arbitrary-key dictionaries are not supported by this strict batch
+path; use named model fields or a list of key/value objects instead. Anthropic
+batch requests keep their provider-specific tool schema, including mapping
+value types.
+
 Results use a Maybe/Result pattern for type-safe handling:
+
+For completed OpenAI batches, retrieval reads both the output and error files.
+For ended Anthropic batches, it reads every result, including errors. A batch
+where every request failed returns `BatchError` records rather than raising
+because no requests succeeded. Errors retain the request's `custom_id`, provider
+error details, and original record in `raw_data`. Jobs that are still running
+cannot be retrieved.
 
 ```python
 from instructor.batch import (
@@ -180,6 +194,10 @@ if "request-1" in by_id:
     else:
         print(f"Error: {result.error_message}")
 ```
+
+Responses that hit the token limit return `BatchError` with `error_type="incomplete_output"`.
+This also applies when the partial JSON is valid or missing fields have defaults.
+The error keeps the request's `custom_id` and raw response so you can retry it with a higher token limit.
 
 ### Custom IDs
 

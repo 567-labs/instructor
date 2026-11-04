@@ -86,8 +86,9 @@ class OpenAIProvider(BatchProvider):
             raise Exception(f"Failed to get OpenAI batch status: {e}") from e
 
     def _get_results_text(self, batch_id: str) -> str:
-        """Return the output file for a completed OpenAI batch."""
+        """Return success and error records for a completed OpenAI batch."""
         from openai import OpenAI
+        from openai.types import Batch
         import time
 
         client = OpenAI()
@@ -96,40 +97,48 @@ class OpenAIProvider(BatchProvider):
         if batch.status != "completed":
             raise Exception(f"Batch not completed, status: {batch.status}")
 
-        request_counts = getattr(batch, "request_counts", None)
-        if request_counts:
-            completed = getattr(request_counts, "completed", 0)
-            failed = getattr(request_counts, "failed", 0)
-            total = getattr(request_counts, "total", 0)
-
-            if failed > 0 and completed == 0:
-                raise RuntimeError(
-                    f"All {total} batch requests failed. No output file will be available."
+        def files_ready(batch: Batch) -> bool:
+            counts = batch.request_counts
+            return bool(batch.output_file_id or batch.error_file_id) and (
+                counts is None
+                or (
+                    (not counts.completed or bool(batch.output_file_id))
+                    and (not counts.failed or bool(batch.error_file_id))
                 )
+            )
 
-        if not batch.output_file_id:
+        if not files_ready(batch):
             max_retries = 10
             for attempt in range(max_retries):
                 wait_time = min(5 + attempt, 15)
                 print(
-                    f"Output file not ready, waiting {wait_time}s (attempt {attempt + 1}/{max_retries})..."
+                    f"Result files not ready, waiting {wait_time}s (attempt {attempt + 1}/{max_retries})..."
                 )
                 time.sleep(wait_time)
                 batch = client.batches.retrieve(batch_id)
-                if batch.output_file_id:
-                    print(f"Output file now available: {batch.output_file_id}")
-                    break
                 if batch.status != "completed":
                     raise Exception(
-                        f"Batch status changed to {batch.status} while waiting for output file"
+                        f"Batch status changed to {batch.status} while waiting for result files"
                     )
+                if files_ready(batch):
+                    print("Result files now available")
+                    break
             else:
                 raise RuntimeError(
-                    f"No output file available after {max_retries} retries over {sum(range(5, 5 + max_retries))} seconds. "
+                    f"No result files available after {max_retries} retries over {sum(range(5, 5 + max_retries))} seconds. "
                     f"Batch status: {batch.status}, Request counts: {getattr(batch, 'request_counts', 'unknown')}."
                 )
 
-        return client.files.content(batch.output_file_id).text
+        file_ids = dict.fromkeys(
+            file_id
+            for file_id in (batch.output_file_id, batch.error_file_id)
+            if file_id is not None
+        )
+        contents = [client.files.content(file_id).text for file_id in file_ids]
+        if len(contents) == 1:
+            return contents[0]
+        # Each file is JSONL; the output file need not end with a newline.
+        return "\n".join(content.rstrip("\n") for content in contents)
 
     def retrieve_results(self, batch_id: str) -> str:
         """Retrieve OpenAI batch results"""
