@@ -178,15 +178,17 @@ def patch(
 
 @overload
 def patch(
-    create: Callable[..., T_Retval],
+    *,
+    create: Callable[..., Awaitable[Any]],
     mode: Mode = Mode.TOOLS,
     provider: Provider = Provider.OPENAI,
-) -> InstructorChatCompletionCreate: ...
+) -> AsyncInstructorChatCompletionCreate: ...
 
 
 @overload
 def patch(
-    create: Awaitable[T_Retval],
+    *,
+    create: Callable[..., T_Retval],
     mode: Mode = Mode.TOOLS,
     provider: Provider = Provider.OPENAI,
 ) -> InstructorChatCompletionCreate: ...
@@ -194,11 +196,17 @@ def patch(
 
 def patch(
     client: OpenAI | AsyncOpenAI | None = None,
-    create: Callable[..., T_Retval] | None = None,
+    create: Callable[..., Any] | None = None,
     mode: Mode = Mode.TOOLS,
     provider: Provider = Provider.OPENAI,
-) -> OpenAI | AsyncOpenAI | InstructorChatCompletionCreate:
+) -> (
+    OpenAI
+    | AsyncOpenAI
+    | InstructorChatCompletionCreate
+    | AsyncInstructorChatCompletionCreate
+):
     """Patch chat-completion create methods with v2 registry handlers."""
+
     logger.debug(f"Patching `client.chat.completions.create` with {mode=}")
 
     if create is not None:

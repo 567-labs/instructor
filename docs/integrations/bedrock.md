@@ -173,6 +173,11 @@ user = client.create(
 Use `Mode.TOOLS_STRICT` with the same setup when the selected model supports
 strict tool use and you prefer a tool-call response over JSON text.
 
+In `Mode.TOOLS` and `Mode.TOOLS_STRICT`, Instructor forces the response-model tool
+by default. Pass `toolConfig={"toolChoice": {"auto": {}}}` to `client.create()`
+to let a model choose whether to call the tool. Your explicit `toolChoice` is
+preserved; check that the selected model supports the choice you pass.
+
 ## OpenAI Compatibility: Flexible Input Format and Model Parameter
 
 Instructor’s Bedrock integration supports both OpenAI-style and Bedrock-native message formats, as well as any mix of the two. You can use either:
