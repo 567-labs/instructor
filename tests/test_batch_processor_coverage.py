@@ -368,6 +368,64 @@ def test_parse_results_accepts_empty_object_for_defaulted_model(
     ]
 
 
+@pytest.mark.parametrize(
+    "provider_name,content_type",
+    [
+        ("openai", "text"),
+        ("anthropic", "tool_use"),
+        ("anthropic", "text"),
+    ],
+)
+@pytest.mark.parametrize("truncated", [False, True])
+def test_parse_results_checks_token_limit_before_applying_defaults(
+    provider_name: str, content_type: str, truncated: bool
+) -> None:
+    if provider_name == "openai":
+        record = {
+            "custom_id": "request-1",
+            "response": {
+                "body": {
+                    "choices": [
+                        {
+                            "finish_reason": "length" if truncated else "stop",
+                            "message": {"content": "{}"},
+                        }
+                    ]
+                }
+            },
+        }
+    else:
+        stop_reason = "tool_use" if content_type == "tool_use" else "end_turn"
+        record = {
+            "custom_id": "request-1",
+            "result": {
+                "type": "succeeded",
+                "message": {
+                    "stop_reason": "max_tokens" if truncated else stop_reason,
+                    "content": [{"type": "tool_use", "input": {}}]
+                    if content_type == "tool_use"
+                    else [{"type": "text", "text": "{}"}],
+                },
+            },
+        }
+    processor = BatchProcessor(f"{provider_name}/test-model", DefaultedResult)
+
+    results = processor.parse_results(json.dumps(record))
+
+    if truncated:
+        assert len(results) == 1
+        error = results[0]
+        assert isinstance(error, BatchError)
+        assert error.custom_id == "request-1"
+        assert error.error_type == "incomplete_output"
+        assert "max_tokens" in error.error_message
+        assert error.raw_data == record
+    else:
+        assert results == [
+            BatchSuccess(custom_id="request-1", result=DefaultedResult())
+        ]
+
+
 def test_anthropic_results_support_tool_use_and_text_fallback(
     provider: RecordingProvider,
 ) -> None:
@@ -500,3 +558,63 @@ def test_extract_returns_none_for_missing_malformed_or_unknown_provider_response
         openai._extract_from_response({"response": {"body": {"choices": []}}}) is None
     )
     assert unknown._extract_from_response({"anything": "goes"}) is None
+
+
+def test_create_batch_file_preserves_previous_file_on_serialization_failure(
+    provider: RecordingProvider, tmp_path: Path
+) -> None:
+    del provider
+    batch_file = tmp_path / "requests.jsonl"
+    batch_file.write_text("previous batch\n")
+    processor = BatchProcessor("openai/gpt-4.1-mini", Person)
+
+    with pytest.raises(TypeError):
+        processor.create_batch_from_messages(
+            [
+                [{"role": "user", "content": "Ada"}],
+                [{"role": "user", "content": object()}],
+            ],
+            str(batch_file),
+        )
+
+    assert batch_file.read_text() == "previous batch\n"
+    assert list(tmp_path.iterdir()) == [batch_file]
+
+
+def test_create_batch_file_does_not_leave_partial_file_on_failure(
+    provider: RecordingProvider, tmp_path: Path
+) -> None:
+    del provider
+    batch_file = tmp_path / "new_requests.jsonl"
+    processor = BatchProcessor("openai/gpt-4.1-mini", Person)
+
+    with pytest.raises(TypeError):
+        processor.create_batch_from_messages(
+            [
+                [{"role": "user", "content": "Ada"}],
+                [{"role": "user", "content": object()}],
+            ],
+            str(batch_file),
+        )
+
+    assert not batch_file.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_create_batch_file_preserves_existing_file_permissions(
+    provider: RecordingProvider, tmp_path: Path
+) -> None:
+    import stat
+
+    del provider
+    batch_file = tmp_path / "requests_perm.jsonl"
+    batch_file.write_text("old\n")
+    batch_file.chmod(0o644)
+    processor = BatchProcessor("openai/gpt-4.1-mini", Person)
+
+    processor.create_batch_from_messages(
+        [[{"role": "user", "content": "Ada is 36"}]],
+        str(batch_file),
+    )
+
+    assert stat.S_IMODE(batch_file.stat().st_mode) == 0o644
