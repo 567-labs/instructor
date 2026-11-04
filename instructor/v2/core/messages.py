@@ -119,10 +119,16 @@ def merge_consecutive_messages(messages: list[dict[str, Any]]) -> list[dict[str,
 
 
 def get_message_content(message: ChatCompletionMessageParam) -> list[Any]:
-    """Return message content in list form for Gemini-style APIs."""
+    """Return message content in list form for Gemini-style APIs.
+
+    The returned list is always a new object: callers treat it as their own
+    `parts` list (e.g. `transform_to_gemini_prompt` hoists the system prompt
+    into it with `.insert(0, ...)`), and returning the caller's own content
+    list would splice the hoisted prompt into the caller's message.
+    """
     if not message:
         return [""]
     content = message.get("content", "")
     if isinstance(content, list):
-        return content if content else [""]
+        return list(content) if content else [""]
     return [content if content is not None else ""]
