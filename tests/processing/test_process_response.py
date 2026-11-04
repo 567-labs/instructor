@@ -1,13 +1,17 @@
 import json
-from typing import Any, Callable, cast
+import logging
+from typing import Any, Callable, Optional, cast
 
 import pytest
 from openai.types.chat import ChatCompletion
 from typing_extensions import NotRequired, TypedDict
 from pydantic import BaseModel, ValidationError
 from instructor import Mode
-from instructor.processing.response import handle_response_model, process_response
-from instructor.v2.core.response import _redact_kwargs
+from instructor.processing.response import (
+    handle_response_model,
+    process_response,
+    process_response_async,
+)
 from instructor.v2.providers.bedrock.handlers import (
     _prepare_bedrock_converse_kwargs_internal,
 )
@@ -105,26 +109,65 @@ def test_iterable_typed_dict_preserves_optional_underscore_key() -> None:
     }
 
 
-def test_redact_kwargs_hides_nested_sensitive_fields() -> None:
-    kwargs = {
-        "api_key": "top-level",
-        "headers": {
-            "Authorization": "Bearer secret",
-            "x-api-key": "nested secret",
-            "safe": "visible",
-        },
-        "messages": [{"token": "inner secret", "content": "hello"}],
-    }
+def test_request_log_omits_provider_options(caplog: pytest.LogCaptureFixture) -> None:
+    class User(BaseModel):
+        name: str
 
-    assert _redact_kwargs(kwargs) == {
-        "api_key": "[redacted]",
-        "headers": {
-            "Authorization": "[redacted]",
-            "x-api-key": "[redacted]",
-            "safe": "visible",
-        },
-        "messages": [{"token": "[redacted]", "content": "hello"}],
-    }
+    headers = {"Cookie": "session-canary", "X-Custom-Auth": "gateway-canary"}
+    with caplog.at_level(logging.DEBUG, logger="instructor"):
+        _, kwargs = handle_response_model(
+            User, messages=[], extra_headers=headers, api_key="provider-canary"
+        )
+
+    assert kwargs["extra_headers"] == headers
+    assert kwargs["api_key"] == "provider-canary"
+    record = next(
+        r for r in caplog.records if r.getMessage().startswith("Instructor Request")
+    )
+    assert record.__dict__["mode"] == Mode.TOOLS.value
+    assert record.__dict__["response_model"] == "User"
+    for value in (*headers.values(), kwargs["api_key"]):
+        assert value not in record.getMessage()
+        assert value not in repr(vars(record))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("opt_in", [None, "0", "1"])
+async def test_raw_response_logging_requires_opt_in(
+    opt_in: Optional[str],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    if opt_in is None:
+        monkeypatch.delenv("INSTRUCTOR_LOG_RAW_RESPONSES", raising=False)
+    else:
+        monkeypatch.setenv("INSTRUCTOR_LOG_RAW_RESPONSES", opt_in)
+
+    canary = "private-response-canary"
+    response = ChatCompletion.model_validate(
+        {
+            "id": "test",
+            "object": "chat.completion",
+            "created": 0,
+            "model": "test-model",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": "stop",
+                    "message": {"role": "assistant", "content": canary},
+                }
+            ],
+        }
+    )
+    with caplog.at_level(logging.DEBUG, logger="instructor"):
+        assert process_response(response, response_model=None, stream=False) is response
+        assert await process_response_async(response, response_model=None) is response
+
+    assert sum(canary in record.getMessage() for record in caplog.records) == (
+        2 if opt_in == "1" else 0
+    )
+    if opt_in != "1":
+        assert all(canary not in repr(vars(record)) for record in caplog.records)
 
 
 def test_openai_to_bedrock_conversion() -> None:
