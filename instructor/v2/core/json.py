@@ -58,7 +58,14 @@ def extract_json_from_codeblock(content: str) -> str:
 
 
 def extract_json_from_stream(chunks: Iterable[str]) -> Generator[str, None, None]:
-    """Extract JSON characters from a plain-text or fenced streaming response."""
+    """Extract JSON characters from a plain-text or fenced streaming response.
+
+    Mirrors the prompt-injection posture of :func:`extract_json_from_codeblock`:
+    JSON that completes outside a fenced codeblock is held back, and if a
+    fence appears later the held-back prose objects are discarded so only the
+    fenced object is emitted. Streams that never contain a fence flush the
+    held-back objects in order at the end, preserving unfenced behavior.
+    """
     in_codeblock = False
     codeblock_delimiter_count = 0
     json_started = False
@@ -70,6 +77,8 @@ def extract_json_from_stream(chunks: Iterable[str]) -> Generator[str, None, None
     last_invalid_candidate: str | None = None
     emitted_valid_candidate = False
     total_chars = 0
+    fence_seen = False
+    deferred_prose: list[str] = []
 
     for chunk in chunks:
         total_chars += len(chunk)
@@ -80,6 +89,8 @@ def extract_json_from_stream(chunks: Iterable[str]) -> Generator[str, None, None
                 codeblock_buffer.append(char)
                 if len(codeblock_buffer) == 3:
                     in_codeblock = True
+                    fence_seen = True
+                    deferred_prose.clear()
                     codeblock_delimiter_count = 0
                     codeblock_buffer = []
                 continue
@@ -144,9 +155,19 @@ def extract_json_from_stream(chunks: Iterable[str]) -> Generator[str, None, None
                             except ValueError:
                                 last_invalid_candidate = candidate
                                 continue
-                            emitted_valid_candidate = True
-                            last_invalid_candidate = None
-                            yield from candidate
+                            if in_codeblock:
+                                emitted_valid_candidate = True
+                                last_invalid_candidate = None
+                                yield from candidate
+                            elif fence_seen:
+                                # Prose JSON after a fence: untrusted context,
+                                # never emitted (matches codeblock extraction).
+                                last_invalid_candidate = None
+                            else:
+                                # Prose object before any fence: defer so it
+                                # can be dropped if a fence shows up later.
+                                deferred_prose.append(candidate)
+                                last_invalid_candidate = None
                             continue
 
                 buffer.append(char)
@@ -157,10 +178,23 @@ def extract_json_from_stream(chunks: Iterable[str]) -> Generator[str, None, None
                 delimiter_stack.append("}" if char == "{" else "]")
                 buffer.append(char)
 
-    if json_started and buffer:
+    if fence_seen:
+        # Fenced responses ignore prose JSON entirely, including trailing
+        # unterminated text outside the fence. Unterminated text inside an
+        # open fence still streams so Partial consumers see cut-off data.
+        if in_codeblock and json_started and buffer:
+            yield from buffer
+    elif json_started and buffer:
+        for candidate in deferred_prose:
+            emitted_valid_candidate = True
+            yield from candidate
         yield from buffer
-    elif not emitted_valid_candidate and last_invalid_candidate is not None:
-        yield from last_invalid_candidate
+    else:
+        for candidate in deferred_prose:
+            emitted_valid_candidate = True
+            yield from candidate
+        if not emitted_valid_candidate and last_invalid_candidate is not None:
+            yield from last_invalid_candidate
 
 
 async def extract_json_from_stream_async(
@@ -178,6 +212,8 @@ async def extract_json_from_stream_async(
     last_invalid_candidate: str | None = None
     emitted_valid_candidate = False
     total_chars = 0
+    fence_seen = False
+    deferred_prose: list[str] = []
 
     async for chunk in chunks:
         total_chars += len(chunk)
@@ -188,6 +224,8 @@ async def extract_json_from_stream_async(
                 codeblock_buffer.append(char)
                 if len(codeblock_buffer) == 3:
                     in_codeblock = True
+                    fence_seen = True
+                    deferred_prose.clear()
                     codeblock_delimiter_count = 0
                     codeblock_buffer = []
                 continue
@@ -253,10 +291,20 @@ async def extract_json_from_stream_async(
                             except ValueError:
                                 last_invalid_candidate = candidate
                                 continue
-                            emitted_valid_candidate = True
-                            last_invalid_candidate = None
-                            for buffered_char in candidate:
-                                yield buffered_char
+                            if in_codeblock:
+                                emitted_valid_candidate = True
+                                last_invalid_candidate = None
+                                for buffered_char in candidate:
+                                    yield buffered_char
+                            elif fence_seen:
+                                # Prose JSON after a fence: untrusted context,
+                                # never emitted (matches codeblock extraction).
+                                last_invalid_candidate = None
+                            else:
+                                # Prose object before any fence: defer so it
+                                # can be dropped if a fence shows up later.
+                                deferred_prose.append(candidate)
+                                last_invalid_candidate = None
                             continue
 
                 buffer.append(char)
@@ -267,9 +315,25 @@ async def extract_json_from_stream_async(
                 delimiter_stack.append("}" if char == "{" else "]")
                 buffer.append(char)
 
-    if json_started and buffer:
+    if fence_seen:
+        # Fenced responses ignore prose JSON entirely, including trailing
+        # unterminated text outside the fence. Unterminated text inside an
+        # open fence still streams so Partial consumers see cut-off data.
+        if in_codeblock and json_started and buffer:
+            for buffered_char in buffer:
+                yield buffered_char
+    elif json_started and buffer:
+        for candidate in deferred_prose:
+            emitted_valid_candidate = True
+            for buffered_char in candidate:
+                yield buffered_char
         for buffered_char in buffer:
             yield buffered_char
-    elif not emitted_valid_candidate and last_invalid_candidate is not None:
-        for buffered_char in last_invalid_candidate:
-            yield buffered_char
+    else:
+        for candidate in deferred_prose:
+            emitted_valid_candidate = True
+            for buffered_char in candidate:
+                yield buffered_char
+        if not emitted_valid_candidate and last_invalid_candidate is not None:
+            for buffered_char in last_invalid_candidate:
+                yield buffered_char

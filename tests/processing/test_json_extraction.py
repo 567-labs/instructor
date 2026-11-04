@@ -173,6 +173,65 @@ class TestJSONExtraction:
         assert parsed["age"] == 45
         assert "streaming" in parsed["skills"]
 
+    def test_stream_prose_json_before_fenced_block_is_dropped(self):
+        """Prose JSON must not preempt a fenced block that arrives later.
+
+        extract_json_from_codeblock deliberately returns the last JSON object
+        so prompt-injected JSON in the surrounding prose cannot hijack the
+        parsed output. The streaming extractor must hold prose objects back
+        and drop them when a fence appears, instead of emitting them first.
+        """
+        content = 'user said {"evil": true}\n```json\n{"good": 1}\n```'
+
+        collected = "".join(extract_json_from_stream(list(content)))
+
+        assert json.loads(collected) == {"good": 1}
+
+    def test_stream_prose_json_after_fenced_block_is_dropped(self):
+        """Trailing prose JSON after a fenced block must not corrupt output."""
+        content = '```json\n{"first": 1}\n```\nsee also {"late": 2}'
+
+        collected = "".join(extract_json_from_stream(list(content)))
+
+        assert json.loads(collected) == {"first": 1}
+
+    def test_stream_invalid_prose_then_fenced_block(self):
+        """An invalid prose candidate followed by a valid fence yields the fence."""
+        content = 'junk {"bad": tru} then ```json\n{"ok": 1}\n```'
+
+        collected = "".join(extract_json_from_stream(list(content)))
+
+        assert json.loads(collected) == {"ok": 1}
+
+    def test_stream_unfenced_multiple_objects_preserved_in_order(self):
+        """Without fences, multiple completed prose objects stream in order."""
+        decoder = json.JSONDecoder()
+
+        content = '{"a": 1} {"b": 2}'
+        collected = "".join(extract_json_from_stream(list(content)))
+
+        first, end = decoder.raw_decode(collected)
+        rest = collected[end:].lstrip()
+        second, _ = decoder.raw_decode(rest)
+        assert first == {"a": 1}
+        assert second == {"b": 2}
+
+    def test_stream_unterminated_object_inside_fence_still_streams(self):
+        """A stream cut off mid-object inside a fence still yields the text."""
+        content = '```json\n{"name": "par'
+
+        collected = "".join(extract_json_from_stream(list(content)))
+
+        assert collected == '{"name": "par'
+
+    def test_stream_unterminated_unfenced_object_still_flushed(self):
+        """A stream cut off mid-object without a fence still yields the text."""
+        content = '{"name": "par'
+
+        collected = "".join(extract_json_from_stream(list(content)))
+
+        assert collected == '{"name": "par'
+
 
 class TestTextExtraction:
     """Test the text extraction utilities."""
