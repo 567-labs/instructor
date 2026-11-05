@@ -24,6 +24,10 @@ else:  # pragma: no cover - Python 3.9 has no runtime ``X | Y`` syntax
     _UNION_ORIGINS = (Union,)
 
 
+class _ToolCallStart(str):
+    """A text fragment that starts a separate tool call in the string extractor API."""
+
+
 class _TaskObjects:
     """Scan object arguments and the items of a tasks array across chunk boundaries."""
 
@@ -167,6 +171,9 @@ class IterableBase:
     ) -> Generator[BaseModel, None, None]:
         scanner = _TaskObjects()
         for chunk in json_chunks:
+            if isinstance(chunk, _ToolCallStart):
+                scanner.finish()
+                scanner = _TaskObjects()
             for task_json, _ in scanner.feed(chunk):
                 yield cls.extract_cls_task_type(task_json, **kwargs)
         scanner.finish()
@@ -177,6 +184,9 @@ class IterableBase:
     ) -> AsyncGenerator[BaseModel, None]:
         scanner = _TaskObjects()
         async for chunk in json_chunks:
+            if isinstance(chunk, _ToolCallStart):
+                scanner.finish()
+                scanner = _TaskObjects()
             for task_json, _ in scanner.feed(chunk):
                 yield cls.extract_cls_task_type(task_json, **kwargs)
         scanner.finish()

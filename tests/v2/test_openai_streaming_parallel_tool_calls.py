@@ -39,9 +39,26 @@ def test_streaming_extractor_keeps_every_tool_call_in_a_chunk() -> None:
     assert parts == ['{"name": "A', 'lice"}', '{"name": "B', 'ob"}']
 
 
+def _sdk_event(parts):
+    from openai.types.chat import ChatCompletionChunk
+
+    calls = [
+        {"index": index, "type": "function", "function": {"arguments": args}}
+        for index, args in parts
+    ]
+    return ChatCompletionChunk.model_validate(
+        {
+            "id": "test",
+            "object": "chat.completion.chunk",
+            "created": 0,
+            "model": "test",
+            "choices": [{"index": 0, "delta": {"tool_calls": calls}}],
+        }
+    )
+
+
 @pytest.mark.asyncio
 async def test_interleaved_sdk_calls_parse_as_separate_items_sync_and_async():
-    from openai.types.chat import ChatCompletionChunk
     from pydantic import BaseModel
     from instructor.v2.dsl.iterable import IterableModel
     from instructor.v2.providers.openai.handlers import OpenAIToolsHandler
@@ -50,24 +67,9 @@ async def test_interleaved_sdk_calls_parse_as_separate_items_sync_and_async():
         name: str
         tags: list[str] = []
 
-    def event(parts):
-        calls = [
-            {"index": index, "type": "function", "function": {"arguments": args}}
-            for index, args in parts
-        ]
-        return ChatCompletionChunk.model_validate(
-            {
-                "id": "test",
-                "object": "chat.completion.chunk",
-                "created": 0,
-                "model": "test",
-                "choices": [{"index": 0, "delta": {"tool_calls": calls}}],
-            }
-        )
-
     chunks = [
-        event([(1, None), (0, '{"name":"A'), (1, '{"name":"B')]),
-        event([(1, 'ob","tags":["b"]}'), (0, 'da","tags":["a"]}')]),
+        _sdk_event([(1, None), (0, '{"name":"A'), (1, '{"name":"B')]),
+        _sdk_event([(1, 'ob","tags":["b"]}'), (0, 'da","tags":["a"]}')]),
     ]
     handler = OpenAIToolsHandler()
     model = IterableModel(Item)
@@ -85,3 +87,29 @@ async def test_interleaved_sdk_calls_parse_as_separate_items_sync_and_async():
         "".join(handler.extract_streaming_json(iter(chunks), single_model=True))
         == '{"name":"Ada","tags":["a"]}'
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("indices", [(0, 1), (1, 2)])
+async def test_incomplete_call_cannot_consume_another_calls_arguments(indices):
+    from pydantic import BaseModel
+    from instructor.v2.core.errors import IncompleteOutputException
+    from instructor.v2.dsl.iterable import IterableModel
+
+    class Item(BaseModel):
+        name: str
+
+    first, second = indices
+    chunk = _sdk_event([(first, '{"name":'), (second, '"cross-call"}')])
+    model = IterableModel(Item)
+    handler = OpenAIToolsHandler()
+    with pytest.raises(IncompleteOutputException):
+        list(handler.parse_response(iter([chunk]), model, stream=True))
+
+    async def events():
+        yield chunk
+
+    with pytest.raises(IncompleteOutputException):
+        _ = [
+            item async for item in handler.parse_response(events(), model, stream=True)
+        ]

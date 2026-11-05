@@ -260,14 +260,9 @@ def _build_partial_object(
         field_value, field_path, source_key = match
         consumed.add(source_key)
 
-        if isinstance(field_value, list):
-            result[field_name] = _build_partial_list(
-                field_value, model, field_name, tracker, field_path, **kwargs
-            )
-        else:
-            result[field_name] = _build_partial_value(
-                field_value, field_info.annotation, tracker, field_path, **kwargs
-            )
+        result[field_name] = _build_partial_value(
+            field_value, field_info.annotation, tracker, field_path, **kwargs
+        )
 
     # Set missing fields to None or empty nested models
     for field_name, field_info in model.model_fields.items():
@@ -292,21 +287,6 @@ def _build_partial_object(
             {key: value for key, value in data.items() if key not in consumed}
         )
     return instance
-
-
-def _build_partial_list(
-    items: list,
-    original_model: type[BaseModel] | None,
-    field_name: str,
-    tracker: JsonCompleteness,
-    path: str,
-    **kwargs: Any,
-) -> list:
-    """Build a list using its declared item type when one is available."""
-    field = original_model.model_fields.get(field_name) if original_model else None
-    return _build_partial_value(
-        items, field.annotation if field else None, tracker, path, **kwargs
-    )
 
 
 def _build_partial_value(
