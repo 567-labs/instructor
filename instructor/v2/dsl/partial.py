@@ -11,20 +11,21 @@ from __future__ import annotations
 import re
 import types
 import warnings
-from collections.abc import AsyncGenerator, Callable, Generator, Iterable
+from collections.abc import AsyncGenerator, Callable, Generator, Iterable, Mapping
 from contextvars import ContextVar
 from copy import deepcopy
 from functools import cache
 from functools import reduce
+from inspect import Parameter, signature
 from operator import or_
 from typing import (  # noqa: UP035
     Any,
     Generic,
-    List,  # needed for runtime check against typing.List annotations from user code
     NoReturn,
     Optional,
     TypeVar,
     Union,
+    cast,
     get_args,
     get_origin,
 )
@@ -147,7 +148,9 @@ def process_potential_object(potential_object, partial_mode, partial_model, **kw
     adds BaseModel support in the future, this could potentially be simplified.
     See: https://docs.pydantic.dev/latest/concepts/partial_validation/
     """
-    json_str = potential_object.strip() or "{}"
+    json_str = potential_object.strip()
+    has_json = bool(json_str)
+    json_str = json_str or "{}"
     parsed = from_json(json_str.encode(), partial_mode=partial_mode)
 
     tracker = JsonCompleteness()
@@ -156,9 +159,7 @@ def process_potential_object(potential_object, partial_mode, partial_model, **kw
     # Get original model for validation
     original_model = getattr(partial_model, "_original_model", None)
 
-    # Check if root is complete AND has actual data (not just empty {})
     root_complete = tracker.is_root_complete()
-    has_data = bool(parsed) if isinstance(parsed, dict) else True
 
     validation_kwargs = {
         key: value
@@ -167,14 +168,16 @@ def process_potential_object(potential_object, partial_mode, partial_model, **kw
         in {"context", "strict", "extra", "from_attributes", "by_alias", "by_name"}
     }
 
-    if root_complete and has_data and original_model is not None:
-        # Root object is complete with data - validate against original model
+    if root_complete and has_json and original_model is not None:
+        # Root object is complete - validate against original model
         return original_model.model_validate(parsed, **validation_kwargs)
-    # Object is incomplete or empty - build instance using model_construct (no validation)
+    # Input is incomplete or absent - build instance using model_construct (no validation)
     model_for_construct = (
         original_model if original_model is not None else partial_model
     )
-    return _build_partial_object(parsed, model_for_construct, tracker, "", **kwargs)
+    return _build_partial_object(
+        parsed, model_for_construct, tracker, "", **validation_kwargs
+    )
 
 
 def _streamed_field(
@@ -202,6 +205,30 @@ def _streamed_field(
                 container = container[part]
             return value, path, str(candidate.path[0])
     return None
+
+
+def _get_partial_default(field: FieldInfo) -> Any:
+    factory = field.default_factory
+    if factory is None:
+        return field.get_default()
+
+    # Match Pydantic's single-required-argument factory contract without relying
+    # on FieldInfo.default_factory_takes_validated_data (absent in early 2.10).
+    try:
+        parameters = list(signature(factory).parameters.values())
+    except (TypeError, ValueError):
+        parameters = []
+    if (
+        len(parameters) == 1
+        and parameters[0].kind
+        in {Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD}
+        and parameters[0].default is Parameter.empty
+    ):
+        # Partial fields are not validated yet. Let model_validate compute this
+        # default once the containing object's JSON is complete.
+        return None
+
+    return cast(Callable[[], Any], factory)()
 
 
 def _build_partial_object(
@@ -233,38 +260,14 @@ def _build_partial_object(
         field_value, field_path, source_key = match
         consumed.add(source_key)
 
-        if field_value is None:
-            result[field_name] = None
-            continue
-
-        field_complete = tracker.is_path_complete(field_path)
-        field_type = field_info.annotation
-
-        if field_complete and field_type is not None:
-            _base_model = _unwrap_optional_base_model(field_type)
-            if _base_model is not None:
-                result[field_name] = _base_model.model_validate(field_value, **kwargs)
-                continue
-
-        if isinstance(field_value, dict):
-            nested_model = (
-                _unwrap_optional_base_model(field_type)
-                if field_type is not None
-                else None
-            )
-
-            if nested_model:
-                result[field_name] = _build_partial_object(
-                    field_value, nested_model, tracker, field_path, **kwargs
-                )
-            else:
-                result[field_name] = field_value
-        elif isinstance(field_value, list):
+        if isinstance(field_value, list):
             result[field_name] = _build_partial_list(
                 field_value, model, field_name, tracker, field_path, **kwargs
             )
         else:
-            result[field_name] = field_value
+            result[field_name] = _build_partial_value(
+                field_value, field_info.annotation, tracker, field_path, **kwargs
+            )
 
     # Set missing fields to None or empty nested models
     for field_name, field_info in model.model_fields.items():
@@ -277,7 +280,7 @@ def _build_partial_object(
             elif field_info.is_required():
                 result[field_name] = None
             else:
-                result[field_name] = field_info.get_default(call_default_factory=True)
+                result[field_name] = _get_partial_default(field_info)
 
     instance = model.model_construct(**result)
     # model_construct also considers aliases. Keep the values already resolved
@@ -299,44 +302,47 @@ def _build_partial_list(
     path: str,
     **kwargs: Any,
 ) -> list:
-    """Build a partial list, validating complete items."""
-    result = []
+    """Build a list using its declared item type when one is available."""
+    field = original_model.model_fields.get(field_name) if original_model else None
+    return _build_partial_value(
+        items, field.annotation if field else None, tracker, path, **kwargs
+    )
 
-    item_type = None
-    if original_model:
-        field_info = original_model.model_fields.get(field_name)
-        if field_info:
-            field_type = field_info.annotation
-            if get_origin(field_type) in UNION_ORIGINS:
-                non_none_args = [
-                    arg for arg in get_args(field_type) if arg is not type(None)
-                ]
-                # Only unwrap a nullable container with one unambiguous type.
-                if len(non_none_args) == 1:
-                    field_type = non_none_args[0]
-            if get_origin(field_type) in (list, List):  # noqa: UP006
-                args = get_args(field_type)
-                if args:
-                    item_type = args[0]
 
-    for i, item in enumerate(items):
-        item_path = f"{path}[{i}]"
-        item_complete = tracker.is_path_complete(item_path)
+def _build_partial_value(
+    value: Any, annotation: Any, tracker: JsonCompleteness, path: str, **kwargs: Any
+) -> Any:
+    if value is None:
+        return None
+    model = _unwrap_optional_base_model(annotation)
+    if model is not None:
+        if tracker.is_path_complete(path):
+            return model.model_validate(value, **kwargs)
+        return _build_partial_object(value, model, tracker, path, **kwargs)
 
-        _item_model = _unwrap_optional_base_model(item_type) if item_type else None
-        if item_complete and _item_model is not None and isinstance(item, dict):
-            result.append(_item_model.model_validate(item, **kwargs))
-            continue
-
-        if _item_model is not None and isinstance(item, dict):
-            result.append(
-                _build_partial_object(item, _item_model, tracker, item_path, **kwargs)
-            )
-            continue
-
-        result.append(item)
-
-    return result
+    origin = get_origin(annotation)
+    args = get_args(annotation)
+    if origin in UNION_ORIGINS:
+        non_none = [arg for arg in args if arg is not type(None)]
+        if len(non_none) == 1:
+            annotation = non_none[0]
+            origin, args = get_origin(annotation), get_args(annotation)
+    if origin is list and args and isinstance(value, list):
+        return [
+            _build_partial_value(item, args[0], tracker, f"{path}[{index}]", **kwargs)
+            for index, item in enumerate(value)
+        ]
+    if (
+        isinstance(origin, type)
+        and issubclass(origin, Mapping)
+        and len(args) == 2
+        and isinstance(value, dict)
+    ):
+        return {
+            key: _build_partial_value(item, args[1], tracker, f"{path}.{key}", **kwargs)
+            for key, item in value.items()
+        }
+    return value
 
 
 def _process_generic_arg(
