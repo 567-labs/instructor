@@ -3,6 +3,7 @@
 import io
 import json
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from types import SimpleNamespace
 
 import anthropic
@@ -239,6 +240,25 @@ def test_retrieve_results_serializes_every_sdk_result(monkeypatch, beta):
         "two",
     ]
     assert batches.result_ids == ["batch_123"]
+
+
+def test_download_results_writes_utf8_for_non_ascii(monkeypatch, tmp_path):
+    """Downloads keep their UTF-8 bytes even when the platform defaults to ASCII."""
+    monkeypatch.setattr(
+        "instructor.batch.providers.anthropic.open",
+        partial(open, encoding="ascii"),
+        raising=False,
+    )
+    result = make_result("one", "Café ☕ 東京")
+    batches = RecordingBatches(results=[result])
+    install_client(monkeypatch, batches)
+    path = tmp_path / "results.jsonl"
+
+    AnthropicProvider().download_results("batch_123", str(path))
+
+    written = path.read_text(encoding="utf-8")
+    assert written == f"{result.model_dump_json()}\n"
+    assert "Café ☕ 東京" in written
 
 
 @pytest.mark.parametrize("status", ["failed", "cancelled", "expired"])
