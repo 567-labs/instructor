@@ -447,6 +447,10 @@ def test_hook_warning_hides_caller_source_and_chained_runtime_values() -> None:
         warnings.simplefilter("error")
         with pytest.raises(UserWarning) as raised:
             hooks.emit_completion_error(RuntimeError(runtime_value))
-    trace = "".join(traceback.format_exception(raised.value))
+    trace = "".join(
+        traceback.format_exception(
+            type(raised.value), raised.value, raised.value.__traceback__
+        )
+    )
     assert runtime_value not in trace
     assert "private hook detail" not in trace
