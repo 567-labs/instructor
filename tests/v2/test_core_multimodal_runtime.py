@@ -168,6 +168,53 @@ def test_convert_messages_autodetects_image_params_and_preserves_metadata(
     ]
 
 
+TOOL_CALLS = [
+    {"id": "1", "type": "function", "function": {"name": "lookup", "arguments": "{}"}}
+]
+
+
+def test_convert_messages_keeps_a_tool_call_turn_with_null_content() -> None:
+    messages = [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": None, "tool_calls": TOOL_CALLS},
+        {"role": "tool", "tool_call_id": "1", "content": "ok"},
+    ]
+
+    converted = convert_messages(messages, Mode.TOOLS)
+
+    assert converted[1] == {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": TOOL_CALLS,
+    }
+    assert converted[2] == {"role": "tool", "content": "ok", "tool_call_id": "1"}
+
+
+def test_convert_messages_accepts_a_tool_call_turn_without_a_content_key() -> None:
+    message = {"role": "assistant", "tool_calls": TOOL_CALLS}
+
+    converted = convert_messages([message], Mode.TOOLS)
+
+    assert converted == [{"role": "assistant", "tool_calls": TOOL_CALLS}]
+    assert "content" not in converted[0]
+
+
+def test_convert_messages_does_not_change_the_input_of_a_tool_call_turn() -> None:
+    message = {"role": "assistant", "content": None, "tool_calls": TOOL_CALLS}
+
+    convert_messages([message], Mode.TOOLS)
+
+    assert message == {"role": "assistant", "content": None, "tool_calls": TOOL_CALLS}
+
+
+def test_convert_messages_still_turns_null_content_without_tool_calls_into_a_list() -> (
+    None
+):
+    converted = convert_messages([{"role": "user", "content": None}], Mode.TOOLS)
+
+    assert converted == [{"role": "user", "content": []}]
+
+
 def test_convert_messages_rejects_unknown_typed_message() -> None:
     with pytest.raises(ValueError, match="Unsupported message type"):
         convert_messages(
@@ -354,3 +401,26 @@ def test_convert_messages_sends_long_raw_base64_as_pdf() -> None:
         }
     ]
     assert messages == [{"role": "user", "content": [encoded]}]
+
+
+@pytest.mark.parametrize("cls", [Image, Audio, PDF])
+def test_autodetect_safely_returns_source_str_for_missing_path(
+    cls: type[Image | Audio | PDF], tmp_path: Path
+) -> None:
+    """A missing Path must fall back to the source string, like a missing str.
+
+    ``autodetect_safely`` documents that any source it cannot detect is
+    returned unchanged as a string, but ``from_path`` raises
+    ``FileNotFoundError`` (an ``OSError``, not a ``ValueError``), so Path
+    inputs used to leak the exception instead of honoring the contract.
+    """
+    missing = tmp_path / "missing-file.bin"
+
+    assert cls.autodetect_safely(missing) == str(missing)
+
+
+def test_autodetect_safely_returns_source_str_for_missing_str() -> None:
+    for cls in (Image, Audio, PDF):
+        assert cls.autodetect_safely("/definitely/not/a/real/file.bin") == (
+            "/definitely/not/a/real/file.bin"
+        )

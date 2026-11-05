@@ -22,6 +22,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Message templating now renders Bedrock Converse text, Anthropic system blocks and OpenAI Responses input text.
 - Sync and async response helpers now log raw provider responses only when DEBUG is enabled and `INSTRUCTOR_LOG_RAW_RESPONSES=1` is set.
 - Image, PDF and audio data URIs accept case-insensitive media types and optional parameters. Audio MIME aliases are normalized consistently across input sources.
+- Media probes retry unsupported HEAD requests with a streamed GET. Missing local paths fall back to text, Bedrock PDF names are normalized, and assistant tool-call turns preserve missing or null content.
 - Request preparation logs only the mode and response model, keeping provider credentials and custom authentication headers out of debug records.
 - Parallel tools dispatch by their declared provider names and reject ambiguous names before sending a request.
 - Gemini MD_JSON now prepares requests without changing the caller’s messages or nested content lists. ([#2716](https://github.com/567-labs/instructor/issues/2716))
