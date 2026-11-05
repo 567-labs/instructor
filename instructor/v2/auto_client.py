@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import partial
+
 import importlib
 from typing import (
     Any,
@@ -13,6 +15,7 @@ from typing import (
 from instructor.v2.core.client import AsyncInstructor, Instructor
 from instructor import __version__
 from instructor.v2.core.mode import Mode
+from instructor.v2.core.openai_endpoints import OPENAI_ENDPOINTS
 from instructor.models import KnownModelName
 from instructor.cache import BaseCache
 from instructor.v2.core.provider_specs import ALIAS_TO_PROVIDER
@@ -406,35 +409,42 @@ def _build_openai_compatible(
     api_key: str | None,
     kwargs: dict[str, Any],
     provider_info: dict[str, str],
-    env_var: str,
+    env_var: str | tuple[str, ...],
     default_base_url: str,
     factory_name: str,
+    default_mode: Mode = Mode.TOOLS,
 ) -> InstructorType:
     try:
         import os
         import openai
         from instructor.v2.providers.openai import client as openai_client
 
-        api_key = api_key or os.environ.get(env_var)
+        key_variables = (env_var,) if isinstance(env_var, str) else env_var
+        api_key = api_key or next(
+            (os.environ[key] for key in key_variables if os.environ.get(key)), None
+        )
         if not api_key:
             from instructor.v2.core.errors import ConfigurationError
 
             raise ConfigurationError(
-                f"{env_var} is not set. "
-                f"Set it with `export {env_var}=<your-api-key>` or pass it as kwarg api_key=<your-api-key>"
+                f"{key_variables[0]} is not set. "
+                f"Set it with `export {key_variables[0]}=<your-api-key>` or pass it as kwarg api_key=<your-api-key>"
             )
 
         base_url = kwargs.pop("base_url", default_base_url)
-        client = (
-            openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
-            if async_client
-            else openai.OpenAI(api_key=api_key, base_url=base_url)
-        )
+        # Keep SDK constructor options out of subsequent completion requests.
+        sdk_options = {
+            key: kwargs.pop(key)
+            for key in ("http_client", "default_headers", "default_query", "timeout")
+            if key in kwargs
+        }
+        sdk_class = openai.AsyncOpenAI if async_client else openai.OpenAI
+        client = sdk_class(api_key=api_key, base_url=base_url, **sdk_options)
         factory = getattr(openai_client, factory_name)
         result = factory(
             client,
             model=model_name,
-            mode=mode if mode else Mode.TOOLS,
+            mode=mode if mode else default_mode,
             **kwargs,
         )
         logger.info(
@@ -1570,6 +1580,16 @@ def _build_litellm(
 ProviderBuilder = Callable[..., InstructorType]
 
 _PROVIDER_BUILDERS: dict[str, ProviderBuilder] = {
+    **{
+        endpoint_provider.value: partial(
+            _build_openai_compatible,
+            env_var=endpoint.key_variables,
+            default_base_url=endpoint.base_url,
+            factory_name=f"from_{endpoint_provider.value}",
+            default_mode=endpoint.default_mode,
+        )
+        for endpoint_provider, endpoint in OPENAI_ENDPOINTS.items()
+    },
     "openai": _build_openai,
     "anyscale": _build_anyscale,
     "together": _build_together,

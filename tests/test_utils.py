@@ -485,6 +485,11 @@ def test_get_provider_matches_supported_providers():
         "litellm": "https://litellm.ai",
         "together": "https://api.together.xyz/v1",
     }
+    from instructor.v2.core.openai_endpoints import OPENAI_ENDPOINTS
+
+    for provider, endpoint in OPENAI_ENDPOINTS.items():
+        provider_mapping[provider.value] = provider
+        provider_urls[provider.value] = endpoint.base_url
     assert set(supported_providers) == set(provider_mapping)
     assert set(provider_mapping) == set(provider_urls)
 

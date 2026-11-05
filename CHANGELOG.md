@@ -24,6 +24,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Batch job listings handle nullable OpenAI metadata and request counts, expose job validation errors, and recognize Anthropic cancellation requests.
 - Anthropic batch requests omit an unset temperature and preserve explicit numeric values, including zero.
 - Anthropic tool mode uses automatic choice for requested thinking and models that reject forced tool use.
+- OpenAI-compatible provider clients share endpoint, credential, and mode handling for ZhipuAI, Z.ai, Hubris, Atlas Cloud, Requesty, Sarvam, OrcaRouter, MiniMax, and Manifest.
 - OpenAI and OpenRouter structured outputs normalize nested object schemas consistently. OpenAI batch callers can select permissive schemas for arbitrary mapping fields with `strict=False`.
 - Message templating now renders Bedrock Converse text, Anthropic system blocks and OpenAI Responses input text.
 - Template rendering raises on undefined variables and preserves explicit Jinja raw blocks. Consecutive plain-text messages are joined once per role run.

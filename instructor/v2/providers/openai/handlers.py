@@ -27,6 +27,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 from instructor.v2.core.messages import text_from_content_blocks
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
+from instructor.v2.core.openai_endpoints import endpoint_providers
 from instructor.v2.core.errors import (
     ConfigurationError,
     IncompleteOutputException,
@@ -736,7 +737,9 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         return self._finalize_parsed_result(response_model, response, parsed)
 
 
-@register_mode_handler(OPENAI_COMPAT_PROVIDERS, Mode.TOOLS)
+@register_mode_handler(
+    OPENAI_COMPAT_PROVIDERS + endpoint_providers(Mode.TOOLS), Mode.TOOLS
+)
 class OpenAIToolsHandler(OpenAIHandlerBase):
     """Handler for OpenAI TOOLS mode.
 
@@ -838,7 +841,10 @@ class OpenAIToolsHandler(OpenAIHandlerBase):
         return self._finalize_parsed_result(response_model, response, parsed)
 
 
-@register_mode_handler(OPENAI_JSON_SCHEMA_PROVIDERS, Mode.JSON_SCHEMA)
+@register_mode_handler(
+    OPENAI_JSON_SCHEMA_PROVIDERS + endpoint_providers(Mode.JSON_SCHEMA),
+    Mode.JSON_SCHEMA,
+)
 class OpenAIJSONSchemaHandler(OpenAIHandlerBase):
     """Handler for OpenAI structured outputs (JSON_SCHEMA mode).
 
@@ -887,7 +893,9 @@ class OpenAIJSONSchemaHandler(OpenAIHandlerBase):
         )
 
 
-@register_mode_handler(OPENAI_COMPAT_PROVIDERS, Mode.JSON)
+@register_mode_handler(
+    OPENAI_COMPAT_PROVIDERS + endpoint_providers(Mode.JSON), Mode.JSON
+)
 class OpenAIJSONHandler(OpenAIHandlerBase):
     """Handler for OpenAI JSON mode (response_format=json_object)."""
 
@@ -956,7 +964,9 @@ class OpenAIJSONHandler(OpenAIHandlerBase):
         )
 
 
-@register_mode_handler(OPENAI_COMPAT_PROVIDERS, Mode.MD_JSON)
+@register_mode_handler(
+    OPENAI_COMPAT_PROVIDERS + endpoint_providers(Mode.MD_JSON), Mode.MD_JSON
+)
 class OpenAIMDJSONHandler(OpenAIHandlerBase):
     """Handler for MD_JSON mode - extract JSON from markdown code blocks."""
 
@@ -1058,7 +1068,10 @@ class OpenAIMDJSONHandler(OpenAIHandlerBase):
         return self._finalize_parsed_result(response_model, response, parsed)
 
 
-@register_mode_handler(OPENAI_PARALLEL_TOOL_PROVIDERS, Mode.PARALLEL_TOOLS)
+@register_mode_handler(
+    OPENAI_PARALLEL_TOOL_PROVIDERS + endpoint_providers(Mode.PARALLEL_TOOLS),
+    Mode.PARALLEL_TOOLS,
+)
 class OpenAIParallelToolsHandler(OpenAIHandlerBase):
     """Handler for OpenAI parallel tool calling."""
 
