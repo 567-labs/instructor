@@ -242,4 +242,6 @@ def test_is_simple_type_recognizes_core_scalars_annotations_and_enums() -> None:
     assert is_simple_type(typing.Annotated[int, "count"])
     assert is_simple_type(typing.Literal["ok"])
     assert is_simple_type(Color)
-    assert not is_simple_type(dict[str, int])
+    assert is_simple_type(dict[str, int])
+    assert is_simple_type(set[int])
+    assert is_simple_type(tuple[int, str])

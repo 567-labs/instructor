@@ -50,7 +50,7 @@ from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import ParallelBase
 from instructor.v2.dsl.partial import PartialBase
 from instructor.v2.dsl.response_list import ListResponse
-from instructor.v2.dsl.simple_type import AdapterBase
+from instructor.v2.dsl.simple_type import AdapterBase, unwrap_adapter
 
 if TYPE_CHECKING:
     from instructor.v2.core.function_calls import ResponseSchema
@@ -95,7 +95,7 @@ def _finalize_response(model: Any, response_model: Any, response: Any) -> Any:
     if isinstance(model, IterableBase):
         logger.debug(f"Returning takes from IterableBase")
         return ListResponse.from_list(  # type: ignore[return-value]
-            list(cast(Any, model).tasks),
+            [unwrap_adapter(task) for task in cast(Any, model).tasks],
             raw_response=response,
         )
     if isinstance(model, list) and not isinstance(model, ListResponse):

@@ -58,6 +58,9 @@ class _TypedDictModel(BaseModel):
 
 def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
     """Convert a TypedDict while preserving key requiredness and field metadata."""
+    from instructor.v2.core.function_calls import ResponseSchema
+
+    reserved = set(dir(_TypedDictModel)) | set(dir(ResponseSchema))
     annotations = get_type_hints(typed_dict, include_extras=True)
     required_keys = set(getattr(typed_dict, "__required_keys__", set()))
     optional_keys = set(getattr(typed_dict, "__optional_keys__", set()))
@@ -85,10 +88,14 @@ def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
             annotation = Annotated[(annotation, *metadata)]
         field_name = name
         default: Any = ... if is_required else None
-        if name.startswith("_"):
-            # Pydantic treats underscore-prefixed field names as private attributes.
-            field_name = f"field{name}"
-            while field_name in annotations or field_name in fields:
+        if name.startswith("_") or name in reserved:
+            # Keep the original wire key as an alias without shadowing model methods.
+            field_name = f"field{name}" if name.startswith("_") else f"field_{name}"
+            while (
+                field_name in annotations
+                or field_name in fields
+                or field_name in reserved
+            ):
                 field_name += "_"
             default = Field(default=default, alias=name)
         fields[field_name] = (annotation, default)
@@ -106,9 +113,39 @@ def is_simple_type(typehint: type[T]) -> bool:
     return _is_simple_type(typehint)
 
 
+def _is_structured_item(item: Any) -> bool:
+    if is_typed_dict(item) or (
+        get_origin(item) is None
+        and inspect.isclass(item)
+        and issubclass(item, BaseModel)
+    ):
+        return True
+    return get_origin(item) in _UNION_ORIGINS and all(
+        _is_structured_item(member) for member in get_args(item)
+    )
+
+
+def _prepare_iterable_item(item: Any) -> Any:
+    from instructor.v2.dsl.simple_type import has_pydantic_schema
+
+    if is_typed_dict(item):
+        return _typed_dict_to_model(item)
+    if get_origin(item) in _UNION_ORIGINS and _is_structured_item(item):
+        return Union[tuple(_prepare_iterable_item(member) for member in get_args(item))]
+    if is_simple_type(item):
+        from instructor.v2.dsl.simple_type import ModelAdapter
+
+        return ModelAdapter.__class_getitem__(item)
+    if inspect.isclass(item) and not has_pydantic_schema(item):
+        raise TypeError(
+            "response_model iterable elements must have a Pydantic validation schema; "
+            f"got {item!r}"
+        )
+    return item
+
+
 def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
     """Normalize user response-model inputs into runtime-ready model classes."""
-    from instructor.v2.dsl.simple_type import has_pydantic_schema
     from instructor.v2.validation.async_validators import reject_async_validators
 
     reject_async_validators(response_model)
@@ -121,25 +158,7 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
         args = get_args(working_model)
         inner = args[0] if args else None
 
-        def _is_model_type(candidate: Any) -> bool:
-            if is_typed_dict(candidate):
-                return True
-            if (
-                get_origin(candidate) is None
-                and inspect.isclass(candidate)
-                and issubclass(candidate, BaseModel)
-            ):
-                return True
-            return get_origin(candidate) in _UNION_ORIGINS and all(
-                get_origin(member) is None
-                and inspect.isclass(member)
-                and issubclass(member, BaseModel)
-                for member in get_args(candidate)
-            )
-
-        if inner is not None and _is_model_type(inner):
-            origin = list
-        else:
+        if inner is None or not _is_structured_item(inner):
             from instructor.v2.dsl.simple_type import ModelAdapter
 
             working_model = ModelAdapter.__class_getitem__(working_model)
@@ -157,18 +176,7 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
             raise ValueError(
                 "response_model must be parameterized, e.g. list[User] or Iterable[User]"
             )
-        iterable_element_class = args[0]
-        if (
-            inspect.isclass(iterable_element_class)
-            and not is_typed_dict(iterable_element_class)
-            and not has_pydantic_schema(iterable_element_class)
-        ):
-            raise TypeError(
-                "response_model iterable elements must have a Pydantic validation schema; "
-                f"got {iterable_element_class!r}"
-            )
-        if is_typed_dict(iterable_element_class):
-            iterable_element_class = _typed_dict_to_model(iterable_element_class)
+        iterable_element_class = _prepare_iterable_item(args[0])
         working_model = IterableModel(cast(type[BaseModel], iterable_element_class))
 
     if is_simple_type(working_model):

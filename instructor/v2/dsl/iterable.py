@@ -187,17 +187,23 @@ class IterableBase:
         task_json: str,
         **kwargs: Any,
     ):
+        from instructor.v2.dsl.simple_type import unwrap_adapter
+
         assert cls.task_type is not None
         # PEP 604 unions use types.UnionType rather than typing.Union as their origin.
         if get_origin(cls.task_type) in _UNION_ORIGINS:
             union_members = get_args(cls.task_type)
             for member in union_members:
                 try:
-                    return member.model_validate_json(task_json, **kwargs)
+                    return unwrap_adapter(
+                        member.model_validate_json(task_json, **kwargs)
+                    )
                 except Exception:
                     pass
         else:
-            return cls.task_type.model_validate_json(task_json, **kwargs)
+            return unwrap_adapter(
+                cls.task_type.model_validate_json(task_json, **kwargs)
+            )
         raise ValueError(
             f"Failed to extract task type with {task_json} for {cls.task_type}"
         )
