@@ -10,8 +10,10 @@ from openai.types.chat import ChatCompletionChunk
 from openai.types.responses import (
     ResponseFunctionCallArgumentsDeltaEvent,
     ResponseFunctionToolCall,
+    ResponseOutputItemAddedEvent,
     ResponseOutputMessage,
     ResponseOutputText,
+    ResponseTextDeltaEvent,
 )
 from pydantic import BaseModel
 
@@ -921,6 +923,90 @@ def test_responses_tools_skips_an_empty_call_and_parses_the_next_call(
     assert parsed._raw_response is response
     assert len(caplog.records) == 1
     assert "tool 'User' returned empty arguments" in caplog.records[0].message
+
+
+def test_responses_tools_selects_only_the_response_model_function() -> None:
+    handler = OpenAIResponsesToolsHandler()
+    foreign = ResponseFunctionToolCall(
+        type="function_call",
+        call_id="foreign",
+        name="search",
+        arguments='{"name":"wrong"}',
+    )
+    target = foreign.model_copy(update={"name": "User", "arguments": '{"name":"Ada"}'})
+    response = SimpleNamespace(output=[foreign, target])
+    parsed = handler.parse_response(response, User)
+    assert parsed == User(name="Ada")
+    assert parsed._raw_response is response
+
+    text_response = SimpleNamespace(output=[foreign], output_text='{"name":"Lin"}')
+    assert handler.parse_response(text_response, User) == User(name="Lin")
+    with pytest.raises(ResponseParsingError):
+        handler.parse_response(SimpleNamespace(output=[foreign]), User)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("text_result", [False, True])
+async def test_responses_streams_only_the_structured_result(text_result: bool) -> None:
+    model = Partial[User]
+    events: list[Any] = [
+        ResponseOutputItemAddedEvent(
+            type="response.output_item.added",
+            output_index=0,
+            sequence_number=0,
+            item=ResponseFunctionToolCall(
+                type="function_call", name="search", call_id="foreign", arguments=""
+            ),
+        ),
+        *response_deltas("foreign", '{"name":"wrong"}'),
+    ]
+    if text_result:
+        events.append(
+            ResponseTextDeltaEvent(
+                type="response.output_text.delta",
+                content_index=0,
+                delta='{"name":"Ada"}',
+                item_id="message",
+                logprobs=[],
+                output_index=1,
+                sequence_number=2,
+            )
+        )
+    else:
+        events.append(
+            ResponseOutputItemAddedEvent(
+                type="response.output_item.added",
+                output_index=1,
+                sequence_number=2,
+                item=ResponseFunctionToolCall(
+                    type="function_call",
+                    name=model.__name__,
+                    call_id="target",
+                    arguments="",
+                ),
+            )
+        )
+        events.append(
+            response_deltas("target", '{"name":"Ada"}')[0].model_copy(
+                update={"output_index": 1}
+            )
+        )
+    # A later output item must not be concatenated to the selected JSON.
+    events.append(
+        response_deltas("other", '{"name":"ignored"}')[0].model_copy(
+            update={"output_index": 2}
+        )
+    )
+    handler = OpenAIResponsesToolsHandler()
+    sync_results = handler.parse_response(iter(events), model, stream=True)
+    async_results = [
+        item
+        async for item in handler.parse_response(
+            async_items(events), model, stream=True
+        )
+    ]
+    assert [obj.name for obj in sync_results] == ["Ada"]
+    assert [obj.name for obj in async_results] == ["Ada"]
 
 
 def test_responses_tools_streams_iterable_and_partial_models() -> None:
