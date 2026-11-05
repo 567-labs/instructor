@@ -34,7 +34,7 @@ description = "structured outputs for llm"
 readme = "README.md"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.33.0"]
 build-backend = "hatchling.build"
 
 [tool.uv]
@@ -117,3 +117,6 @@ pytest_add_cli_args_test_selection = [
 ]
 pytest_add_cli_args = ["--asyncio-mode=auto", "--tb=short"]
 max_stack_depth = 12
+
+[tool.hatch.build.targets.sdist]
+include = ["/instructor", "/.gitignore", "/LICENSE", "/README.md", "/pyproject.toml"]
