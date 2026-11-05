@@ -81,7 +81,9 @@ def main() -> None:
         "Passing tests are evidence only for their selected cases, not provider certification. Counts are JUnit outcomes, not API calls. Initial and retry runs remain separate.\n",
     ]
     for key in args.requirements:
-        state = "present" if os.environ.get(key) else "missing"
+        flag = os.environ.get(f"HAS_{key}")
+        present = flag == "true" if flag is not None else bool(os.environ.get(key))
+        state = "present" if present else "missing"
         lines.append(f"- `{key}`: {state}")
     # Always represent the initial run, even when only a later report exists.
     reports = sorted(
