@@ -1,5 +1,7 @@
 """Tests for v2 mode registry."""
 
+from __future__ import annotations
+
 from typing import Any, cast
 
 import pytest
@@ -29,6 +31,8 @@ def test_registry_registration():
 
     @register_mode_handler(Provider.DEEPSEEK, Mode.JSON)
     class TestHandler:
+        mode = Mode.TOOLS
+
         def prepare_request(self, response_model, kwargs):
             return response_model, kwargs
 
@@ -46,6 +50,31 @@ def test_registry_registration():
     assert handlers.request_handler is not None
     assert handlers.reask_handler is not None
     assert handlers.response_parser is not None
+    assert cast(Any, handlers.request_handler).__self__.mode is Mode.JSON
+
+
+@pytest.mark.parametrize("required_mode", [True, False])
+def test_registration_preserves_constructor_type_errors(required_mode: bool) -> None:
+    attempts: list[Mode | None] = []
+    error = TypeError("invalid handler configuration")
+
+    class RequiredModeHandler:
+        def __init__(self, *, mode: Mode) -> None:
+            attempts.append(mode)
+            raise error
+
+    class OptionalModeHandler:
+        def __init__(self, *, mode: Mode | None = None) -> None:
+            attempts.append(mode)
+            raise error
+
+    handler_class = RequiredModeHandler if required_mode else OptionalModeHandler
+
+    with pytest.raises(TypeError, match="invalid handler configuration") as exc_info:
+        register_mode_handler(Provider.DEEPSEEK, Mode.JSON)(handler_class)
+
+    assert exc_info.value is error
+    assert attempts == [Mode.JSON]
 
 
 def test_registry_get_handler():
