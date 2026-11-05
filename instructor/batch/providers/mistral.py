@@ -6,32 +6,18 @@ both Mistral SDK export layouts: ``mistralai.client.Mistral`` on 2.x and
 ``mistralai.Mistral`` on 1.x.
 """
 
-import importlib
+from instructor.v2.providers._mistral_sdk import (
+    load_mistral_client_type as _load_mistral_client_type,
+)
 import io
 import logging
 import os
 from typing import Any, Optional, Union
 
 from ..models import BatchJobInfo
-from .base import BatchProvider
+from .base import BatchProvider, _atomic_result_file
 
 logger = logging.getLogger(__name__)
-
-# SDK 2.x export first, then the SDK 1.x fallback
-_CLIENT_MODULES = ("mistralai.client", "mistralai")
-
-
-def _load_mistral_client_type() -> Optional[type]:
-    """Load the client class from the Mistral 2.x or 1.x export"""
-    for module_name in _CLIENT_MODULES:
-        try:
-            module = importlib.import_module(module_name)
-        except ImportError:
-            continue
-        client_type = getattr(module, "Mistral", None)
-        if isinstance(client_type, type):
-            return client_type
-    return None
 
 
 def _to_dict(obj: Any) -> dict[str, Any]:
@@ -173,8 +159,8 @@ class MistralProvider(BatchProvider):
         try:
             job = self._completed_job(client, batch_id)
             response = client.files.download(file_id=job.output_file)
-            with open(file_path, "wb") as f:
-                f.write(response.read())
+            with _atomic_result_file(file_path) as output:
+                output.write(response.read())
         except Exception as e:
             raise RuntimeError(f"Failed to download Mistral results: {e}") from e
 

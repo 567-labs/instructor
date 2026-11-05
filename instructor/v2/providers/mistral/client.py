@@ -11,7 +11,9 @@ Mistral has a unique API structure:
 
 from __future__ import annotations
 
-import importlib
+from instructor.v2.providers._mistral_sdk import (
+    load_mistral_client_type as _load_mistral_client_type,
+)
 from typing import Any, Literal, Protocol, overload
 
 from instructor.v2.core.client import AsyncInstructor, Instructor
@@ -25,19 +27,6 @@ from instructor.v2.providers.mistral import handlers  # noqa: F401
 
 class _MistralClient(Protocol):
     chat: Any
-
-
-def _load_mistral_client_type() -> type[Any] | None:
-    """Load the client class from the Mistral 2.x or 1.x export."""
-    for module_name in ("mistralai.client", "mistralai"):
-        try:
-            module = importlib.import_module(module_name)
-        except ImportError:
-            continue
-        client_type = getattr(module, "Mistral", None)
-        if isinstance(client_type, type):
-            return client_type
-    return None
 
 
 Mistral = _load_mistral_client_type()

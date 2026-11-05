@@ -5,12 +5,31 @@ This module defines the abstract base class that all batch providers must implem
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Generator
+from contextlib import contextmanager
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+from typing import BinaryIO, cast
 from typing import Any, Optional, Union
 import io
 import logging
 from ..models import BatchJobInfo
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _atomic_result_file(destination: str) -> Generator[BinaryIO, None, None]:
+    """Replace a result file only after the provider and output have both closed."""
+    handle = NamedTemporaryFile(mode="wb", dir=Path(destination).parent, delete=False)
+    temporary = Path(handle.name)
+    try:
+        with handle:
+            yield cast(BinaryIO, handle)
+        temporary.replace(destination)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 class BatchProvider(ABC):

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import io
 import json
-import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any, cast
@@ -198,47 +197,6 @@ def fake_module(name: str, **attrs: Any) -> ModuleType:
     for key, value in attrs.items():
         setattr(module, key, value)
     return module
-
-
-@pytest.mark.parametrize(
-    "exporting, non_exporting",
-    [
-        ("mistralai.client", "mistralai"),  # SDK 2.x
-        ("mistralai", "mistralai.client"),  # SDK 1.x
-    ],
-)
-def test_client_type_resolves_both_sdk_layouts(
-    monkeypatch: pytest.MonkeyPatch, exporting: str, non_exporting: str
-) -> None:
-    monkeypatch.setitem(
-        sys.modules, exporting, fake_module(exporting, Mistral=FakeClientType)
-    )
-    monkeypatch.setitem(sys.modules, non_exporting, fake_module(non_exporting))
-
-    assert mistral_module._load_mistral_client_type() is FakeClientType
-
-
-def test_client_type_skips_unimportable_layout(monkeypatch: pytest.MonkeyPatch) -> None:
-    # A None entry makes import_module raise ImportError
-    monkeypatch.setitem(sys.modules, "mistralai.client", None)
-    monkeypatch.setitem(
-        sys.modules, "mistralai", fake_module("mistralai", Mistral=FakeClientType)
-    )
-
-    assert mistral_module._load_mistral_client_type() is FakeClientType
-
-
-def test_client_type_is_none_when_no_layout_exports_it(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setitem(
-        sys.modules, "mistralai.client", fake_module("mistralai.client")
-    )
-    monkeypatch.setitem(
-        sys.modules, "mistralai", fake_module("mistralai", Mistral="not-a-type")
-    )
-
-    assert mistral_module._load_mistral_client_type() is None
 
 
 def test_client_type_resolves_the_installed_sdk() -> None:
@@ -749,3 +707,24 @@ def test_mistral_download_preserves_failed_response(
         MistralProvider().download_results("batch-id", str(output))
     assert exc.value.__cause__ is failure
     assert not output.exists()
+
+
+def test_interrupted_download_preserves_existing_destination(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    client = install_client(monkeypatch, FakeClient())
+    destination = tmp_path / "results.jsonl"
+    destination.write_bytes(b"previous results")
+
+    def interrupted_read() -> bytes:
+        raise OSError("download interrupted")
+
+    monkeypatch.setattr(
+        client.files,
+        "download",
+        lambda **_kwargs: SimpleNamespace(read=interrupted_read),
+    )
+    with pytest.raises(RuntimeError, match="download interrupted"):
+        MistralProvider().download_results("batch_123", str(destination))
+    assert destination.read_bytes() == b"previous results"
+    assert list(tmp_path.iterdir()) == [destination]
