@@ -158,3 +158,12 @@ def test_azure_normalizes_legacy_modes(old, new):
         api_version="2024-10-21",
     ) as sdk:
         assert instructor.from_azure(sdk, mode=old).mode is new
+
+
+def test_public_azure_factory_imports_are_identical() -> None:
+    from instructor.providers.azure import from_azure as legacy
+    from instructor.providers.azure.client import from_azure as legacy_client
+    from instructor.v2.providers.azure import from_azure
+    from instructor.v2.providers.azure.client import from_azure as canonical
+
+    assert legacy is legacy_client is from_azure is canonical
