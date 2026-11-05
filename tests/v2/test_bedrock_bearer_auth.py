@@ -39,3 +39,17 @@ def test_bedrock_bearer_token_is_scoped_to_each_client(monkeypatch):
         assert caught.value.args == (f"Bearer {token}".encode(),)
         client.close()
     assert os.environ["AWS_BEARER_TOKEN_BEDROCK"] == "ambient"
+
+
+def test_bedrock_bearer_reports_older_sdk(monkeypatch):
+    tokens = pytest.importorskip("botocore.tokens")
+    pytest.importorskip("boto3")
+    from instructor.v2.core.errors import ConfigurationError
+
+    monkeypatch.delattr(tokens, "ScopedEnvTokenProvider", raising=False)
+    with pytest.raises(ConfigurationError, match=r"instructor\[bedrock\]"):
+        from_provider(
+            "bedrock/anthropic.claude-sonnet-4-5",
+            api_key="test-only",
+            region_name="us-east-1",
+        )
