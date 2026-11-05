@@ -4,6 +4,8 @@ import inspect
 import json
 import logging
 import warnings
+import weakref
+from threading import RLock
 from functools import wraps
 from typing import Any, TypeVar, cast
 from typing_extensions import Self
@@ -607,6 +609,13 @@ class ResponseSchema(BaseModel):
         )
 
 
+# A wrapper inherits from its input class, so both sides of the cache must be weak.
+_response_schema_cache: weakref.WeakKeyDictionary[
+    type[BaseModel], weakref.ReferenceType[type[BaseModel]]
+] = weakref.WeakKeyDictionary()
+_response_schema_lock = RLock()
+
+
 def response_schema(cls: type[Model]) -> type[Model]:
     """Wrap a Pydantic model class to add ResponseSchema behavior."""
     if not inspect.isclass(cls) or not issubclass(cls, BaseModel):
@@ -615,21 +624,32 @@ def response_schema(cls: type[Model]) -> type[Model]:
             f"response_model must be a subclass of pydantic.BaseModel, got {got}"
         )
 
-    # Create the wrapped model
-    schema = cast(
-        type[BaseModel],
-        wraps(cls, updated=())(
-            cast(
-                Any,
-                create_model(
-                    cls.__name__ if hasattr(cls, "__name__") else str(cls),
-                    __base__=(cls, ResponseSchema),
-                ),
-            )
-        ),
-    )
+    with _response_schema_lock:
+        ref = _response_schema_cache.get(cls)
+        cached = ref() if ref is not None else None
+        if (
+            cached is not None
+            and vars(cached).get("__instructor_source_validator__")
+            is cls.__pydantic_validator__
+        ):
+            return cast(type[Model], cached)
 
-    return cast(type[Model], schema)
+        schema = cast(
+            type[BaseModel],
+            wraps(cls, updated=())(
+                cast(
+                    Any,
+                    create_model(
+                        cls.__name__ if hasattr(cls, "__name__") else str(cls),
+                        __base__=(cls, ResponseSchema),
+                    ),
+                )
+            ),
+        )
+
+        cast(Any, schema).__instructor_source_validator__ = cls.__pydantic_validator__
+        _response_schema_cache[cls] = weakref.ref(schema)
+        return cast(type[Model], schema)
 
 
 # Backward compatibility aliases

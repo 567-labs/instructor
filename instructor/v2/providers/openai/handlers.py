@@ -442,6 +442,30 @@ class _ResponsesStreamResult:
         return event.delta if event.output_index == self.output_index else None
 
 
+class _ChatToolArguments:
+    """Stream the first call immediately, then emit other calls in index order."""
+
+    def __init__(self, single_model: bool) -> None:
+        self.single_model = single_model
+        self.deferred: dict[int, list[str]] = {}
+
+    def feed(self, calls: Any) -> Generator[str, None, None]:
+        for position, call in enumerate(calls or ()):
+            arguments = getattr(getattr(call, "function", None), "arguments", None)
+            if arguments is None:
+                continue
+            index = getattr(call, "index", None)
+            index = position if index is None else index
+            if index == 0:
+                yield arguments
+            elif not self.single_model:
+                self.deferred.setdefault(index, []).append(arguments)
+
+    def finish(self) -> Generator[str, None, None]:
+        for index in sorted(self.deferred):
+            yield from self.deferred[index]
+
+
 class OpenAIHandlerBase(StreamingModelState, ModeHandler):
     """Base class for OpenAI handlers with shared utilities."""
 
@@ -458,6 +482,7 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
 
         def _raw_chunks() -> Generator[str, None, None]:
             result = _ResponsesStreamResult(response_tool_name)
+            tool_arguments = _ChatToolArguments(single_model)
             for chunk in completion:
                 try:
                     if self.mode == Mode.RESPONSES_TOOLS:
@@ -484,11 +509,14 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                         Mode.TOOLS_STRICT,
                         Mode.PARALLEL_TOOLS,
                     }:
-                        if json_chunk := chunk.choices[0].delta.tool_calls:
-                            if json_chunk[0].function.arguments is not None:
-                                yield json_chunk[0].function.arguments
+                        for arguments in tool_arguments.feed(
+                            chunk.choices[0].delta.tool_calls
+                        ):
+                            yield arguments
                 except AttributeError:
                     continue
+            for arguments in tool_arguments.finish():
+                yield arguments
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
@@ -507,6 +535,7 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
 
         async def _raw_chunks() -> AsyncGenerator[str, None]:
             result = _ResponsesStreamResult(response_tool_name)
+            tool_arguments = _ChatToolArguments(single_model)
             async for chunk in completion:
                 try:
                     if self.mode == Mode.RESPONSES_TOOLS:
@@ -533,11 +562,14 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                         Mode.TOOLS_STRICT,
                         Mode.PARALLEL_TOOLS,
                     }:
-                        if json_chunk := chunk.choices[0].delta.tool_calls:
-                            if json_chunk[0].function.arguments is not None:
-                                yield json_chunk[0].function.arguments
+                        for arguments in tool_arguments.feed(
+                            chunk.choices[0].delta.tool_calls
+                        ):
+                            yield arguments
                 except AttributeError:
                     continue
+            for arguments in tool_arguments.finish():
+                yield arguments
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
@@ -585,7 +617,12 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         extractor_options: dict[str, Any] = {}
         if self.mode == Mode.RESPONSES_TOOLS:
             extractor_options["response_tool_name"] = response_model.__name__
-        elif self.mode == Mode.MD_JSON:
+        elif self.mode in {
+            Mode.MD_JSON,
+            Mode.TOOLS,
+            Mode.TOOLS_STRICT,
+            Mode.PARALLEL_TOOLS,
+        }:
             extractor_options["single_model"] = not issubclass(
                 response_model, IterableBase
             )

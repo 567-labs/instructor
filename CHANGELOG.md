@@ -16,6 +16,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Explicit async validation visits set and frozenset items and reports validation failures from every item in a container.
 - Partial streams construct nested mapping and sequence values as models and defer data-aware default factories until their containing object is complete.
 - The OpenAI batch tutorial generates request files with `BatchProcessor.create_batch_from_messages`.
+- Iterable streams scan each chunk once, preserve interleaved tool-call boundaries, report truncated items, and close the provider stream. Markdown streams prefer fenced JSON and retain all bare objects when no fence appears.
 - File-backed batch requests replace the destination after all records serialize. Failed writes preserve the previous batch.
 - OpenAI batch request failures preserve string error messages and report HTTP status codes when an error body is missing.
 - OpenAI and Anthropic batch results that hit the token limit return an incomplete-output error, even when the partial JSON validates.
@@ -40,6 +41,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Bedrock Converse accepts reasoning and tool history, converts raw Markdown JSON requests, and supports per-client bearer tokens.
 - OpenAI RESPONSES_TOOLS now preserves caller tools (e.g. code interpreter, web search) and avoids forcing tool choice when additional tools are provided. ([#2713](https://github.com/567-labs/instructor/issues/2713))
 - OpenAI-compatible and Cohere JSON modes join text blocks while ignoring reasoning blocks. Responses API token counts contribute to retry totals, and fenced JSON validates through the compatibility parser.
+- Reserved TypedDict keys survive schema and cache round trips. Collection response types and Iterable scalar items return native values. Response-schema wrappers are reused without keeping dynamic input models alive.
 
 ### Tests / CI
 
