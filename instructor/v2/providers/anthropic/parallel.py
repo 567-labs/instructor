@@ -22,7 +22,8 @@ T = TypeVar("T", bound=BaseModel)
 def handle_parallel_model(typehint: type[Iterable[T]]) -> list[dict[str, Any]]:
     """Build Anthropic tool schemas for a parallel model."""
     return [
-        openai_schema(model).anthropic_schema for model in get_types_array(typehint)
+        openai_schema(model).anthropic_schema
+        for model in AnthropicParallelModel(typehint).models
     ]
 
 

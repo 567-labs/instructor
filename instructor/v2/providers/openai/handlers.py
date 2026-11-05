@@ -34,7 +34,6 @@ from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import (
     ParallelBase as ParallelBase,
     ParallelModel,
-    get_types_array,
     model_for_tool_name,
 )
 from instructor.v2.dsl.simple_type import AdapterBase as AdapterBase
@@ -1015,8 +1014,9 @@ class OpenAIParallelToolsHandler(OpenAIHandlerBase):
             raise IncompleteOutputException(last_completion=response)
 
         # Extract model types from response_model
-        the_types = get_types_array(response_model)  # type: ignore[arg-type]
-        type_registry = {t.model_json_schema()["title"]: t for t in the_types}
+        type_registry: dict[str, type[BaseModel]] = ParallelModel(
+            cast(Any, response_model)
+        ).registry
 
         results = []
         tool_calls = choices[0].message.tool_calls
