@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from types import SimpleNamespace
 from typing import Any, Union, cast
 
 import pytest
 from openai.types.chat import ChatCompletion
 from pydantic import BaseModel, ConfigDict
 
+from instructor.v2.core.errors import ResponseParsingError
 from instructor.v2.core.mode import Mode
 from instructor.v2.dsl.parallel import ParallelModel, handle_parallel_model
 from instructor.v2.providers.anthropic.parallel import (
@@ -61,6 +63,12 @@ def test_mistral_preparation_rejects_duplicate_names() -> None:
             cast(Any, Iterable[Union[Payment, Contact]]),  # type: ignore[arg-type]
             {"messages": [{"role": "user", "content": "Extract records"}]},
         )
+
+
+def test_mistral_parallel_empty_choices_raise_a_retryable_error() -> None:
+    models = cast(Any, Iterable[Union[Payments.Record, Contacts.Record]])
+    with pytest.raises(ResponseParsingError, match="No choices in Mistral response"):
+        MistralToolsHandler().parse_response(SimpleNamespace(choices=[]), models)
 
 
 def test_vertex_rejects_duplicate_class_names() -> None:
