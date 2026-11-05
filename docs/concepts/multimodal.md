@@ -329,6 +329,8 @@ We provide examples of how to use all three object classes below.
 
 For Bedrock, you can convert a `PDF` into the Bedrock-native document format with `PDF.to_bedrock()` and include the result in the message content list.
 
+If a source cannot be queried as a file path, such as a long raw Base64 string, the default document name is `document`. Pass `name="Invoice"` to choose a name.
+
 ### Usage
 
 ```python

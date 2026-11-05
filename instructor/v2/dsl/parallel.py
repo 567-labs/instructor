@@ -22,9 +22,15 @@ class ParallelBase(Generic[T]):
         # Note that for everything else we've created a class, but for parallel base it is an instance
         assert len(models) > 0, "At least one model is required"
         self.models = models
-        self.registry: dict[str, type[T]] = {
-            self._get_model_name(model): model for model in models
-        }
+        self.registry: dict[str, type[T]] = {}
+        for model in models:
+            name = self._get_model_name(model)
+            if name in self.registry:
+                raise ValueError(
+                    f"Parallel response models must have unique tool names: {name!r} "
+                    "is used by more than one model. Rename the models or their schema titles."
+                )
+            self.registry[name] = model
 
     def _get_model_name(self, model: type[T]) -> str:
         # OpenAI and Anthropic tool declarations use the JSON schema title.
@@ -124,10 +130,9 @@ def handle_parallel_model(typehint: type[Iterable[T]]) -> list[dict[str, Any]]:
     # Import at runtime to avoid circular import
     from instructor.v2.core.function_calls import openai_schema
 
-    the_types = get_types_array(typehint)
     return [
         {"type": "function", "function": openai_schema(model).openai_schema}
-        for model in the_types
+        for model in ParallelModel(typehint).models
     ]
 
 
@@ -141,8 +146,7 @@ def handle_anthropic_parallel_model(
 
 
 def ParallelModel(typehint: type[Iterable[T]]) -> ParallelBase[T]:
-    the_types = get_types_array(typehint)
-    return ParallelBase(*[model for model in the_types])
+    return ParallelBase(*get_types_array(typehint))
 
 
 def VertexAIParallelModel(typehint: type[Iterable[T]]) -> ParallelBase[T]:

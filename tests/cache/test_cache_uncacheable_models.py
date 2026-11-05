@@ -14,6 +14,10 @@ import logging
 from openai.types.chat import ChatCompletion
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
+from openai.types.chat.chat_completion_message_function_tool_call import (
+    ChatCompletionMessageFunctionToolCall,
+    Function,
+)
 from openai.types.completion_usage import CompletionUsage
 from pydantic import BaseModel
 
@@ -44,14 +48,14 @@ def _completion(payload: dict, tool_name: str = "User") -> ChatCompletion:
                     role="assistant",
                     content=None,
                     tool_calls=[
-                        {
-                            "id": "call_1",
-                            "type": "function",
-                            "function": {
-                                "name": tool_name,
-                                "arguments": json.dumps(payload),
-                            },
-                        }
+                        ChatCompletionMessageFunctionToolCall(
+                            id="call_1",
+                            type="function",
+                            function=Function(
+                                name=tool_name,
+                                arguments=json.dumps(payload),
+                            ),
+                        )
                     ],
                 ),
             )

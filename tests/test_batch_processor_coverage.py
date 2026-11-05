@@ -514,6 +514,62 @@ def test_anthropic_error_and_empty_results_keep_provider_details(
     assert parsed[0].error_message == expected_message
 
 
+@pytest.mark.parametrize(
+    ("record", "expected_type", "expected_message"),
+    [
+        (
+            {"error": "service unavailable", "response": None},
+            "openai_error",
+            "service unavailable",
+        ),
+        (
+            {"response": {"status_code": 400, "body": {"error": "bad request"}}},
+            "openai_error",
+            "bad request",
+        ),
+        (
+            {"response": {"status_code": 503, "body": None}},
+            "openai_error",
+            "HTTP 503 error",
+        ),
+        (
+            {"response": {"status_code": 200, "body": {}}},
+            "extraction_error",
+            "Unknown error",
+        ),
+        ({"error": {"code": "expired", "message": "Expired"}}, "expired", "Expired"),
+        (
+            {
+                "response": {
+                    "status_code": 400,
+                    "body": {
+                        "error": {
+                            "type": "invalid_request_error",
+                            "code": "invalid_parameter",
+                            "message": "Bad parameter",
+                        }
+                    },
+                }
+            },
+            "invalid_request_error",
+            "Bad parameter",
+        ),
+    ],
+)
+def test_openai_request_errors_preserve_the_provider_record(
+    record: dict[str, Any], expected_type: str, expected_message: str
+) -> None:
+    record = {"custom_id": "failed", **record}
+    processor = BatchProcessor("openai/gpt-4.1-mini", Person)
+    success, error = processor.parse_results(
+        openai_result("ok", '{"name":"Ada","age":36}') + "\n" + json.dumps(record)
+    )
+    assert isinstance(success, BatchSuccess) and success.custom_id == "ok"
+    assert isinstance(error, BatchError) and error.custom_id == "failed"
+    assert (error.error_type, error.error_message) == (expected_type, expected_message)
+    assert error.raw_data == record
+
+
 def test_extract_returns_none_for_missing_malformed_or_unknown_provider_responses(
     provider: RecordingProvider,
 ) -> None:

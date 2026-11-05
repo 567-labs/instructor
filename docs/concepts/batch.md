@@ -246,6 +246,8 @@ instructor batch results --batch-id "batch_abc123" --output-file results.jsonl
 
 ## Troubleshooting
 
+For OpenAI request failures, `BatchError.error_type` contains the provider type when present, then its code. `raw_data` preserves the complete record, including both fields. String errors retain their message. An unsuccessful HTTP response without an error body reports its status code.
+
 | Issue | Solution |
 |-------|----------|
 | Missing GCS_BUCKET (Google) | Set the `GCS_BUCKET` environment variable |

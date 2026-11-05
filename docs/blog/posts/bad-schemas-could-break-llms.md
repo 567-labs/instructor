@@ -18,7 +18,7 @@ tags:
 
 # Bad Schemas could break your LLM Structured Outputs
 
-You might be leaving up to 60% performance gains on the table with the wrong response model. Response Models impact model performance massively with Claude and GPT-4o, irregardless of you’re using JSON mode or Tool Calling.
+You might be leaving up to 60% performance gains on the table with the wrong response model. Response Models impact model performance massively with Claude and GPT-4o, regardless of whether you're using JSON mode or Tool Calling.
 
 Using the right response model can help ensure [your models respond in the right language](../posts/matching-language.md) or prevent [hallucinations when extracting video timestamps](../posts/timestamp.md).
 

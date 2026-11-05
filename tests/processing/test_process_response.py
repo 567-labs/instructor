@@ -4,7 +4,7 @@ from typing import Any, Callable, Optional, cast
 
 import pytest
 from openai.types.chat import ChatCompletion
-from typing_extensions import NotRequired, TypedDict
+from typing_extensions import NotRequired, ReadOnly, TypedDict
 from pydantic import BaseModel, ValidationError
 from instructor import Mode
 from instructor.processing.response import (
@@ -30,6 +30,16 @@ def test_typed_dict_conversion() -> None:
 
     _, pydantic_user_tool_definition = handle_response_model(User)
     assert user_tool_definition == pydantic_user_tool_definition
+
+
+def test_readonly_typed_dict_tool_schema() -> None:
+    class Record(TypedDict):
+        name: ReadOnly[str]
+
+    _, request = handle_response_model(Record, mode=Mode.TOOLS)
+    schema = request["tools"][0]["function"]["parameters"]
+    assert schema["properties"]["name"]["type"] == "string"
+    assert schema["required"] == ["name"]
 
 
 @pytest.mark.parametrize(

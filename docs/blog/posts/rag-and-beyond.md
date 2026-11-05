@@ -62,7 +62,7 @@ Ultimately what you want to deploy is a [system that understands](https://en.wik
 
 Not convinced? Let's move from theory to practice with a real-world example. First up, Metaphor Systems.
 
-## Whats instructor?
+## What's instructor?
 
 Instructor uses Pydantic to simplify the interaction between the programmer and language models via the function calling API.
 

@@ -11,13 +11,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 - **Cache**: Warn when a configured cache cannot store a non-BaseModel response instead of silently skipping it. ([#2724](https://github.com/567-labs/instructor/pull/2724))
+- Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
+- Explicit async validation visits set and frozenset items and reports validation failures from every item in a container.
+- The OpenAI batch tutorial generates request files with `BatchProcessor.create_batch_from_messages`.
 - File-backed batch requests replace the destination after all records serialize. Failed writes preserve the previous batch.
+- OpenAI batch request failures preserve string error messages and report HTTP status codes when an error body is missing.
 - OpenAI and Anthropic batch results that hit the token limit return an incomplete-output error, even when the partial JSON validates.
+- Batch job listings handle nullable OpenAI metadata and request counts, expose job validation errors, and recognize Anthropic cancellation requests.
 - Anthropic batch requests omit an unset temperature and preserve explicit numeric values, including zero.
+- Anthropic tool mode uses automatic choice for requested thinking and models that reject forced tool use.
+- Message templating now renders Bedrock Converse text, Anthropic system blocks and OpenAI Responses input text.
 - Sync and async response helpers now log raw provider responses only when DEBUG is enabled and `INSTRUCTOR_LOG_RAW_RESPONSES=1` is set.
+- Image, PDF and audio data URIs accept case-insensitive media types and optional parameters. Audio MIME aliases are normalized consistently across input sources.
 - Request preparation logs only the mode and response model, keeping provider credentials and custom authentication headers out of debug records.
+- Parallel tools dispatch by their declared provider names and reject ambiguous names before sending a request.
 - Gemini MD_JSON now prepares requests without changing the caller’s messages or nested content lists. ([#2716](https://github.com/567-labs/instructor/issues/2716))
+- Gemini retries preserve validation feedback when a response is blocked, empty, or contains prose instead of a tool call.
 - Bedrock tool modes now preserve the caller’s explicit tool choice and still force the response-model tool by default. ([#2775](https://github.com/567-labs/instructor/pull/2775))
+- OpenAI RESPONSES_TOOLS now preserves caller tools (e.g. code interpreter, web search) and avoids forcing tool choice when additional tools are provided. ([#2713](https://github.com/567-labs/instructor/issues/2713))
 
 ## [1.18.0] - 2026-09-26
 
