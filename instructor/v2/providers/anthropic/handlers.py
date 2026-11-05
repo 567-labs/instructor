@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import json
 import warnings
+import re
 from collections.abc import (
     AsyncGenerator,
     AsyncIterator,
@@ -330,14 +331,24 @@ class AnthropicToolsHandler(AnthropicHandlerBase):
             new_kwargs["tools"] = [tool_descriptions]
 
         if "tool_choice" not in new_kwargs:
-            thinking_enabled = (
-                "thinking" in new_kwargs
-                and isinstance(new_kwargs.get("thinking"), dict)
-                and new_kwargs.get("thinking", {}).get("type") == "enabled"
+            thinking = new_kwargs.get("thinking")
+            thinking_requested = isinstance(thinking, dict) and thinking.get(
+                "type"
+            ) in ("enabled", "adaptive")
+            model = new_kwargs.get("model")
+            # These versions reject forced tool use even when thinking is omitted.
+            requires_auto = thinking_requested or (
+                isinstance(model, str)
+                and re.search(
+                    r"(?:^|[./:])claude-(?:(?:opus|sonnet)-5[.-]5|(?:fable|mythos)-5[.-]1)(?:$|[-:@])",
+                    model,
+                    flags=re.IGNORECASE,
+                )
+                is not None
             )
-            if thinking_enabled or is_parallel:
+            if requires_auto or is_parallel:
                 new_kwargs["tool_choice"] = {"type": "auto"}
-                if thinking_enabled:
+                if requires_auto:
                     new_kwargs["system"] = combine_system_messages(
                         new_kwargs.get("system"),
                         [
