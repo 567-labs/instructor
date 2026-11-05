@@ -417,13 +417,33 @@ def test_openai_shared_output_and_error_file_is_downloaded_once_per_operation(
 
 
 @pytest.mark.parametrize(
-    "envelope",
+    ("envelope", "error_type", "message"),
     [
-        {"error": "malformed error", "response": None},
-        {"error": ["malformed error"], "response": None},
-        {"error": None, "response": "malformed response"},
-        {"error": None, "response": {"body": ["malformed body"]}},
-        {"error": None, "response": {"body": {"error": "malformed error"}}},
+        (
+            {"error": "provider message", "response": None},
+            "openai_error",
+            "provider message",
+        ),
+        (
+            {"error": ["malformed error"], "response": None},
+            "extraction_error",
+            "Unknown error",
+        ),
+        (
+            {"error": None, "response": "malformed response"},
+            "extraction_error",
+            "Unknown error",
+        ),
+        (
+            {"error": None, "response": {"body": ["malformed body"]}},
+            "extraction_error",
+            "Unknown error",
+        ),
+        (
+            {"error": None, "response": {"body": {"error": "provider message"}}},
+            "openai_error",
+            "provider message",
+        ),
     ],
     ids=[
         "string-error",
@@ -433,8 +453,12 @@ def test_openai_shared_output_and_error_file_is_downloaded_once_per_operation(
         "string-body-error",
     ],
 )
-def test_openai_malformed_error_envelope_preserves_id_and_raw_record(
-    endpoint: BatchEndpoint, tmp_path: Path, envelope: dict[str, Any]
+def test_openai_unstructured_error_envelope_preserves_id_and_raw_record(
+    endpoint: BatchEndpoint,
+    tmp_path: Path,
+    envelope: dict[str, Any],
+    error_type: str,
+    message: str,
 ) -> None:
     record = {"custom_id": "malformed-failure", **envelope}
     endpoint.json_states(
@@ -450,8 +474,8 @@ def test_openai_malformed_error_envelope_preserves_id_and_raw_record(
     assert results == [
         BatchError(
             custom_id="malformed-failure",
-            error_type="extraction_error",
-            error_message="Unknown error",
+            error_type=error_type,
+            error_message=message,
             raw_data=record,
         )
     ]
