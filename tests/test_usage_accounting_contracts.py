@@ -253,3 +253,16 @@ def test_supported_usage_keeps_sdk_identity_and_isolates_snapshots(
     update_total_usage(response.model_copy(deep=True), total)
     assert _usage_total_tokens(total) == 30
     assert _usage_total_tokens(snapshot) == 15
+
+
+def test_absent_responses_sdk_leaves_unknown_usage_unchanged(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    from instructor.v2.core.usage import has_compatible_usage, update_total_usage
+
+    monkeypatch.setitem(sys.modules, "openai.types.responses", None)
+    total = CompletionUsage(prompt_tokens=2, completion_tokens=1, total_tokens=3)
+    response = SimpleNamespace(usage=SimpleNamespace(custom_tokens=5))
+    assert not has_compatible_usage(response, total)
+    assert update_total_usage(response, total) is response
+    assert total.total_tokens == 3

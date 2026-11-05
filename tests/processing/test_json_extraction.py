@@ -391,3 +391,13 @@ class TestBedrockJSONParsing:
         assert result.name == "First"
         assert result.age == 30
         assert result.skills == ["python"]
+
+
+def test_legacy_openai_text_extraction_concatenates_content_blocks():
+    from types import SimpleNamespace
+
+    message = SimpleNamespace(
+        content=[{"type": "text", "text": "hel"}, {"type": "text", "text": "lo"}]
+    )
+    completion = SimpleNamespace(choices=[SimpleNamespace(message=message)])
+    assert _extract_text_content(completion) == "hello"
