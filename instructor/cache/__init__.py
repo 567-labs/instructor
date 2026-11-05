@@ -121,14 +121,32 @@ def _import_diskcache():  # pragma: no cover – only executed when requested
 
 
 class DiskCache(BaseCache):
-    """Wrapper around `diskcache.Cache`."""
+    """Persistent, thread-safe storage for strings, bytes, and JSON values."""
 
     def __init__(self, directory: str = ".instructor_cache", **kwargs: Any):
+        from pathlib import Path
+
         diskcache = _import_diskcache()
-        self._cache = diskcache.Cache(directory, **kwargs)
+        from ._disk import InlineDisk
+
+        if "disk" in kwargs:
+            raise TypeError("DiskCache uses its own inline data codec")
+        root = Path(directory).expanduser()
+        root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if any(
+            (root / name).is_symlink()
+            for name in ("cache.db", "cache.db-wal", "cache.db-shm", "cache.db-journal")
+        ):
+            raise ValueError("DiskCache database files must be local regular files")
+        self._cache = diskcache.Cache(str(root), disk=InlineDisk, **kwargs)
 
     def get(self, key: str) -> Any | None:  # noqa: ANN401
-        return self._cache.get(key)
+        from ._disk import UnsafeCacheEntry
+
+        try:
+            return self._cache.get(key)
+        except UnsafeCacheEntry:
+            return None
 
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:  # noqa: ANN401
         if ttl is None:

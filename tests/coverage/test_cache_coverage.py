@@ -221,3 +221,74 @@ def test_unserializable_raw_response_uses_string_fallback(caplog: Any) -> None:
     assert restored.name == "fallback"
     assert restored._raw_response == "[[...]]"
     assert "Raw response could not be serialized as JSON" in caplog.text
+
+
+def test_disk_cache_rejects_unsafe_legacy_records_and_preserves_external_files(
+    tmp_path, monkeypatch
+):
+    import sqlite3
+    import diskcache
+    from diskcache.core import MODE_TEXT
+
+    directory = tmp_path / "responses"
+    outside = tmp_path / "outside.txt"
+    outside.write_text("sentinel")
+    with diskcache.Cache(str(directory)) as legacy:
+        legacy.set("old-object", {"name": "pickled"})
+        legacy.set("old-text", "inline text")
+        legacy.set("file", "placeholder")
+    with sqlite3.connect(directory / "cache.db") as db:
+        db.execute(
+            "UPDATE Cache SET mode=?,filename=?,value=NULL WHERE key=?",
+            (MODE_TEXT, "../outside.txt", "file"),
+        )
+
+    def unexpected_unpickle(*_args, **_kwargs):
+        raise AssertionError("cache reads must not invoke pickle")
+
+    monkeypatch.setattr(diskcache.core.pickle, "load", unexpected_unpickle)
+    cache = DiskCache(directory=str(directory))
+    try:
+        assert cache.get("old-object") is None
+        assert cache.get("old-text") == "inline text"
+        assert cache.get("file") is None
+        cache.set("file", b"replacement")
+        assert cache.get("file") == b"replacement"
+        assert outside.read_text() == "sentinel"
+    finally:
+        cache._cache.close()
+
+
+def test_disk_cache_keeps_json_types_and_rejects_lossy_or_malformed_values(tmp_path):
+    import io
+    import sqlite3
+
+    cache = DiskCache(directory=str(tmp_path))
+    try:
+        cache.set("json", {"items": [1, True, None]})
+        assert cache.get("json") == {"items": [1, True, None]}
+        with pytest.raises(TypeError):
+            cache.set("tuple", (1, 2))
+        with pytest.raises(TypeError):
+            cache._cache.set(1, "invalid key")
+        cache._cache.set("stream", io.BytesIO(b"safe"), read=True)
+        assert cache.get("stream") == b"safe"
+        assert "json" in list(cache._cache.iterkeys())
+        with sqlite3.connect(tmp_path / "cache.db") as db:
+            db.execute("UPDATE Cache SET value=? WHERE key=?", ("invalid", "json"))
+            db.execute("UPDATE Cache SET raw=0 WHERE key=?", ("stream",))
+        assert cache.get("json") is None
+        with pytest.raises(ValueError, match="encoded cache key"):
+            list(cache._cache.iterkeys())
+    finally:
+        cache._cache.close()
+
+
+def test_disk_cache_refuses_codec_overrides_and_database_symlinks(tmp_path):
+    import diskcache
+
+    with pytest.raises(TypeError, match="inline data codec"):
+        DiskCache(str(tmp_path), disk=diskcache.Disk)
+    (tmp_path / "cache.db").symlink_to(tmp_path / "outside.db")
+    with pytest.raises(ValueError, match="local regular files"):
+        DiskCache(str(tmp_path))
