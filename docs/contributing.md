@@ -121,7 +121,7 @@ Poetry provides comprehensive dependency management and packaging.
 
 ## Adding Support for New LLM Providers
 
-The [contributor guide](https://github.com/567-labs/instructor/blob/main/CONTRIBUTING.md#adding-support-for-new-llm-providers) lists the registry, client, and tests used by each integration.
+The [contributor guide](https://github.com/567-labs/instructor/blob/main/CONTRIBUTING.md#working-with-optional-dependencies) lists the registry, client, and tests used by each integration.
 
 --8<-- "CONTRIBUTING.md:provider-support"
 
