@@ -29,6 +29,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Bedrock tool modes now preserve the caller’s explicit tool choice and still force the response-model tool by default. ([#2775](https://github.com/567-labs/instructor/pull/2775))
 - OpenAI RESPONSES_TOOLS now preserves caller tools (e.g. code interpreter, web search) and avoids forcing tool choice when additional tools are provided. ([#2713](https://github.com/567-labs/instructor/issues/2713))
 
+### Tests / CI
+
+- Update the pinned checkout, artifact, setup-uv, and Codex actions.
+
 ## [1.18.0] - 2026-09-26
 
 ### Added
