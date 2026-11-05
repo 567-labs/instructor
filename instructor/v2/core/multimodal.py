@@ -2,7 +2,7 @@ from __future__ import annotations
 import base64
 import errno
 import re
-from collections.abc import Mapping, Hashable
+from collections.abc import Iterable, Mapping, Hashable
 from typing import (
     Any,
     Callable,
@@ -846,19 +846,7 @@ def autodetect_media(
 
 
 def convert_messages(
-    messages: list[
-        dict[
-            str,
-            Union[  # noqa: UP007
-                str,
-                dict[str, Any],
-                Image,
-                Audio,
-                PDF,
-                list[Union[str, dict[str, Any], Image, Audio, PDF]],  # noqa: UP007
-            ],
-        ]
-    ],
+    messages: Iterable[dict[str, Any]],
     mode: Mode,
     autodetect_images: bool = False,
 ) -> list[dict[str, Any]]:

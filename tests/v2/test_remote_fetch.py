@@ -36,7 +36,9 @@ class FakeResponse:
 
     def raise_for_status(self) -> None:
         if self.status_code >= 400:
-            raise remote.requests.HTTPError(response=self)
+            response = remote.requests.Response()
+            response.status_code = self.status_code
+            response.raise_for_status()
 
     def iter_content(self, *, chunk_size: int) -> list[bytes]:
         assert chunk_size > 0
