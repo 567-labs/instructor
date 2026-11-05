@@ -101,6 +101,19 @@ def event(*, content: str | None = None, tool_calls: list[Any] | None = None) ->
     )
 
 
+def empty_choices_event() -> Any:
+    """A trailing usage-only chunk, as Mistral's API can send when usage
+    tracking is enabled: `choices` is present but empty."""
+    return CompletionEvent(
+        data=CompletionChunk(
+            id="mistral-stream",
+            model="mistral-small-latest",
+            choices=[],
+            usage=UsageInfo(prompt_tokens=8, completion_tokens=5, total_tokens=13),
+        )
+    )
+
+
 class FakeMistral:
     def __init__(self) -> None:
         self.chat = MagicMock()
@@ -362,12 +375,15 @@ def test_streaming_flags_and_sync_extractors_skip_empty_and_bad_chunks() -> None
 
     tool_chunks = [
         object(),
+        empty_choices_event(),
         event(tool_calls=[]),
         event(tool_calls=[tool_call("Users", '{"tasks":[]}', "chunk")]),
     ]
     assert list(tools.extract_streaming_json(tool_chunks)) == ['{"tasks":[]}']
     assert list(
-        schema.extract_streaming_json([object(), event(content='{"answer":2}')])
+        schema.extract_streaming_json(
+            [object(), empty_choices_event(), event(content='{"answer":2}')]
+        )
     ) == ['{"answer":2}']
     assert (
         "".join(
@@ -392,6 +408,7 @@ async def test_async_extractors_skip_empty_and_bad_chunks() -> None:
 
     tool_chunks = [
         object(),
+        empty_choices_event(),
         event(tool_calls=[]),
         event(tool_calls=[tool_call("Users", '{"tasks":[]}', "chunk")]),
     ]
@@ -402,7 +419,9 @@ async def test_async_extractors_skip_empty_and_bad_chunks() -> None:
     assert [
         chunk
         async for chunk in schema.extract_streaming_json_async(
-            async_items([object(), event(content='{"answer":2}')])
+            async_items(
+                [object(), empty_choices_event(), event(content='{"answer":2}')]
+            )
         )
     ] == ['{"answer":2}']
     assert (

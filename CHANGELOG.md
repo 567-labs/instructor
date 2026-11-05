@@ -10,6 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- Gemini and Vertex AI reject completions stopped at the token limit. Google and Mistral streaming handlers skip empty metadata chunks, and GenAI JSON mode aliases are classified consistently.
 - Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
 - Cached responses accept both field names and validation aliases across supported Pydantic versions. Public cache keys include extra request-body options, and uncacheable list or scalar results emit a warning.
 - Explicit async validation visits set and frozenset items and reports validation failures from every item in a container.

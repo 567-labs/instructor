@@ -20,13 +20,14 @@ from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.partial import PartialBase
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.providers.gemini.utils import (
+    is_truncated_at_max_tokens,
     extract_gemini_chunk_text,
     handle_gemini_json,
     handle_gemini_tools,
 )
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
-from instructor.v2.core.errors import ResponseParsingError
+from instructor.v2.core.errors import IncompleteOutputException, ResponseParsingError
 from instructor.v2.core.json import (
     extract_json_from_codeblock,
     extract_json_from_stream,
@@ -198,6 +199,9 @@ class GeminiHandlerBase(ModeHandler):
         """Extract JSON chunks from Gemini streaming responses."""
         for chunk in completion:
             try:
+                # `candidates` can be empty (e.g. a safety-blocked chunk),
+                # which raises IndexError rather than AttributeError — skip
+                # the chunk either way.
                 if self.mode == Mode.TOOLS:
                     resp = chunk.candidates[0].content.parts[0].function_call
                     resp_dict = type(resp).to_dict(resp)
@@ -205,7 +209,7 @@ class GeminiHandlerBase(ModeHandler):
                         yield json.dumps(resp_dict["args"])
                 else:
                     yield extract_gemini_chunk_text(chunk)
-            except AttributeError:
+            except (AttributeError, IndexError):
                 continue
 
     async def extract_streaming_json_async(
@@ -221,7 +225,7 @@ class GeminiHandlerBase(ModeHandler):
                         yield json.dumps(resp_dict["args"])
                 else:
                     yield extract_gemini_chunk_text(chunk)
-            except AttributeError:
+            except (AttributeError, IndexError):
                 continue
 
     def _parse_streaming(
@@ -321,6 +325,8 @@ class GeminiToolsHandler(GeminiHandlerBase):
             return self._parse_streaming(
                 response_model, response, validation_context, strict
             )
+        if is_truncated_at_max_tokens(response):
+            raise IncompleteOutputException(last_completion=response)
         parsed = parse_gemini_tools(
             response_model, response, validation_context, strict
         )
@@ -366,6 +372,8 @@ class GeminiJSONHandler(GeminiHandlerBase):
             return self._parse_streaming(
                 response_model, response, validation_context, strict
             )
+        if is_truncated_at_max_tokens(response):
+            raise IncompleteOutputException(last_completion=response)
         parsed = parse_gemini_json(response_model, response, validation_context, strict)
         return self._finalize(response_model, response, parsed)
 
