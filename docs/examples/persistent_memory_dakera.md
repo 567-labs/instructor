@@ -19,7 +19,9 @@ from examples.persistent_memory_dakera.dakera_memory import create_with_memory
 from examples.persistent_memory_dakera.run import Reply
 
 reply = create_with_memory(
-    model, memory, Reply,
+    model,
+    memory,
+    Reply,
     agent_id=authenticated_agent_id,
     message="I prefer dark mode. Which display setting should I use?",
     remember_quote="I prefer dark mode.",
@@ -36,7 +38,9 @@ Use `AsyncDakeraClient` and an async Instructor client. The helper awaits recall
 from examples.persistent_memory_dakera.dakera_memory import create_with_memory_async
 
 reply = await create_with_memory_async(
-    async_model, async_memory, Reply,
+    async_model,
+    async_memory,
+    Reply,
     agent_id=authenticated_agent_id,
     message="What display preference did I mention?",
 )

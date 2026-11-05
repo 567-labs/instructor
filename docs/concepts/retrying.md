@@ -186,7 +186,12 @@ exceptions before Instructor wraps exhaustion in `InstructorRetryException`:
 import instructor
 from openai import APIConnectionError, InternalServerError, OpenAI, RateLimitError
 from pydantic import BaseModel, ValidationError
-from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import (
+    Retrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 client = instructor.from_openai(OpenAI(max_retries=0))
 

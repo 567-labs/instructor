@@ -68,7 +68,9 @@ client = instructor.from_openai(OpenAI())
 weather = client.create(
     model="gpt-4o-mini",
     response_model=WeatherDetail,
-    messages=[{"role": "user", "content": "The weather in Paris is 18 degrees Celsius."}],
+    messages=[
+        {"role": "user", "content": "The weather in Paris is 18 degrees Celsius."}
+    ],
 )
 print(weather.model_dump_json())
 ```

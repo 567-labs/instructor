@@ -29,8 +29,6 @@ user = client.create(
         {"role": "user", "content": "Extract Jason is 25 years old"},
     ],
 )  # type: ignore
-
-
 ```
 
 ## Inspecting raw responses

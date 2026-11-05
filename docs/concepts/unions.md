@@ -332,7 +332,6 @@ For more information about union types, check out the [Pydantic documentation on
 from typing import Literal, Union
 from pydantic import BaseModel
 import instructor
-from openai import OpenAI
 
 
 class Action(BaseModel):
@@ -367,7 +366,6 @@ response = client.create(
 from typing import Literal, Union
 from pydantic import BaseModel
 import instructor
-from openai import OpenAI
 
 
 class SearchAction(BaseModel):
@@ -396,7 +394,6 @@ response = client.create(
 from typing import Literal, Union
 from pydantic import BaseModel
 import instructor
-from openai import OpenAI
 
 
 class TextResponse(BaseModel):

@@ -139,7 +139,9 @@ client = instructor.from_provider("ollama/llama3.2")
 
 # With API keys directly (no environment variables needed)
 client = instructor.from_provider("openai/gpt-4o", api_key=os.environ["OPENAI_API_KEY"])
-client = instructor.from_provider("anthropic/claude-sonnet-5", api_key=os.environ["ANTHROPIC_API_KEY"])
+client = instructor.from_provider(
+    "anthropic/claude-sonnet-5", api_key=os.environ["ANTHROPIC_API_KEY"]
+)
 client = instructor.from_provider("groq/llama-3.1-8b-instant", api_key="gsk_...")
 
 # All use the same API!

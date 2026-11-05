@@ -106,11 +106,11 @@ decision, raw = client.create_with_completion(
 )
 
 # Illustrative results, not a live model response.
-print(decision.category)          # Category.HARASSMENT
+print(decision.category)  # Category.HARASSMENT
 print(decision.policy_violation)  # 0.84, probability of a violation
-print(decision.severity)          # 7.0, on the requested 0–10 scale
-print(decision.format)            # "text"
-print(decision.target)            # "individual"
+print(decision.severity)  # 7.0, on the requested 0–10 scale
+print(decision.format)  # "text"
+print(decision.target)  # "individual"
 
 # The application decides what to do with the result.
 if decision.policy_violation >= 0.80:
@@ -132,9 +132,7 @@ inspect the unchanged provider response and its probabilities and confidence.
 For direct TypeSafe access, set `TYPESAFE_API_KEY` and use:
 
 ```python
-client = instructor.from_provider(
-    "typesafe/jev-latest", mode=instructor.Mode.DECISIONS
-)
+client = instructor.from_provider("typesafe/jev-latest", mode=instructor.Mode.DECISIONS)
 ```
 
 Both providers use the same decision model and `context`. To switch routes,
@@ -158,12 +156,13 @@ HTTP client it created. Pass `timeout=None` explicitly to disable timeouts.
 Set `OPENAI_API_KEY` and use the same typed decision model:
 
 ```python
-client = instructor.from_provider(
-    "openai/gpt-6-luna", mode=instructor.Mode.DECISIONS
-)
+client = instructor.from_provider("openai/gpt-6-luna", mode=instructor.Mode.DECISIONS)
 decision, raw = client.create_with_completion(
     response_model=ModerationDecision,
-    context={"post": {"text": "I disagree with your argument."}, "policy": ["No harassment"]},
+    context={
+        "post": {"text": "I disagree with your argument."},
+        "policy": ["No harassment"],
+    },
 )
 ```
 
@@ -199,10 +198,16 @@ from typing import Annotated, Literal
 from pydantic import BaseModel
 from instructor.decisions import Question
 
+
 class Route(BaseModel):
     team: Annotated[
         Literal["billing", "support"],
-        Question(instructions={"question": "Which team?", "policy": ["Route refunds to billing"]}),
+        Question(
+            instructions={
+                "question": "Which team?",
+                "policy": ["Route refunds to billing"],
+            }
+        ),
     ]
 ```
 
