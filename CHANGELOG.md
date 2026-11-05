@@ -11,6 +11,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 - File-backed batch requests replace the destination after all records serialize. Failed writes preserve the previous batch.
+- Batch job listings handle nullable OpenAI metadata and request counts, expose job validation errors, and recognize Anthropic cancellation requests.
 - OpenAI and Anthropic batch results that hit the token limit return an incomplete-output error, even when the partial JSON validates.
 - Anthropic batch requests omit an unset temperature and preserve explicit numeric values, including zero.
 - Sync and async response helpers now log raw provider responses only when DEBUG is enabled and `INSTRUCTOR_LOG_RAW_RESPONSES=1` is set.
