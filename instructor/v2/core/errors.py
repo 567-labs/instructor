@@ -1,8 +1,21 @@
 from __future__ import annotations
 
 from textwrap import dedent
+from logging import Logger
 from typing import Any, NamedTuple
 from jinja2 import Template
+
+
+def log_provider_initialization_error(
+    logger: Logger, provider: str, error: Exception, provider_info: dict[str, Any]
+) -> None:
+    logger.error(
+        "Error initializing %s client (%s)",
+        provider,
+        type(error).__name__,
+        extra={**provider_info, "status": "error"},
+        stacklevel=2,
+    )
 
 
 class InstructorError(Exception):

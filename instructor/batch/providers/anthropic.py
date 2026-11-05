@@ -63,7 +63,9 @@ class AnthropicProvider(BatchProvider):
             return batch.id
         except (ValueError, TypeError) as e:
             # Re-raise validation errors as-is
-            logger.error(f"Validation error in Anthropic batch submission: {e}")
+            logger.error(
+                "Validation error in Anthropic batch submission (%s)", type(e).__name__
+            )
             raise
         except Exception as e:
             raise RuntimeError(f"Failed to submit Anthropic batch: {e}") from e

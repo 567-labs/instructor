@@ -11,6 +11,7 @@ from typing import (
     cast,
     overload,
 )
+from instructor.v2.core.errors import log_provider_initialization_error
 from instructor.v2.core.client import AsyncInstructor, Instructor
 from instructor import __version__
 from instructor.v2.core.mode import Mode
@@ -281,13 +282,7 @@ def _build_openai(
         )
         return result
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -373,13 +368,7 @@ def _build_azure_openai(
             "Install it with `pip install openai`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -438,13 +427,7 @@ def _build_openai_compatible(
             "Install it with `pip install openai`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -549,13 +532,7 @@ def _build_databricks(
             "Install it with `pip install openai`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -615,13 +592,7 @@ def _build_anthropic(
             "Install it with `pip install anthropic`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -690,13 +661,7 @@ def _build_google(
         )
         return result
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -740,13 +705,7 @@ def _build_gemini(
             "Install it with `pip install google-generativeai`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -796,13 +755,7 @@ def _build_mistral(
             "Install it with `pip install mistralai`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -845,13 +798,7 @@ def _build_cohere(
             "Install it with `pip install cohere`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -898,13 +845,7 @@ def _build_perplexity(
             "Install it with `pip install openai`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -941,13 +882,7 @@ def _build_groq(
             "Install it with `pip install groq`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -982,13 +917,7 @@ def _build_writer(
             "Install it with `pip install writer-sdk`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -1049,13 +978,7 @@ def _build_cerebras(
             "Install it with `pip install cerebras`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -1095,13 +1018,7 @@ def _build_fireworks(
             "Install it with `pip install fireworks-ai`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -1167,13 +1084,7 @@ def _build_vertexai(
         )
         return result
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -1233,13 +1144,7 @@ def _build_generative_ai(
         )
         return result
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -1310,13 +1215,7 @@ def _build_ollama(
             "Install it with `pip install openai`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -1374,13 +1273,7 @@ def _build_deepseek(
             "Install it with `pip install openai`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -1433,13 +1326,7 @@ def _build_xai(
             "Note: xai-sdk requires Python 3.10+."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -1497,13 +1384,7 @@ def _build_openrouter(
             "Install it with `pip install openai`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 
@@ -1540,13 +1421,7 @@ def _build_litellm(
             "Install it with `pip install litellm`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 

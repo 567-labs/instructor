@@ -240,7 +240,9 @@ def test_submit_batch_preserves_validation_errors(
     assert client.batches.created == []
 
 
-def test_submit_batch_wraps_service_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_submit_batch_wraps_service_errors(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
     client = OpenAIClient()
     client.batches.create_error = ConnectionError("service unavailable")
     provider = install_client(monkeypatch, client)
@@ -250,6 +252,7 @@ def test_submit_batch_wraps_service_errors(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert isinstance(caught.value.__cause__, ConnectionError)
     assert "service unavailable" in str(caught.value)
+    assert "service unavailable" not in caplog.text
 
 
 def test_get_status_maps_sdk_response_and_missing_count_fields(

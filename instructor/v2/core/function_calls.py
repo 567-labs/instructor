@@ -126,10 +126,10 @@ def _validate_model_from_json(
         parsed = json.loads(json_str, strict=False)
         return adapter.validate_python(parsed, context=validation_context, strict=False)
     except json.JSONDecodeError as e:
-        logger.debug(f"JSON decode error: {e}")
+        logger.debug("JSON decode error (%s)", type(e).__name__)
         raise
     except Exception as e:
-        logger.debug(f"Model validation error: {e}")
+        logger.debug("Model validation error (%s)", type(e).__name__)
         raise
 
 
