@@ -277,3 +277,27 @@ def test_failed_lazy_loader_remains_retryable():
     assert registry.is_registered(Provider.DEEPSEEK, Mode.TOOLS)
     assert registry.get_handlers(Provider.DEEPSEEK, Mode.TOOLS)
     assert attempts == 2
+
+
+def test_opaque_handler_signature_constructs_with_requested_mode(monkeypatch):
+    from instructor.v2.providers.openai.handlers import OpenAIJSONHandler
+
+    calls = []
+
+    class OpaqueHandler(OpenAIJSONHandler):
+        __signature__ = object()
+
+        def __init__(self, *, mode):
+            calls.append(mode)
+            self.mode = mode
+
+    registered = []
+    monkeypatch.setattr(
+        mode_registry, "register", lambda **kwargs: registered.append(kwargs)
+    )
+    assert (
+        register_mode_handler(Provider.OPENAI, Mode.JSON)(OpaqueHandler)
+        is OpaqueHandler
+    )
+    assert calls == [Mode.JSON]
+    assert registered[0]["request_handler"].__self__.mode == Mode.JSON
