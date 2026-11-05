@@ -50,7 +50,10 @@ from instructor.v2.core.messages import (
     dump_message,
     merge_consecutive_messages,
 )
-from instructor.v2.providers.openai.schema import generate_openai_schema
+from instructor.v2.providers.openai.schema import (
+    generate_openai_schema,
+    make_strict_schema,
+)
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
 from instructor.v2.core.streaming import StreamingModelState
@@ -366,21 +369,42 @@ def reask_default(
     return kwargs
 
 
+def _prepare_json_schema(
+    response_model: type[Any], kwargs: dict[str, Any]
+) -> tuple[type[Any], dict[str, Any]]:
+    from instructor.v2.core.response_model import prepare_response_model
+
+    model = cast(type[BaseModel], prepare_response_model(response_model))
+    schema = model.model_json_schema()
+    definition = {"name": model.__name__, "schema": schema}
+    if kwargs.pop("strict", True):
+        definition["schema"] = make_strict_schema(schema)
+        definition["strict"] = True
+    kwargs["response_format"] = {"type": "json_schema", "json_schema": definition}
+    return model, kwargs
+
+
 def handle_openrouter_structured_outputs(
     response_model: type[Any], new_kwargs: dict[str, Any]
 ) -> tuple[type[Any], dict[str, Any]]:
-    """Handle OpenRouter structured outputs mode."""
-    schema = response_model.model_json_schema()
-    schema["additionalProperties"] = False
-    new_kwargs["response_format"] = {
-        "type": "json_schema",
-        "json_schema": {
-            "name": response_model.__name__,
-            "schema": schema,
-            "strict": True,
-        },
-    }
-    return response_model, new_kwargs
+    """Prepare a structured-output request for OpenRouter."""
+    return _prepare_json_schema(response_model, new_kwargs)
+
+
+def _apply_tool_strictness(kwargs: dict[str, Any]) -> None:
+    if kwargs.pop("strict", False):
+        # Tool definitions can be cached and shared between parallel and single requests.
+        kwargs["tools"] = [
+            {
+                **tool,
+                "function": {
+                    **tool["function"],
+                    "strict": True,
+                    "parameters": make_strict_schema(tool["function"]["parameters"]),
+                },
+            }
+            for tool in kwargs["tools"]
+        ]
 
 
 class _ResponsesStreamResult:
@@ -682,6 +706,7 @@ class OpenAIToolsHandler(OpenAIHandlerBase):
     Supports `strict=True` parameter for strict schema validation.
     """
 
+    supports_schema_strict = True
     mode = Mode.TOOLS
 
     def prepare_request(
@@ -716,23 +741,14 @@ class OpenAIToolsHandler(OpenAIHandlerBase):
             new_kwargs["tools"] = handle_parallel_model(cast(Any, response_model))
             new_kwargs["tool_choice"] = "auto"
         else:
-            # Shallow-copy to avoid mutating the lru_cache return value.
-            # generate_openai_schema caches the same dict object; writing
-            # "strict" into it would permanently affect every future call for
-            # this model, even when strict=False.
-            schema = dict(generate_openai_schema(response_model))
-
-            # Check for strict parameter
-            use_strict = new_kwargs.pop("strict", False)
-            if use_strict:
-                schema["strict"] = True
-
+            schema = generate_openai_schema(response_model)
             new_kwargs["tools"] = [{"type": "function", "function": schema}]
             new_kwargs["tool_choice"] = {
                 "type": "function",
                 "function": {"name": schema["name"]},
             }
 
+        _apply_tool_strictness(new_kwargs)
         return response_model, new_kwargs
 
     def handle_reask(
@@ -792,6 +808,7 @@ class OpenAIJSONSchemaHandler(OpenAIHandlerBase):
     Uses OpenAI's native structured outputs via response_format parameter.
     """
 
+    supports_schema_strict = True
     mode = Mode.JSON_SCHEMA
 
     def prepare_request(
@@ -807,15 +824,7 @@ class OpenAIJSONSchemaHandler(OpenAIHandlerBase):
 
         new_kwargs = kwargs.copy()
         new_kwargs["messages"] = list(kwargs.get("messages", []))
-        schema = response_model.model_json_schema()
-        new_kwargs["response_format"] = {
-            "type": "json_schema",
-            "json_schema": {
-                "name": response_model.__name__,
-                "schema": schema,
-            },
-        }
-        return response_model, new_kwargs
+        return _prepare_json_schema(response_model, new_kwargs)
 
     def handle_reask(
         self,
@@ -1015,6 +1024,7 @@ class OpenAIMDJSONHandler(OpenAIHandlerBase):
 class OpenAIParallelToolsHandler(OpenAIHandlerBase):
     """Handler for OpenAI parallel tool calling."""
 
+    supports_schema_strict = True
     mode = Mode.PARALLEL_TOOLS
 
     def prepare_request(
@@ -1036,6 +1046,7 @@ class OpenAIParallelToolsHandler(OpenAIHandlerBase):
         from instructor.v2.dsl.parallel import handle_parallel_model
 
         new_kwargs["tools"] = handle_parallel_model(cast(Any, response_model))
+        _apply_tool_strictness(new_kwargs)
         new_kwargs["tool_choice"] = "auto"
 
         # Wrap in ParallelModel for proper parsing

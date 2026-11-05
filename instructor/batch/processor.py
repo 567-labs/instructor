@@ -48,12 +48,15 @@ class BatchProcessor(Generic[T]):
         max_tokens: int | None = 1000,
         temperature: float | None = 0.1,
         custom_ids: list[str] | None = None,
+        *,
+        strict: bool = True,
     ) -> str | io.BytesIO:
         """Create batch file from list of message conversations
 
         Args:
             messages_list: List of message conversations, each as a list of message dicts
             file_path: Path to save the batch request file. If None, returns BytesIO buffer
+            strict: Enforce OpenAI strict schemas. Set False for arbitrary mappings.
             max_tokens: Maximum tokens per request
             temperature: Temperature for generation
             custom_ids: Optional unique ID for each conversation, in the same order.
@@ -87,6 +90,7 @@ class BatchProcessor(Generic[T]):
                         model=self.model_name,
                         max_tokens=max_tokens,
                         temperature=temperature,
+                        strict=strict,
                     )
                     batch_request.save_to_file(temporary_path, self.provider_name)
                     batch_requests.append(batch_request)
@@ -114,6 +118,7 @@ class BatchProcessor(Generic[T]):
                 model=self.model_name,
                 max_tokens=max_tokens,
                 temperature=temperature,
+                strict=strict,
             )
             batch_request.save_to_file(buffer, self.provider_name)
             batch_requests.append(batch_request)

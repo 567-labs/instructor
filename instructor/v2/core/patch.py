@@ -15,6 +15,7 @@ from functools import wraps
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast, get_args, overload
 
 from pydantic import BaseModel
+from pydantic_core import PydanticUndefined, PydanticUndefinedType
 
 from instructor.v2.core.budget import _validate_token_budget
 from instructor.v2.core.mode import Mode
@@ -132,9 +133,10 @@ def patch_v2(
 
     func_is_async = is_async(func)
 
-    if func_is_async:
-        return _create_async_wrapper(func, provider, mode, default_model)
-    return _create_sync_wrapper(func, provider, mode, default_model)
+    factory = _create_async_wrapper if func_is_async else _create_sync_wrapper
+    create = factory(func, provider, mode, default_model)
+    cast(Any, create)._instructor_patched_create = True
+    return create
 
 
 @overload
@@ -229,7 +231,7 @@ def _create_sync_wrapper(
         response_model: type[T_Model] | None = None,
         context: dict[str, Any] | None = None,
         max_retries: int | Retrying = 1,
-        strict: bool = True,
+        strict: bool | PydanticUndefinedType = PydanticUndefined,
         hooks: Hooks | None = None,
         token_budget: int | None = None,
         *args: Any,
@@ -256,6 +258,14 @@ def _create_sync_wrapper(
 
         # Get handlers from registry
         handlers = mode_registry.get_handlers(provider, mode)
+        if (
+            isinstance(strict, bool)
+            and response_model is not None
+            and handlers.supports_schema_strict
+        ):
+            kwargs["strict"] = strict
+        if not isinstance(strict, bool):
+            strict = True
 
         requested_model = response_model
         if response_model is not None and mode not in Mode.parallel_modes():
@@ -349,7 +359,7 @@ def _create_async_wrapper(
         response_model: type[T_Model] | None = None,
         context: dict[str, Any] | None = None,
         max_retries: int | AsyncRetrying = 1,
-        strict: bool = True,
+        strict: bool | PydanticUndefinedType = PydanticUndefined,
         hooks: Hooks | None = None,
         token_budget: int | None = None,
         *args: Any,
@@ -376,6 +386,14 @@ def _create_async_wrapper(
 
         # Get handlers from registry
         handlers = mode_registry.get_handlers(provider, mode)
+        if (
+            isinstance(strict, bool)
+            and response_model is not None
+            and handlers.supports_schema_strict
+        ):
+            kwargs["strict"] = strict
+        if not isinstance(strict, bool):
+            strict = True
 
         requested_model = response_model
         if response_model is not None and mode not in Mode.parallel_modes():

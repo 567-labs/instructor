@@ -6,8 +6,7 @@ provider-specific batch requests with JSON schema generation.
 """
 
 from __future__ import annotations
-from copy import deepcopy
-from typing import Any, Generic, cast
+from typing import Any, Generic
 from pydantic import BaseModel, Field, ConfigDict
 import json
 import io
@@ -51,6 +50,8 @@ class BatchRequest(BaseModel, Generic[T]):
     max_tokens: int | None = Field(default=1000)
     temperature: float | None = Field(default=0.1)
 
+    strict: bool = True
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def get_json_schema(self) -> dict[str, Any]:
@@ -59,76 +60,11 @@ class BatchRequest(BaseModel, Generic[T]):
 
     def to_openai_format(self) -> dict[str, Any]:
         """Convert to OpenAI batch format with JSON schema"""
-        from openai.lib._pydantic import resolve_ref
+        from instructor.v2.providers.openai.schema import make_strict_schema
 
-        strict_schema = deepcopy(self.get_json_schema())
-
-        def make_strict_schema(
-            schema: dict[str, Any] | bool,
-            active_refs: frozenset[str] = frozenset(),
-        ) -> None:
-            # The SDK strict helper rejects boolean schemas, which batch callers
-            # already use. Traverse schema keywords only, leaving metadata intact.
-            if isinstance(schema, bool):
-                return
-            properties = schema.get("properties")
-            additional = schema.get("additionalProperties")
-            if (
-                isinstance(additional, dict)
-                or (additional is True and not properties)
-                or (
-                    schema.get("type") == "object"
-                    and "properties" not in schema
-                    and additional is None
-                )
-                or schema.get("patternProperties")
-            ):
-                raise ValueError(
-                    "Arbitrary mapping schemas are not supported by OpenAI batch "
-                    "strict mode; use a model with named fields instead"
-                )
-            schema_type = schema.get("type")
-            if (
-                schema_type == "object"
-                or (isinstance(schema_type, list) and "object" in schema_type)
-                or isinstance(properties, dict)
-            ):
-                schema["additionalProperties"] = False
-            if isinstance(properties, dict):
-                schema["required"] = list(properties)
-                for child in properties.values():
-                    make_strict_schema(child, active_refs)
-            for keyword in ("$defs", "definitions"):
-                for child in schema.get(keyword, {}).values():
-                    make_strict_schema(child, active_refs)
-            if "items" in schema:
-                make_strict_schema(schema["items"], active_refs)
-            for keyword in ("anyOf", "oneOf", "allOf", "prefixItems"):
-                for child in schema.get(keyword, []):
-                    make_strict_schema(child, active_refs)
-            all_of = schema.get("allOf")
-            if (
-                isinstance(all_of, list)
-                and len(all_of) == 1
-                and isinstance(all_of[0], dict)
-            ):
-                schema.update(all_of[0])
-                del schema["allOf"]
-            # Match the SDK's nullable-default handling; retain non-null defaults.
-            if "default" in schema and schema["default"] is None:
-                del schema["default"]
-            ref = schema.get("$ref")
-            if isinstance(ref, str) and len(schema) > 1 and ref not in active_refs:
-                resolved = cast(
-                    dict[str, Any], resolve_ref(root=strict_schema, ref=ref)
-                )
-                # Copy the referenced node, and retain recursive back-references
-                # with their metadata instead of expanding indefinitely.
-                schema.update({**deepcopy(resolved), **schema})
-                del schema["$ref"]
-                make_strict_schema(schema, active_refs | {ref})
-
-        make_strict_schema(strict_schema)
+        schema = self.get_json_schema()
+        if self.strict:
+            schema = make_strict_schema(schema)
 
         return {
             "custom_id": self.custom_id,
@@ -143,8 +79,8 @@ class BatchRequest(BaseModel, Generic[T]):
                     "type": "json_schema",
                     "json_schema": {
                         "name": self.response_model.__name__,
-                        "strict": True,
-                        "schema": strict_schema,
+                        "strict": self.strict,
+                        "schema": schema,
                     },
                 },
             },
