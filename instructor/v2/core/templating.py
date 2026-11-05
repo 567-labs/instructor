@@ -1,15 +1,39 @@
 # type: ignore[all]
 from __future__ import annotations
-from typing import Any
+from typing import Any, Callable
 from textwrap import dedent
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider, provider_from_mode
 from jinja2.sandbox import SandboxedEnvironment
 
 
+_TEXT_BLOCK_TYPES = {
+    Provider.BEDROCK: ("text", None),
+    Provider.OPENAI: ("text", "input_text"),
+    Provider.AZURE_OPENAI: ("text", "input_text"),
+}
+
+
 def apply_template(text: str, context: dict[str, Any]) -> str:
     """Apply Jinja2 template to the given text."""
     return dedent(SandboxedEnvironment().from_string(text).render(**context))
+
+
+def render_text_blocks(
+    blocks: list[Any],
+    context: dict[str, Any],
+    render: Callable[[str, dict[str, Any]], str],
+    provider: Provider,
+) -> None:
+    """Render text fields in the provider's content-block format."""
+    text_types = _TEXT_BLOCK_TYPES.get(provider, ("text",))
+    for block in blocks:
+        if (
+            isinstance(block, dict)
+            and block.get("type") in text_types
+            and isinstance(block.get("text"), str)
+        ):
+            block["text"] = render(block["text"], context)
 
 
 def process_message(
@@ -44,8 +68,11 @@ def process_message(
 
         return process_openai_message(message, context, apply_template)
 
-    # Anthropic format
     if isinstance(message.get("content"), list):
+        if provider in _TEXT_BLOCK_TYPES:
+            render_text_blocks(message["content"], context, apply_template, provider)
+            return message
+
         from instructor.v2.providers.anthropic.templating import (
             process_message as process_anthropic_message,
         )
@@ -71,6 +98,10 @@ def process_message(
     return message
 
 
+def _copy_blocks(parts: list[Any]) -> list[Any]:
+    return [part.copy() if isinstance(part, dict) else part for part in parts]
+
+
 def _copy_message_for_templating(message: Any) -> Any:
     if not isinstance(message, dict):
         return message
@@ -79,9 +110,7 @@ def _copy_message_for_templating(message: Any) -> Any:
     for field in ("content", "parts"):
         parts = copied_message.get(field)
         if isinstance(parts, list):
-            copied_message[field] = [
-                part.copy() if isinstance(part, dict) else part for part in parts
-            ]
+            copied_message[field] = _copy_blocks(parts)
     return copied_message
 
 
@@ -96,7 +125,7 @@ def handle_templating(
 
     This function processes messages, applying Jinja2 templating to their content
     using the provided context. It supports various message formats including
-    OpenAI, Anthropic, Cohere, VertexAI, and Gemini.
+    OpenAI, Anthropic, Bedrock, Cohere, VertexAI, and Gemini.
 
     Args:
         kwargs (Dict[str, Any]): Keyword arguments being passed to the create method.
@@ -132,6 +161,11 @@ def handle_templating(
 
     if isinstance(new_kwargs, list):
         return new_kwargs
+
+    system = new_kwargs.get("system")
+    if provider in (Provider.ANTHROPIC, Provider.BEDROCK) and isinstance(system, list):
+        new_kwargs["system"] = _copy_blocks(system)
+        render_text_blocks(new_kwargs["system"], context, apply_template, provider)
 
     message_key = "messages" if new_kwargs.get("messages") else "contents"
     messages = new_kwargs.get(message_key)

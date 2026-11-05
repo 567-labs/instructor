@@ -19,6 +19,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Batch job listings handle nullable OpenAI metadata and request counts, expose job validation errors, and recognize Anthropic cancellation requests.
 - Anthropic batch requests omit an unset temperature and preserve explicit numeric values, including zero.
 - Anthropic tool mode uses automatic choice for requested thinking and models that reject forced tool use.
+- Message templating now renders Bedrock Converse text, Anthropic system blocks and OpenAI Responses input text.
 - Sync and async response helpers now log raw provider responses only when DEBUG is enabled and `INSTRUCTOR_LOG_RAW_RESPONSES=1` is set.
 - Image, PDF and audio data URIs accept case-insensitive media types and optional parameters. Audio MIME aliases are normalized consistently across input sources.
 - Request preparation logs only the mode and response model, keeping provider credentials and custom authentication headers out of debug records.
