@@ -7,7 +7,7 @@ lookup silently misses every aliased field.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional, cast
 
 from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field
 
@@ -51,7 +51,7 @@ class PathEnvelope(BaseModel):
 
 
 def _last(model: type[BaseModel], chunk: str):
-    partial_model = Partial[model]
+    partial_model = cast(Any, Partial[model])
     return list(partial_model.model_from_chunks(iter([chunk])))[-1]
 
 
