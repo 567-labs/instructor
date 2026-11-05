@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from collections.abc import AsyncGenerator, Generator, Iterable
@@ -7,7 +8,7 @@ from typing import Any, Literal, Optional, Protocol, TypeVar, Union, cast
 
 import pytest
 from jiter import from_json
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import AliasPath, BaseModel, Field, ValidationError
 
 import instructor
 from instructor.dsl.partial import Partial, PartialLiteralMixin, _make_field_optional
@@ -1484,3 +1485,62 @@ class TestOptionalNestedBaseModelDuringPartialStreaming:
         # Would be a raw dict before the fix, raising AttributeError on .name
         assert isinstance(obj.items[-1], Item)
         assert obj.items[-1].name == "banana"
+
+
+class TestAliasPathDuringPartialStreaming:
+    def test_alias_path_builds_nested_model_in_incomplete_snapshot(self):
+        class Inner(BaseModel):
+            value: int
+
+        class Outer(BaseModel):
+            payload: Inner = Field(validation_alias=AliasPath("container", "payload"))
+
+        snapshot = list(
+            _partial_api(Partial[Outer]).model_from_chunks(
+                ['{"container":{"payload":{"value":42}']
+            )
+        )[-1]
+
+        assert isinstance(snapshot.payload, Inner)
+        assert snapshot.payload.value == 42
+
+    def test_alias_path_builds_nested_model_in_async_incomplete_snapshot(self):
+        class Inner(BaseModel):
+            value: int
+
+        class Outer(BaseModel):
+            payload: Inner = Field(validation_alias=AliasPath("container", "payload"))
+
+        async def collect():
+            async def chunks():
+                yield '{"container":{"payload":{"value":42}'
+
+            return [
+                item
+                async for item in _partial_api(Partial[Outer]).model_from_chunks_async(
+                    chunks()
+                )
+            ]
+
+        snapshot = asyncio.run(collect())[-1]
+
+        assert isinstance(snapshot.payload, Inner)
+        assert snapshot.payload.value == 42
+
+    def test_alias_path_with_index_builds_nested_model_in_incomplete_snapshot(self):
+        class Inner(BaseModel):
+            value: int
+
+        class Outer(BaseModel):
+            payload: Inner = Field(
+                validation_alias=AliasPath("containers", 0, "payload")
+            )
+
+        snapshot = list(
+            _partial_api(Partial[Outer]).model_from_chunks(
+                ['{"containers":[{"payload":{"value":42}']
+            )
+        )[-1]
+
+        assert isinstance(snapshot.payload, Inner)
+        assert snapshot.payload.value == 42
