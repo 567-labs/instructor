@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 import pytest
-from typing_extensions import NotRequired, Required, TypedDict
+from pydantic import Field, ValidationError
+from typing_extensions import NotRequired, ReadOnly, Required, TypedDict
 
 from instructor import Mode, Provider
 from instructor.v2.core.function_calls import ResponseSchema
@@ -162,3 +163,87 @@ def test_prepare_response_model_preserves_iterable_typed_dict_keys() -> None:
     assert task_model.model_fields["name"].is_required()
     assert not task_model.model_fields["age"].is_required()
     assert task_model(name="Ada").model_dump(exclude_unset=True) == {"name": "Ada"}
+
+
+@pytest.mark.parametrize("total", [True, False])
+@pytest.mark.parametrize("as_list", [True, False])
+@pytest.mark.parametrize(
+    ("annotation", "required"),
+    [
+        (ReadOnly[int], None),
+        (Required[ReadOnly[int]], True),
+        (ReadOnly[Required[int]], True),
+        (NotRequired[ReadOnly[int]], False),
+        (ReadOnly[NotRequired[int]], False),
+        (ReadOnly[Annotated[int, Field(gt=0)]], None),
+    ],
+)
+def test_prepare_response_model_preserves_readonly_typed_dict_fields(
+    annotation: Any, required: bool | None, total: bool, as_list: bool
+) -> None:
+    make_typed_dict = cast(Any, TypedDict)
+    record = make_typed_dict("Record", {"value": annotation}, total=total)
+    model = cast(Any, prepare_response_model(list[record] if as_list else record))
+    if as_list:
+        model = model.task_type
+    is_required = total if required is None else required
+
+    assert model.model_fields["value"].is_required() is is_required
+    schema = model.model_json_schema()
+    assert schema["properties"]["value"]["type"] == "integer"
+    assert ("value" in schema.get("required", [])) is is_required
+    assert model.model_validate_json('{"value": 3}').value == 3
+    with pytest.raises(ValidationError):
+        model.model_validate_json('{"value": "invalid"}')
+
+    if is_required:
+        with pytest.raises(ValidationError):
+            model.model_validate_json("{}")
+    else:
+        assert model.model_validate_json("{}").model_dump(exclude_unset=True) == {}
+
+
+def test_prepare_response_model_preserves_readonly_field_metadata() -> None:
+    class Record(TypedDict):
+        value: Annotated[
+            ReadOnly[Annotated[int, Field(gt=0, description="Inner count")]],
+            Field(lt=10, description="A count"),
+        ]
+
+    model = cast(Any, prepare_response_model(Record))
+    schema = model.model_json_schema()["properties"]["value"]
+    assert schema["exclusiveMinimum"] == 0
+    assert schema["exclusiveMaximum"] == 10
+    assert schema["description"] == "A count"
+    assert model.model_validate_json('{"value": 3}').value == 3
+    for value in (0, 10):
+        with pytest.raises(ValidationError):
+            model.model_validate({"value": value})
+
+
+@pytest.mark.parametrize("required", [True, False])
+def test_readonly_underscore_fields_preserve_aliases_and_round_trip(
+    required: bool,
+) -> None:
+    record = cast(Any, TypedDict)(
+        "Record",
+        {"_id": ReadOnly[Annotated[int, Field(gt=0)]]},
+        total=required,
+    )
+    model = cast(Any, prepare_response_model(record))
+    schema = model.model_json_schema()
+    assert schema["properties"]["_id"]["exclusiveMinimum"] == 0
+    assert ("_id" in schema.get("required", [])) is required
+    response = model.model_validate({"_id": 3})
+    assert response.model_dump(by_alias=True) == {"_id": 3}
+    assert (
+        model.model_validate_json(response.model_dump_json(round_trip=True)) == response
+    )
+    with pytest.raises(ValidationError):
+        model.model_validate({"_id": 0})
+    if required:
+        with pytest.raises(ValidationError):
+            model.model_validate({})
+    else:
+        omitted = model.model_validate({})
+        assert omitted.model_dump(round_trip=True) == {}
