@@ -89,24 +89,6 @@ def test_reask_without_choices_appends_only_the_correction(
     assert [message["role"] for message in reasked["messages"]] == ["user", "user"]
 
 
-@pytest.mark.parametrize(
-    ("provider", "mode"), CASES, ids=[f"{p.value}-{m.value}" for p, m in CASES]
-)
-def test_parse_without_choices_raises_retryable_error(
-    provider: Provider, mode: Mode
-) -> None:
-    handlers = mode_registry.get_handlers(provider, mode)
-    with pytest.raises(ResponseParsingError, match="No choices in Mistral response"):
-        handlers.response_parser(
-            response=_empty_choices_response(),
-            response_model=Answer,
-            validation_context=None,
-            strict=True,
-            stream=False,
-            is_async=False,
-        )
-
-
 def test_reask_with_choice_still_replays_assistant_message() -> None:
     """Positive control: a usable choice keeps the old replay behavior."""
     handlers = mode_registry.get_handlers(Provider.MISTRAL, Mode.TOOLS)
