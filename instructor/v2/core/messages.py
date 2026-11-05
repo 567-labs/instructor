@@ -74,39 +74,29 @@ def merge_consecutive_messages(messages: list[dict[str, Any]]) -> list[dict[str,
     if not messages:
         return []
 
-    message_count = len(messages)
     new_messages: list[dict[str, Any]] = []
-    flat_string = True
-    for message in messages[: min(10, message_count)]:
-        if not isinstance(message.get("content", ""), str):
-            flat_string = False
-            break
-
-    if flat_string and message_count > 10:
-        flat_string = all(
-            isinstance(message.get("content", ""), str) for message in messages[10:]
-        )
-
+    flat_string = all(
+        isinstance(message.get("content", ""), str) for message in messages
+    )
     for message in messages:
         role = message.get("role", "user")
         new_content = message.get("content", "")
-        is_plain_message = set(message).issubset({"role", "content"})
         if new_content is None:
             new_content = ""
+        if flat_string:
+            new_content = [new_content]
+        elif isinstance(new_content, str):
+            new_content = [{"type": "text", "text": new_content}]
         elif isinstance(new_content, list):
             new_content = list(new_content)
-        if not flat_string and isinstance(new_content, str):
-            new_content = [{"type": "text", "text": new_content}]
 
         if (
             new_messages
             and role == new_messages[-1]["role"]
-            and is_plain_message
+            and set(message).issubset({"role", "content"})
             and set(new_messages[-1]).issubset({"role", "content"})
         ):
-            if flat_string:
-                new_messages[-1]["content"] += f"\n\n{new_content}"
-            elif isinstance(new_content, list):
+            if isinstance(new_content, list):
                 new_messages[-1]["content"].extend(new_content)
             else:
                 new_messages[-1]["content"].append(new_content)
@@ -115,6 +105,9 @@ def merge_consecutive_messages(messages: list[dict[str, Any]]) -> list[dict[str,
             new_message.update(role=role, content=new_content)
             new_messages.append(new_message)
 
+    if flat_string:
+        for message in new_messages:
+            message["content"] = "\n\n".join(message["content"])
     return new_messages
 
 

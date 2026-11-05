@@ -20,6 +20,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Anthropic batch requests omit an unset temperature and preserve explicit numeric values, including zero.
 - Anthropic tool mode uses automatic choice for requested thinking and models that reject forced tool use.
 - Message templating now renders Bedrock Converse text, Anthropic system blocks and OpenAI Responses input text.
+- Template rendering raises on undefined variables and preserves explicit Jinja raw blocks. Consecutive plain-text messages are joined once per role run.
 - Sync and async response helpers now log raw provider responses only when DEBUG is enabled and `INSTRUCTOR_LOG_RAW_RESPONSES=1` is set.
 - Distillation resolves quoted model return types. Distillation and LLM validators default to gpt-4.1-mini.
 - Image, PDF and audio data URIs accept case-insensitive media types and optional parameters. Audio MIME aliases are normalized consistently across input sources.
