@@ -1960,7 +1960,7 @@ wheels = [
 
 [[package]]
 name = "instructor"
-version = "1.17.1"
+version = "1.18.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp", version = "3.12.15", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version < '3.10'" },
@@ -1968,6 +1968,7 @@ dependencies = [
     { name = "click", version = "8.4.2", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version >= '3.10'" },
     { name = "docstring-parser" },
     { name = "eval-type-backport", marker = "python_full_version < '3.10'" },
+    { name = "httpx" },
     { name = "idna" },
     { name = "jinja2" },
     { name = "jiter" },
@@ -2111,6 +2112,7 @@ requires-dist = [
     { name = "google-genai", marker = "extra == 'google-genai'", specifier = ">=1.5.0" },
     { name = "graphviz", marker = "extra == 'graphviz'", specifier = ">=0.20.3,<1.0.0" },
     { name = "groq", marker = "extra == 'groq'", specifier = ">=0.4.2,<1.1.0" },
+    { name = "httpx", specifier = ">=0.23.0,<1.0.0" },
     { name = "idna", specifier = ">=3.15" },
     { name = "jinja2", specifier = ">=3.1.4,<4.0.0" },
     { name = "jiter", specifier = ">=0.6.1,<0.15" },

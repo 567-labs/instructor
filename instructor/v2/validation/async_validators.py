@@ -102,6 +102,11 @@ def model_declares_async_validators(model_cls: Any) -> bool:
     visited: set[type[BaseModel]] = set()
 
     def declares(annotation: Any) -> bool:
+        origin = get_origin(annotation)
+        if origin is not None and origin is not annotation:
+            return any(declares(arg) for arg in get_args(annotation)) or declares(
+                origin
+            )
         if isinstance(annotation, type) and issubclass(annotation, BaseModel):
             if annotation in visited:
                 return False
@@ -121,24 +126,36 @@ def model_declares_async_validators(model_cls: Any) -> bool:
 async def run_async_validators(value: Any, *, context: dict[str, Any] | None) -> Any:
     """Recursively run declared async field/model validators over a parsed value.
 
-    Nested `BaseModel` instances (directly, or inside lists/tuples/dicts) are
-    validated depth-first so a parent model's async validators see already
-    -validated children. Returns the (possibly updated) value; raises
+    Nested models inside lists, tuples, sets, frozensets and dictionary values
+    are validated depth-first so parent validators see the validated children. Returns the (possibly updated) value; raises
     `AsyncValidationError` aggregating every failure found in the subtree.
     """
     if isinstance(value, BaseModel):
         return await _run_on_model(value, context=context)
-    if isinstance(value, list):
-        return [await run_async_validators(item, context=context) for item in value]
-    if isinstance(value, tuple):
-        return tuple(
-            [await run_async_validators(item, context=context) for item in value]
-        )
-    if isinstance(value, dict):
-        return {
-            key: await run_async_validators(item, context=context)
-            for key, item in value.items()
-        }
+    if isinstance(value, (list, tuple, set, frozenset, dict)):
+        errors: list[ValueError] = []
+        validated: list[Any] = []
+        items = value.values() if isinstance(value, dict) else value
+        for item in items:
+            try:
+                validated.append(await run_async_validators(item, context=context))
+            except AsyncValidationError as exc:
+                errors.extend(exc.errors)
+        if errors:
+            summary = "; ".join(str(error) for error in errors)
+            raise AsyncValidationError(
+                f"Async validation failed for {type(value).__name__}: {summary}",
+                errors=errors,
+            )
+        if isinstance(value, dict):
+            return dict(zip(value, validated))
+        if isinstance(value, list):
+            return validated
+        if isinstance(value, tuple):
+            return tuple(validated)
+        if isinstance(value, set):
+            return set(validated)
+        return frozenset(validated)
     return value
 
 
@@ -216,10 +233,12 @@ def reject_async_validators(response_model: Any) -> None:
         if isinstance(model, TypeAliasType):
             visit(model.__value__)
         origin = get_origin(model)
-        if isinstance(origin, TypeAliasType):
-            visit(origin.__value__)
         for argument in get_args(model):
             visit(argument)
+        if origin is not None:
+            # Python 3.9 treats GenericAlias as a type, but issubclass rejects it.
+            visit(origin)
+            return
         if not isinstance(model, type):
             for child in getattr(model, "models", ()):
                 visit(child)

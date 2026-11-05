@@ -115,7 +115,9 @@ class ChatFactory:
     def create(self, **kwargs: Any) -> SyncChat | AsyncChat:
         self.calls.append(kwargs)
         self.chat.proto = xchat.chat_pb2.GetCompletionsRequest(
-            model=kwargs["model"], messages=kwargs["messages"]
+            model=kwargs["model"],
+            messages=kwargs["messages"],
+            tools=kwargs.get("tools", []),
         )
         return self.chat
 
@@ -755,11 +757,10 @@ async def test_async_tools_stream_iterable_partial_and_reject_plain_models() -> 
         )
 
 
-def test_sync_parallel_tools_register_each_schema_and_ignore_unknown_calls() -> None:
+def test_sync_parallel_tools_register_each_schema_and_parse_known_calls() -> None:
     response = SimpleNamespace(
         tool_calls=[
             tool_call("Answer", '{"answer":7}'),
-            tool_call("Unknown", '{"ignored":true}', "call-2"),
             tool_call("Reason", '{"reason":"checked"}', "call-3"),
         ]
     )
@@ -782,13 +783,12 @@ def test_sync_parallel_tools_register_each_schema_and_ignore_unknown_calls() -> 
 
 
 @pytest.mark.asyncio
-async def test_async_parallel_tools_register_each_schema_and_ignore_unknown_calls() -> (
+async def test_async_parallel_tools_register_each_schema_and_parse_known_calls() -> (
     None
 ):
     response = SimpleNamespace(
         tool_calls=[
             tool_call("Answer", '{"answer":7}'),
-            tool_call("Unknown", '{"ignored":true}', "call-2"),
             tool_call("Reason", '{"reason":"checked"}', "call-3"),
         ]
     )

@@ -38,6 +38,9 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
+# Instructor response cache
+.instructor_cache/
+
 # Unit test / coverage reports
 htmlcov/
 .tox/

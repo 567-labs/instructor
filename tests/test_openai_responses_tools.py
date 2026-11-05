@@ -1,9 +1,16 @@
+from __future__ import annotations
+
+from typing import Literal
 from unittest.mock import MagicMock
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+import pytest
 
 from openai import pydantic_function_tool
+from openai.types.responses import Response, ResponseFunctionToolCall
+from openai.types.responses.response import IncompleteDetails
 
+from instructor.core.exceptions import IncompleteOutputException
 from instructor.v2.providers.openai.handlers import (
     OpenAIResponsesToolsHandler,
     reask_responses_tools,
@@ -91,6 +98,62 @@ def test_responses_tools_none_model_no_text() -> None:
     _, kwargs = OpenAIResponsesToolsHandler().prepare_request(None, {})
 
     assert "text" not in kwargs
+
+
+def test_responses_tools_preserves_caller_tools_and_omits_forced_tool_choice() -> None:
+    caller_tools = [
+        {"type": "code_interpreter", "container": {"type": "auto"}},
+        {"type": "web_search_preview"},
+    ]
+    _, kwargs = OpenAIResponsesToolsHandler().prepare_request(
+        ResponseToolModel,
+        {"tools": caller_tools},
+    )
+
+    assert len(kwargs["tools"]) == 3
+    assert kwargs["tools"][0] == caller_tools[0]
+    assert kwargs["tools"][1] == caller_tools[1]
+    assert kwargs["tools"][2]["type"] == "function"
+    assert kwargs["tools"][2]["name"] == "ResponseToolModel"
+    assert "tool_choice" not in kwargs
+
+
+def test_responses_tools_preserves_explicit_tool_choice_with_caller_tools() -> None:
+    caller_tools = [{"type": "code_interpreter"}]
+    _, kwargs = OpenAIResponsesToolsHandler().prepare_request(
+        ResponseToolModel,
+        {"tools": caller_tools, "tool_choice": "auto"},
+    )
+
+    assert len(kwargs["tools"]) == 2
+    assert kwargs["tools"][0] == caller_tools[0]
+    assert kwargs["tools"][1]["name"] == "ResponseToolModel"
+    assert kwargs["tool_choice"] == "auto"
+
+
+def test_responses_tools_preserves_explicit_tool_choice_without_caller_tools() -> None:
+    _, kwargs = OpenAIResponsesToolsHandler().prepare_request(
+        ResponseToolModel,
+        {"tool_choice": "none"},
+    )
+
+    assert len(kwargs["tools"]) == 1
+    assert kwargs["tools"][0]["name"] == "ResponseToolModel"
+    assert kwargs["tool_choice"] == "none"
+
+
+def test_responses_tools_defaults_to_forced_tool_choice_when_no_caller_tools() -> None:
+    _, kwargs = OpenAIResponsesToolsHandler().prepare_request(
+        ResponseToolModel,
+        {},
+    )
+
+    assert len(kwargs["tools"]) == 1
+    assert kwargs["tools"][0]["name"] == "ResponseToolModel"
+    assert kwargs["tool_choice"] == {
+        "type": "function",
+        "name": "ResponseToolModel",
+    }
 
 
 def _make_mock_response(arguments: str | None) -> MagicMock:
@@ -196,3 +259,95 @@ def test_parse_response_warns_on_empty_args(caplog) -> None:
             pass
 
     assert any("empty arguments" in record.message for record in caplog.records)
+
+
+@pytest.mark.parametrize("reason", ["max_output_tokens", "content_filter", None])
+@pytest.mark.parametrize("arguments", ['{"name":"Ada"}', "{}", '{"name":1}'])
+def test_incomplete_responses_fail_before_validation(
+    reason: Literal["max_output_tokens", "content_filter"] | None, arguments: str
+) -> None:
+    validation_calls: list[str] = []
+
+    class DefaultedAnswer(BaseModel):
+        name: str = "Ada"
+
+        @model_validator(mode="after")
+        def record_validation(self) -> DefaultedAnswer:
+            validation_calls.append(self.name)
+            return self
+
+    response = Response(
+        id="resp_incomplete",
+        created_at=1,
+        model="local-contract",
+        object="response",
+        status="incomplete",
+        incomplete_details=IncompleteDetails(reason=reason),
+        metadata={"trace": "incomplete-contract"},
+        output=[
+            ResponseFunctionToolCall(
+                type="function_call",
+                call_id="call_incomplete",
+                name="DefaultedAnswer",
+                arguments=arguments,
+                status="completed",
+            )
+        ],
+        parallel_tool_calls=False,
+        tool_choice="auto",
+        tools=[],
+    )
+    original_response = response.model_dump()
+
+    with pytest.raises(IncompleteOutputException) as caught:
+        OpenAIResponsesToolsHandler().parse_response(response, DefaultedAnswer)
+
+    assert caught.value.last_completion is response
+    assert caught.value.last_completion.incomplete_details.reason == reason
+    assert caught.value.last_completion.metadata == {"trace": "incomplete-contract"}
+    assert "incomplete" in str(caught.value)
+    if reason is not None:
+        assert reason in str(caught.value)
+    else:
+        assert "max_tokens" not in str(caught.value)
+    assert validation_calls == []
+    assert response.model_dump() == original_response
+
+
+def test_completed_response_validates_empty_arguments_with_model_defaults() -> None:
+    validation_calls: list[str] = []
+
+    class DefaultedAnswer(BaseModel):
+        name: str = "Ada"
+
+        @model_validator(mode="after")
+        def record_validation(self) -> DefaultedAnswer:
+            validation_calls.append(self.name)
+            return self
+
+    response = Response(
+        id="resp_completed",
+        created_at=1,
+        model="local-contract",
+        object="response",
+        status="completed",
+        output=[
+            ResponseFunctionToolCall(
+                type="function_call",
+                call_id="call_completed",
+                name="DefaultedAnswer",
+                arguments="{}",
+                status="completed",
+            )
+        ],
+        parallel_tool_calls=False,
+        tool_choice="auto",
+        tools=[],
+    )
+
+    result = OpenAIResponsesToolsHandler().parse_response(response, DefaultedAnswer)
+
+    assert type(result) is DefaultedAnswer
+    assert result.name == "Ada"
+    assert validation_calls == ["Ada"]
+    assert result._raw_response is response

@@ -1,12 +1,28 @@
 from __future__ import annotations
 from inspect import isclass
 import typing
-from pydantic import BaseModel, create_model
+import types
+from pydantic import BaseModel, TypeAdapter, create_model
+from pydantic.errors import PydanticSchemaGenerationError
 from enum import Enum
 
 from instructor.v2.dsl.partial import Partial
 
 T = typing.TypeVar("T")
+
+if hasattr(types, "UnionType"):
+    _UNION_ORIGINS = (typing.Union, types.UnionType)
+else:  # pragma: no cover - Python 3.9 has no PEP 604 union type
+    _UNION_ORIGINS = (typing.Union,)
+
+
+def has_pydantic_schema(typehint: type) -> bool:
+    """Check validation-schema support without retaining dynamically created classes."""
+    try:
+        TypeAdapter(typehint)
+    except PydanticSchemaGenerationError:
+        return False
+    return True
 
 
 class AdapterBase(BaseModel):
@@ -32,24 +48,9 @@ class ModelAdapter(typing.Generic[T]):
 
 
 def validateIsSubClass(response_model: type):
-    """
-    Temporary guard against issues with generics in Python 3.9
-    """
-    import sys
-
-    if sys.version_info < (3, 10):
-        if len(typing.get_args(response_model)) == 0:
-            return False
-        return issubclass(typing.get_args(response_model)[0], BaseModel)
-    try:
-        # Add a guard here to prevent issues with GenericAlias
-        import types
-
-        if isinstance(response_model, types.GenericAlias):
-            return False
-    except Exception:
-        pass
-
+    """Only concrete classes can be checked with issubclass, including on 3.9."""
+    if typing.get_origin(response_model) is not None:
+        return False
     return issubclass(response_model, BaseModel)
 
 
@@ -84,13 +85,7 @@ def is_simple_type(
                 # Special handling for Union types
                 inner_origin = typing.get_origin(inner_arg)
 
-                # Explicit check for Union types - try different patterns across Python versions
-                if (
-                    inner_origin is typing.Union
-                    or inner_origin == typing.Union
-                    or str(inner_origin) == "typing.Union"
-                    or str(type(inner_arg)) == "<class 'typing._UnionGenericAlias'>"
-                ):
+                if inner_origin in _UNION_ORIGINS:
                     return True
 
                 # Check if inner type is a BaseModel - if so, not a simple type
@@ -100,13 +95,15 @@ def is_simple_type(
                 except TypeError:
                     pass
 
-                # Check for Python 3.10+ pipe syntax
-                if hasattr(inner_arg, "__or__"):
-                    return True
+                # Leave invalid annotations to the response-model guard.
+                if not isclass(inner_arg) and inner_origin is None:
+                    return False
 
-                # For simple list with basic types, also return True
-                if inner_arg in {str, int, float, bool}:
-                    return True
+                if isclass(inner_arg) and not has_pydantic_schema(inner_arg):
+                    return False
+
+                # Preserve adapters for all supported Pydantic scalar types.
+                return True
 
             # If no args or unknown pattern, treat as simple list
             return len(args) == 0
@@ -118,20 +115,10 @@ def is_simple_type(
             # Special handling for Union types
             inner_origin = typing.get_origin(inner_arg)
 
-            # Explicit check for Union types - try different patterns across Python versions
-            if (
-                inner_origin is typing.Union
-                or inner_origin == typing.Union
-                or str(inner_origin) == "typing.Union"
-                or str(type(inner_arg)) == "<class 'typing._UnionGenericAlias'>"
-            ):
+            if inner_origin in _UNION_ORIGINS:
                 return True
 
-            # Check for Python 3.10+ pipe syntax
-            if hasattr(inner_arg, "__or__"):
-                return True
-
-            # For simple list with basic types, also return True
+            # Preserve the legacy scalar-only rule for typing.Iterable origins.
             if inner_arg in {str, int, float, bool}:
                 return True
 

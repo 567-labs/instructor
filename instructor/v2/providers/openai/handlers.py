@@ -15,6 +15,7 @@ from collections.abc import (
     Generator,
     Iterable as TypingIterable,
 )
+from functools import partial
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any, cast, get_origin
 
@@ -31,8 +32,12 @@ from instructor.v2.core.errors import (
     ResponseParsingError,
 )
 from instructor.v2.dsl.iterable import IterableBase
-from instructor.v2.dsl.parallel import ParallelBase, ParallelModel, get_types_array
-from instructor.v2.dsl.simple_type import AdapterBase
+from instructor.v2.dsl.parallel import (
+    ParallelBase as ParallelBase,
+    ParallelModel,
+    model_for_tool_name,
+)
+from instructor.v2.dsl.simple_type import AdapterBase as AdapterBase
 from instructor.v2.core.multimodal import convert_messages as convert_messages_v1
 from instructor.v2.core.json import (
     extract_json_from_codeblock,
@@ -86,9 +91,14 @@ OPENAI_JSON_SCHEMA_PROVIDERS = [
 ]
 
 
-def _is_stream_response(response: Any) -> bool:
-    """Check if response is a Stream object rather than a ChatCompletion."""
-    return response is None or not hasattr(response, "choices")
+def _has_no_choice_to_replay(response: Any) -> bool:
+    """Return whether the response has no completion choice to replay.
+
+    Covers Stream objects (no ``choices`` attribute) and the empty
+    ``choices`` lists some gateways return for filtered or failed turns,
+    where a reask handler has no assistant message to append.
+    """
+    return not getattr(response, "choices", None)
 
 
 def _filter_responses_tool_calls(output_items: list[Any]) -> list[Any]:
@@ -161,7 +171,7 @@ def reask_tools(
     """Handle reask for OpenAI tools mode when validation fails."""
     kwargs = kwargs.copy()
 
-    if _is_stream_response(response):
+    if _has_no_choice_to_replay(response):
         kwargs["messages"].append(
             {
                 "role": "user",
@@ -286,7 +296,7 @@ def reask_md_json(
     """Handle reask for OpenAI JSON modes when validation fails."""
     kwargs = kwargs.copy()
 
-    if _is_stream_response(response):
+    if _has_no_choice_to_replay(response):
         kwargs["messages"].append(
             {
                 "role": "user",
@@ -329,7 +339,7 @@ def reask_default(
     """Handle reask for OpenAI default mode when validation fails."""
     kwargs = kwargs.copy()
 
-    if _is_stream_response(response):
+    if _has_no_choice_to_replay(response):
         kwargs["messages"].append(
             {
                 "role": "user",
@@ -372,26 +382,61 @@ def handle_openrouter_structured_outputs(
     return response_model, new_kwargs
 
 
+class _ResponsesStreamResult:
+    """Select one structured result while skipping calls to the caller's tools."""
+
+    def __init__(self, tool_name: str | None) -> None:
+        self.tool_name = tool_name
+        self.foreign_calls: set[int] = set()
+        self.output_index: int | None = None
+
+    def delta(self, event: Any) -> str | None:
+        from openai.types.responses import (
+            ResponseFunctionCallArgumentsDeltaEvent,
+            ResponseOutputItemAddedEvent,
+            ResponseTextDeltaEvent,
+        )
+
+        if isinstance(event, ResponseOutputItemAddedEvent):
+            if (
+                self.tool_name is not None
+                and event.item.type == "function_call"
+                and event.item.name != self.tool_name
+            ):
+                self.foreign_calls.add(event.output_index)
+            return None
+        if not isinstance(
+            event, (ResponseFunctionCallArgumentsDeltaEvent, ResponseTextDeltaEvent)
+        ):
+            return None
+        if event.output_index in self.foreign_calls or not event.delta:
+            return None
+        if self.output_index is None:
+            self.output_index = event.output_index
+        return event.delta if event.output_index == self.output_index else None
+
+
 class OpenAIHandlerBase(StreamingModelState, ModeHandler):
     """Base class for OpenAI handlers with shared utilities."""
 
     mode: Mode
 
     def extract_streaming_json(
-        self, completion: TypingIterable[Any]
+        self,
+        completion: TypingIterable[Any],
+        response_tool_name: str | None = None,
+        *,
+        single_model: bool = False,
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from OpenAI-compatible streaming responses."""
 
         def _raw_chunks() -> Generator[str, None, None]:
+            result = _ResponsesStreamResult(response_tool_name)
             for chunk in completion:
                 try:
                     if self.mode == Mode.RESPONSES_TOOLS:
-                        from openai.types.responses import (
-                            ResponseFunctionCallArgumentsDeltaEvent,
-                        )
-
-                        if isinstance(chunk, ResponseFunctionCallArgumentsDeltaEvent):
-                            yield chunk.delta
+                        if (delta := result.delta(chunk)) is not None:
+                            yield delta
                         continue
 
                     if not getattr(chunk, "choices", None):
@@ -421,25 +466,26 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
-            yield from extract_json_from_stream(raw_chunks)
+            yield from extract_json_from_stream(raw_chunks, single_model=single_model)
             return
         yield from raw_chunks
 
     async def extract_streaming_json_async(
-        self, completion: AsyncGenerator[Any, None]
+        self,
+        completion: AsyncGenerator[Any, None],
+        response_tool_name: str | None = None,
+        *,
+        single_model: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from OpenAI-compatible async streams."""
 
         async def _raw_chunks() -> AsyncGenerator[str, None]:
+            result = _ResponsesStreamResult(response_tool_name)
             async for chunk in completion:
                 try:
                     if self.mode == Mode.RESPONSES_TOOLS:
-                        from openai.types.responses import (
-                            ResponseFunctionCallArgumentsDeltaEvent,
-                        )
-
-                        if isinstance(chunk, ResponseFunctionCallArgumentsDeltaEvent):
-                            yield chunk.delta
+                        if (delta := result.delta(chunk)) is not None:
+                            yield delta
                         continue
 
                     if not getattr(chunk, "choices", None):
@@ -469,7 +515,9 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
-            async for chunk in extract_json_from_stream_async(raw_chunks):
+            async for chunk in extract_json_from_stream_async(
+                raw_chunks, single_model=single_model
+            ):
                 yield chunk
             return
         async for chunk in raw_chunks:
@@ -508,38 +556,32 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         except (TypeError, ValueError):
             pass
 
+        extractor_options: dict[str, Any] = {}
+        if self.mode == Mode.RESPONSES_TOOLS:
+            extractor_options["response_tool_name"] = response_model.__name__
+        elif self.mode == Mode.MD_JSON:
+            extractor_options["single_model"] = not issubclass(
+                response_model, IterableBase
+            )
+
         if inspect.isasyncgen(response) or isinstance(response, AsyncIterator):
             return streaming_model.from_streaming_response_async(
                 response,
-                stream_extractor=self.extract_streaming_json_async,
+                stream_extractor=partial(
+                    self.extract_streaming_json_async,
+                    **extractor_options,
+                ),
                 **streaming_kwargs,
             )
 
         generator = streaming_model.from_streaming_response(
             response,
-            stream_extractor=self.extract_streaming_json,
+            stream_extractor=partial(self.extract_streaming_json, **extractor_options),
             **streaming_kwargs,
         )
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):
             return generator
         return list(generator)
-
-    def _finalize_parsed_result(
-        self,
-        response_model: type[BaseModel] | ParallelBase,
-        response: Any,
-        parsed: Any,
-    ) -> Any:
-        """Finalize parsed result, handling DSL types."""
-        if isinstance(parsed, IterableBase):
-            return [task for task in parsed.tasks]  # type: ignore[attr-defined]
-        if isinstance(response_model, ParallelBase):
-            return parsed
-        if isinstance(parsed, AdapterBase):
-            return parsed.content  # type: ignore[attr-defined]
-        if isinstance(parsed, BaseModel):
-            parsed._raw_response = response  # type: ignore[attr-defined]
-        return parsed
 
     def _extract_tool_call_json(self, response: Any) -> str:
         """Extract JSON from tool call response."""
@@ -725,21 +767,9 @@ class OpenAIToolsHandler(OpenAIHandlerBase):
         # Handle parallel tools (Iterable[Union[...]])
         origin = get_origin(response_model)
         if origin is TypingIterable:
-            the_types = get_types_array(response_model)  # type: ignore[arg-type]
-            type_registry = {t.__name__: t for t in the_types}
-
-            def parallel_generator() -> Generator[BaseModel, None, None]:
-                for tool_call in response.choices[0].message.tool_calls:
-                    name = tool_call.function.name
-                    if name in type_registry:
-                        model_class = type_registry[name]
-                        yield model_class.model_validate_json(
-                            tool_call.function.arguments,
-                            context=validation_context,
-                            strict=strict,
-                        )
-
-            return parallel_generator()
+            return ParallelModel(response_model).from_response(
+                response, self.mode, validation_context, strict
+            )
 
         # Standard tool call parsing
         json_str = self._extract_tool_call_json(response)
@@ -1039,8 +1069,9 @@ class OpenAIParallelToolsHandler(OpenAIHandlerBase):
             raise IncompleteOutputException(last_completion=response)
 
         # Extract model types from response_model
-        the_types = get_types_array(response_model)  # type: ignore[arg-type]
-        type_registry = {t.__name__: t for t in the_types}
+        type_registry: dict[str, type[BaseModel]] = ParallelModel(
+            cast(Any, response_model)
+        ).registry
 
         results = []
         tool_calls = choices[0].message.tool_calls
@@ -1053,13 +1084,19 @@ class OpenAIParallelToolsHandler(OpenAIHandlerBase):
         for tool_call in tool_calls:
             name = tool_call.function.name
             args = tool_call.function.arguments
-            if name in type_registry:
-                model = type_registry[name].model_validate_json(
+            model_class = model_for_tool_name(
+                type_registry,
+                name,
+                mode=self.mode,
+                raw_response=response,
+            )
+            results.append(
+                model_class.model_validate_json(
                     args,
                     context=validation_context,
                     strict=strict,
                 )
-                results.append(model)
+            )
 
         return iter(results)
 
@@ -1112,11 +1149,12 @@ class OpenAIResponsesToolsHandler(OpenAIHandlerBase):
                 f"the required parameters with correct types"
             )
 
-        new_kwargs["tools"] = [tool_definition]
-        new_kwargs["tool_choice"] = {
-            "type": "function",
-            "name": schema["function"]["name"],
-        }
+        caller_tools = kwargs.get("tools") or []
+        new_kwargs["tools"] = [*caller_tools, tool_definition]
+        if not caller_tools:
+            new_kwargs.setdefault(
+                "tool_choice", {"type": "function", "name": tool_definition["name"]}
+            )
         _ensure_text_format_config(
             new_kwargs,
             prepared_model,
@@ -1153,11 +1191,25 @@ class OpenAIResponsesToolsHandler(OpenAIHandlerBase):
                 strict,
             )
 
+        if getattr(response, "status", None) == "incomplete":
+            reason = getattr(
+                getattr(response, "incomplete_details", None), "reason", None
+            )
+            message = "The Responses API output is incomplete."
+            if reason is not None:
+                message = f"The Responses API output is incomplete due to {reason}."
+            raise IncompleteOutputException(last_completion=response, message=message)
+
         # Handle Responses API format - output is a list of items
         if hasattr(response, "output"):
             for item in response.output:
                 item_type = getattr(item, "type", None)
                 if item_type in {"function_call", "tool_call"}:
+                    if getattr(item, "name", None) not in {
+                        None,
+                        response_model.__name__,
+                    }:
+                        continue
                     args = getattr(item, "arguments", None)
                     if not args or (
                         isinstance(args, str) and args.strip() in {"", "{}"}
@@ -1178,8 +1230,13 @@ class OpenAIResponsesToolsHandler(OpenAIHandlerBase):
                             response_model, response, parsed
                         )
 
-        # Fallback to standard tool call parsing
-        json_str = self._extract_tool_call_json(response)
+        # With built-in tools, text.format can carry the structured final answer.
+        output_text = getattr(response, "output_text", None)
+        json_str = (
+            output_text
+            if isinstance(output_text, str) and output_text
+            else self._extract_tool_call_json(response)
+        )
         parsed = response_model.model_validate_json(
             json_str,
             context=validation_context,

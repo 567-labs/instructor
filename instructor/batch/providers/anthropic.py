@@ -45,7 +45,7 @@ class AnthropicProvider(BatchProvider):
                 batches_client = client.beta.messages.batches
 
             if isinstance(file_path_or_buffer, str):
-                with open(file_path_or_buffer) as f:
+                with open(file_path_or_buffer, encoding="utf-8") as f:
                     requests = [json.loads(line) for line in f if line.strip()]
             elif isinstance(file_path_or_buffer, io.BytesIO):
                 file_path_or_buffer.seek(0)
@@ -110,17 +110,6 @@ class AnthropicProvider(BatchProvider):
         if batch.processing_status != "ended":
             raise Exception(f"Batch not completed, status: {batch.processing_status}")
 
-        request_counts = getattr(batch, "request_counts", None)
-        if request_counts:
-            succeeded = getattr(request_counts, "succeeded", 0)
-            errored = getattr(request_counts, "errored", 0)
-            total = getattr(request_counts, "total", 0)
-
-            if errored > 0 and succeeded == 0:
-                raise RuntimeError(
-                    f"All {total} batch requests failed. No results will be available."
-                )
-
         return (result.model_dump_json() for result in batches_client.results(batch_id))
 
     def retrieve_results(self, batch_id: str) -> str:
@@ -134,7 +123,7 @@ class AnthropicProvider(BatchProvider):
         """Download Anthropic batch results to a file"""
         try:
             result_lines = self._iter_result_lines(batch_id)
-            with open(file_path, "w") as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 for line in result_lines:
                     f.write(line + "\n")
         except Exception as e:

@@ -12,27 +12,41 @@ from typing import Any
 import httpx
 import openai
 from openai.types.responses import Response, ResponseFunctionToolCall
+from openai.types.responses.response import IncompleteDetails
 from pydantic import BaseModel
 import pytest
 
 import instructor
 from instructor.v2.core.client import AsyncInstructor
 from instructor import Mode
-from instructor.core.exceptions import InstructorRetryException
+from instructor.core.exceptions import (
+    IncompleteOutputException,
+    InstructorRetryException,
+)
+from instructor.cache import AutoCache
 
 
 class Answer(BaseModel):
     value: int
+    label: str = "default-label"
 
 
 @pytest.fixture
-def responses_endpoint() -> Iterator[tuple[str, list[dict[str, Any]]]]:
+def responses_endpoint(
+    request: pytest.FixtureRequest,
+) -> Iterator[tuple[str, list[dict[str, Any]]]]:
     calls: list[dict[str, Any]] = []
+    status, reason = getattr(request, "param", ("completed", None))
     response = Response(
         id="resp_local",
         created_at=1,
         model="local-contract",
         object="response",
+        status=status,
+        incomplete_details=IncompleteDetails(reason=reason)
+        if status == "incomplete"
+        else None,
+        metadata={"trace": "local-contract"},
         output=[
             ResponseFunctionToolCall(
                 type="function_call",
@@ -207,3 +221,150 @@ async def test_async_responses_preserves_sdk_error(responses_endpoint) -> None:
             assert isawaitable(pending)
             await pending
     assert_sdk_error(caught.value, calls)
+
+
+def assert_incomplete_response(
+    error: IncompleteOutputException, reason: str | None
+) -> None:
+    response = error.last_completion
+    assert isinstance(response, Response)
+    assert response.status == "incomplete"
+    assert response.incomplete_details is not None
+    assert response.incomplete_details.reason == reason
+    assert response.metadata == {"trace": "local-contract"}
+    assert isinstance(response.output[0], ResponseFunctionToolCall)
+    assert response.output[0].arguments == '{"value":42}'
+    assert "incomplete" in str(error)
+    if reason is not None:
+        assert reason in str(error)
+
+
+@pytest.mark.parametrize(
+    "responses_endpoint,reason",
+    [
+        (("incomplete", "max_output_tokens"), "max_output_tokens"),
+        (("incomplete", "content_filter"), "content_filter"),
+        (("incomplete", None), None),
+    ],
+    indirect=["responses_endpoint"],
+)
+def test_sync_incomplete_responses_are_not_cached(
+    responses_endpoint, reason: str | None
+) -> None:
+    url, calls = responses_endpoint
+    cache = AutoCache()
+    with openai.OpenAI(
+        api_key="local-only",
+        base_url=url,
+        max_retries=0,
+        http_client=httpx.Client(trust_env=False),
+    ) as sdk:
+        client = instructor.from_openai(sdk, mode=Mode.RESPONSES_TOOLS)
+        for attempt in range(2):
+            with pytest.raises(IncompleteOutputException) as caught:
+                client.responses.create(
+                    model="local-contract",
+                    messages=[{"role": "user", "content": "answer"}],
+                    response_model=Answer,
+                    cache=cache,
+                    max_retries=1,
+                )
+            assert_incomplete_response(caught.value, reason)
+            assert len(calls) == attempt + 1
+            assert calls[-1]["path"] == "/v1/responses"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "responses_endpoint,reason",
+    [
+        (("incomplete", "max_output_tokens"), "max_output_tokens"),
+        (("incomplete", "content_filter"), "content_filter"),
+        (("incomplete", None), None),
+    ],
+    indirect=["responses_endpoint"],
+)
+async def test_async_incomplete_responses_are_not_cached(
+    responses_endpoint, reason: str | None
+) -> None:
+    url, calls = responses_endpoint
+    cache = AutoCache()
+    async with openai.AsyncOpenAI(
+        api_key="local-only",
+        base_url=url,
+        max_retries=0,
+        http_client=httpx.AsyncClient(trust_env=False),
+    ) as sdk:
+        client = instructor.from_openai(sdk, mode=Mode.RESPONSES_TOOLS)
+        assert isinstance(client, AsyncInstructor)
+        for attempt in range(2):
+            with pytest.raises(IncompleteOutputException) as caught:
+                pending = client.responses.create(
+                    model="local-contract",
+                    messages=[{"role": "user", "content": "answer"}],
+                    response_model=Answer,
+                    cache=cache,
+                    max_retries=1,
+                )
+                assert isawaitable(pending)
+                await pending
+            assert_incomplete_response(caught.value, reason)
+            assert len(calls) == attempt + 1
+            assert calls[-1]["path"] == "/v1/responses"
+
+
+def test_sync_completed_responses_keep_defaults_and_cache(responses_endpoint) -> None:
+    url, calls = responses_endpoint
+    cache = AutoCache()
+    with openai.OpenAI(
+        api_key="local-only",
+        base_url=url,
+        max_retries=0,
+        http_client=httpx.Client(trust_env=False),
+    ) as sdk:
+        client = instructor.from_openai(sdk, mode=Mode.RESPONSES_TOOLS)
+        results = [
+            client.responses.create(
+                model="local-contract",
+                messages=[{"role": "user", "content": "answer"}],
+                response_model=Answer,
+                cache=cache,
+                max_retries=1,
+            )
+            for _ in range(2)
+        ]
+    assert len(calls) == 1
+    for result in results:
+        assert isinstance(result, Answer)
+        assert result.model_dump() == {"value": 42, "label": "default-label"}
+
+
+@pytest.mark.asyncio
+async def test_async_completed_responses_keep_defaults_and_cache(
+    responses_endpoint,
+) -> None:
+    url, calls = responses_endpoint
+    cache = AutoCache()
+    async with openai.AsyncOpenAI(
+        api_key="local-only",
+        base_url=url,
+        max_retries=0,
+        http_client=httpx.AsyncClient(trust_env=False),
+    ) as sdk:
+        client = instructor.from_openai(sdk, mode=Mode.RESPONSES_TOOLS)
+        assert isinstance(client, AsyncInstructor)
+        results = []
+        for _ in range(2):
+            pending = client.responses.create(
+                model="local-contract",
+                messages=[{"role": "user", "content": "answer"}],
+                response_model=Answer,
+                cache=cache,
+                max_retries=1,
+            )
+            assert isawaitable(pending)
+            results.append(await pending)
+    assert len(calls) == 1
+    for result in results:
+        assert isinstance(result, Answer)
+        assert result.model_dump() == {"value": 42, "label": "default-label"}

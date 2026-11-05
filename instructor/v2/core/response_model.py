@@ -5,10 +5,17 @@ from __future__ import annotations
 import inspect
 import sys
 from collections.abc import Iterable
-from typing import Any, Callable, TypeVar, Union, cast, get_args, get_origin
+from typing import Annotated, Any, Callable, TypeVar, Union, cast, get_args, get_origin
 
-from pydantic import BaseModel, create_model
-from typing_extensions import NotRequired, Required
+from pydantic import (
+    BaseModel,
+    Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    create_model,
+    model_serializer,
+)
+from typing_extensions import NotRequired, ReadOnly, Required
 from typing import get_type_hints
 
 T = TypeVar("T")
@@ -31,8 +38,26 @@ def is_typed_dict(cls: Any) -> bool:
     )
 
 
+class _TypedDictModel(BaseModel):
+    @model_serializer(mode="wrap")
+    def _round_trip_keys(
+        self, handler: SerializerFunctionWrapHandler, info: SerializationInfo
+    ) -> Any:
+        values = handler(self)
+        if not info.round_trip:
+            return values
+        # Cache round trips need original keys and must not invent omitted keys.
+        return {
+            field.alias or name: values[key]
+            for name, field in type(self).model_fields.items()
+            if name in self.model_fields_set
+            if (key := (field.serialization_alias or name) if info.by_alias else name)
+            in values
+        }
+
+
 def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
-    """Convert a TypedDict while preserving per-key requiredness."""
+    """Convert a TypedDict while preserving key requiredness and field metadata."""
     annotations = get_type_hints(typed_dict, include_extras=True)
     required_keys = set(getattr(typed_dict, "__required_keys__", set()))
     optional_keys = set(getattr(typed_dict, "__optional_keys__", set()))
@@ -40,21 +65,37 @@ def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
     fields: dict[str, tuple[Any, Any]] = {}
 
     for name, annotation in annotations.items():
-        annotation_origin = get_origin(annotation)
-        if annotation_origin is Required:
-            field_annotation = get_args(annotation)[0]
-            is_required = True
-        elif annotation_origin is NotRequired:
-            field_annotation = get_args(annotation)[0]
-            is_required = False
-        else:
-            field_annotation = annotation
-            is_required = name in required_keys or (name not in optional_keys and total)
+        is_required = name in required_keys or (name not in optional_keys and total)
+        metadata: list[Any] = []
+        while (annotation_origin := get_origin(annotation)) in (
+            Required,
+            NotRequired,
+            ReadOnly,
+            Annotated,
+        ):
+            if annotation_origin is Required:
+                is_required = True
+            elif annotation_origin is NotRequired:
+                is_required = False
+            elif annotation_origin is Annotated:
+                metadata = [*get_args(annotation)[1:], *metadata]
+            annotation = get_args(annotation)[0]
 
-        fields[name] = (field_annotation, ... if is_required else None)
+        if metadata:
+            annotation = Annotated[(annotation, *metadata)]
+        field_name = name
+        default: Any = ... if is_required else None
+        if name.startswith("_"):
+            # Pydantic treats underscore-prefixed field names as private attributes.
+            field_name = f"field{name}"
+            while field_name in annotations or field_name in fields:
+                field_name += "_"
+            default = Field(default=default, alias=name)
+        fields[field_name] = (annotation, default)
 
     return _create_dynamic_model(
         getattr(typed_dict, "__name__", "TypedDictModel"),
+        __base__=_TypedDictModel,
         **fields,
     )
 
@@ -67,6 +108,7 @@ def is_simple_type(typehint: type[T]) -> bool:
 
 def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
     """Normalize user response-model inputs into runtime-ready model classes."""
+    from instructor.v2.dsl.simple_type import has_pydantic_schema
     from instructor.v2.validation.async_validators import reject_async_validators
 
     reject_async_validators(response_model)
@@ -82,10 +124,16 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
         def _is_model_type(candidate: Any) -> bool:
             if is_typed_dict(candidate):
                 return True
-            if inspect.isclass(candidate) and issubclass(candidate, BaseModel):
+            if (
+                get_origin(candidate) is None
+                and inspect.isclass(candidate)
+                and issubclass(candidate, BaseModel)
+            ):
                 return True
             return get_origin(candidate) in _UNION_ORIGINS and all(
-                inspect.isclass(member) and issubclass(member, BaseModel)
+                get_origin(member) is None
+                and inspect.isclass(member)
+                and issubclass(member, BaseModel)
                 for member in get_args(candidate)
             )
 
@@ -110,6 +158,15 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
                 "response_model must be parameterized, e.g. list[User] or Iterable[User]"
             )
         iterable_element_class = args[0]
+        if (
+            inspect.isclass(iterable_element_class)
+            and not is_typed_dict(iterable_element_class)
+            and not has_pydantic_schema(iterable_element_class)
+        ):
+            raise TypeError(
+                "response_model iterable elements must have a Pydantic validation schema; "
+                f"got {iterable_element_class!r}"
+            )
         if is_typed_dict(iterable_element_class):
             iterable_element_class = _typed_dict_to_model(iterable_element_class)
         working_model = IterableModel(cast(type[BaseModel], iterable_element_class))

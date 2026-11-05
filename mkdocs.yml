@@ -241,6 +241,7 @@ nav:
     - Retrying: 'concepts/retrying.md'
     - Fields: 'concepts/fields.md'
     - Models: 'concepts/models.md'
+    - Decisions: 'concepts/decisions.md'
     - Parallel Tools: 'concepts/parallel.md'
     - Templating: 'concepts/templating.md'
     - Lists and Arrays: 'concepts/lists.md'

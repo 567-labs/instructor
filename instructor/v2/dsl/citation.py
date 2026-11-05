@@ -4,15 +4,15 @@ from collections.abc import Generator
 
 class CitationMixin(BaseModel):
     """
-    Helpful mixing that can use `validation_context={"context": context}` in `from_response` to find the span of the substring_phrase in the context.
+    Validate extracted quotations against source text supplied in validation context.
 
     ## Usage
 
     ```python
-    from pydantic import BaseModel, Field
+    from pydantic import Field
     from instructor import CitationMixin
 
-    class User(BaseModel):
+    class User(CitationMixin):
         name: str = Field(description="The name of the person")
         age: int = Field(description="The age of the person")
         role: str = Field(description="The role of the person")
@@ -20,34 +20,32 @@ class CitationMixin(BaseModel):
 
     context = "Betty was a student. Jason was a student. Jason is 20 years old"
 
-    user = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {
-                "role": "user",
-                "content": "Extract jason from {context}",
-            },
-        response_model=User,
-        validation_context={"context": context},
-        ]
+    user = User.model_validate(
+        {
+            "name": "Jason",
+            "age": 20,
+            "role": "student",
+            "substring_quotes": ["Jason was a student", "Jason is 20 years old"],
+        },
+        context={"context": context},
     )
 
     for quote in user.substring_quotes:
         assert quote in context
 
-    print(user.model_dump())
+    print(user.model_dump_json(indent=4))
     ```
 
     ## Result
-    ```
+    ```json
     {
-        "name": "Jason Liu",
-        "age": 20,
-        "role": "student",
         "substring_quotes": [
             "Jason was a student",
-            "Jason is 20 years old",
-        ]
+            "Jason is 20 years old"
+        ],
+        "name": "Jason",
+        "age": 20,
+        "role": "student"
     }
     ```
 
@@ -71,15 +69,29 @@ class CitationMixin(BaseModel):
         if text_chunks is None:
             return self
 
-        # Get the spans of the substring_phrase in the context
-        spans = list(self.get_spans(text_chunks))
-        # Replace the substring_phrase with the actual substring
-        self.substring_quotes = [text_chunks[span[0] : span[1]] for span in spans]
+        if isinstance(text_chunks, str):
+            chunks = [text_chunks]
+        elif isinstance(text_chunks, (list, tuple)) and all(
+            isinstance(chunk, str) for chunk in text_chunks
+        ):
+            chunks = text_chunks
+        else:
+            raise ValueError(
+                "Citation context must be text or a list/tuple of text chunks"
+            )
+
+        # Search each source independently; joined chunks can invent cross-source quotes.
+        self.substring_quotes = [
+            chunk[start:end] for chunk in chunks for start, end in self.get_spans(chunk)
+        ]
         return self
 
     def _get_span(
         self, quote: str, context: str, errs: int = 5
     ) -> Generator[tuple[int, int], None, None]:
+        if not quote or not context:
+            return
+
         import regex
 
         # Escape the quote so regex metacharacters in LLM-generated text
@@ -88,14 +100,20 @@ class CitationMixin(BaseModel):
         minor = regex.escape(quote)
         major = context
 
+        # Cap the error budget to 1/3 of the quote length (up to max `errs`)
+        # so short quotes do not match arbitrary substrings via excessive fuzzy edits.
+        max_errs = min(errs, len(quote) // 3)
+
         errs_ = 0
         s = regex.search(f"({minor}){{e<={errs_}}}", major)
-        while s is None and errs_ < errs:
+        while s is None and errs_ < max_errs:
             errs_ += 1
             s = regex.search(f"({minor}){{e<={errs_}}}", major)
 
         if s is not None:
-            yield from s.spans()
+            for start, end in s.spans():
+                if start != end:
+                    yield (start, end)
 
     def get_spans(self, context: str) -> Generator[tuple[int, int], None, None]:
         for quote in self.substring_quotes:

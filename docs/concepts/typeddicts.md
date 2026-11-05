@@ -12,6 +12,12 @@ description: Use Python TypedDict for type-safe dictionary structures with Instr
 
 We also support typed dicts.
 
+Fields can use `Required`, `NotRequired`, and `ReadOnly` from `typing_extensions`,
+including combinations such as `ReadOnly[NotRequired[int]]`. Instructor preserves
+whether each key is required and any `Annotated` field constraints when building
+the response schema. `ReadOnly` describes static typing; the generated response
+model follows the usual Pydantic mutation behavior.
+
 ```python
 from typing_extensions import TypedDict
 import instructor
@@ -35,3 +41,8 @@ response = client.create(
     ],
 )
 ```
+
+Instructor converts a `TypedDict` into a Pydantic model. Keys starting with an
+underscore, such as `_id`, use field aliases because Pydantic reserves those
+attribute names. Use `response.model_dump(by_alias=True)` to export the original
+keys. Required keys must still be present, and `NotRequired` keys may be omitted.

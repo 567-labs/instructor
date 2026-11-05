@@ -19,7 +19,7 @@ from anthropic.types.server_tool_usage import ServerToolUsage
 from pydantic import BaseModel, ValidationInfo, field_validator
 
 from instructor.v2.core.client import AsyncInstructor, Instructor
-from instructor.v2.core.errors import ClientError, ModeError
+from instructor.v2.core.errors import ClientError, ModeError, ResponseParsingError
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.multimodal import PDF
 from instructor.v2.core.providers import Provider
@@ -336,11 +336,31 @@ def test_anthropic_parallel_schema_and_response_filtering() -> None:
         ]
     )
 
+    valid = SimpleNamespace(
+        content=[
+            SimpleNamespace(type="text", text="I found two items."),
+            SimpleNamespace(
+                type="tool_use", name="Contact", input={"name": "Ada", "score": 4}
+            ),
+            SimpleNamespace(
+                type="tool_use", name="Reminder", input={"text": "Send notes"}
+            ),
+        ]
+    )
     assert list(
         parser.from_response(
-            response, Mode.PARALLEL_TOOLS, validation_context={"bonus": 3}, strict=True
+            valid, Mode.PARALLEL_TOOLS, validation_context={"bonus": 3}, strict=True
         )
     ) == [Contact(name="Ada", score=7), Reminder(text="Send notes")]
+    with pytest.raises(ResponseParsingError, match="Unknown"):
+        list(
+            parser.from_response(
+                response,
+                Mode.PARALLEL_TOOLS,
+                validation_context={"bonus": 3},
+                strict=True,
+            )
+        )
     assert list(parser.from_response(None, Mode.PARALLEL_TOOLS)) == []
     assert list(parser.from_response(object(), Mode.PARALLEL_TOOLS)) == []
 

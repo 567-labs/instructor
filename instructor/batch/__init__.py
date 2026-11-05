@@ -74,7 +74,7 @@ class BatchJob:
     def parse_from_file(
         cls, file_path: str, response_model: type[T]
     ) -> tuple[list[T], list[dict[Any, Any]]]:
-        with open(file_path) as file:
+        with open(file_path, encoding="utf-8") as file:
             content = file.read()
         return cls.parse_from_string(content, response_model)
 
@@ -97,9 +97,9 @@ class BatchJob:
                 data = json.loads(line)
                 extracted_data = cls._extract_structured_data(data)
 
-                if extracted_data:
+                if extracted_data is not None:
                     try:
-                        result = response_model(**extracted_data)
+                        result = response_model.model_validate(extracted_data)
                         res.append(result)
                     except Exception:
                         error_objs.append(data)
@@ -141,7 +141,7 @@ class BatchJob:
                     # Tool use response
                     for item in content:
                         if item.get("type") == "tool_use":
-                            return item.get("input", {})
+                            return item.get("input")
                     # Text response with JSON
                     for item in content:
                         if item.get("type") == "text":

@@ -7,7 +7,7 @@ import logging
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from instructor.v2.validation.async_validators import reject_async_validators
 
@@ -33,13 +33,40 @@ def load_cached_response(
 
     try:
         data = json.loads(cached)
-        model_json = data["model"]
-        raw_json = data.get("raw")
-    except Exception:
-        model_json = cached
-        raw_json = None
+    except (ValueError, TypeError):
+        data = None
 
-    obj = response_model.model_validate_json(model_json, context=context, strict=strict)
+    raw_json = None
+    if (
+        isinstance(data, dict)
+        and data.keys() <= {"model", "raw"}
+        and isinstance(data.get("model"), str)
+        and (data.get("raw") is None or isinstance(data["raw"], str))
+    ):
+        # Older envelopes can omit "raw". A legacy response can have exactly
+        # the same field names, so try the inner document first.
+        try:
+            obj = response_model.model_validate_json(
+                data["model"], context=context, strict=strict
+            )
+        except ValidationError as exc:
+            # Only retry a shape mismatch. Field and custom-validator errors
+            # in a recognized envelope must still reach the caller.
+            if not all(
+                error["type"] in {"json_invalid", "model_type", "missing"}
+                for error in exc.errors(include_input=False)
+            ):
+                raise
+            try:
+                obj = response_model.model_validate_json(
+                    cached, context=context, strict=strict
+                )
+            except ValidationError:
+                raise exc from None
+        else:
+            raw_json = data.get("raw")
+    else:
+        obj = response_model.model_validate_json(cached, context=context, strict=strict)
     if raw_json is not None:
         # `_raw_response` is an internal attribute used by Instructor; it may not
         # be declared on the Pydantic model type.
@@ -102,7 +129,7 @@ def store_cached_response(
         raw_json = None
 
     payload = {
-        "model": model.model_dump_json(),
+        "model": model.model_dump_json(round_trip=True),
         "raw": raw_json,
     }
     cache.set(key, json.dumps(payload), ttl=ttl)

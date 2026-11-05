@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import json
 import warnings
+import re
 from collections.abc import (
     AsyncGenerator,
     AsyncIterator,
@@ -25,16 +26,20 @@ from instructor.v2.core.providers import Provider
 from instructor.v2.core.errors import ConfigurationError, IncompleteOutputException
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import (
-    ParallelBase,
-    get_types_array,
+    ParallelBase as ParallelBase,
 )
 from instructor.v2.providers.anthropic.parallel import (
+    AnthropicParallelModel,
     handle_parallel_model as handle_anthropic_parallel_model,
 )
-from instructor.v2.dsl.simple_type import AdapterBase
+from instructor.v2.dsl.simple_type import AdapterBase as AdapterBase
 from instructor.v2.core.multimodal import Audio, Image, PDF
 from instructor.v2.core.multimodal import convert_messages as convert_messages_v1
-from instructor.v2.core.json import extract_json_from_codeblock
+from instructor.v2.core.json import (
+    extract_json_from_codeblock,
+    extract_json_from_stream,
+    extract_json_from_stream_async,
+)
 from instructor.v2.providers.anthropic.schema import generate_anthropic_schema
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
@@ -240,37 +245,36 @@ class AnthropicHandlerBase(StreamingModelState, ModeHandler):
             parse_kwargs["strict"] = strict
 
         streaming_model = cast(Any, response_model)
+        single_json = self.mode == Mode.JSON and not issubclass(
+            response_model, IterableBase
+        )
         if inspect.isasyncgen(response) or isinstance(response, AsyncIterator):
             return streaming_model.from_streaming_response_async(
                 response,
-                stream_extractor=self.extract_streaming_json_async,
+                stream_extractor=(
+                    lambda events: extract_json_from_stream_async(
+                        self.extract_streaming_json_async(events), single_model=True
+                    )
+                )
+                if single_json
+                else self.extract_streaming_json_async,
                 **parse_kwargs,
             )
 
         generator = streaming_model.from_streaming_response(
             response,
-            stream_extractor=self.extract_streaming_json,
+            stream_extractor=(
+                lambda events: extract_json_from_stream(
+                    self.extract_streaming_json(events), single_model=True
+                )
+            )
+            if single_json
+            else self.extract_streaming_json,
             **parse_kwargs,
         )
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):
             return generator
         return list(generator)
-
-    def _finalize_parsed_result(
-        self,
-        response_model: type[BaseModel] | ParallelBase,
-        response: Any,
-        parsed: Any,
-    ) -> Any:
-        if isinstance(parsed, IterableBase):
-            return [task for task in parsed.tasks]
-        if isinstance(response_model, ParallelBase):
-            return parsed
-        if isinstance(parsed, AdapterBase):
-            return parsed.content
-        if isinstance(parsed, BaseModel):
-            parsed._raw_response = response  # type: ignore[attr-defined]
-        return parsed
 
     def _parse_with_callback(
         self,
@@ -346,14 +350,24 @@ class AnthropicToolsHandler(AnthropicHandlerBase):
             new_kwargs["tools"] = [tool_descriptions]
 
         if "tool_choice" not in new_kwargs:
-            thinking_enabled = (
-                "thinking" in new_kwargs
-                and isinstance(new_kwargs.get("thinking"), dict)
-                and new_kwargs.get("thinking", {}).get("type") == "enabled"
+            thinking = new_kwargs.get("thinking")
+            thinking_requested = isinstance(thinking, dict) and thinking.get(
+                "type"
+            ) in ("enabled", "adaptive")
+            model = new_kwargs.get("model")
+            # These versions reject forced tool use even when thinking is omitted.
+            requires_auto = thinking_requested or (
+                isinstance(model, str)
+                and re.search(
+                    r"(?:^|[./:])claude-(?:(?:opus|sonnet)-5[.-]5|(?:fable|mythos)-5[.-]1)(?:$|[-:@])",
+                    model,
+                    flags=re.IGNORECASE,
+                )
+                is not None
             )
-            if thinking_enabled or is_parallel:
+            if requires_auto or is_parallel:
                 new_kwargs["tool_choice"] = {"type": "auto"}
-                if thinking_enabled:
+                if requires_auto:
                     new_kwargs["system"] = combine_system_messages(
                         new_kwargs.get("system"),
                         [
@@ -475,23 +489,9 @@ class AnthropicToolsHandler(AnthropicHandlerBase):
 
         origin = get_origin(response_model)
         if origin is TypingIterable:
-            the_types = get_types_array(response_model)  # type: ignore[arg-type]
-            type_registry = {t.__name__: t for t in the_types}
-
-            def parallel_generator() -> Generator[BaseModel, None, None]:
-                for content in response.content:
-                    if getattr(content, "type", None) == "tool_use":
-                        tool_name = content.name
-                        if tool_name in type_registry:
-                            model_class = type_registry[tool_name]
-                            json_str = json.dumps(content.input)
-                            yield model_class.model_validate_json(
-                                json_str,
-                                context=validation_context,
-                                strict=strict,
-                            )
-
-            return parallel_generator()
+            return AnthropicParallelModel(response_model).from_response(
+                response, self.mode, validation_context, strict
+            )
 
         tool_calls = [
             json.dumps(c.input)
@@ -577,31 +577,11 @@ class AnthropicParallelToolsHandler(AnthropicHandlerBase):
         response_model: type[BaseModel],
         validation_context: dict[str, Any] | None,
         strict: bool | None,
-    ) -> Generator[BaseModel, None, None]:
-        """Parse parallel tool response directly without using AnthropicParallelBase."""
-        if not response or not hasattr(response, "content"):
-            return
-
-        # Extract model types from response_model (Iterable[Union[Model1, Model2, ...]])
-        the_types = get_types_array(response_model)  # type: ignore[arg-type]
-        type_registry = {
-            model.__name__ if hasattr(model, "__name__") else str(model): model
-            for model in the_types
-        }
-
-        # Parse tool_use blocks from response
-        for content in response.content:
-            if getattr(content, "type", None) == "tool_use":
-                name = content.name
-                arguments = content.input
-                if name in type_registry:
-                    model_class = type_registry[name]
-                    json_str = json.dumps(arguments)
-                    yield model_class.model_validate_json(
-                        json_str,
-                        context=validation_context,
-                        strict=strict,
-                    )
+    ) -> Any:
+        """Validate every parallel tool call before returning an iterator."""
+        return AnthropicParallelModel(response_model).from_response(
+            response, self.mode, validation_context, strict
+        )
 
 
 @register_mode_handler(Provider.ANTHROPIC, Mode.JSON)

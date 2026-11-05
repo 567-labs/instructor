@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import inspect
+import re
 from collections.abc import Callable
+from functools import partial
 from typing import Any, Generic, TypeVar, cast
 
 from pydantic import ValidationError
@@ -13,12 +15,23 @@ _validation_error_original_str: Callable[[ValidationError], str] | None = None
 
 
 def is_async(func: Callable[..., Any]) -> bool:
-    """Return whether a callable is async, following wrapped callables."""
-    is_coroutine = inspect.iscoroutinefunction(func)
-    while callable(wrapped := getattr(func, "__wrapped__", None)):
+    """Detect async functions and callable instances through wrappers and partials."""
+    seen: set[int] = set()
+    while id(func) not in seen:
+        seen.add(id(func))
+        if inspect.iscoroutinefunction(func) or inspect.iscoroutinefunction(
+            type(func).__call__
+        ):
+            return True
+        wrapped = (
+            func.func
+            if isinstance(func, partial)
+            else getattr(func, "__wrapped__", None)
+        )
+        if not callable(wrapped):
+            break
         func = wrapped
-        is_coroutine = is_coroutine or inspect.iscoroutinefunction(func)
-    return is_coroutine
+    return False
 
 
 class classproperty(Generic[R_co]):
@@ -32,7 +45,7 @@ class classproperty(Generic[R_co]):
 
 
 def disable_pydantic_error_url() -> None:
-    """Disable URLs in Pydantic ValidationError messages."""
+    """Disable generated documentation links in Pydantic ValidationError messages."""
     global _validation_error_original_str
     if _validation_error_original_str is None:
         _validation_error_original_str = ValidationError.__str__
@@ -44,7 +57,11 @@ def disable_pydantic_error_url() -> None:
         return "\n".join(
             line
             for line in output.split("\n")
-            if "https://errors.pydantic.dev" not in line
+            if not re.fullmatch(
+                r"    For further information visit "
+                r"https://errors\.pydantic\.dev/\d+\.\d+/v/\w+",
+                line,
+            )
         )
 
     cast(Any, ValidationError).__str__ = __str__
