@@ -109,6 +109,7 @@ Our cookbooks demonstrate how to use Instructor to solve real-world problems wit
 | Example | Description | Use Case |
 |---------|-------------|----------|
 | [Content Moderation](moderation.md) | Implement content filtering | Trust & safety |
+| [Source-grounded claims and product facts](product_fact_provenance.md) | Validate extracted evidence against its source | Extraction and review |
 | [Cost Optimization with Batch API](batch_job_oai.md) | Reduce API costs | Production efficiency |
 | [Few-Shot Learning](examples.md) | Use contextual examples in prompts | Performance tuning |
 
