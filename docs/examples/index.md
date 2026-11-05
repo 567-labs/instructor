@@ -56,6 +56,7 @@ Our cookbooks demonstrate how to use Instructor to solve real-world problems wit
 | [Contact Information](extract_contact_info.md) | Extract structured contact details | CRM data entry |
 | [PII Sanitization](pii.md) | Detect and redact sensitive information | Privacy compliance |
 | [Citation Extraction](exact_citations.md) | Accurately extract formatted citations | Academic research |
+| [Patient-reported medication use](medication_adherence.md) | Extract quoted statements from a synthetic call | Pharmacist review |
 | [Action Items](action_items.md) | Extract tasks from text | Meeting follow-ups |
 | [Search Query Processing](search.md) | Structure complex search queries | Search enhancement |
 
