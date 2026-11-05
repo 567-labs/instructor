@@ -1018,7 +1018,7 @@ def _build_bedrock(
     model_name: str,
     async_client: bool,
     mode: Mode | None,
-    api_key: str | None,  # noqa: ARG001
+    api_key: str | None,
     kwargs: dict[str, Any],
     provider_info: dict[str, str],
 ) -> InstructorType:
@@ -1030,6 +1030,7 @@ def _build_bedrock(
         model_name=model_name,
         async_client=async_client,
         mode=mode,
+        api_key=api_key,
         kwargs=kwargs,
         provider_info=provider_info,
     )

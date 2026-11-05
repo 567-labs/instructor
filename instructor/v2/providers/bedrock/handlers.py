@@ -11,6 +11,7 @@ from typing import Any, cast
 
 from pydantic import BaseModel
 
+from instructor.v2.providers.claude import requires_auto_tool_choice
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.errors import ConfigurationError, ResponseParsingError
@@ -300,7 +301,15 @@ def _to_bedrock_content_items(content: Any) -> list[dict[str, Any]]:
                 if "document" in part and isinstance(part["document"], dict):
                     items.append(part)
                     continue
+                if "toolUse" in part or "toolResult" in part:
+                    items.append(part)
+                    continue
                 if "cachePoint" in part:
+                    items.append(part)
+                    continue
+                if "reasoningContent" in part and isinstance(
+                    part["reasoningContent"], dict
+                ):
                     items.append(part)
                     continue
                 raise ValueError(f"Unsupported dict content for Bedrock: {part}")
@@ -319,17 +328,12 @@ def _prepare_bedrock_converse_kwargs_internal(
     call_kwargs: dict[str, Any],
 ) -> dict[str, Any]:
     """Prepare kwargs for the Bedrock Converse API."""
+    bedrock_system_list: list[dict[str, Any]] = []
     if "system" in call_kwargs and isinstance(call_kwargs["system"], list):
-        system_content = call_kwargs.pop("system")
-        if (
-            system_content
-            and isinstance(system_content[0], dict)
-            and "text" in system_content[0]
-        ):
-            system_text = system_content[0]["text"]
-            messages = list(call_kwargs.get("messages", []))
-            messages.insert(0, {"role": "system", "content": system_text})
-            call_kwargs["messages"] = messages
+        # Keep every native system block (text, cachePoint, ...) in order.
+        bedrock_system_list = list(call_kwargs.pop("system"))
+        if bedrock_system_list:
+            call_kwargs.setdefault("messages", [])
 
     if "model" in call_kwargs and "modelId" not in call_kwargs:
         call_kwargs["modelId"] = call_kwargs.pop("model")
@@ -396,7 +400,6 @@ def _prepare_bedrock_converse_kwargs_internal(
 
     if "messages" in call_kwargs and isinstance(call_kwargs["messages"], list):
         original_input_messages = call_kwargs.pop("messages")
-        bedrock_system_list: list[dict[str, Any]] = []
         bedrock_user_assistant_messages_list: list[dict[str, Any]] = []
 
         for msg_dict in original_input_messages:
@@ -435,10 +438,10 @@ def _prepare_bedrock_converse_kwargs_internal(
                     )
                 bedrock_user_assistant_messages_list.append(current_message_for_api)
 
-        if bedrock_system_list:
-            call_kwargs["system"] = bedrock_system_list
-
         call_kwargs["messages"] = bedrock_user_assistant_messages_list
+
+    if bedrock_system_list:
+        call_kwargs["system"] = bedrock_system_list
     return call_kwargs
 
 
@@ -487,9 +490,16 @@ def handle_bedrock_tools(
         return None, new_kwargs
 
     tool_schema = generate_bedrock_schema(response_model, strict=strict)
-    tool_choice = (new_kwargs.get("toolConfig") or {}).get(
-        "toolChoice", {"tool": {"name": response_model.__name__}}
-    )
+    tool_config = new_kwargs.get("toolConfig") or {}
+    if "toolChoice" in tool_config:
+        tool_choice = tool_config["toolChoice"]
+    elif requires_auto_tool_choice(
+        new_kwargs.get("modelId"),
+        (new_kwargs.get("additionalModelRequestFields") or {}).get("thinking"),
+    ):
+        tool_choice = {"auto": {}}
+    else:
+        tool_choice = {"tool": {"name": response_model.__name__}}
     new_kwargs["toolConfig"] = {
         "tools": [tool_schema],
         "toolChoice": tool_choice,
@@ -657,7 +667,7 @@ class BedrockMDJSONHandler(ModeHandler):
     ) -> tuple[type[BaseModel] | None, dict[str, Any]]:
         new_kwargs = kwargs.copy()
         if response_model is None:
-            return None, new_kwargs
+            return None, _prepare_bedrock_converse_kwargs_internal(new_kwargs)
 
         prepared_model = cast(type[BaseModel], prepare_response_model(response_model))
         return handle_bedrock_json(prepared_model, new_kwargs)

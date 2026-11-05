@@ -26,7 +26,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Parallel tools dispatch by their declared provider names and reject ambiguous names before sending a request.
 - Gemini MD_JSON now prepares requests without changing the caller’s messages or nested content lists. ([#2716](https://github.com/567-labs/instructor/issues/2716))
 - Gemini retries preserve validation feedback when a response is blocked, empty, or contains prose instead of a tool call.
-- Bedrock tool modes now preserve the caller’s explicit tool choice and still force the response-model tool by default. ([#2775](https://github.com/567-labs/instructor/pull/2775))
+- Bedrock tool modes honor explicit tool choice and select automatic tool use for Claude models or thinking settings that require it.
+- Bedrock Converse accepts reasoning and tool history, converts raw Markdown JSON requests, and supports per-client bearer tokens.
 - OpenAI RESPONSES_TOOLS now preserves caller tools (e.g. code interpreter, web search) and avoids forcing tool choice when additional tools are provided. ([#2713](https://github.com/567-labs/instructor/issues/2713))
 
 ## [1.18.0] - 2026-09-26

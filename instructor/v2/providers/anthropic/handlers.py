@@ -5,7 +5,6 @@ from __future__ import annotations
 import inspect
 import json
 import warnings
-import re
 from collections.abc import (
     AsyncGenerator,
     AsyncIterator,
@@ -21,6 +20,7 @@ from typing import Annotated
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from anthropic.types import Message
 
+from instructor.v2.providers.claude import requires_auto_tool_choice
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.errors import ConfigurationError, IncompleteOutputException
@@ -350,20 +350,8 @@ class AnthropicToolsHandler(AnthropicHandlerBase):
             new_kwargs["tools"] = [tool_descriptions]
 
         if "tool_choice" not in new_kwargs:
-            thinking = new_kwargs.get("thinking")
-            thinking_requested = isinstance(thinking, dict) and thinking.get(
-                "type"
-            ) in ("enabled", "adaptive")
-            model = new_kwargs.get("model")
-            # These versions reject forced tool use even when thinking is omitted.
-            requires_auto = thinking_requested or (
-                isinstance(model, str)
-                and re.search(
-                    r"(?:^|[./:])claude-(?:(?:opus|sonnet)-5[.-]5|(?:fable|mythos)-5[.-]1)(?:$|[-:@])",
-                    model,
-                    flags=re.IGNORECASE,
-                )
-                is not None
+            requires_auto = requires_auto_tool_choice(
+                new_kwargs.get("model"), new_kwargs.get("thinking")
             )
             if requires_auto or is_parallel:
                 new_kwargs["tool_choice"] = {"type": "auto"}
