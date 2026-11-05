@@ -437,6 +437,41 @@ def test_tools_prepare_request_serializes_messages_selects_tools_and_respects_ch
     assert simple["tool_choice"] == {"type": "any"}
 
 
+@pytest.mark.parametrize(
+    ("model", "thinking", "choice"),
+    [
+        ("claude-sonnet-4-6", {"type": "adaptive"}, "auto"),
+        ("claude-opus-5-5", None, "auto"),
+        ("anthropic.claude-sonnet-5-5-20261001-v1:0", None, "auto"),
+        ("claude-fable-5.1", None, "auto"),
+        ("claude-mythos-5-1", None, "auto"),
+        ("claude-opus-5", None, "tool"),
+        ("claude-haiku-5-5", None, "tool"),
+        ("claude-opus-5-50", None, "tool"),
+    ],
+)
+def test_tool_choice_for_thinking_and_model_versions(model, thinking, choice) -> None:
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": [],
+        "system": "Keep this instruction.",
+    }
+    if thinking:
+        kwargs["thinking"] = thinking
+    handler = AnthropicToolsHandler()
+    _, request = handler.prepare_request(User, kwargs)
+    assert request["tool_choice"]["type"] == choice
+    if choice == "auto":
+        assert "Keep this instruction." in str(request["system"])
+        assert "Return only the tool call" in str(request["system"])
+    else:
+        assert request["tool_choice"]["name"] == "User"
+    _, explicit = handler.prepare_request(
+        User, {**kwargs, "tool_choice": {"type": "none"}}
+    )
+    assert explicit["tool_choice"] == {"type": "none"}
+
+
 def test_tools_prepare_parallel_and_thinking_requests_use_auto_choice() -> None:
     parallel_type = Iterable[Union[User, Job]]
     handler = AnthropicToolsHandler()
