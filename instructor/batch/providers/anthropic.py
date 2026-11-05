@@ -5,6 +5,9 @@ This module contains the Anthropic batch processing provider class.
 """
 
 import json
+from contextlib import closing, contextmanager
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 from collections.abc import Iterator
 from typing import Any, Optional, Union
 import io
@@ -90,44 +93,59 @@ class AnthropicProvider(BatchProvider):
         except Exception as e:
             raise Exception(f"Failed to get Anthropic batch status: {e}") from e
 
-    def _iter_result_lines(self, batch_id: str) -> Iterator[str]:
-        """Yield serialized results for a completed Anthropic batch."""
+    @contextmanager
+    def _result_lines(self, batch_id: str) -> Iterator[Iterator[str]]:
+        """Own the SDK client for the entire streaming response."""
         import anthropic
 
-        client = anthropic.Anthropic()
+        with closing(anthropic.Anthropic()) as client:
+            # TODO(#batch-api-stable): Remove beta fallback when stable API is available
+            try:
+                batches_client = client.messages.batches
+            except AttributeError:
+                batches_client = client.beta.messages.batches
 
-        # TODO(#batch-api-stable): Remove beta fallback when stable API is available
-        try:
-            batches_client = client.messages.batches
-        except AttributeError:
-            batches_client = client.beta.messages.batches
+            batch = batches_client.retrieve(batch_id)
 
-        batch = batches_client.retrieve(batch_id)
+            if batch.processing_status in ["failed", "cancelled", "expired"]:
+                raise Exception(
+                    f"Batch job failed with status: {batch.processing_status}"
+                )
 
-        if batch.processing_status in ["failed", "cancelled", "expired"]:
-            raise Exception(f"Batch job failed with status: {batch.processing_status}")
-
-        if batch.processing_status != "ended":
-            raise Exception(f"Batch not completed, status: {batch.processing_status}")
-
-        return (result.model_dump_json() for result in batches_client.results(batch_id))
+            if batch.processing_status != "ended":
+                raise Exception(
+                    f"Batch not completed, status: {batch.processing_status}"
+                )
+            yield (
+                result.model_dump_json() for result in batches_client.results(batch_id)
+            )
 
     def retrieve_results(self, batch_id: str) -> str:
-        """Retrieve Anthropic batch results"""
+        """Retrieve Anthropic batch results."""
         try:
-            return "\n".join(self._iter_result_lines(batch_id))
+            with self._result_lines(batch_id) as lines:
+                return "\n".join(lines)
         except Exception as e:
             raise Exception(f"Failed to retrieve Anthropic results: {e}") from e
 
     def download_results(self, batch_id: str, file_path: str) -> None:
-        """Download Anthropic batch results to a file"""
+        """Replace the destination once every result has been read."""
+        temporary_path: Path | None = None
         try:
-            result_lines = self._iter_result_lines(batch_id)
-            with open(file_path, "w", encoding="utf-8") as f:
-                for line in result_lines:
-                    f.write(line + "\n")
+            with self._result_lines(batch_id) as lines:
+                with NamedTemporaryFile(
+                    mode="w", encoding="utf-8", dir=Path(file_path).parent, delete=False
+                ) as output:
+                    temporary_path = Path(output.name)
+                    for line in lines:
+                        output.write(line + "\n")
+            temporary_path.replace(file_path)
+            temporary_path = None
         except Exception as e:
             raise Exception(f"Failed to download Anthropic results: {e}") from e
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
 
     def cancel_batch(self, batch_id: str) -> dict[str, Any]:
         """Cancel Anthropic batch job"""
