@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import sys
 from collections.abc import Iterable
+from types import MappingProxyType
 from typing import Annotated, Any, Callable, TypeVar, Union, cast, get_args, get_origin
 
 from pydantic import (
@@ -38,6 +39,11 @@ def is_typed_dict(cls: Any) -> bool:
     )
 
 
+# Cache encoding explicitly requests Python field names, including synthesized
+# TypedDict fields. The empty mapping also works with ordinary serializer contexts.
+_CACHE_FIELD_NAMES_CONTEXT = MappingProxyType({})
+
+
 class _TypedDictModel(BaseModel):
     @model_serializer(mode="wrap")
     def _round_trip_keys(
@@ -48,7 +54,11 @@ class _TypedDictModel(BaseModel):
             return values
         # Cache round trips need original keys and must not invent omitted keys.
         return {
-            field.alias or name: values[key]
+            (
+                name
+                if info.context is _CACHE_FIELD_NAMES_CONTEXT
+                else field.alias or name
+            ): values[key]
             for name, field in type(self).model_fields.items()
             if name in self.model_fields_set
             if (key := (field.serialization_alias or name) if info.by_alias else name)
