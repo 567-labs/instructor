@@ -239,6 +239,7 @@ def make_cache_key(
             "generation_config",
             "inferenceConfig",
             "additionalModelRequestFields",
+            "extra_body",
         )
         generation = {}
         for field in generation_fields:
