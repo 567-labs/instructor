@@ -30,12 +30,44 @@ from instructor.v2.core.errors import ResponseParsingError
 from instructor.v2.core.json import extract_json_from_codeblock
 
 
+def _response_text(response: Any) -> str | None:
+    """The legacy SDK raises ValueError for blocked or empty candidates."""
+    try:
+        return getattr(response, "text", None)
+    except ValueError:
+        return None
+
+
 def reask_gemini_tools(
     kwargs: dict[str, Any],
     response: Any,
     exception: Exception,
 ):
     """Build a Gemini tool reask payload after validation failure."""
+    try:
+        parts = getattr(response, "parts", None) or []
+    except ValueError:
+        parts = []
+    function_call = None
+    for part in parts:
+        candidate = getattr(part, "function_call", None)
+        # Protobuf exposes an empty function-call object on text-only parts.
+        if getattr(candidate, "name", None):
+            function_call = candidate
+            break
+    if function_call is None:
+        if text := _response_text(response):
+            kwargs["contents"].append({"role": "model", "parts": [text]})
+        kwargs["contents"].append(
+            {
+                "role": "user",
+                "parts": [
+                    f"Validation Error(s) found:\n{exception}\nRecall the function arguments correctly and fix the errors"
+                ],
+            }
+        )
+        return kwargs
+
     from google.ai import generativelanguage as glm  # type: ignore
 
     reask_msgs = [
@@ -43,8 +75,8 @@ def reask_gemini_tools(
             "role": "model",
             "parts": [
                 glm.FunctionCall(
-                    name=response.parts[0].function_call.name,
-                    args=response.parts[0].function_call.args,
+                    name=function_call.name,
+                    args=function_call.args,
                 )
             ],
         },
@@ -53,7 +85,7 @@ def reask_gemini_tools(
             "parts": [
                 glm.Part(
                     function_response=glm.FunctionResponse(
-                        name=response.parts[0].function_call.name,
+                        name=function_call.name,
                         response={"error": f"Validation Error(s) found:\n{exception}"},
                     )
                 ),
@@ -74,12 +106,13 @@ def reask_gemini_json(
     exception: Exception,
 ):
     """Build a Gemini JSON reask payload after validation failure."""
+    text = _response_text(response) or "<no readable text in the previous response>"
     kwargs["contents"].append(
         {
             "role": "user",
             "parts": [
                 "Correct the following JSON response, based on the errors given below:\n\n"
-                f"JSON:\n{response.text}\n\nExceptions:\n{exception}"
+                f"JSON:\n{text}\n\nExceptions:\n{exception}"
             ],
         }
     )
@@ -93,10 +126,7 @@ def parse_gemini_json(
     strict: bool | None = None,
 ) -> BaseModel:
     """Parse Gemini text JSON responses."""
-    try:
-        text = completion.text
-    except ValueError:
-        text = None
+    text = _response_text(completion)
     if text is None:
         raise ResponseParsingError(
             "Unable to extract JSON from completion text. The response may have been blocked or empty.",
