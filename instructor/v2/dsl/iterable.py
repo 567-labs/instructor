@@ -10,6 +10,8 @@ from typing import (
     Union,
 )
 import json
+import re
+import inspect
 import sys
 
 from pydantic import BaseModel, Field, create_model
@@ -20,6 +22,62 @@ if sys.version_info >= (3, 10):
     _UNION_ORIGINS: tuple[Any, ...] = (Union, UnionType)
 else:  # pragma: no cover - Python 3.9 has no runtime ``X | Y`` syntax
     _UNION_ORIGINS = (Union,)
+
+
+class _TaskObjects:
+    """Scan object arguments and the items of a tasks array across chunk boundaries."""
+
+    def __init__(self, *, unwrap_tasks: bool = True, depth: int = 0) -> None:
+        self.unwrap_tasks = unwrap_tasks
+        self.depth = depth
+        self.quoted = False
+        self.escaped = False
+        self.in_array = False
+        self.may_unwrap = False
+        self.buffer: list[str] = []
+
+    def feed(self, chunk: str) -> Generator[tuple[str, int], None, None]:
+        for index, char in enumerate(chunk):
+            if self.depth:
+                self.buffer.append(char)
+            if self.escaped:
+                self.escaped = False
+            elif self.quoted and char == "\\":
+                self.escaped = True
+            elif char == '"':
+                self.quoted = not self.quoted
+            elif not self.quoted:
+                if char == "{":
+                    if self.depth == 0:
+                        self.buffer = [char]
+                        self.may_unwrap = self.unwrap_tasks and not self.in_array
+                    self.depth += 1
+                elif char == "}" and self.depth:
+                    self.depth -= 1
+                    if not self.depth:
+                        yield "".join(self.buffer), index + 1
+                        self.buffer.clear()
+                elif char == "[":
+                    if not self.depth:
+                        self.in_array = True
+                    elif self.may_unwrap:
+                        self.may_unwrap = False
+                        if self.depth == 1 and re.fullmatch(
+                            r'\{\s*"tasks"\s*:\s*\[', "".join(self.buffer)
+                        ):
+                            self.buffer.clear()
+                            self.depth = 0
+                            self.in_array = True
+                elif char == "]" and not self.depth:
+                    self.in_array = False
+
+    def finish(self) -> None:
+        if self.depth:
+            from instructor.v2.core.errors import IncompleteOutputException
+
+            raise IncompleteOutputException(
+                message="The stream ended inside an unfinished item; the output is incomplete."
+            )
 
 
 class IterableBase:
@@ -35,9 +93,14 @@ class IterableBase:
     ) -> Generator[BaseModel, None, None]:
         if stream_extractor is None:
             raise ValueError("stream_extractor is required for streaming responses")
-        json_chunks = stream_extractor(completion)
-        parser = task_parser or cls.tasks_from_chunks
-        yield from parser(json_chunks, **kwargs)
+        try:
+            json_chunks = stream_extractor(completion)
+            parser = task_parser or cls.tasks_from_chunks
+            yield from parser(json_chunks, **kwargs)
+        finally:
+            close = getattr(completion, "close", None)
+            if callable(close):
+                close()
 
     @classmethod
     async def from_streaming_response_async(
@@ -51,10 +114,19 @@ class IterableBase:
     ) -> AsyncGenerator[BaseModel, None]:
         if stream_extractor is None:
             raise ValueError("stream_extractor is required for streaming responses")
-        json_chunks = stream_extractor(completion)
-        parser = task_parser or cls.tasks_from_chunks_async
-        async for item in parser(json_chunks, **kwargs):
-            yield item
+        try:
+            json_chunks = stream_extractor(completion)
+            parser = task_parser or cls.tasks_from_chunks_async
+            async for item in parser(json_chunks, **kwargs):
+                yield item
+        finally:
+            close = getattr(completion, "aclose", None) or getattr(
+                completion, "close", None
+            )
+            if callable(close):
+                result = close()
+                if inspect.isawaitable(result):
+                    await result
 
     @classmethod
     async def tasks_from_task_list_chunks_async(
@@ -93,45 +165,21 @@ class IterableBase:
     def tasks_from_chunks(
         cls, json_chunks: Iterable[str], **kwargs: Any
     ) -> Generator[BaseModel, None, None]:
-        started = False
-        potential_object = ""
+        scanner = _TaskObjects()
         for chunk in json_chunks:
-            potential_object += chunk
-            if not started:
-                if "[" in chunk:
-                    started = True
-                    potential_object = chunk[chunk.find("[") + 1 :]
-
-            while True:
-                task_json, potential_object = cls.get_object(potential_object, 0)
-                if task_json:
-                    assert cls.task_type is not None
-                    obj = cls.extract_cls_task_type(task_json, **kwargs)
-                    yield obj
-                else:
-                    break
+            for task_json, _ in scanner.feed(chunk):
+                yield cls.extract_cls_task_type(task_json, **kwargs)
+        scanner.finish()
 
     @classmethod
     async def tasks_from_chunks_async(
         cls, json_chunks: AsyncGenerator[str, None], **kwargs: Any
     ) -> AsyncGenerator[BaseModel, None]:
-        started = False
-        potential_object = ""
+        scanner = _TaskObjects()
         async for chunk in json_chunks:
-            potential_object += chunk
-            if not started:
-                if "[" in chunk:
-                    started = True
-                    potential_object = chunk[chunk.find("[") + 1 :]
-
-            while True:
-                task_json, potential_object = cls.get_object(potential_object, 0)
-                if task_json:
-                    assert cls.task_type is not None
-                    obj = cls.extract_cls_task_type(task_json, **kwargs)
-                    yield obj
-                else:
-                    break
+            for task_json, _ in scanner.feed(chunk):
+                yield cls.extract_cls_task_type(task_json, **kwargs)
+        scanner.finish()
 
     @classmethod
     def extract_cls_task_type(
@@ -177,27 +225,9 @@ class IterableBase:
 
     @staticmethod
     def get_object(s: str, stack: int) -> tuple[str | None, str]:
-        start_index = s.find("{")
-        in_string = False
-        escape_next = False
-        for i, c in enumerate(s):
-            if escape_next:
-                escape_next = False
-            elif c == "\\" and in_string:
-                escape_next = True
-                continue
-            elif c == '"':
-                in_string = not in_string
-
-            if in_string:
-                continue
-
-            if c == "{":
-                stack += 1
-            elif c == "}":
-                stack -= 1
-                if stack == 0:
-                    return s[start_index : i + 1], s[i + 2 :]
+        scanner = _TaskObjects(unwrap_tasks=False, depth=stack)
+        for _, end in scanner.feed(s):
+            return s[s.find("{") : end], s[end:].removeprefix(",")
         return None, s
 
 

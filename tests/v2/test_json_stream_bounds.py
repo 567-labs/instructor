@@ -187,7 +187,7 @@ def test_sync_complete_object_emits_before_next_input_chunk() -> None:
         consumed.append(2)
         yield second
 
-    extracted = extract_json_from_stream(chunks())
+    extracted = extract_json_from_stream(chunks(), prefer_fenced=False)
     assert "".join(next(extracted) for _ in first) == first
     assert consumed == [1]
     assert "".join(extracted) == second
@@ -205,7 +205,7 @@ async def test_async_complete_object_emits_before_next_input_chunk() -> None:
         consumed.append(2)
         yield second
 
-    extracted = extract_json_from_stream_async(chunks())
+    extracted = extract_json_from_stream_async(chunks(), prefer_fenced=False)
     assert "".join([await extracted.__anext__() for _ in first]) == first
     assert consumed == [1]
     assert "".join([char async for char in extracted]) == second
