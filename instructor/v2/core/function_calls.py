@@ -15,6 +15,7 @@ from pydantic import (
     create_model,
 )
 
+from instructor.v2.core.messages import text_from_content_blocks
 from instructor.v2.core.errors import (
     IncompleteOutputException,
 )
@@ -53,7 +54,10 @@ def _extract_text_content(completion: Any) -> str:
     """Extract text content from various completion formats."""
     # OpenAI format
     if hasattr(completion, "choices"):
-        return completion.choices[0].message.content or ""
+        content = completion.choices[0].message.content
+        if isinstance(content, list):
+            return text_from_content_blocks(content) or ""
+        return content or ""
 
     # Simple text format
     if hasattr(completion, "text"):
@@ -91,6 +95,17 @@ def _validate_model_from_json(
     strict: bool | None = None,
 ) -> Any:
     """Validate model from JSON string with appropriate error handling."""
+    stripped = json_str.strip()
+    if stripped.startswith("```"):
+        opening, newline, body = stripped.partition("\n")
+        if (
+            newline
+            and opening.strip().lower() in {"```", "```json"}
+            and body.endswith("```")
+        ):
+            from instructor.v2.core.json import extract_json_from_codeblock
+
+            json_str = extract_json_from_codeblock(body[:-3].strip())
     try:
         if hasattr(cls, "model_validate_json"):
             if strict:

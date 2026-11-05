@@ -24,6 +24,7 @@ from pydantic import BaseModel
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from openai.types.chat import ChatCompletion
 
+from instructor.v2.core.messages import text_from_content_blocks
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.errors import (
@@ -632,7 +633,7 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         )
 
     def _extract_text_content(self, response: Any) -> str:
-        """Extract text content from response."""
+        """Extract a string or concatenate text blocks from compatible providers."""
         choices = getattr(response, "choices", None)
         if not choices:
             raise ResponseParsingError(
@@ -640,7 +641,10 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                 mode=str(self.mode.value),
                 raw_response=response,
             )
-        return choices[0].message.content or ""
+        content = choices[0].message.content
+        if isinstance(content, list):
+            return text_from_content_blocks(content) or ""
+        return content or ""
 
     def _parse_json_response(
         self,

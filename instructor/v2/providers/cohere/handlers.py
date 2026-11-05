@@ -15,6 +15,7 @@ from typing import Any, cast
 
 from pydantic import BaseModel
 
+from instructor.v2.core.messages import text_from_content_blocks
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.errors import ConfigurationError, ResponseParsingError
@@ -100,13 +101,9 @@ def _extract_text_from_response(response: Any) -> str:
     if hasattr(response, "message") and hasattr(response.message, "content"):
         content_items = response.message.content
         if content_items:
-            for item in content_items:
-                if (
-                    hasattr(item, "type")
-                    and item.type == "text"
-                    and hasattr(item, "text")
-                ):
-                    return item.text
+            text = text_from_content_blocks(content_items)
+            if text is not None:
+                return text
 
     raise ResponseParsingError(
         f"Could not extract text from Cohere response: {type(response)}",

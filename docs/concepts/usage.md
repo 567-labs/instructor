@@ -87,8 +87,12 @@ completions. Successful Pydantic models and `ListResponse` results also expose
 `_total_usage` when all observed responses have compatible usage metadata.
 
 This accounting is not available for every SDK or API. OpenAI Responses uses a
-different usage type, as do Anthropic beta Messages and most native provider
-SDKs. Their raw usage may be available without a cumulative `_total_usage`.
+different usage type. For the non-streaming Responses API, Instructor now
+projects `ResponseUsage` onto the shared Chat Completions shape so that input,
+output, and total tokens accumulate across retries, with `cached_tokens` and
+`reasoning_tokens` echoed back when present. Anthropic beta Messages and other
+native provider SDKs still vary: their raw usage may be available without a
+cumulative `_total_usage`.
 Missing optional usage fields are not evidence of zero consumption; current
 accumulation can fill some absent fields with zero or carry forward a known
 subtotal. Streaming parsed results do not provide a final cumulative usage
