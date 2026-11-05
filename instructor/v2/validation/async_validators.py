@@ -126,24 +126,36 @@ def model_declares_async_validators(model_cls: Any) -> bool:
 async def run_async_validators(value: Any, *, context: dict[str, Any] | None) -> Any:
     """Recursively run declared async field/model validators over a parsed value.
 
-    Nested `BaseModel` instances (directly, or inside lists/tuples/dicts) are
-    validated depth-first so a parent model's async validators see already
-    -validated children. Returns the (possibly updated) value; raises
+    Nested models inside lists, tuples, sets, frozensets and dictionary values
+    are validated depth-first so parent validators see the validated children. Returns the (possibly updated) value; raises
     `AsyncValidationError` aggregating every failure found in the subtree.
     """
     if isinstance(value, BaseModel):
         return await _run_on_model(value, context=context)
-    if isinstance(value, list):
-        return [await run_async_validators(item, context=context) for item in value]
-    if isinstance(value, tuple):
-        return tuple(
-            [await run_async_validators(item, context=context) for item in value]
-        )
-    if isinstance(value, dict):
-        return {
-            key: await run_async_validators(item, context=context)
-            for key, item in value.items()
-        }
+    if isinstance(value, (list, tuple, set, frozenset, dict)):
+        errors: list[ValueError] = []
+        validated: list[Any] = []
+        items = value.values() if isinstance(value, dict) else value
+        for item in items:
+            try:
+                validated.append(await run_async_validators(item, context=context))
+            except AsyncValidationError as exc:
+                errors.extend(exc.errors)
+        if errors:
+            summary = "; ".join(str(error) for error in errors)
+            raise AsyncValidationError(
+                f"Async validation failed for {type(value).__name__}: {summary}",
+                errors=errors,
+            )
+        if isinstance(value, dict):
+            return dict(zip(value, validated))
+        if isinstance(value, list):
+            return validated
+        if isinstance(value, tuple):
+            return tuple(validated)
+        if isinstance(value, set):
+            return set(validated)
+        return frozenset(validated)
     return value
 
 
