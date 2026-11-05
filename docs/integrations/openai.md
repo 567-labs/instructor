@@ -515,3 +515,5 @@ Read more about how to use it [here](../examples/batch_job_oai.md)
 ## Updates and Compatibility
 
 Instructor maintains compatibility with the latest OpenAI API versions and models. Check the [changelog](https://github.com/jxnl/instructor/blob/main/CHANGELOG.md) for updates.
+
+For Runcrate, AI Stupid Level, or Tsubasa, use the [OpenAI-compatible gateway examples](./openai-compatible-gateways.md).

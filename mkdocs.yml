@@ -166,6 +166,7 @@ nav:
     - Overview: 'integrations/index.md'
     # Major cloud providers
     - OpenAI: 'integrations/openai.md'
+    - OpenAI-compatible gateways: 'integrations/openai-compatible-gateways.md'
     - OpenAI Responses: 'integrations/openai-responses.md'
     - DeepSeek: 'integrations/deepseek.md'
     - llama-cpp-python: 'integrations/llama-cpp-python.md'
