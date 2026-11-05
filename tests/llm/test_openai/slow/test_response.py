@@ -1,11 +1,10 @@
 import instructor
+from tests.llm.test_openai.util import models
 from openai import OpenAI, AsyncOpenAI
 from pydantic import BaseModel
 import pytest
 from collections.abc import Iterable
 from itertools import product
-
-models = ["gpt-4.1-nano"]
 
 
 class UserProfile(BaseModel):

@@ -28,7 +28,6 @@ def test_creation(model, mode):
                 "content": "Extract a user from the story.",
             },
         ],
-        temperature=1,
         max_tokens=1000,
     )
 
@@ -63,7 +62,6 @@ def test_creation_with_system_cache(model, mode):
                 "content": "Extract a user from the story.",
             },
         ],
-        temperature=1,
         max_tokens=1000,
     )
 
@@ -101,7 +99,6 @@ def test_creation_with_system_cache_anthropic_style(model, mode):
                 "content": "Extract a user from the story.",
             },
         ],
-        temperature=1,
         max_tokens=1000,
     )
 
@@ -132,7 +129,6 @@ def test_creation_no_response_model(model, mode):
                 "content": "Extract a user from the story.",
             },
         ],
-        temperature=1,
         max_tokens=1000,
     )
 
