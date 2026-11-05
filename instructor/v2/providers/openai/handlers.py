@@ -9,13 +9,13 @@ from __future__ import annotations
 import inspect
 import json
 import logging
-from functools import partial
 from collections.abc import (
     AsyncGenerator,
     AsyncIterator,
     Generator,
     Iterable as TypingIterable,
 )
+from functools import partial
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any, cast, get_origin
 
@@ -378,26 +378,61 @@ def handle_openrouter_structured_outputs(
     return response_model, new_kwargs
 
 
+class _ResponsesStreamResult:
+    """Select one structured result while skipping calls to the caller's tools."""
+
+    def __init__(self, tool_name: str | None) -> None:
+        self.tool_name = tool_name
+        self.foreign_calls: set[int] = set()
+        self.output_index: int | None = None
+
+    def delta(self, event: Any) -> str | None:
+        from openai.types.responses import (
+            ResponseFunctionCallArgumentsDeltaEvent,
+            ResponseOutputItemAddedEvent,
+            ResponseTextDeltaEvent,
+        )
+
+        if isinstance(event, ResponseOutputItemAddedEvent):
+            if (
+                self.tool_name is not None
+                and event.item.type == "function_call"
+                and event.item.name != self.tool_name
+            ):
+                self.foreign_calls.add(event.output_index)
+            return None
+        if not isinstance(
+            event, (ResponseFunctionCallArgumentsDeltaEvent, ResponseTextDeltaEvent)
+        ):
+            return None
+        if event.output_index in self.foreign_calls or not event.delta:
+            return None
+        if self.output_index is None:
+            self.output_index = event.output_index
+        return event.delta if event.output_index == self.output_index else None
+
+
 class OpenAIHandlerBase(StreamingModelState, ModeHandler):
     """Base class for OpenAI handlers with shared utilities."""
 
     mode: Mode
 
     def extract_streaming_json(
-        self, completion: TypingIterable[Any], *, single_model: bool = False
+        self,
+        completion: TypingIterable[Any],
+        response_tool_name: str | None = None,
+        *,
+        single_model: bool = False,
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from OpenAI-compatible streaming responses."""
 
         def _raw_chunks() -> Generator[str, None, None]:
+            result = _ResponsesStreamResult(response_tool_name)
             for chunk in completion:
                 try:
                     if self.mode == Mode.RESPONSES_TOOLS:
-                        from openai.types.responses import (
-                            ResponseFunctionCallArgumentsDeltaEvent,
-                        )
-
-                        if isinstance(chunk, ResponseFunctionCallArgumentsDeltaEvent):
-                            yield chunk.delta
+                        if (delta := result.delta(chunk)) is not None:
+                            yield delta
                         continue
 
                     if not getattr(chunk, "choices", None):
@@ -432,20 +467,21 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         yield from raw_chunks
 
     async def extract_streaming_json_async(
-        self, completion: AsyncGenerator[Any, None], *, single_model: bool = False
+        self,
+        completion: AsyncGenerator[Any, None],
+        response_tool_name: str | None = None,
+        *,
+        single_model: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from OpenAI-compatible async streams."""
 
         async def _raw_chunks() -> AsyncGenerator[str, None]:
+            result = _ResponsesStreamResult(response_tool_name)
             async for chunk in completion:
                 try:
                     if self.mode == Mode.RESPONSES_TOOLS:
-                        from openai.types.responses import (
-                            ResponseFunctionCallArgumentsDeltaEvent,
-                        )
-
-                        if isinstance(chunk, ResponseFunctionCallArgumentsDeltaEvent):
-                            yield chunk.delta
+                        if (delta := result.delta(chunk)) is not None:
+                            yield delta
                         continue
 
                     if not getattr(chunk, "choices", None):
@@ -516,22 +552,27 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         except (TypeError, ValueError):
             pass
 
+        extractor_options: dict[str, Any] = {}
+        if self.mode == Mode.RESPONSES_TOOLS:
+            extractor_options["response_tool_name"] = response_model.__name__
+        elif self.mode == Mode.MD_JSON:
+            extractor_options["single_model"] = not issubclass(
+                response_model, IterableBase
+            )
+
         if inspect.isasyncgen(response) or isinstance(response, AsyncIterator):
             return streaming_model.from_streaming_response_async(
                 response,
                 stream_extractor=partial(
                     self.extract_streaming_json_async,
-                    single_model=not issubclass(response_model, IterableBase),
+                    **extractor_options,
                 ),
                 **streaming_kwargs,
             )
 
         generator = streaming_model.from_streaming_response(
             response,
-            stream_extractor=partial(
-                self.extract_streaming_json,
-                single_model=not issubclass(response_model, IterableBase),
-            ),
+            stream_extractor=partial(self.extract_streaming_json, **extractor_options),
             **streaming_kwargs,
         )
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):
@@ -1103,11 +1144,12 @@ class OpenAIResponsesToolsHandler(OpenAIHandlerBase):
                 f"the required parameters with correct types"
             )
 
-        new_kwargs["tools"] = [tool_definition]
-        new_kwargs["tool_choice"] = {
-            "type": "function",
-            "name": schema["function"]["name"],
-        }
+        caller_tools = kwargs.get("tools") or []
+        new_kwargs["tools"] = [*caller_tools, tool_definition]
+        if not caller_tools:
+            new_kwargs.setdefault(
+                "tool_choice", {"type": "function", "name": tool_definition["name"]}
+            )
         _ensure_text_format_config(
             new_kwargs,
             prepared_model,
@@ -1158,6 +1200,11 @@ class OpenAIResponsesToolsHandler(OpenAIHandlerBase):
             for item in response.output:
                 item_type = getattr(item, "type", None)
                 if item_type in {"function_call", "tool_call"}:
+                    if getattr(item, "name", None) not in {
+                        None,
+                        response_model.__name__,
+                    }:
+                        continue
                     args = getattr(item, "arguments", None)
                     if not args or (
                         isinstance(args, str) and args.strip() in {"", "{}"}
@@ -1178,8 +1225,13 @@ class OpenAIResponsesToolsHandler(OpenAIHandlerBase):
                             response_model, response, parsed
                         )
 
-        # Fallback to standard tool call parsing
-        json_str = self._extract_tool_call_json(response)
+        # With built-in tools, text.format can carry the structured final answer.
+        output_text = getattr(response, "output_text", None)
+        json_str = (
+            output_text
+            if isinstance(output_text, str) and output_text
+            else self._extract_tool_call_json(response)
+        )
         parsed = response_model.model_validate_json(
             json_str,
             context=validation_context,
