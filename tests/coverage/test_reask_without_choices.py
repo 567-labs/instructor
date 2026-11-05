@@ -10,6 +10,7 @@ reask handler, which must append the validation feedback instead of indexing
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -32,7 +33,9 @@ class Answer(BaseModel):
     name: str
 
 
-def _empty_choices_response() -> ChatCompletion:
+def _empty_choices_response(provider: Provider) -> ChatCompletion | SimpleNamespace:
+    if provider is Provider.MISTRAL:
+        return SimpleNamespace(choices=[])
     return ChatCompletion(
         id="chatcmpl-empty-choices",
         choices=[],
@@ -48,6 +51,9 @@ CASES: list[tuple[Provider, Mode]] = [
     (Provider.OPENAI, Mode.JSON),
     (Provider.OPENAI, Mode.MD_JSON),
     (Provider.PERPLEXITY, Mode.MD_JSON),
+    (Provider.MISTRAL, Mode.TOOLS),
+    (Provider.MISTRAL, Mode.JSON_SCHEMA),
+    (Provider.MISTRAL, Mode.MD_JSON),
 ]
 
 
@@ -63,7 +69,7 @@ def test_reask_without_choices_appends_only_the_correction(
 
     reasked = handlers.reask_handler(
         kwargs=kwargs,
-        response=_empty_choices_response(),
+        response=_empty_choices_response(provider),
         exception=ValueError("model returned no choice"),
     )
 
@@ -73,19 +79,20 @@ def test_reask_without_choices_appends_only_the_correction(
     assert [message["role"] for message in reasked["messages"]] == ["user", "user"]
 
 
-def test_empty_choices_response_retries_instead_of_crashing() -> None:
+@pytest.mark.parametrize("provider", [Provider.OPENAI, Provider.MISTRAL])
+def test_empty_choices_response_retries_instead_of_crashing(provider: Provider) -> None:
     calls = 0
 
-    def fake_create(**_kwargs: Any) -> ChatCompletion:
+    def fake_create(**_kwargs: Any) -> ChatCompletion | SimpleNamespace:
         nonlocal calls
         calls += 1
-        return _empty_choices_response()
+        return _empty_choices_response(provider)
 
     with pytest.raises(InstructorRetryException) as excinfo:
         retry_sync_v2(
             func=fake_create,
             response_model=Answer,
-            provider=Provider.OPENAI,
+            provider=provider,
             mode=Mode.TOOLS,
             context=None,
             max_retries=1,
@@ -104,3 +111,50 @@ def test_empty_choices_response_retries_instead_of_crashing() -> None:
     assert calls == excinfo.value.n_attempts == 2
     assert excinfo.value.failed_attempts is not None
     assert len(excinfo.value.failed_attempts) == 2
+
+
+def _tool_call_response(arguments: str = '{"name": "Ada"}') -> Any:
+    tool_call = SimpleNamespace(
+        id="call_1",
+        function=SimpleNamespace(name="Answer", arguments=arguments),
+    )
+    message = SimpleNamespace(
+        role="assistant",
+        content=None,
+        tool_calls=[tool_call],
+        model_dump=lambda: {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "Answer", "arguments": arguments},
+                }
+            ],
+        },
+    )
+    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+
+def test_reask_with_choice_still_replays_assistant_message() -> None:
+    """Positive control: a usable choice keeps the old replay behavior."""
+    handlers = mode_registry.get_handlers(Provider.MISTRAL, Mode.TOOLS)
+    kwargs = isolate_retry_kwargs(
+        {
+            "model": "mistral-large-latest",
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+    )
+
+    reasked = handlers.reask_handler(
+        kwargs=kwargs,
+        response=_tool_call_response('{"wrong": true}'),
+        exception=ValueError("boom"),
+    )
+
+    assert [message["role"] for message in reasked["messages"]] == [
+        "user",
+        "assistant",
+        "tool",
+    ]

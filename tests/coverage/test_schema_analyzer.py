@@ -10,7 +10,8 @@ from __future__ import annotations
 import warnings
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, create_model
+from typing import Any
 
 from instructor.v2.core.schema_analyzer import (
     SchemaFinding,
@@ -399,3 +400,16 @@ def test_boolean_items_and_missing_local_references(monkeypatch):
     report = analyze_schema(Container)
     assert report.max_depth == 1
     assert report.total_fields == 0
+
+
+def test_field_count_error_starts_above_fifty_fields() -> None:
+    for count, expected in ((50, False), (51, True)):
+        fields: dict[str, Any] = {
+            f"field_{index}": (int, ...) for index in range(count)
+        }
+        result = analyze_schema(create_model("WideSchema", **fields))
+        assert result.total_fields == count
+        assert (
+            any(finding.code == "TOO_MANY_FIELDS" for finding in result.findings)
+            is expected
+        )
