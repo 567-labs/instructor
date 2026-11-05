@@ -119,6 +119,7 @@ def install_client(monkeypatch, batches, *, beta=False):
         )
     else:
         client = SimpleNamespace(messages=SimpleNamespace(batches=batches))
+    client.close = lambda: None
     monkeypatch.setattr(anthropic, "Anthropic", lambda: client)
 
 
@@ -491,3 +492,49 @@ def test_list_batches_wraps_sdk_failure(monkeypatch):
         AnthropicProvider().list_batches()
 
     assert isinstance(exc.value.__cause__, TimeoutError)
+
+
+def test_result_stream_keeps_its_sdk_client_alive(monkeypatch):
+    import gc
+    import weakref
+
+    closed = []
+
+    class OwnedClient:
+        def __init__(self):
+            owner = weakref.ref(self)
+            batches = RecordingBatches()
+
+            def results(batch_id):
+                assert batch_id == "batch_123"
+                gc.collect()
+                assert owner() is not None and not closed
+                yield make_result("one", "streamed")
+
+            monkeypatch.setattr(batches, "results", results)
+            self.messages = SimpleNamespace(batches=batches)
+
+        def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(anthropic, "Anthropic", OwnedClient)
+    result = AnthropicProvider().retrieve_results("batch_123")
+    assert json.loads(result)["custom_id"] == "one"
+    assert closed == [True]
+
+
+def test_interrupted_download_preserves_existing_file(monkeypatch, tmp_path):
+    def interrupted(batch_id):
+        assert batch_id == "batch_123"
+        yield make_result("one", "partial")
+        raise OSError("stream interrupted")
+
+    batches = RecordingBatches()
+    monkeypatch.setattr(batches, "results", interrupted)
+    install_client(monkeypatch, batches)
+    path = tmp_path / "results.jsonl"
+    path.write_text("previous result", encoding="utf-8")
+    with pytest.raises(Exception, match="stream interrupted"):
+        AnthropicProvider().download_results("batch_123", str(path))
+    assert path.read_text(encoding="utf-8") == "previous result"
+    assert list(tmp_path.iterdir()) == [path]
