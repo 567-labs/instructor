@@ -131,6 +131,44 @@ def install_client(
     return OpenAIProvider()
 
 
+@pytest.mark.parametrize("operation", ["retrieve", "download"])
+@pytest.mark.parametrize("delayed_files", [False, True])
+def test_expired_batch_retains_available_results(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    operation: str,
+    delayed_files: bool,
+) -> None:
+    counts = SimpleNamespace(total=2, completed=1, failed=1)
+    ready = BatchResponse(
+        status="expired", request_counts=counts, error_file_id="file_errors"
+    )
+    responses = [ready]
+    if delayed_files:
+        responses.insert(
+            0,
+            BatchResponse(status="expired", output_file_id=None, request_counts=counts),
+        )
+    client = OpenAIClient(responses)
+    provider = install_client(monkeypatch, client)
+    waits: list[int] = []
+    monkeypatch.setattr("time.sleep", waits.append)
+
+    if operation == "retrieve":
+        content = provider.retrieve_results("batch_expired")
+    else:
+        destination = tmp_path / "results.jsonl"
+        provider.download_results("batch_expired", str(destination))
+        content = destination.read_text(encoding="utf-8")
+
+    assert content == '{"ok": true}\n{"ok": true}'
+    assert client.files.content_ids == ["file_output", "file_errors"]
+    assert client.batches.retrieve_ids == ["batch_expired"] * (
+        2 if delayed_files else 1
+    )
+    assert waits == ([5] if delayed_files else [])
+
+
 def test_submit_batch_uploads_file_and_uses_default_metadata(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
