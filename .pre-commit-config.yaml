@@ -41,3 +41,10 @@ repos:
         language: system
         files: ^instructor/
         pass_filenames: false
+
+
+      - id: public-lock-sources
+        name: Check public package URLs in the lockfile
+        entry: uv run --frozen python scripts/check_public_lock.py
+        language: system
+        files: ^uv\.lock$
