@@ -6,13 +6,11 @@ This module contains the Anthropic batch processing provider class.
 
 import json
 from contextlib import closing, contextmanager
-from pathlib import Path
-from tempfile import NamedTemporaryFile
 from collections.abc import Generator, Iterator
 from typing import Any, Optional, Union
 import io
 import logging
-from .base import BatchProvider
+from .base import BatchProvider, _atomic_result_file
 from ..models import BatchJobInfo
 
 logger = logging.getLogger(__name__)
@@ -130,22 +128,15 @@ class AnthropicProvider(BatchProvider):
 
     def download_results(self, batch_id: str, file_path: str) -> None:
         """Replace the destination once every result has been read."""
-        temporary_path: Path | None = None
         try:
-            with self._result_lines(batch_id) as lines:
-                with NamedTemporaryFile(
-                    mode="w", encoding="utf-8", dir=Path(file_path).parent, delete=False
-                ) as output:
-                    temporary_path = Path(output.name)
-                    for line in lines:
-                        output.write(line + "\n")
-            temporary_path.replace(file_path)
-            temporary_path = None
+            with (
+                _atomic_result_file(file_path) as output,
+                self._result_lines(batch_id) as lines,
+            ):
+                for line in lines:
+                    output.write((line + "\n").encode("utf-8"))
         except Exception as e:
             raise Exception(f"Failed to download Anthropic results: {e}") from e
-        finally:
-            if temporary_path is not None:
-                temporary_path.unlink(missing_ok=True)
 
     def cancel_batch(self, batch_id: str) -> dict[str, Any]:
         """Cancel Anthropic batch job"""

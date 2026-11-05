@@ -802,12 +802,11 @@ def _build_mistral(
     provider_info: dict[str, str],
 ) -> InstructorType:
     try:
-        try:
-            mistral_module = cast(Any, importlib.import_module("mistralai.client"))
-            Mistral = mistral_module.Mistral
-        except (AttributeError, ImportError):
-            mistral_module = cast(Any, importlib.import_module("mistralai"))
-            Mistral = mistral_module.Mistral
+        from instructor.v2.providers._mistral_sdk import load_mistral_client_type
+
+        Mistral = load_mistral_client_type()
+        if Mistral is None:
+            raise ImportError("Mistral client class is unavailable")
         from instructor.v2.providers.mistral.client import from_mistral
         import os
 
