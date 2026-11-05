@@ -4,7 +4,7 @@ authors = [
     { name = "Ivan Leo" },
 ]
 maintainers = [
-    { email = "jason@jxnl.co" },
+    { name = "Jason Liu" },
     { email = "ivan@jxnl.co" },
 ]
 license = { text = "MIT" }
