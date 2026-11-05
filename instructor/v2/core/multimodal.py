@@ -1,5 +1,6 @@
 from __future__ import annotations
 import base64
+import errno
 import re
 from collections.abc import Mapping, Hashable
 from typing import (
@@ -485,7 +486,12 @@ class PDF(BaseModel):
                     file_path=str(source),
                 ) from err
             except OSError as e:
-                if e.errno == 63:  # File name too long
+                if e.errno == errno.ENAMETOOLONG:
+                    # Raw base64 may exceed the filesystem's filename limit.
+                    try:
+                        return cls.from_raw_base64(source)
+                    except ValueError:
+                        pass
                     raise MultimodalError(
                         "PDF file name too long",
                         content_type="pdf",
@@ -645,11 +651,11 @@ class PDF(BaseModel):
                 if self.source.startswith(("http://", "https://", "gs://")):
                     name = Path(urlparse(self.source).path).name or "document"
                 else:
-                    name = (
-                        Path(self.source).name
-                        if Path(self.source).exists()
-                        else "document"
-                    )
+                    try:
+                        source_path = Path(self.source)
+                        name = source_path.name if source_path.exists() else "document"
+                    except (OSError, ValueError):
+                        name = "document"
             else:
                 name = "document"
 
