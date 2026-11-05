@@ -209,6 +209,7 @@ nav:
     - "Patient-reported medication use": 'examples/medication_adherence.md'
     - "Product Fact Extraction with Provenance": 'examples/product_fact_provenance.md'
     - "Extracting Knowledge Graphs": 'examples/knowledge_graph.md'
+    - "Scoped persistent memory with Dakera": 'examples/persistent_memory_dakera.md'
     - "Table Extraction with GPT-4 Vision": 'examples/extracting_tables.md'
     - "User-Defined Bulk Classification": 'examples/bulk_classification.md'
     - "AI Model Self-Correction": 'examples/self_critique.md'
