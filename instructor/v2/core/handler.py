@@ -22,6 +22,8 @@ class ModeHandler(ABC):
     responses are parsed for a specific mode.
     """
 
+    supports_schema_strict: bool = False
+
     @abstractmethod
     def prepare_request(
         self,

@@ -54,6 +54,7 @@ class ModeHandlers:
     stream_extractor_async: AsyncStreamExtractor | None = None
     message_converter: MessageConverter | None = None
     template_handler: TemplateHandler | None = None
+    supports_schema_strict: bool = False
 
 
 class ModeRegistry:
@@ -99,6 +100,7 @@ class ModeRegistry:
         stream_extractor_async: AsyncStreamExtractor | None = None,
         message_converter: MessageConverter | None = None,
         template_handler: TemplateHandler | None = None,
+        supports_schema_strict: bool = False,
     ) -> None:
         """Register handlers for a mode.
 
@@ -128,6 +130,7 @@ class ModeRegistry:
             stream_extractor_async=stream_extractor_async,
             message_converter=message_converter,
             template_handler=template_handler,
+            supports_schema_strict=supports_schema_strict,
         )
 
     def register_lazy(

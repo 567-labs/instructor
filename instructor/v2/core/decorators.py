@@ -77,6 +77,9 @@ def register_mode_handler(
                 ),
                 message_converter=getattr(handler, "convert_messages", None),
                 template_handler=getattr(handler, "apply_templates", None),
+                supports_schema_strict=getattr(
+                    handler, "supports_schema_strict", False
+                ),
             )
 
         return handler_class

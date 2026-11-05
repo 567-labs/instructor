@@ -25,11 +25,23 @@ from tenacity import (
 )
 from collections.abc import Generator, Iterable, Awaitable, AsyncGenerator, Coroutine
 from typing_extensions import Self, overload
+from pydantic_core import PydanticUndefined, PydanticUndefinedType
 from instructor.v2.dsl.partial import Partial
 from instructor.v2.core.hooks import Hooks, HookName
 
 
 T = TypeVar("T")
+
+
+def _strict_kwargs(
+    strict: bool | PydanticUndefinedType, create: Callable[..., Any] | None = None
+) -> dict[str, bool]:
+    if isinstance(strict, bool):
+        return {"strict": strict}
+    if create is None or getattr(create, "_instructor_patched_create", False) is True:
+        return {}
+    # User-supplied create callables historically receive strict=True by default.
+    return {"strict": True}
 
 
 class _ResponseBase:
@@ -89,7 +101,7 @@ class Response(_ResponseBase):
         response_model: type[T] | None = None,
         max_retries: int | Retrying = 3,
         context: dict[str, Any] | None = None,
-        strict: bool = True,
+        strict: bool | PydanticUndefinedType = PydanticUndefined,
         token_budget: int | None = None,
         **kwargs,
     ) -> T | Any:
@@ -102,7 +114,7 @@ class Response(_ResponseBase):
             response_model=response_model,
             context=context,
             max_retries=max_retries,
-            strict=strict,
+            **_strict_kwargs(strict),
             messages=messages,
             **kwargs,
         )
@@ -253,7 +265,7 @@ class AsyncResponse(_ResponseBase):
         response_model: type[T] | None = None,
         max_retries: int | AsyncRetrying = 3,
         context: dict[str, Any] | None = None,
-        strict: bool = True,
+        strict: bool | PydanticUndefinedType = PydanticUndefined,
         token_budget: int | None = None,
         **kwargs,
     ) -> T | Any:
@@ -266,7 +278,7 @@ class AsyncResponse(_ResponseBase):
             response_model=response_model,
             context=context,
             max_retries=max_retries,
-            strict=strict,
+            **_strict_kwargs(strict),
             messages=messages,
             **kwargs,
         )
@@ -543,7 +555,7 @@ class Instructor:
         messages: list[ChatCompletionMessageParam],
         max_retries: int | Retrying | AsyncRetrying = 3,
         context: dict[str, Any] | None = None,
-        strict: bool = True,
+        strict: bool | PydanticUndefinedType = PydanticUndefined,
         hooks: Hooks | None = None,
         token_budget: int | None = None,
         **kwargs: Any,
@@ -565,7 +577,7 @@ class Instructor:
             messages=messages,
             max_retries=max_retries,
             context=context,
-            strict=strict,
+            **_strict_kwargs(strict, self.create_fn),
             hooks=combined_hooks,
             **kwargs,
         )
@@ -600,7 +612,7 @@ class Instructor:
         messages: list[ChatCompletionMessageParam],
         max_retries: int | Retrying | AsyncRetrying = 3,
         context: dict[str, Any] | None = None,
-        strict: bool = True,
+        strict: bool | PydanticUndefinedType = PydanticUndefined,
         hooks: Hooks | None = None,
         **kwargs: Any,
     ) -> Generator[T, None, None] | AsyncGenerator[T, None]:
@@ -622,7 +634,7 @@ class Instructor:
             response_model=response_model,
             max_retries=max_retries,
             context=context,
-            strict=strict,
+            **_strict_kwargs(strict, self.create_fn),
             hooks=combined_hooks,
             **kwargs,
         )
@@ -657,7 +669,7 @@ class Instructor:
         response_model: type[T],
         max_retries: int | Retrying | AsyncRetrying = 3,
         context: dict[str, Any] | None = None,
-        strict: bool = True,
+        strict: bool | PydanticUndefinedType = PydanticUndefined,
         hooks: Hooks | None = None,
         **kwargs: Any,
     ) -> Generator[T, None, None] | AsyncGenerator[T, None]:
@@ -678,7 +690,7 @@ class Instructor:
             response_model=response_model,
             max_retries=max_retries,
             context=context,
-            strict=strict,
+            **_strict_kwargs(strict, self.create_fn),
             hooks=combined_hooks,
             **kwargs,
         )
@@ -713,7 +725,7 @@ class Instructor:
         response_model: type[T],
         max_retries: int | Retrying | AsyncRetrying = 3,
         context: dict[str, Any] | None = None,
-        strict: bool = True,
+        strict: bool | PydanticUndefinedType = PydanticUndefined,
         hooks: Hooks | None = None,
         **kwargs: Any,
     ) -> tuple[T, Any] | Awaitable[tuple[T, Any]]:
@@ -732,7 +744,7 @@ class Instructor:
             response_model=response_model,
             max_retries=max_retries,
             context=context,
-            strict=strict,
+            **_strict_kwargs(strict, self.create_fn),
             hooks=combined_hooks,
             **kwargs,
         )
@@ -821,7 +833,7 @@ class AsyncInstructor(Instructor):
         messages: list[ChatCompletionMessageParam],
         max_retries: int | AsyncRetrying = 3,
         context: dict[str, Any] | None = None,
-        strict: bool = True,
+        strict: bool | PydanticUndefinedType = PydanticUndefined,
         hooks: Hooks | None = None,
         token_budget: int | None = None,
         **kwargs: Any,
@@ -850,7 +862,7 @@ class AsyncInstructor(Instructor):
                 response_model=get_args(response_model)[0],
                 max_retries=max_retries,
                 context=context,
-                strict=strict,
+                **_strict_kwargs(strict),
                 hooks=hooks,  # Pass the per-call hooks to create_iterable
                 **kwargs,
             )
@@ -860,7 +872,7 @@ class AsyncInstructor(Instructor):
             context=context,
             max_retries=max_retries,
             messages=messages,
-            strict=strict,
+            **_strict_kwargs(strict, self.create_fn),
             hooks=combined_hooks,
             **kwargs,
         )
@@ -871,7 +883,7 @@ class AsyncInstructor(Instructor):
         messages: list[ChatCompletionMessageParam],
         max_retries: int | AsyncRetrying = 3,
         context: dict[str, Any] | None = None,
-        strict: bool = True,
+        strict: bool | PydanticUndefinedType = PydanticUndefined,
         hooks: Hooks | None = None,
         **kwargs: Any,
     ) -> AsyncGenerator[T, None]:
@@ -891,7 +903,7 @@ class AsyncInstructor(Instructor):
             context=context,
             max_retries=max_retries,
             messages=messages,
-            strict=strict,
+            **_strict_kwargs(strict, self.create_fn),
             hooks=combined_hooks,
             **kwargs,
         ):
@@ -903,7 +915,7 @@ class AsyncInstructor(Instructor):
         response_model: type[T],
         max_retries: int | AsyncRetrying = 3,
         context: dict[str, Any] | None = None,
-        strict: bool = True,
+        strict: bool | PydanticUndefinedType = PydanticUndefined,
         hooks: Hooks | None = None,
         **kwargs: Any,
     ) -> AsyncGenerator[T, None]:
@@ -924,7 +936,7 @@ class AsyncInstructor(Instructor):
             context=context,
             max_retries=max_retries,
             messages=messages,
-            strict=strict,
+            **_strict_kwargs(strict, self.create_fn),
             hooks=combined_hooks,
             **kwargs,
         ):
@@ -936,7 +948,7 @@ class AsyncInstructor(Instructor):
         response_model: type[T],
         max_retries: int | AsyncRetrying = 3,
         context: dict[str, Any] | None = None,
-        strict: bool = True,
+        strict: bool | PydanticUndefinedType = PydanticUndefined,
         hooks: Hooks | None = None,
         **kwargs: Any,
     ) -> tuple[T, Any]:
@@ -955,7 +967,7 @@ class AsyncInstructor(Instructor):
             context=context,
             max_retries=max_retries,
             messages=messages,
-            strict=strict,
+            **_strict_kwargs(strict, self.create_fn),
             hooks=combined_hooks,
             **kwargs,
         )
