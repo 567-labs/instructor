@@ -227,6 +227,7 @@ def test_disk_cache_rejects_unsafe_legacy_records_and_preserves_external_files(
     tmp_path, monkeypatch
 ):
     import sqlite3
+    from contextlib import closing
     import diskcache
     from diskcache.core import MODE_TEXT
 
@@ -237,7 +238,7 @@ def test_disk_cache_rejects_unsafe_legacy_records_and_preserves_external_files(
         legacy.set("old-object", {"name": "pickled"})
         legacy.set("old-text", "inline text")
         legacy.set("file", "placeholder")
-    with sqlite3.connect(directory / "cache.db") as db:
+    with closing(sqlite3.connect(directory / "cache.db")) as db, db:
         db.execute(
             "UPDATE Cache SET mode=?,filename=?,value=NULL WHERE key=?",
             (MODE_TEXT, "../outside.txt", "file"),
@@ -262,6 +263,7 @@ def test_disk_cache_rejects_unsafe_legacy_records_and_preserves_external_files(
 def test_disk_cache_keeps_json_types_and_rejects_lossy_or_malformed_values(tmp_path):
     import io
     import sqlite3
+    from contextlib import closing
 
     cache = DiskCache(directory=str(tmp_path))
     try:
@@ -274,7 +276,7 @@ def test_disk_cache_keeps_json_types_and_rejects_lossy_or_malformed_values(tmp_p
         cache._cache.set("stream", io.BytesIO(b"safe"), read=True)
         assert cache.get("stream") == b"safe"
         assert "json" in list(cache._cache.iterkeys())
-        with sqlite3.connect(tmp_path / "cache.db") as db:
+        with closing(sqlite3.connect(tmp_path / "cache.db")) as db, db:
             db.execute("UPDATE Cache SET value=? WHERE key=?", ("invalid", "json"))
             db.execute("UPDATE Cache SET raw=0 WHERE key=?", ("stream",))
         assert cache.get("json") is None
