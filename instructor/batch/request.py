@@ -150,6 +150,26 @@ class BatchRequest(BaseModel, Generic[T]):
             },
         }
 
+    def to_mistral_format(self) -> dict[str, Any]:
+        """Serialize one Mistral request. The job sets the model for all requests."""
+        from mistralai.extra import response_format_from_pydantic_model
+
+        response_format = response_format_from_pydantic_model(self.response_model)
+        # SDK 1 returns a Pydantic model; SDK 2 returns the wire dictionary.
+        if isinstance(response_format, BaseModel):
+            response_format = response_format.model_dump(
+                by_alias=True, exclude_none=True
+            )
+        return {
+            "custom_id": self.custom_id,
+            "body": {
+                "messages": self.messages,
+                "max_tokens": self.max_tokens,
+                "temperature": self.temperature,
+                "response_format": response_format,
+            },
+        }
+
     def to_anthropic_format(self) -> dict[str, Any]:
         """Convert to Anthropic batch format with JSON schema"""
         from instructor.v2.providers.anthropic.handlers import (
@@ -208,6 +228,8 @@ class BatchRequest(BaseModel, Generic[T]):
         """Save batch request to file or BytesIO buffer in provider-specific format"""
         if provider == "openai":
             data = self.to_openai_format()
+        elif provider == "mistral":
+            data = self.to_mistral_format()
         elif provider == "anthropic":
             data = self.to_anthropic_format()
         else:

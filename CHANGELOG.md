@@ -37,6 +37,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Bedrock Converse accepts reasoning and tool history, converts raw Markdown JSON requests, and supports per-client bearer tokens.
 - OpenAI RESPONSES_TOOLS now preserves caller tools (e.g. code interpreter, web search) and avoids forcing tool choice when additional tools are provided. ([#2713](https://github.com/567-labs/instructor/issues/2713))
 - OpenAI-compatible and Cohere JSON modes join text blocks while ignoring reasoning blocks. Responses API token counts contribute to retry totals, and fenced JSON validates through the compatibility parser.
+- Mistral batch jobs support structured requests, lifecycle operations, result parsing, and provider-specific errors through the batch processor and CLI.
 
 ### Tests / CI
 
