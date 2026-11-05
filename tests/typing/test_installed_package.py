@@ -47,3 +47,13 @@ def check_public_model_helpers() -> None:
     assert_type(response_schema(User), type[User])
     assert_type(Maybe(User), type[MaybeBase[User]])
     assert_type(Partial[User], type[User])
+
+
+async def check_responses_on_installed_clients(
+    sync_client: Instructor, async_client: AsyncInstructor
+) -> None:
+    assert_type(sync_client.responses.create(input="one", response_model=User), User)
+    item, _ = await async_client.responses.create_with_completion(
+        input="one", response_model=User
+    )
+    assert_type(item, User)

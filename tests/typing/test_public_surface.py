@@ -135,6 +135,8 @@ def check_response_helpers(
 def check_client_stream_helpers(
     sync_client: Instructor, async_client: AsyncInstructor
 ) -> None:
+    assert_type(sync_client.responses, Response)
+    assert_type(async_client.responses, AsyncResponse)
     assert_type(
         sync_client.create_iterable(response_model=User, messages=[]),
         Generator[User, None, None],
