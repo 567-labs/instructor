@@ -202,7 +202,8 @@ print(result.execute())  # Likely outputs: "Searching for: climate change"
 
 ## Integration with Instructor
 
-### import instructor
+```python
+import instructor
 from typing import Union, Literal
 from pydantic import BaseModel
 
@@ -241,16 +242,16 @@ if isinstance(result, ErrorResponse):
     #> Error: Request not supported: Get user information for id 123
 else:
     print(f"Success: {result.data}")
-: User information for id 123 is not available.
-else:
-    print(f"Success: {result.data}")
 ```
 
 ### Streaming with Unions
 ```python
+import instructor
+
+
 def stream_content():
     response = client.create(
-        response_model=Message,
+        response_model=instructor.Partial[Message],
         stream=True,
         messages=[{"role": "user", "content": "Generate mixed content"}],
     )
@@ -260,7 +261,13 @@ def stream_content():
                 if isinstance(item, TextContent):
                     print(f"Text: {item.text}")
                 elif isinstance(item, ImageContent):
-                    print(ffrom pydantic import ValidationError, BaseModel
+                    print(f"Image: {item.url}")
+```
+
+### Validation Errors
+
+```python
+from pydantic import ValidationError, BaseModel
 from typing import Union, Literal
 
 
@@ -279,14 +286,6 @@ Response = Union[SuccessResponse, ErrorResponse]
 try:
     # This will fail because "invalid" is not a valid status
     response = SuccessResponse(status="invalid", data={"key": "value"})
-except ValidationError as e:
-    print(f"Validation error: {e}")
-    """
-    Validation error: 1 validation error for SuccessResponse
-    status
-      Input should be 'success' [type=literal_error, input_value='invalid', input_type=str]
-    """
-id", data={"key": "value"})
 except ValidationError as e:
     print(f"Validation error: {e}")
     """
@@ -329,7 +328,8 @@ def process_response(response: Response):
 
 For more information about union types, check out the [Pydantic documentation on unions](https://docs.pydantic.dev/latest/concepts/types/#unions).
 
-```from typing import Literal, Union
+```python
+from typing import Literal, Union
 from pydantic import BaseModel
 import instructor
 from openai import OpenAI
@@ -361,11 +361,10 @@ response = client.create(
     response_model=Action,
     messages=[{"role": "user", "content": "Send a payment of $50 to John."}],
 )
-  ],
-)
 ```
 
-```from typing import Literal, Union
+```python
+from typing import Literal, Union
 from pydantic import BaseModel
 import instructor
 from openai import OpenAI
@@ -391,11 +390,10 @@ response = client.create(
     response_model=Action,
     messages=[{"role": "user", "content": "Find me information about climate change."}],
 )
-  ],
-)
 ```
 
-```from typing import Literal, Union
+```python
+from typing import Literal, Union
 from pydantic import BaseModel
 import instructor
 from openai import OpenAI
@@ -415,6 +413,33 @@ class ImageResponse(BaseModel):
 Response = Union[TextResponse, ImageResponse]
 
 # Patched client
+client = instructor.from_provider("openai/gpt-4o")
+response = client.create(
+    response_model=Response,
+    messages=[{"role": "user", "content": "Tell me a joke about programming."}],
+)
+```
+
+```python
+from typing import Union
+from pydantic import BaseModel
+
+
+class Response(BaseModel):
+    """A more complex example showing nested Union fields."""
+
+    result: Union[str, int, float, bool]
+```
+
+```python
+from typing import Dict, List, Union, Any
+from pydantic import BaseModel
+
+
+class Response(BaseModel):
+    """A more complex example showing nested Union fields."""
+
+    data: Dict[str, Union[str, int, List[Any]]]
 ```
 
 ## See Also
@@ -424,33 +449,3 @@ Response = Union[TextResponse, ImageResponse]
 - [Optional Fields](../learning/patterns/optional_fields.md) - Handling optional data
 - [Validation](./validation.md) - Validating union type responses
 - [Union Examples](../examples/index.md) - Practical union type examples
-client = instructor.from_provider("openai/gpt-4o")
-response = client.create(
-    response_model=Response,
-    messages=[{"role": "user", "content": "Tell me a joke about programming."}],
-)
-  ],
-)
-```
-
-```from typing import Union
-from pydantic import BaseModel
-
-
-class Response(BaseModel):
-    """A more complex example showing nested Union fields."""
-
-    result: Union[str, int, float, bool]
- bool]
-```
-
-```from typing import Dict, List, Union, Any
-from pydantic import BaseModel
-
-
-class Response(BaseModel):
-    """A more complex example showing nested Union fields."""
-
-    data: Dict[str, Union[str, int, List[Any]]]
-Any]]]
-```

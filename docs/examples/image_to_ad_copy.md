@@ -15,7 +15,7 @@ The full code is available on [GitHub](https://www.github.com/jxnl/instructor/tr
 
 For the `Product` model, we define a class that represents a product extracted from an image and store the name, key features, and description. The product attributes are dynamically determined based on the content of the image.
 
-Note that it is easy to add [Validators](https://jxnl.github.io/instructor/concepts/reask_validation/) and other Pydantic features to the model to ensure that the data is valid and consistent.
+Note that it is easy to add [Validators](https://python.useinstructor.com/concepts/reask_validation/) and other Pydantic features to the model to ensure that the data is valid and consistent.
 
 ```python
 from pydantic import BaseModel, Field

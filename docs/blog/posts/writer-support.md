@@ -158,4 +158,4 @@ print(user)
 
 This was a sneak peek into the things that you can do with Writer and `instructor` - from classification of text to sentimen analysis and more.
 
-We're excited to see what you build with `instructor` and Writer. If you have any other questions about writer, do check out the [Writer Documentation](https://dev.writer.com/introduction) for the API sdk.
+We're excited to see what you build with `instructor` and Writer. If you have any other questions about writer, do check out the [Writer Documentation](https://dev.writer.com/home/introduction) for the API sdk.
