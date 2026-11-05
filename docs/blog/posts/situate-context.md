@@ -21,7 +21,7 @@ tags:
 
 # Implementing Anthropic's Contextual Retrieval with Async Processing
 
-Anthropic's [Contextual Retrieval](https://www.anthropic.com/blog/contextual-retrieval-for-rag) technique enhances RAG systems by preserving crucial context.
+Anthropic's [Contextual Retrieval](https://www.anthropic.com/engineering/contextual-retrieval) technique enhances RAG systems by preserving crucial context.
 
 This post examines the method and demonstrates an efficient implementation using async processing. We'll explore how to optimize your RAG applications with this approach, building on concepts from our [async processing guide](./learn-async.md).
 

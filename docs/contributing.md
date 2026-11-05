@@ -121,49 +121,9 @@ Poetry provides comprehensive dependency management and packaging.
 
 ## Adding Support for New LLM Providers
 
-Instructor uses optional dependencies to support different LLM providers. Provider-specific utilities live in the `instructor/utils` directory. To add a new provider:
+The [contributor guide](https://github.com/567-labs/instructor/blob/main/CONTRIBUTING.md#adding-support-for-new-llm-providers) lists the registry, client, and tests used by each integration.
 
-1. **Add Dependencies to pyproject.toml**:
-   ```toml
-   [project.optional-dependencies]
-   # Add your provider
-   my-provider = ["my-provider-sdk>=1.0.0,<2.0.0"]
-
-   [dependency-groups]
-   # Mirror in dependency groups
-   my-provider = ["my-provider-sdk>=1.0.0,<2.0.0"]
-   ```
-
-2. **Create Provider Client**:
-   - Create a new file at `instructor/clients/client_myprovider.py`
-   - Implement `from_myprovider` function that patches the provider's client
-
-3. **Add Tests**: Create tests in `tests/llm/test_myprovider/`
-
-4. **Document Installation**:
-   ```bash
-   # Installation command for your provider
-   uv add "instructor[my-provider]"
-   # or with poetry
-   poetry add "instructor[my-provider]"
-   ```
-
-5. **Create Provider Utilities and Handlers**:
-   - Add `instructor/utils/myprovider.py` with `reask` and `handle_*` helpers
-   - Define `MYPROVIDER_HANDLERS` mapping `Mode` values to these functions
-
-6. **Register the Provider**:
-   - Update `instructor/utils/providers.py` with your provider enum value
-   - Extend `get_provider` detection for your base URL
-
-7. **Update `process_response.py`**:
-   - Import your handlers and add them to `mode_handlers`
-   - This script uses the handlers to prepare kwargs and parse results
-
-8. **Write Documentation**:
-   - Add a new markdown file in `docs/integrations/` for your provider
-   - Update `mkdocs.yml` to include your new page
-   - Make sure to include a complete example
+--8<-- "CONTRIBUTING.md:provider-support"
 
 ## Development Workflow
 
