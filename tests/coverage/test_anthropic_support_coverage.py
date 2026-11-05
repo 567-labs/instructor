@@ -499,3 +499,24 @@ def test_anthropic_usage_accumulates_nested_provider_fields() -> None:
     )
     assert second.cache_creation == total.cache_creation
     assert second.server_tool_use == total.server_tool_use
+
+
+@pytest.mark.parametrize(("previous", "current", "expected"), [(3, 4, 7), (True, 4, 4)])
+def test_anthropic_usage_accumulates_legacy_dictionary_details(
+    previous: int, current: int, expected: int
+) -> None:
+    # Older SDK releases expose the documented field as an unvalidated extra.
+    field = "output_tokens_details"
+    total = Usage(input_tokens=2, output_tokens=1)
+    response = Usage(input_tokens=3, output_tokens=2)
+    setattr(total, field, {"thinking_tokens": previous, "metadata": "previous"})
+    setattr(response, field, {"thinking_tokens": current, "metadata": "current"})
+
+    assert update_total_usage(response, total) is True
+    for usage in (total, response):
+        assert usage.input_tokens == 5
+        assert usage.output_tokens == 3
+        assert getattr(usage, field) == {
+            "thinking_tokens": expected,
+            "metadata": "current",
+        }
