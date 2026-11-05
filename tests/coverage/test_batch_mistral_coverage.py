@@ -708,3 +708,44 @@ def test_sdk_one_response_format_serializes_aliases(
     assert request.to_mistral_format()["body"]["response_format"] == {
         "schema": {"type": "object"}
     }
+
+
+def test_mistral_timestamp_accepts_datetime_and_ignores_out_of_range_values() -> None:
+    from datetime import datetime, timezone
+
+    date = datetime(2025, 1, 2, tzinfo=timezone.utc)
+    info = BatchJobInfo.from_mistral(
+        {"id": "j", "status": "SUCCESS", "created_at": date, "completed_at": 10**100}
+    )
+    assert info.timestamps.created_at == date
+    assert info.timestamps.completed_at is None
+
+
+@pytest.mark.parametrize(
+    "method,operation",
+    [("cancel_batch", "cancel"), ("delete_batch", "delete"), ("list_batches", "list")],
+)
+def test_mistral_job_operations_preserve_sdk_failure_cause(
+    monkeypatch: pytest.MonkeyPatch, method: str, operation: str
+) -> None:
+    failure = OSError("mock service unavailable")
+    client = FakeClient(jobs=RecordingJobs(failures={operation: failure}))
+    install_client(monkeypatch, client)
+    provider = MistralProvider()
+    args = [] if operation == "list" else ["batch-id"]
+    with pytest.raises(RuntimeError, match="mock service unavailable") as exc:
+        getattr(provider, method)(*args)
+    assert exc.value.__cause__ is failure
+
+
+def test_mistral_download_preserves_failed_response(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    failure = OSError("mock download interrupted")
+    client = FakeClient(files=RecordingFiles(failures={"download": failure}))
+    install_client(monkeypatch, client)
+    output = tmp_path / "result.jsonl"
+    with pytest.raises(RuntimeError, match="mock download interrupted") as exc:
+        MistralProvider().download_results("batch-id", str(output))
+    assert exc.value.__cause__ is failure
+    assert not output.exists()
