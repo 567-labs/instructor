@@ -1,3 +1,5 @@
+import json
+
 from typing import cast
 
 import pytest
@@ -81,3 +83,18 @@ def test_cached_typed_dict_preserves_underscore_keys_and_omission(
 
     assert restored == original
     assert restored.model_dump(by_alias=True, exclude_unset=True) == data
+
+
+def test_legacy_nested_typed_dict_envelope_retains_wire_keys() -> None:
+    class Record(TypedDict):
+        _id: str
+
+    model, _ = handle_response_model(list[Record])
+    response_type = cast(type[BaseModel], model)
+    original = response_type.model_validate({"tasks": [{"_id": "document-1"}]})
+    cache = AutoCache()
+    cache.set(
+        "prior-typed-dict",
+        json.dumps({"model": original.model_dump_json(round_trip=True), "raw": None}),
+    )
+    assert load_cached_response(cache, "prior-typed-dict", response_type) == original

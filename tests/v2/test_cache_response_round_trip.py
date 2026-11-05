@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 
+import json
+
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
@@ -87,3 +89,25 @@ def test_schema_fallback_preserves_field_names_and_original_configuration(monkey
     )
     with pytest.raises(ValidationError):
         OldEntry.model_validate({"code": 1})
+
+
+def test_cache_keeps_overlapping_field_names_distinct() -> None:
+    class Pair(BaseModel):
+        a: int = Field(validation_alias="b")
+        b: int = Field(validation_alias="c")
+
+    class Nested(BaseModel):
+        pair: Pair
+
+    original = Nested.model_validate({"pair": {"b": 1, "c": 2}})
+    cache = AutoCache()
+    store_cached_response(cache, "pair", original)
+    assert load_cached_response(cache, "pair", Nested, strict=True) == original
+
+    # Previous Instructor versions wrote the same field-name JSON without a tag.
+    cache.set("pair", json.dumps({"model": original.model_dump_json(), "raw": None}))
+    assert load_cached_response(cache, "pair", Nested, strict=True) == original
+
+    # Raw, alias-keyed records use the original wire representation.
+    cache.set("pair", '{"pair":{"b":1,"c":2}}')
+    assert load_cached_response(cache, "pair", Nested, strict=True) == original
