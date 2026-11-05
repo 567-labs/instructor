@@ -48,12 +48,14 @@ def reask_gemini_tools(
         parts = getattr(response, "parts", None) or []
     except ValueError:
         parts = []
+    function_call = None
     for part in parts:
-        function_call = getattr(part, "function_call", None)
+        candidate = getattr(part, "function_call", None)
         # Protobuf exposes an empty function-call object on text-only parts.
-        if getattr(function_call, "name", None):
+        if getattr(candidate, "name", None):
+            function_call = candidate
             break
-    else:
+    if function_call is None:
         if text := _response_text(response):
             kwargs["contents"].append({"role": "model", "parts": [text]})
         kwargs["contents"].append(
