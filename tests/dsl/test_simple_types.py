@@ -199,10 +199,6 @@ def test_non_type_iterable_member_is_not_simple():
         prepare_response_model(list[None])
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10),
-    reason="type.__or__ only exists on Python 3.10+",
-)
 def test_routing_does_not_depend_on_the_dunder_or_probe():
     """Both classes expose __or__, but only one has a validation schema."""
 
@@ -218,10 +214,6 @@ def test_routing_does_not_depend_on_the_dunder_or_probe():
     assert not is_simple_type(list[NotPydantic])
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10),
-    reason="Union pipe syntax is only available in Python 3.10+",
-)
 def test_list_with_union_pipe_syntax():
     """Test that list[int | str] is correctly identified as a simple type."""
     response_model = list[int | str]
@@ -238,10 +230,6 @@ def test_list_with_union_typing_syntax():
     )
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10),
-    reason="Union pipe syntax is only available in Python 3.10+",
-)
 def test_prepare_response_model_with_list_union():
     """Test that list[int | str] works correctly as a response model with prepare_response_model."""
     # This is the type used in the fizzbuzz example
@@ -259,10 +247,6 @@ def test_prepare_response_model_with_list_union():
     )
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10),
-    reason="Union pipe syntax is only available in Python 3.10+",
-)
 def test_list_of_model_pipe_union_is_treated_as_iterable():
     from instructor.v2.dsl.iterable import IterableBase
 
@@ -285,10 +269,6 @@ def test_list_of_model_pipe_union_is_treated_as_iterable():
     assert set(pipe_schema.get("$defs", {})) == {"A", "B"}
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10),
-    reason="Union pipe syntax is only available in Python 3.10+",
-)
 def test_list_of_model_pipe_union_generates_clean_name():
     class A(BaseModel):
         x: int
@@ -323,10 +303,6 @@ def test_list_of_model_typing_union_generates_clean_name():
     assert prepared.__name__ == "IterableAOrB"
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10),
-    reason="Union pipe syntax is only available in Python 3.10+",
-)
 def test_list_of_model_three_way_union_generates_clean_name():
     """A union with more than two members joins every member name with ``Or``."""
 

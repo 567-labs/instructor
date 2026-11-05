@@ -236,7 +236,7 @@ def reject_async_validators(response_model: Any) -> None:
         for argument in get_args(model):
             visit(argument)
         if origin is not None:
-            # Python 3.9 treats GenericAlias as a type, but issubclass rejects it.
+            # Some generic aliases pass the type check but are invalid for issubclass.
             visit(origin)
             return
         if not isinstance(model, type):

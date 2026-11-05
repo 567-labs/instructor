@@ -6,7 +6,7 @@ tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
 # The default build creates an sdist, then builds the wheel from that sdist.
-uv build --default-index https://pypi.org/simple --out-dir "$tmp_dir/dist" "$repo_root"
+uv build --out-dir "$tmp_dir/dist" "$repo_root"
 wheels=("$tmp_dir"/dist/*.whl)
 uv venv --python "${PACKAGE_PYTHON:-3.11}" "$tmp_dir/.venv"
 constraints=()
@@ -15,7 +15,7 @@ if [ "${PACKAGE_SDK:-latest}" = minimum ]; then
     # (notably pydantic-core) to resolve to compatible versions.
     constraints=("openai==2.0.0" "pydantic==2.8.0")
 fi
-uv pip install --default-index https://pypi.org/simple \
+uv pip install \
     --python "$tmp_dir/.venv/bin/python" \
     "${wheels[0]}${PACKAGE_EXTRAS:+[$PACKAGE_EXTRAS]}" "${constraints[@]}"
 uv pip check --python "$tmp_dir/.venv/bin/python"

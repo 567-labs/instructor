@@ -1,52 +1,33 @@
-from __future__ import annotations
-import base64
+from unittest.mock import Mock
+
 import pytest
-from instructor.v2.providers.bedrock.handlers import (
-    _openai_image_part_to_bedrock,
-    _to_bedrock_content_items,
-)
 
-
-def test_openai_image_part_to_bedrock_data_url(tiny_png_data_url: str):
-    part = {"type": "image_url", "image_url": {"url": tiny_png_data_url}}
-    out = _openai_image_part_to_bedrock(part)
-    assert "image" in out
-    assert out["image"]["format"] in {"png", "jpeg", "gif", "webp"}  # png expected
-    assert out["image"]["source"]["bytes"] == base64.b64decode(
-        tiny_png_data_url.split(",", 1)[1]
-    )
-
-
-def test_openai_image_part_to_bedrock_https(image_url: str):
-    part = {"type": "image_url", "image_url": {"url": image_url}}
-    out = _openai_image_part_to_bedrock(part)
-    assert "image" in out
-    # GitHub raw returns jpeg for the sample. Normalize is handled in utils.
-    assert out["image"]["format"] in {"jpeg", "png", "gif", "webp"}
-    assert isinstance(out["image"]["source"]["bytes"], (bytes, bytearray))
-    assert len(out["image"]["source"]["bytes"]) > 0
+from instructor.v2.core.remote import MAX_IMAGE_BYTES, RemoteContent
+from instructor.v2.providers.bedrock import handlers
 
 
 @pytest.mark.parametrize(
-    "text_part",
-    [
-        {"type": "text", "text": "What is in this image?"},
-        {"type": "input_text", "text": "Describe the image."},
-    ],
+    ("text_type", "remote"), [("text", False), ("input_text", True)]
 )
-@pytest.mark.parametrize("image_kind", ["data", "https"])
-def test_to_bedrock_content_items_openai_combo(
-    text_part, image_kind, tiny_png_data_url: str, image_url: str
+def test_bedrock_converts_openai_text_and_images(
+    text_type, remote, tiny_png_data_url, tiny_png_bytes, monkeypatch
 ):
-    if image_kind == "data":
-        image_part = {"type": "image_url", "image_url": {"url": tiny_png_data_url}}
+    image_url = "https://images.example.com/sample.png"
+    fetch = Mock(return_value=RemoteContent(tiny_png_bytes, "image/png", image_url))
+    monkeypatch.setattr(handlers, "fetch_remote_content", fetch)
+    content = [
+        {"type": text_type, "text": "Describe the image."},
+        {
+            "type": "image_url",
+            "image_url": {"url": image_url if remote else tiny_png_data_url},
+        },
+    ]
+
+    assert handlers._to_bedrock_content_items(content) == [
+        {"text": "Describe the image."},
+        {"image": {"format": "png", "source": {"bytes": tiny_png_bytes}}},
+    ]
+    if remote:
+        fetch.assert_called_once_with(image_url, max_bytes=MAX_IMAGE_BYTES, timeout=30)
     else:
-        image_part = {"type": "image_url", "image_url": {"url": image_url}}
-
-    content = [text_part, image_part]
-    items = _to_bedrock_content_items(content)
-
-    assert items[0] == {"text": text_part["text"]}
-    assert "image" in items[1]
-    assert isinstance(items[1]["image"]["source"]["bytes"], (bytes, bytearray))
-    assert len(items[1]["image"]["source"]["bytes"]) > 0
+        fetch.assert_not_called()

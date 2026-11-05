@@ -170,7 +170,7 @@ def payloads(handler: Any, name: str = "Ada") -> tuple[Any, Any]:
         try:
             from mistralai.client.models import ChatCompletionResponse, CompletionEvent
         except ImportError:
-            # Mistral 1.x (Python 3.9) predates the client.models namespace.
+            # Mistral 1.x predates the client.models namespace.
             models = importlib.import_module("mistralai.models")
             ChatCompletionResponse = models.ChatCompletionResponse
             CompletionEvent = models.CompletionEvent

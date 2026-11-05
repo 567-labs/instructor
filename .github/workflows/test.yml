@@ -47,30 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # xai-sdk requires Python 3.10+, so Python 3.9 is a smoke job.
-          # Only SDK-dependent xAI tests and source are omitted there.
-          - python-version: "3.9"
-            pytest-args: >-
-              --ignore=tests/coverage/test_xai_client_coverage.py
-              --ignore=tests/coverage/test_xai_handlers_coverage.py
-              -k 'not test_xai_builder_forwards_real_client_and_mode and
-              not test_xai_builder_reports_unavailable_factory and
-              not (test_tail_builder_factory_failure_is_logged_and_propagated
-              and _build_xai)'
-            coverage-omit: instructor/v2/providers/xai/*
-          - python-version: "3.10"
-            pytest-args: ""
-            coverage-omit: ""
-          - python-version: "3.11"
-            pytest-args: ""
-            coverage-omit: ""
-          - python-version: "3.12"
-            pytest-args: ""
-            coverage-omit: ""
-          - python-version: "3.13"
-            pytest-args: ""
-            coverage-omit: ""
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     env:
       INSTRUCTOR_ENV: CI
       PYTHONWARNINGS: error::ResourceWarning
@@ -96,15 +73,8 @@ jobs:
             tests/coverage tests/test_batch_processor_coverage.py tests/v2/decisions \
             --asyncio-mode=auto --strict-config --strict-markers \
             -W error::pytest.PytestUnraisableExceptionWarning \
-            -W error::pytest.PytestUnhandledThreadExceptionWarning \
-            ${{ matrix.pytest-args }}
-          if [ "${{ matrix.python-version }}" = "3.9" ]; then
-            uv run --frozen coverage report \
-              --omit="${{ matrix.coverage-omit }}" --show-missing
-          else
-            uv run --frozen coverage report \
-              --omit="${{ matrix.coverage-omit }}" --show-missing --fail-under=90
-          fi
+            -W error::pytest.PytestUnhandledThreadExceptionWarning
+          uv run --frozen coverage report --show-missing --fail-under=90
 
   # Enforce repository-wide statement and branch coverage without provider secrets.
   full-coverage:

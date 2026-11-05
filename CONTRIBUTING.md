@@ -74,7 +74,8 @@ By participating in this project, you agree to abide by our code of conduct: tre
 
 6. **Set up Pre-commit**:
    ```bash
-   uv run pre-commit install
+   uv tool install --python 3.11 --with "virtualenv>=21.14.9" "pre-commit==4.7.0"
+   pre-commit install
    ```
 
 ### Development Workflow
@@ -394,8 +395,8 @@ The package compatibility workflow has five bounded combinations:
 
 | Python | SDK selection | Extras |
 | --- | --- | --- |
-| 3.9 | OpenAI 2.0.0 and Pydantic 2.8.0 (declared floors) | None |
-| 3.9 | Latest compatible | None |
+| 3.10 | OpenAI 2.0.0 and Pydantic 2.8.0 (declared floors) | None |
+| 3.10 | Latest compatible | None |
 | 3.11 | Latest compatible | None |
 | 3.14 | Latest compatible | None |
 | 3.11 | Latest compatible | google-genai |

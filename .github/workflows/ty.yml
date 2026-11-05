@@ -37,9 +37,9 @@ jobs:
         run: tests/typing/check_installed_package.sh
       - name: Check supported Python versions and platforms
         run: |
-          uv run --frozen ty check --python-version 3.9 --python-platform all --error-on-warning --output-format github instructor/
+          uv run --frozen ty check --python-version 3.10 --python-platform all --error-on-warning --output-format github instructor/
           uv run --frozen ty check --python-version 3.14 --python-platform all --error-on-warning --output-format github instructor/
       - name: Check tests on supported Python versions and platforms
         run: |
-          uv run --frozen ty check --config-file ty-tests.toml --python-version 3.9 --python-platform all --error-on-warning --output-format github tests
+          uv run --frozen ty check --config-file ty-tests.toml --python-version 3.10 --python-platform all --error-on-warning --output-format github tests
           uv run --frozen ty check --config-file ty-tests.toml --python-version 3.14 --python-platform all --error-on-warning --output-format github tests

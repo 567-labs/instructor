@@ -7,8 +7,6 @@ from decimal import Decimal
 from uuid import UUID
 from typing import Annotated, Union, Optional, Literal, Any
 from collections import OrderedDict
-import pytest
-import sys
 from pydantic import BaseModel, Field
 
 T = TypeVar("T")
@@ -36,14 +34,10 @@ class AdminUser(BaseModel):
 
 
 def test_new_union_types():
-    import sys
+    class Users(BaseModel):
+        users: list[AdminUser | User]
 
-    if sys.version_info >= (3, 10):
-
-        class Users(BaseModel):
-            users: list[AdminUser | User]
-
-        assert openai_schema(Users).model_json_schema() == Users.model_json_schema()
+    assert openai_schema(Users).model_json_schema() == Users.model_json_schema()
 
 
 def test_old_union_type():
@@ -108,7 +102,6 @@ def test_openai_schema_ordered_dict_mapping():
     assert openai_schema(TestModel).model_json_schema() == TestModel.model_json_schema()
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="requires python3.10 or higher")
 def test_openai_schema_supports_optional_none_310():
     class DummyWithOptionalNone(BaseModel):
         """
@@ -209,27 +202,13 @@ def test_literal_type():
 
 
 def test_str_any_dict():
-    import sys
+    class ChatResponse(BaseModel):
+        action_data: dict[str, Any] | None = Field(
+            default=None,
+            description="The required data for the action that will be performed.",
+        )
 
-    if sys.version_info >= (3, 10):
-
-        class ChatResponse(BaseModel):
-            action_data: dict[str, Any] | None = Field(
-                default=None,
-                description="The required data for the action that will be performed.",
-            )
-
-            content: str = Field(
-                description="A contextual response to the user's message."
-            )
-
-    else:
-
-        class ChatResponse(BaseModel):
-            action_data: Union[dict[str, Any], None] = Field(
-                default=None,
-                description="The required data for the action that will be performed.",
-            )
+        content: str = Field(description="A contextual response to the user's message.")
 
     assert (
         openai_schema(ChatResponse).model_json_schema()

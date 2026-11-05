@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-import sys
 from typing import Any, Union, cast
 
 import pytest
@@ -109,11 +108,10 @@ TASK_TYPE_CASES = [pytest.param(Union[Weather, GoogleSearch], id="typing-union")
 RESPONSE_MODEL_CASES = [
     pytest.param(Iterable[Union[Weather, GoogleSearch]], id="typing-union")
 ]
-if sys.version_info >= (3, 10):
-    TASK_TYPE_CASES.append(pytest.param(Weather | GoogleSearch, id="pep604-union"))
-    RESPONSE_MODEL_CASES.append(
-        pytest.param(Iterable[Weather | GoogleSearch], id="pep604-union")
-    )
+TASK_TYPE_CASES.append(pytest.param(Weather | GoogleSearch, id="pep604-union"))
+RESPONSE_MODEL_CASES.append(
+    pytest.param(Iterable[Weather | GoogleSearch], id="pep604-union")
+)
 
 
 @pytest.mark.parametrize(
@@ -140,7 +138,6 @@ def test_create_iterable_response_model_streams_union_members(
     assert list(prepared.tasks_from_chunks(UNION_CHUNKS)) == EXPECTED_UNION_TASKS
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 requires Python 3.10")
 def test_iterable_pep604_union_reports_unmatched_payload_as_value_error() -> None:
     iterable_model = cast(
         Any, IterableModel(cast(type[BaseModel], Weather | GoogleSearch))

@@ -1,19 +1,15 @@
 from __future__ import annotations
 from inspect import isclass
 import typing
-import types
 from pydantic import BaseModel, TypeAdapter, create_model
 from pydantic.errors import PydanticSchemaGenerationError
 from enum import Enum
 
 from instructor.v2.dsl.partial import Partial
 
-T = typing.TypeVar("T")
+from instructor.v2.core.utils import UNION_ORIGINS
 
-if hasattr(types, "UnionType"):
-    _UNION_ORIGINS = (typing.Union, types.UnionType)
-else:  # pragma: no cover - Python 3.9 has no PEP 604 union type
-    _UNION_ORIGINS = (typing.Union,)
+T = typing.TypeVar("T")
 
 
 def has_pydantic_schema(typehint: type) -> bool:
@@ -93,7 +89,7 @@ def is_simple_type(
                 # Special handling for Union types
                 inner_origin = typing.get_origin(inner_arg)
 
-                if inner_origin in _UNION_ORIGINS:
+                if inner_origin in UNION_ORIGINS:
                     return True
 
                 # Check if inner type is a BaseModel - if so, not a simple type
@@ -123,7 +119,7 @@ def is_simple_type(
             # Special handling for Union types
             inner_origin = typing.get_origin(inner_arg)
 
-            if inner_origin in _UNION_ORIGINS:
+            if inner_origin in UNION_ORIGINS:
                 return True
 
             # Preserve the legacy scalar-only rule for typing.Iterable origins.
@@ -148,7 +144,7 @@ def is_simple_type(
     if origin in {
         typing.Annotated,
         typing.Literal,
-        *_UNION_ORIGINS,
+        *UNION_ORIGINS,
         list,  # origin of List[T] is list
         dict,
         set,
