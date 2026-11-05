@@ -247,209 +247,43 @@ Call `extract` multiple times with the same argument, and the result will be cac
     1. The code is executed before the function is called
     2. The code is executed after the function is called
 
-## 2. `diskcache` for Persistent, Large Data Caching
+## 2. Persistent disk caching
 
-??? note "Copy Caching Code"
-
-    The same `instructor_cache` decorator works for both `diskcache` and `redis` caching. Copy the code below and use it for both examples.
-
-    ```python
-    import functools
-    import inspect
-    import diskcache
-
-    cache = diskcache.Cache('./my_cache_directory')  # (1)
-
-
-    def instructor_cache(func):
-        """Cache a function that returns a Pydantic model"""
-        return_type = inspect.signature(func).return_annotation
-        if not issubclass(return_type, BaseModel):  # (2)
-            raise ValueError("The return type must be a Pydantic model")
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            key = f"{func.__name__}-{functools._make_key(args, kwargs, typed=False)}"
-            # Check if the result is already cached
-            if (cached := cache.get(key)) is not None:
-                # Deserialize from JSON based on the return type
-                return return_type.model_validate_json(cached)
-
-            # Call the function and cache its result
-            result = func(*args, **kwargs)
-            serialized_result = result.model_dump_json()
-            cache.set(key, serialized_result)
-
-            return result
-
-        return wrapper
-    ```
-
-    1. We create a new `diskcache.Cache` instance to store the cached data. This will create a new directory called `my_cache_directory` in the current working directory.
-    2. We only want to cache functions that return a Pydantic model to simplify serialization and deserialization logic in this example code
-
-    Remember that you can change this code to support non-Pydantic models, or to use a different caching backend. More over, don't forget that this cache does not invalidate when the model changes, so you might want to encode the `Model.model_json_schema()` as part of the key.
-
-**When to Use**: Good for applications that need cache persistence between sessions or deal with large datasets. Use this when you want to reuse the same data across multiple sessions or store large amounts of data.
-
-```python hl_lines="10"
-import functools
-import inspect
-import instructor
-import diskcache
-from pydantic import BaseModel
-
-client = instructor.from_provider("openai/gpt-4.1-mini")
-cache = diskcache.Cache('./my_cache_directory')
-
-
-def instructor_cache(func):
-    """Cache a function that returns a Pydantic model"""
-    return_type = inspect.signature(func).return_annotation  # (4)
-    if not issubclass(return_type, BaseModel):  # (1)
-        raise ValueError("The return type must be a Pydantic model")
-
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        key = (
-            f"{func.__name__}-{functools._make_key(args, kwargs, typed=False)}"  #  (2)
-        )
-        # Check if the result is already cached
-        if (cached := cache.get(key)) is not None:
-            # Deserialize from JSON based on the return type (3)
-            return return_type.model_validate_json(cached)
-
-        # Call the function and cache its result
-        result = func(*args, **kwargs)
-        serialized_result = result.model_dump_json()
-        cache.set(key, serialized_result)
-
-        return result
-
-    return wrapper
-
-
-class UserDetail(BaseModel):
-    name: str
-    age: int
-
-
-@instructor_cache
-def extract(data) -> UserDetail:
-    return client.create(
-        response_model=UserDetail,
-        messages=[
-            {"role": "user", "content": data},
-        ],
-    )
-```
-
-1. We only want to cache functions that return a Pydantic model to simplify serialization and deserialization logic
-2. We use functool's `_make_key` to generate a unique key based on the function's name and arguments. This is important because we want to cache the result of each function call separately.
-3. We use Pydantic's `model_validate_json` to deserialize the cached result into a Pydantic model.
-4. We use `inspect.signature` to get the function's return type annotation, which we use to validate the cached result.
-
-**Benefits**: Reduces computation time for heavy data processing and provides disk-based caching for persistence.
-
-## 3. Redis Caching Decorator for Distributed Systems
-
-??? note "Copy Caching Code"
-
-    The same `instructor_cache` decorator works for both `diskcache` and `redis` caching. Copy the code below and use it for both examples.
-
-    ```python
-    import functools
-    import inspect
-    import redis
-
-    cache = redis.Redis("localhost")
-
-
-    def instructor_cache(func):
-        """Cache a function that returns a Pydantic model"""
-        return_type = inspect.signature(func).return_annotation
-        if not issubclass(return_type, BaseModel):
-            raise ValueError("The return type must be a Pydantic model")
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            key = f"{func.__name__}-{functools._make_key(args, kwargs, typed=False)}"
-            # Check if the result is already cached
-            if (cached := cache.get(key)) is not None:
-                # Deserialize from JSON based on the return type
-                return return_type.model_validate_json(cached)
-
-            # Call the function and cache its result
-            result = func(*args, **kwargs)
-            serialized_result = result.model_dump_json()
-            cache.set(key, serialized_result)
-
-            return result
-
-        return wrapper
-    ```
-
-    Remember that you can change this code to support non-Pydantic models, or to use a different caching backend. More over, don't forget that this cache does not invalidate when the model changes, so you might want to encode the `Model.model_json_schema()` as part of the key.
-
-**When to Use**: Good for distributed systems where multiple processes need to access cached data, or for applications that need fast read/write access and handle complex data structures.
+Use the same `DiskCache` directory for persistent storage. To share entries
+across clients serving the same account and endpoint, pass the same stable
+`cache_namespace` on each request.
 
 ```python
-import redis
-import functools
-import inspect
-import instructor
+from instructor import from_provider
+from instructor.cache import DiskCache
 
-from pydantic import BaseModel
-
-client = instructor.from_provider("openai/gpt-4.1-mini")
-cache = redis.Redis("localhost")
-
-
-def instructor_cache(func):
-    """Cache a function that returns a Pydantic model"""
-    return_type = inspect.signature(func).return_annotation
-    if not issubclass(return_type, BaseModel):  # (1)
-        raise ValueError("The return type must be a Pydantic model")
-
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        key = f"{func.__name__}-{functools._make_key(args, kwargs, typed=False)}"  # (2)
-        # Check if the result is already cached
-        if (cached := cache.get(key)) is not None:
-            # Deserialize from JSON based on the return type
-            return return_type.model_validate_json(cached)
-
-        # Call the function and cache its result
-        result = func(*args, **kwargs)
-        serialized_result = result.model_dump_json()
-        cache.set(key, serialized_result)
-
-        return result
-
-    return wrapper
-
-
-class UserDetail(BaseModel):
-    name: str
-    age: int
-
-
-@instructor_cache
-def extract(data) -> UserDetail:
-    # Assuming client.chat.completions.create returns a UserDetail instance
-    return client.create(
-        response_model=UserDetail,
-        messages=[
-            {"role": "user", "content": data},
-        ],
-    )
+cache = DiskCache("./my_cache_directory")
+client = from_provider("openai/gpt-4.1-mini", cache=cache)
+async_client = from_provider("openai/gpt-4.1-mini", async_client=True, cache=cache)
 ```
 
-1. We only want to cache functions that return a Pydantic model to simplify serialization and deserialization logic
-2. We use functool's `_make_key` to generate a unique key based on the function's name and arguments. This is important because we want to cache the result of each function call separately.
+## 3. Shared Redis caching
 
-**Benefits**: Scalable for large-scale systems, supports fast in-memory data storage and retrieval, and works with various data types.
+Implement `BaseCache.get` and `BaseCache.set` to store Instructor's serialized
+responses in Redis. Passing the TTL to Redis lets each request choose its expiry.
 
-!!! note "Same Decorator, Different Backend"
+```python
+from instructor import from_provider
+from instructor.cache import BaseCache
+from redis import Redis
 
-    The code above uses the same `instructor_cache` decorator as before. The implementation is the same, but it uses a different caching backend.
+
+class RedisCache(BaseCache):
+    def __init__(self, store):
+        self.store = store
+
+    def get(self, key):
+        return self.store.get(key)
+
+    def set(self, key, value, ttl=None):
+        self.store.set(key, value, ex=ttl)
+
+
+store = Redis(host="localhost", decode_responses=True)
+client = from_provider("openai/gpt-4.1-mini", cache=RedisCache(store))
+```

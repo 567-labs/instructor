@@ -1,38 +1,23 @@
-import redis
-import functools
-import inspect
-import instructor
+"""Store Instructor's serialized responses in Redis with per-request TTLs."""
+
+from typing import Any
 
 from pydantic import BaseModel
-from openai import OpenAI
+from redis import Redis
 
-client = instructor.from_openai(OpenAI())
-cache = redis.Redis("localhost")
+from instructor import from_provider
+from instructor.cache import BaseCache
 
 
-def instructor_cache(func):
-    """Cache a function that returns a Pydantic model"""
-    return_type = inspect.signature(func).return_annotation
-    if not issubclass(return_type, BaseModel):
-        raise ValueError("The return type must be a Pydantic model")
+class RedisCache(BaseCache):
+    def __init__(self, store: Redis) -> None:
+        self.store = store
 
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        key = f"{func.__name__}-{functools._make_key(args, kwargs, typed=False)}"
-        # Check if the result is already cached
-        if (cached := cache.get(key)) is not None:
-            # Deserialize from JSON based on the return type
-            if issubclass(return_type, BaseModel):
-                return return_type.model_validate_json(cached)
+    def get(self, key: str) -> Any:
+        return self.store.get(key)
 
-        # Call the function and cache its result
-        result = func(*args, **kwargs)
-        serialized_result = result.model_dump_json()
-        cache.set(key, serialized_result)
-
-        return result
-
-    return wrapper
+    def set(self, key: str, value: Any, ttl: int | None = None) -> None:
+        self.store.set(key, value, ex=ttl)
 
 
 class UserDetail(BaseModel):
@@ -40,35 +25,12 @@ class UserDetail(BaseModel):
     age: int
 
 
-@instructor_cache
-def extract(data) -> UserDetail:
-    # Assuming client.chat.completions.create returns a UserDetail instance
-    return client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        response_model=UserDetail,
-        messages=[
-            {"role": "user", "content": data},
-        ],
-    )
-
-
-def test_extract():
-    import time
-
-    start = time.perf_counter()
-    model = extract("Extract jason is 25 years old")
-    assert model.name.lower() == "jason"
-    assert model.age == 25
-    print(f"Time taken: {time.perf_counter() - start}")
-
-    start = time.perf_counter()
-    model = extract("Extract jason is 25 years old")
-    assert model.name.lower() == "jason"
-    assert model.age == 25
-    print(f"Time taken: {time.perf_counter() - start}")
-
-
 if __name__ == "__main__":
-    test_extract()
-    # Time taken: 0.798335583996959
-    # Time taken: 0.00017016706988215446
+    with Redis(host="localhost", decode_responses=True) as store:
+        client = from_provider("openai/gpt-4.1-mini", cache=RedisCache(store))
+        messages = [{"role": "user", "content": "Extract Jason is 25 years old."}]
+        first = client.create(
+            response_model=UserDetail, messages=messages, cache_ttl=3600
+        )
+        assert client.create(response_model=UserDetail, messages=messages) == first
+        print(first)
