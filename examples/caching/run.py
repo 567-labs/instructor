@@ -14,15 +14,14 @@ Run this example to see real-world performance improvements and cost savings.
 
 import asyncio
 import functools
-import hashlib
 import inspect
-import json
 import logging
 import time
 from collections import defaultdict
 from typing import Any, Callable, Optional, TypeVar
 
 import instructor
+from instructor.cache import DiskCache, make_cache_key
 from openai import AsyncOpenAI, OpenAI
 from pydantic import BaseModel, Field
 
@@ -110,17 +109,15 @@ metrics = CacheMetrics()
 
 
 def smart_cache_key(
-    func_name: str, args: tuple, kwargs: dict, model_class: type
+    func_name: str, args: tuple, kwargs: dict, model_class: type[BaseModel]
 ) -> str:
-    """Generate cache key with schema versioning for automatic invalidation"""
-    # Include model schema in cache key for automatic invalidation
-    schema_hash = hashlib.md5(
-        json.dumps(model_class.model_json_schema(), sort_keys=True).encode()
-    ).hexdigest()[:8]
-
-    args_hash = hashlib.md5(str((args, kwargs)).encode()).hexdigest()[:8]
-
-    return f"{func_name}:{schema_hash}:{args_hash}"
+    return make_cache_key(
+        namespace=func_name,
+        messages=args,
+        request_kwargs=kwargs,
+        model=None,
+        response_model=model_class,
+    )
 
 
 # 1. Simple functools.cache implementation
@@ -130,7 +127,7 @@ def extract_functools(data: str) -> UserDetail:
     start_time = time.perf_counter()
 
     result = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4.1-mini",
         response_model=UserDetail,
         messages=[
             {"role": "user", "content": data},
@@ -176,7 +173,7 @@ def monitored_functools_cache(func: F) -> F:
 def extract_functools_monitored(data: str) -> UserDetail:
     """functools.cache with monitoring"""
     return client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4.1-mini",
         response_model=UserDetail,
         messages=[
             {"role": "user", "content": data},
@@ -190,9 +187,7 @@ def create_diskcache_decorator(
 ):
     """Factory for diskcache decorator with enhanced features"""
     try:
-        import diskcache
-
-        cache = diskcache.Cache(cache_dir)
+        cache = DiskCache(cache_dir)
     except ImportError:
         logger.warning("diskcache not available, skipping disk cache example")
         return lambda func: func
@@ -215,21 +210,18 @@ def create_diskcache_decorator(
 
                 metrics.record_miss(func.__name__)
             except Exception as e:
-                metrics.record_error(func.__name__, str(e))
-                logger.warning(f"Cache read error: {e}")
+                metrics.record_error(func.__name__, type(e).__name__)
+                logger.warning("Cache read error (%s)", type(e).__name__)
 
             # Call the function and cache its result
             result = func(*args, **kwargs)
 
             try:
                 serialized_result = result.model_dump_json()
-                if ttl:
-                    cache.set(key, serialized_result, expire=ttl)
-                else:
-                    cache.set(key, serialized_result)
+                cache.set(key, serialized_result, ttl=ttl)
             except Exception as e:
-                metrics.record_error(func.__name__, str(e))
-                logger.warning(f"Cache write error: {e}")
+                metrics.record_error(func.__name__, type(e).__name__)
+                logger.warning("Cache write error (%s)", type(e).__name__)
 
             return result
 
@@ -242,7 +234,7 @@ def create_diskcache_decorator(
 def extract_diskcache(data: str) -> UserDetail:
     """Persistent disk-based caching with TTL"""
     return client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4.1-mini",
         response_model=UserDetail,
         messages=[
             {"role": "user", "content": data},
@@ -279,10 +271,9 @@ def create_redis_decorator(
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             # Generate cache key with schema versioning
-            schema_hash = hashlib.md5(
-                json.dumps(return_type.model_json_schema(), sort_keys=True).encode()
-            ).hexdigest()[:8]
-            key = f"{prefix}:{func.__name__}:{schema_hash}:{functools._make_key(args, kwargs, typed=False)}"
+            key = (
+                f"{prefix}:{smart_cache_key(func.__name__, args, kwargs, return_type)}"
+            )
 
             try:
                 # Check if the result is already cached
@@ -294,8 +285,8 @@ def create_redis_decorator(
                 metrics.record_miss(func.__name__)
                 logger.debug(f"Cache miss for key: {key}")
             except redis.RedisError as e:
-                metrics.record_error(func.__name__, str(e))
-                logger.warning(f"Redis read error: {e}")
+                metrics.record_error(func.__name__, type(e).__name__)
+                logger.warning("Redis read error (%s)", type(e).__name__)
 
             # Call the function and cache its result
             result = func(*args, **kwargs)
@@ -305,8 +296,8 @@ def create_redis_decorator(
                 cache.setex(key, ttl, serialized_result)
                 logger.debug(f"Cached result for key: {key}")
             except redis.RedisError as e:
-                metrics.record_error(func.__name__, str(e))
-                logger.warning(f"Redis write error: {e}")
+                metrics.record_error(func.__name__, type(e).__name__)
+                logger.warning("Redis write error (%s)", type(e).__name__)
 
             return result
 
@@ -319,7 +310,7 @@ def create_redis_decorator(
 def extract_redis(data: str) -> UserDetail:
     """Distributed Redis caching with error handling"""
     return client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4.1-mini",
         response_model=UserDetail,
         messages=[
             {"role": "user", "content": data},
@@ -332,7 +323,7 @@ def extract_no_cache(data: str) -> UserDetail:
     """Baseline function without caching"""
     metrics.record_miss("extract_no_cache")
     return client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4.1-mini",
         response_model=UserDetail,
         messages=[
             {"role": "user", "content": data},
@@ -354,7 +345,7 @@ def extract_l2(data: str) -> UserDetail:
 @create_redis_decorator()  # L3: Shared distributed
 def extract_l3(data: str) -> UserDetail:
     return client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4.1-mini",
         response_model=UserDetail,
         messages=[
             {"role": "user", "content": data},
@@ -463,7 +454,7 @@ async def run_async_example():
     async def extract_async(data: str) -> UserDetail:
         metrics.record_miss("extract_async")
         return await aclient.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4.1-mini",
             response_model=UserDetail,
             messages=[
                 {"role": "user", "content": data},
