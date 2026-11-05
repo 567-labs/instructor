@@ -424,3 +424,16 @@ def test_autodetect_safely_returns_source_str_for_missing_str() -> None:
         assert cls.autodetect_safely("/definitely/not/a/real/file.bin") == (
             "/definitely/not/a/real/file.bin"
         )
+
+
+@pytest.mark.parametrize("media_type", [Image, Audio, PDF])
+def test_remote_autodetection_preserves_transport_errors(monkeypatch, media_type):
+    failure = OSError("remote media connection failed")
+
+    def fail_request(source):
+        raise failure
+
+    monkeypatch.setattr(media_type, "autodetect", staticmethod(fail_request))
+    with pytest.raises(OSError) as exc:
+        media_type.autodetect_safely("https://example.com/media")
+    assert exc.value is failure
