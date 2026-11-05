@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
+- The OpenAI batch tutorial generates request files with `BatchProcessor.create_batch_from_messages`.
 - File-backed batch requests replace the destination after all records serialize. Failed writes preserve the previous batch.
 - OpenAI and Anthropic batch results that hit the token limit return an incomplete-output error, even when the partial JSON validates.
 - Anthropic batch requests omit an unset temperature and preserve explicit numeric values, including zero.
