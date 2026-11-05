@@ -55,10 +55,34 @@ from instructor.v2.core.handler import ModeHandler
 from instructor.v2.core.streaming import StreamingModelState
 
 
+def _first_choice_message(response: Any) -> Any | None:
+    """Return the first completion choice's message, if the response has one.
+
+    Some gateways return HTTP 200 with an empty ``choices`` list (for example
+    when a prompt is rejected by content filtering). There is no assistant
+    message to parse or replay in that case, so callers must treat it as a
+    retryable parse failure instead of indexing ``choices[0]``.
+    """
+    choices = getattr(response, "choices", None)
+    if not choices:
+        return None
+    return choices[0].message
+
+
 class MistralHandlerBase(StreamingModelState, ModeHandler):
     """Base class for Mistral handlers with shared utilities."""
 
     mode: Mode
+
+    def _require_choice_message(self, response: Any) -> Any:
+        message = _first_choice_message(response)
+        if message is None:
+            raise ResponseParsingError(
+                "No choices in Mistral response",
+                mode=self.mode.name,
+                raw_response=response,
+            )
+        return message
 
     def extract_streaming_json(
         self, completion: TypingIterable[Any]
@@ -177,7 +201,7 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
         Mistral returns tool call arguments as either a string or a dict,
         so we need to handle both cases.
         """
-        message = response.choices[0].message
+        message = self._require_choice_message(response)
         tool_calls = getattr(message, "tool_calls", None) or []
         if not tool_calls:
             # The model replied in prose instead of calling the tool (e.g.
@@ -196,7 +220,8 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
 
     def _extract_text_content(self, response: Any) -> str:
         """Extract text content from response."""
-        return response.choices[0].message.content or ""
+        message = self._require_choice_message(response)
+        return message.content or ""
 
 
 @register_mode_handler(Provider.MISTRAL, Mode.TOOLS)
@@ -258,10 +283,12 @@ class MistralToolsHandler(MistralHandlerBase):
     ) -> dict[str, Any]:
         """Handle reask for tools mode."""
         kwargs = kwargs.copy()
-        message = response.choices[0].message
-        reask_msgs: list[Any] = [dump_message(message)]
+        # With no completion choice there is no assistant message to replay;
+        # fall through to the plain user correction below.
+        message = _first_choice_message(response)
+        reask_msgs: list[Any] = [dump_message(message)] if message is not None else []
 
-        tool_calls = message.tool_calls or []
+        tool_calls = (message.tool_calls or []) if message is not None else []
         if not tool_calls:
             # The model answered in prose without calling the tool, so there is
             # no tool_call_id to attach a tool-role message to. Fall back to a
@@ -322,8 +349,9 @@ class MistralToolsHandler(MistralHandlerBase):
         if origin is TypingIterable:
             the_types = get_types_array(response_model)  # type: ignore[arg-type]
             type_registry = {generate_openai_schema(t)["name"]: t for t in the_types}
+            message = self._require_choice_message(response)
             results = []
-            for tool_call in response.choices[0].message.tool_calls or []:
+            for tool_call in message.tool_calls or []:
                 model_class = model_for_tool_name(
                     type_registry,
                     tool_call.function.name,
@@ -395,11 +423,20 @@ class MistralJSONSchemaHandler(MistralHandlerBase):
     ) -> dict[str, Any]:
         """Handle reask for JSON schema mode."""
         kwargs = kwargs.copy()
-        reask_msgs = [
-            {
-                "role": "assistant",
-                "content": response.choices[0].message.content,
-            },
+        # With no completion choice there is no assistant message to replay;
+        # append only the correction prompt.
+        message = _first_choice_message(response)
+        reask_msgs = (
+            [
+                {
+                    "role": "assistant",
+                    "content": message.content,
+                },
+            ]
+            if message is not None
+            else []
+        )
+        reask_msgs.append(
             {
                 "role": "user",
                 "content": (
@@ -407,7 +444,7 @@ class MistralJSONSchemaHandler(MistralHandlerBase):
                     "Recall the function correctly, fix the errors"
                 ),
             },
-        ]
+        )
         kwargs["messages"].extend(reask_msgs)
         return kwargs
 
@@ -516,11 +553,20 @@ class MistralMDJSONHandler(MistralHandlerBase):
     ) -> dict[str, Any]:
         """Handle reask for MD_JSON mode."""
         kwargs = kwargs.copy()
-        reask_msgs = [
-            {
-                "role": "assistant",
-                "content": response.choices[0].message.content,
-            },
+        # With no completion choice there is no assistant message to replay;
+        # append only the correction prompt.
+        message = _first_choice_message(response)
+        reask_msgs = (
+            [
+                {
+                    "role": "assistant",
+                    "content": message.content,
+                },
+            ]
+            if message is not None
+            else []
+        )
+        reask_msgs.append(
             {
                 "role": "user",
                 "content": (
@@ -528,7 +574,7 @@ class MistralMDJSONHandler(MistralHandlerBase):
                     "Recall the function correctly, fix the errors"
                 ),
             },
-        ]
+        )
         kwargs["messages"].extend(reask_msgs)
         return kwargs
 
