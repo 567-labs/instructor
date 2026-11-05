@@ -47,7 +47,6 @@ def test_multimodal_image_description(model, mode):
                 ],
             },
         ],
-        temperature=1,
         max_tokens=1000,
     )
 
@@ -77,7 +76,6 @@ def test_multimodal_image_description_autodetect(model, mode):
             },
         ],
         max_tokens=1000,
-        temperature=1,
         autodetect_images=True,
     )
 
@@ -112,7 +110,6 @@ def test_multimodal_image_description_autodetect_image_params(model, mode):
             },
         ],
         max_tokens=1000,
-        temperature=1,
         autodetect_images=True,
     )
 
@@ -154,7 +151,6 @@ def test_multimodal_image_description_autodetect_image_params_cache(model, mode)
             },
         ],
         max_tokens=1000,
-        temperature=1,
         autodetect_images=True,
     )
 
@@ -196,7 +192,6 @@ def test_multimodal_pdf_file(model, mode, pdf_source):
                 },
             ],
             max_tokens=1000,
-            temperature=0,  # Keep at 0 for consistent responses
             autodetect_images=False,
             response_model=Receipt,
         )

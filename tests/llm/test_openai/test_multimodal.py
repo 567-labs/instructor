@@ -1,4 +1,5 @@
 import pytest
+from tests.llm.test_openai.util import models
 from instructor.processing.multimodal import Image, Audio
 import instructor
 from pydantic import Field, BaseModel
@@ -17,7 +18,7 @@ pdf_path = os.path.join(curr_file, "../../assets/invoice.pdf")
 pdf_base64 = base64.b64encode(open(pdf_path, "rb").read()).decode("utf-8")
 pdf_base64_string = f"data:application/pdf;base64,{pdf_base64}"
 
-models = ["gpt-4.1-nano"]
+
 modes = [
     instructor.Mode.TOOLS,
 ]

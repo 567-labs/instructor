@@ -72,7 +72,12 @@ def test_absent_and_corrupt_reports_are_unknown(tmp_path: Path):
     assert "counts are unknown" in summarize(report)
 
 
-def test_cli_keeps_retry_evidence_and_hides_secret_values(tmp_path: Path):
+@pytest.mark.parametrize(
+    "credentials",
+    [{"CONTRACT_TEST_KEY": "private-key-value"}, {"HAS_CONTRACT_TEST_KEY": "true"}],
+    ids=["local-environment", "ci-presence-flag"],
+)
+def test_cli_keeps_retry_evidence_and_hides_secret_values(tmp_path: Path, credentials):
     summary = tmp_path / "summary.md"
     (tmp_path / "provider-evidence-initial.xml").write_text(
         '<testsuites><testsuite><testcase><failure message="private payload"/></testcase></testsuite></testsuites>'
@@ -90,7 +95,7 @@ def test_cli_keeps_retry_evidence_and_hides_secret_values(tmp_path: Path):
         env={
             **os.environ,
             "GITHUB_STEP_SUMMARY": str(summary),
-            "CONTRACT_TEST_KEY": "private-key-value",
+            **credentials,
             "PROVIDER_TEST_REQUIREMENTS": "CONTRACT_TEST_KEY",
         },
         capture_output=True,
