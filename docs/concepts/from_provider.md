@@ -398,4 +398,4 @@ The model string must be in format `"provider/model-name"`:
 - [Integrations](../integrations/index.md) - Provider-specific documentation
 - [Migration Guide](./migration.md) - Migrating from old patterns
 
-See [OpenAI-compatible provider clients](../integrations/compatible-provider-clients.md) for gateway endpoints, credential variables, and model-specific modes.
+See [OpenAI-compatible provider clients](../integrations/openai-compatible-gateways.md#built-in-provider-clients) for gateway endpoints, credential variables, and model-specific modes.
