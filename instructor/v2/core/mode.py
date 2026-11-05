@@ -118,6 +118,8 @@ class Mode(enum.Enum):
             cls.ANTHROPIC_JSON,
             cls.VERTEXAI_JSON,
             cls.GEMINI_JSON,
+            cls.GENAI_JSON,
+            cls.GENAI_STRUCTURED_OUTPUTS,
             cls.COHERE_JSON_SCHEMA,
             cls.CEREBRAS_JSON,
             cls.FIREWORKS_JSON,
