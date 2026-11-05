@@ -69,8 +69,15 @@ def process_message(
         return process_openai_message(message, context, apply_template)
 
     if isinstance(message.get("content"), list):
-        render_text_blocks(message["content"], context, apply_template, provider)
-        return message
+        if provider in _TEXT_BLOCK_TYPES:
+            render_text_blocks(message["content"], context, apply_template, provider)
+            return message
+
+        from instructor.v2.providers.anthropic.templating import (
+            process_message as process_anthropic_message,
+        )
+
+        return process_anthropic_message(message, context, apply_template)
 
     # Gemini Support
     if isinstance(message.get("parts"), list):
