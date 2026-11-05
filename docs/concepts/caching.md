@@ -91,6 +91,10 @@ If the underlying cache backend supports TTL (e.g. `DiskCache` does), the
 entry will be evicted after the specified duration.  For `AutoCache` the
 parameter is ignored.
 
+DiskCache stores strings, bytes, and JSON-compatible values directly in SQLite.
+It preserves TTLs and existing inline scalar entries. Older pickled or file-backed
+records become cache misses. Use a private directory for cached responses.
+
 ### Cache-key design
 
 The built-in cache uses `instructor.cache.make_request_cache_key` for the complete
