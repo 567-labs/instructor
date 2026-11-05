@@ -430,7 +430,7 @@ def test_autodetect_safely_returns_source_str_for_missing_str() -> None:
 def test_remote_autodetection_preserves_transport_errors(monkeypatch, media_type):
     failure = OSError("remote media connection failed")
 
-    def fail_request(source):
+    def fail_request(_source):
         raise failure
 
     monkeypatch.setattr(media_type, "autodetect", staticmethod(fail_request))
