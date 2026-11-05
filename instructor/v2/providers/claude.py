@@ -5,7 +5,9 @@ from __future__ import annotations
 import re
 
 
-def requires_auto_tool_choice(model: object, thinking: object) -> bool:
+def requires_auto_tool_choice(
+    model: object, thinking: dict[str, object] | None
+) -> bool:
     if isinstance(thinking, dict) and thinking.get("type") in ("enabled", "adaptive"):
         return True
     return (
