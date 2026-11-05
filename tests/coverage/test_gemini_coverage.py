@@ -128,6 +128,50 @@ class Completion:
         return self._text
 
 
+def test_tool_reask_handles_prose_and_later_function_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_legacy_types(monkeypatch)
+    prose = Completion(text="Prose reply", function_call=FunctionCall(name=""))
+    result = handlers.reask_gemini_tools(
+        {"contents": []}, prose, ValueError("bad schema")
+    )
+    assert result["contents"][0] == {"role": "model", "parts": ["Prose reply"]}
+    assert result["contents"][1]["role"] == "user"
+    assert "bad schema" in result["contents"][1]["parts"][0]
+
+    prose.parts.append(
+        Part(function_call=FunctionCall(name="Order", args={"value": 7}))
+    )
+    result = handlers.reask_gemini_tools(
+        {"contents": []}, prose, ValueError("bad schema")
+    )
+    assert [part["role"] for part in result["contents"]] == [
+        "model",
+        "function",
+        "user",
+    ]
+    assert result["contents"][0]["parts"][0].name == "Order"
+    assert result["contents"][1]["parts"][0].function_response.name == "Order"
+
+
+def test_reask_keeps_validation_feedback_when_response_properties_raise() -> None:
+    class Blocked:
+        @property
+        def parts(self):
+            raise ValueError("response blocked")
+
+        @property
+        def text(self):
+            raise ValueError("response blocked")
+
+    for reask in (handlers.reask_gemini_tools, handlers.reask_gemini_json):
+        result = reask({"contents": []}, Blocked(), ValueError("bad schema"))
+        assert len(result["contents"]) == 1
+        assert result["contents"][0]["role"] == "user"
+        assert "bad schema" in result["contents"][0]["parts"][0]
+
+
 def _install_legacy_types(monkeypatch: pytest.MonkeyPatch) -> None:
     class FunctionResponse:
         def __init__(self, *, name: str, response: dict[str, Any]) -> None:
