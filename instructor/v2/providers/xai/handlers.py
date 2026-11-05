@@ -15,6 +15,7 @@ from __future__ import annotations
 import inspect
 import json
 from textwrap import dedent
+from functools import partial
 from collections.abc import (
     AsyncGenerator,
     AsyncIterator,
@@ -171,7 +172,7 @@ class XAIHandlerBase(StreamingModelState, ModeHandler):
     mode: Mode
 
     def extract_streaming_json(
-        self, completion: TypingIterable[Any]
+        self, completion: TypingIterable[Any], *, single_model: bool = False
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from xAI streaming responses."""
 
@@ -210,12 +211,12 @@ class XAIHandlerBase(StreamingModelState, ModeHandler):
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
-            yield from extract_json_from_stream(raw_chunks)
+            yield from extract_json_from_stream(raw_chunks, single_model=single_model)
             return
         yield from raw_chunks
 
     async def extract_streaming_json_async(
-        self, completion: AsyncGenerator[Any, None]
+        self, completion: AsyncGenerator[Any, None], *, single_model: bool = False
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from xAI async streams."""
 
@@ -254,7 +255,9 @@ class XAIHandlerBase(StreamingModelState, ModeHandler):
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
-            async for chunk in extract_json_from_stream_async(raw_chunks):
+            async for chunk in extract_json_from_stream_async(
+                raw_chunks, single_model=single_model
+            ):
                 yield chunk
             return
         async for chunk in raw_chunks:
@@ -298,7 +301,9 @@ class XAIHandlerBase(StreamingModelState, ModeHandler):
             streaming_model = cast(Any, response_model)
             return streaming_model.from_streaming_response_async(
                 response,
-                stream_extractor=self.extract_streaming_json_async,
+                stream_extractor=partial(
+                    self.extract_streaming_json_async, single_model=True
+                ),
                 **parse_kwargs,
             )
 
@@ -323,7 +328,9 @@ class XAIHandlerBase(StreamingModelState, ModeHandler):
             streaming_model = cast(Any, response_model)
             generator = streaming_model.from_streaming_response(
                 response,
-                stream_extractor=self.extract_streaming_json,
+                stream_extractor=partial(
+                    self.extract_streaming_json, single_model=True
+                ),
                 **parse_kwargs,
             )
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):

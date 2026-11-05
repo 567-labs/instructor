@@ -27,7 +27,11 @@ from instructor.v2.providers.gemini.utils import (
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
 from instructor.v2.core.errors import ResponseParsingError
-from instructor.v2.core.json import extract_json_from_codeblock
+from instructor.v2.core.json import (
+    extract_json_from_codeblock,
+    extract_json_from_stream,
+    extract_json_from_stream_async,
+)
 
 
 def _response_text(response: Any) -> str | None:
@@ -234,16 +238,31 @@ class GeminiHandlerBase(ModeHandler):
             parse_kwargs["strict"] = strict
 
         streaming_model = cast(Any, response_model)
+        single_json = self.mode == Mode.MD_JSON and not issubclass(
+            response_model, IterableBase
+        )
         if inspect.isasyncgen(response) or isinstance(response, AsyncIterator):
             return streaming_model.from_streaming_response_async(
                 response,
-                stream_extractor=self.extract_streaming_json_async,
+                stream_extractor=(
+                    lambda events: extract_json_from_stream_async(
+                        self.extract_streaming_json_async(events), single_model=True
+                    )
+                )
+                if single_json
+                else self.extract_streaming_json_async,
                 **parse_kwargs,
             )
 
         generator = streaming_model.from_streaming_response(
             response,
-            stream_extractor=self.extract_streaming_json,
+            stream_extractor=(
+                lambda events: extract_json_from_stream(
+                    self.extract_streaming_json(events), single_model=True
+                )
+            )
+            if single_json
+            else self.extract_streaming_json,
             **parse_kwargs,
         )
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):

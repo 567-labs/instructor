@@ -422,7 +422,11 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
     mode: Mode
 
     def extract_streaming_json(
-        self, completion: TypingIterable[Any], response_tool_name: str | None = None
+        self,
+        completion: TypingIterable[Any],
+        response_tool_name: str | None = None,
+        *,
+        single_model: bool = False,
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from OpenAI-compatible streaming responses."""
 
@@ -462,7 +466,7 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
-            yield from extract_json_from_stream(raw_chunks)
+            yield from extract_json_from_stream(raw_chunks, single_model=single_model)
             return
         yield from raw_chunks
 
@@ -470,6 +474,8 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         self,
         completion: AsyncGenerator[Any, None],
         response_tool_name: str | None = None,
+        *,
+        single_model: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from OpenAI-compatible async streams."""
 
@@ -509,7 +515,9 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
-            async for chunk in extract_json_from_stream_async(raw_chunks):
+            async for chunk in extract_json_from_stream_async(
+                raw_chunks, single_model=single_model
+            ):
                 yield chunk
             return
         async for chunk in raw_chunks:
@@ -548,25 +556,27 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         except (TypeError, ValueError):
             pass
 
+        extractor_options: dict[str, Any] = {}
+        if self.mode == Mode.RESPONSES_TOOLS:
+            extractor_options["response_tool_name"] = response_model.__name__
+        elif self.mode == Mode.MD_JSON:
+            extractor_options["single_model"] = not issubclass(
+                response_model, IterableBase
+            )
+
         if inspect.isasyncgen(response) or isinstance(response, AsyncIterator):
             return streaming_model.from_streaming_response_async(
                 response,
                 stream_extractor=partial(
                     self.extract_streaming_json_async,
-                    response_tool_name=response_model.__name__,
-                )
-                if self.mode == Mode.RESPONSES_TOOLS
-                else self.extract_streaming_json_async,
+                    **extractor_options,
+                ),
                 **streaming_kwargs,
             )
 
         generator = streaming_model.from_streaming_response(
             response,
-            stream_extractor=partial(
-                self.extract_streaming_json, response_tool_name=response_model.__name__
-            )
-            if self.mode == Mode.RESPONSES_TOOLS
-            else self.extract_streaming_json,
+            stream_extractor=partial(self.extract_streaming_json, **extractor_options),
             **streaming_kwargs,
         )
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):

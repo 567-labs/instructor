@@ -17,6 +17,8 @@ Field level streaming provides incremental snapshots of the current state of the
 
 Instructor supports this pattern by making use of `create_partial`. This lets us dynamically create a new class that treats all of the original model's fields as `Optional`.
 
+When a text response can contain several JSON values, single-model Markdown JSON parsing selects the last complete object or array after the stream ends. Iterable responses continue to yield multiple items.
+
 ## Understanding Partial Responses
 
 Consider what happens whene we define a response model:
