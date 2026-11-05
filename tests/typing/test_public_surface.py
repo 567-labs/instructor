@@ -30,6 +30,7 @@ from instructor.v2.providers.openai.client import (
     from_deepseek,
     from_openai,
     from_together,
+    from_zai,
 )
 
 if TYPE_CHECKING:
@@ -254,6 +255,10 @@ def check_provider_factories(
     assert_type(from_fireworks(fireworks_sync), Instructor)
     assert_type(from_groq(groq_sync), Instructor)
     assert_type(from_groq(groq_async), AsyncInstructor)
+    assert_type(from_zai("model"), Instructor)
+    assert_type(from_zai("model", async_client=True), AsyncInstructor)
+    assert_type(from_zai(openai_sync), Instructor)
+    assert_type(from_zai(openai_async), AsyncInstructor)
     assert_type(from_openrouter(openai_sync), Instructor)
     assert_type(from_openrouter(openai_async), AsyncInstructor)
     assert_type(from_perplexity(openai_sync), Instructor)

@@ -155,7 +155,7 @@ def test_build_databricks_normalizes_base_url_and_forwards_client_kwargs(
             async_client=False,
             mode=None,
             api_key=None,
-            kwargs={"timeout": 10, "custom": "value"},
+            kwargs={"timeout": 10, "max_retries": 4, "custom": "value"},
             provider_info={"provider": "databricks", "operation": "initialize"},
         ),
     )
@@ -169,6 +169,8 @@ def test_build_databricks_normalizes_base_url_and_forwards_client_kwargs(
         == "https://workspace.databricks.com/serving-endpoints"
     )
     assert seen["client_kwargs"]["timeout"] == 10
+    assert seen["client_kwargs"]["max_retries"] == 4
+    assert "max_retries" not in result["kwargs"]
 
 
 def test_build_bedrock_chooses_default_mode_from_model_name(

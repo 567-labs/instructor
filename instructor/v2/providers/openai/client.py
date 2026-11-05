@@ -6,7 +6,7 @@ Creates Instructor instances using v2 hierarchical registry system.
 from __future__ import annotations
 
 from functools import partial
-from typing import Any, Literal, overload
+from typing import Any, Literal, Protocol, cast, overload
 
 import openai
 
@@ -530,9 +530,10 @@ def from_deepseek(
     )
 
 
-def _gateway_factory(provider: Provider):
+class _GatewayFactory(Protocol):
     @overload
-    def factory(
+    def __call__(
+        self,
         model_or_client: openai.AsyncOpenAI,
         mode: Mode | None = None,
         *,
@@ -541,7 +542,8 @@ def _gateway_factory(provider: Provider):
     ) -> AsyncInstructor: ...
 
     @overload
-    def factory(
+    def __call__(
+        self,
         model_or_client: openai.OpenAI,
         mode: Mode | None = None,
         *,
@@ -550,7 +552,8 @@ def _gateway_factory(provider: Provider):
     ) -> Instructor: ...
 
     @overload
-    def factory(
+    def __call__(
+        self,
         model_or_client: str,
         mode: Mode | None = None,
         *,
@@ -559,7 +562,8 @@ def _gateway_factory(provider: Provider):
     ) -> AsyncInstructor: ...
 
     @overload
-    def factory(
+    def __call__(
+        self,
         model_or_client: str,
         mode: Mode | None = None,
         *,
@@ -568,7 +572,8 @@ def _gateway_factory(provider: Provider):
     ) -> Instructor: ...
 
     @overload
-    def factory(
+    def __call__(
+        self,
         model_or_client: str,
         mode: Mode | None = None,
         *,
@@ -576,6 +581,8 @@ def _gateway_factory(provider: Provider):
         **kwargs: Any,
     ) -> Instructor | AsyncInstructor: ...
 
+
+def _gateway_factory(provider: Provider) -> _GatewayFactory:
     def factory(
         model_or_client: str | openai.OpenAI | openai.AsyncOpenAI,
         mode: Mode | None = None,
@@ -603,7 +610,7 @@ def _gateway_factory(provider: Provider):
 
     factory.__name__ = f"from_{provider.value}"
     factory.__doc__ = f"Create a {provider.value} Instructor client from a model name or an OpenAI SDK client."
-    return factory
+    return cast(_GatewayFactory, factory)
 
 
 from_zhipuai = _gateway_factory(Provider.ZHIPUAI)
