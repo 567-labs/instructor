@@ -34,7 +34,7 @@ from instructor.v2.core.errors import (
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import (
     ParallelBase as ParallelBase,
-    get_types_array,
+    ParallelModel,
     model_for_tool_name,
 )
 from instructor.v2.dsl.simple_type import AdapterBase as AdapterBase
@@ -260,7 +260,7 @@ class MistralToolsHandler(MistralHandlerBase):
 
         if is_parallel:
             # Handle parallel model - generate tools for each type
-            the_types = get_types_array(cast(Any, response_model))
+            the_types = ParallelModel(cast(Any, response_model)).models
             tools = []
             for model_type in the_types:
                 schema = generate_openai_schema(model_type)
@@ -347,8 +347,9 @@ class MistralToolsHandler(MistralHandlerBase):
         # Handle parallel tools (Iterable[Union[...]])
         origin = get_origin(response_model)
         if origin is TypingIterable:
-            the_types = get_types_array(response_model)  # type: ignore[arg-type]
-            type_registry = {generate_openai_schema(t)["name"]: t for t in the_types}
+            type_registry: dict[str, type[BaseModel]] = ParallelModel(
+                cast(Any, response_model)
+            ).registry
             message = self._require_choice_message(response)
             results = []
             for tool_call in message.tool_calls or []:

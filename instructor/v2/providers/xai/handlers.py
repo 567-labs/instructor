@@ -39,7 +39,6 @@ from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import (
     ParallelBase as ParallelBase,
     ParallelModel,
-    get_types_array,
     handle_parallel_model,
     model_for_tool_name,
 )
@@ -486,10 +485,9 @@ class XAIParallelToolsHandler(XAIHandlerBase):
         is_async: bool = False,  # noqa: ARG002
     ) -> Any:
         """Parse parallel tool calls from xAI."""
-        the_types = get_types_array(response_model)  # type: ignore[arg-type]
-        type_registry = {
-            model.model_json_schema()["title"]: model for model in the_types
-        }
+        type_registry: dict[str, type[BaseModel]] = ParallelModel(
+            cast(Any, response_model)
+        ).registry
 
         results = []
         for tool_call in getattr(response, "tool_calls", []) or []:
