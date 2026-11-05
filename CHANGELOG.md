@@ -13,6 +13,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
 - Explicit async validation visits set and frozenset items and reports validation failures from every item in a container.
 - The OpenAI batch tutorial generates request files with `BatchProcessor.create_batch_from_messages`.
+- Iterable streams scan each chunk once, preserve interleaved tool-call boundaries, report truncated items, and close the provider stream. Markdown streams prefer fenced JSON and retain all bare objects when no fence appears.
 - File-backed batch requests replace the destination after all records serialize. Failed writes preserve the previous batch.
 - OpenAI batch request failures preserve string error messages and report HTTP status codes when an error body is missing.
 - OpenAI and Anthropic batch results that hit the token limit return an incomplete-output error, even when the partial JSON validates.
@@ -27,7 +28,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Request preparation logs only the mode and response model, keeping provider credentials and custom authentication headers out of debug records.
 - OpenAI batch retrieval can download available records from expired batches, and the file and fine-tuning commands stop when uploaded files fail processing.
 - Parallel tools dispatch by their declared provider names and reject ambiguous names before sending a request.
-- Iterable streams scan each chunk once, preserve interleaved tool-call boundaries, report truncated items, and close the provider stream. Markdown streams prefer fenced JSON and retain all bare objects when no fence appears.
 - Gemini MD_JSON now prepares requests without changing the caller’s messages or nested content lists. ([#2716](https://github.com/567-labs/instructor/issues/2716))
 - Gemini retries preserve validation feedback when a response is blocked, empty, or contains prose instead of a tool call.
 - Bedrock tool modes now preserve the caller’s explicit tool choice and still force the response-model tool by default. ([#2775](https://github.com/567-labs/instructor/pull/2775))
