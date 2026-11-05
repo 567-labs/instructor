@@ -69,6 +69,8 @@ def provider_from_mode(mode: Mode, default: Provider = Provider.OPENAI) -> Provi
         Mode.BEDROCK_JSON: Provider.BEDROCK,
         Mode.PERPLEXITY_JSON: Provider.PERPLEXITY,
         Mode.OPENROUTER_STRUCTURED_OUTPUTS: Provider.OPENROUTER,
+        Mode.AZURE_TOOLS: Provider.AZURE_OPENAI,
+        Mode.AZURE_JSON: Provider.AZURE_OPENAI,
     }
     return mapping.get(mode, default)
 

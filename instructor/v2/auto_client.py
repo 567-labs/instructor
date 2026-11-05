@@ -330,7 +330,7 @@ def _build_azure_openai(
     try:
         import os
         from openai import AzureOpenAI, AsyncAzureOpenAI
-        from instructor.v2.providers.openai.client import from_openai
+        from instructor.v2.providers.azure.client import from_azure
 
         # Get required Azure OpenAI configuration from environment
         api_key = api_key or os.environ.get("AZURE_OPENAI_API_KEY")
@@ -339,7 +339,17 @@ def _build_azure_openai(
         )
         api_version = kwargs.pop("api_version", "2024-02-01")
 
-        if not api_key:
+        sdk_options = {
+            name: kwargs.pop(name)
+            for name in ("azure_ad_token", "azure_ad_token_provider", "http_client")
+            if name in kwargs
+        }
+        if not (
+            api_key
+            or sdk_options.get("azure_ad_token")
+            or sdk_options.get("azure_ad_token_provider")
+            or os.environ.get("AZURE_OPENAI_AD_TOKEN")
+        ):
             from instructor.v2.core.errors import ConfigurationError
 
             raise ConfigurationError(
@@ -360,15 +370,17 @@ def _build_azure_openai(
                 api_key=api_key,
                 api_version=api_version,
                 azure_endpoint=azure_endpoint,
+                **sdk_options,
             )
             if async_client
             else AzureOpenAI(
                 api_key=api_key,
                 api_version=api_version,
                 azure_endpoint=azure_endpoint,
+                **sdk_options,
             )
         )
-        result = from_openai(
+        result = from_azure(
             client,
             model=model_name,
             mode=mode if mode else Mode.TOOLS,
@@ -1573,6 +1585,7 @@ _PROVIDER_BUILDERS: dict[str, ProviderBuilder] = {
     "openai": _build_openai,
     "anyscale": _build_anyscale,
     "together": _build_together,
+    "azure": _build_azure_openai,
     "azure_openai": _build_azure_openai,
     "databricks": _build_databricks,
     "anthropic": _build_anthropic,

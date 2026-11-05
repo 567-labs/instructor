@@ -45,6 +45,7 @@ if TYPE_CHECKING:
     from .v2.providers.cohere.client import from_cohere as from_cohere
     from .v2.providers.fireworks.client import from_fireworks as from_fireworks
     from .v2.providers.gemini.client import from_gemini as from_gemini
+    from .v2.providers.azure.client import from_azure as from_azure
     from .v2.providers.genai.client import from_genai as from_genai
     from .v2.providers.groq.client import from_groq as from_groq
     from .v2.providers.litellm.client import from_litellm as from_litellm
@@ -157,6 +158,7 @@ _LAZY_IMPORTS: dict[str, tuple[str, str | None]] = {
     "from_writer": (".v2.providers.writer.client", "from_writer"),
     "from_xai": (".v2.providers.xai.client", "from_xai"),
     "from_perplexity": (".v2.providers.perplexity.client", "from_perplexity"),
+    "from_azure": (".v2.providers.azure.client", "from_azure"),
     "from_genai": (".v2.providers.genai.client", "from_genai"),
 }
 
@@ -188,4 +190,5 @@ _add_optional_export("from_bedrock", "boto3")
 _add_optional_export("from_writer", "writerai")
 _add_optional_export("from_xai", "xai_sdk")
 _add_optional_export("from_perplexity", "openai")
+_add_optional_export("from_azure", "openai")
 _add_optional_export("from_genai", "google", "google.genai")
