@@ -100,6 +100,62 @@ def test_responses_tools_none_model_no_text() -> None:
     assert "text" not in kwargs
 
 
+def test_responses_tools_preserves_caller_tools_and_omits_forced_tool_choice() -> None:
+    caller_tools = [
+        {"type": "code_interpreter", "container": {"type": "auto"}},
+        {"type": "web_search_preview"},
+    ]
+    _, kwargs = OpenAIResponsesToolsHandler().prepare_request(
+        ResponseToolModel,
+        {"tools": caller_tools},
+    )
+
+    assert len(kwargs["tools"]) == 3
+    assert kwargs["tools"][0] == caller_tools[0]
+    assert kwargs["tools"][1] == caller_tools[1]
+    assert kwargs["tools"][2]["type"] == "function"
+    assert kwargs["tools"][2]["name"] == "ResponseToolModel"
+    assert "tool_choice" not in kwargs
+
+
+def test_responses_tools_preserves_explicit_tool_choice_with_caller_tools() -> None:
+    caller_tools = [{"type": "code_interpreter"}]
+    _, kwargs = OpenAIResponsesToolsHandler().prepare_request(
+        ResponseToolModel,
+        {"tools": caller_tools, "tool_choice": "auto"},
+    )
+
+    assert len(kwargs["tools"]) == 2
+    assert kwargs["tools"][0] == caller_tools[0]
+    assert kwargs["tools"][1]["name"] == "ResponseToolModel"
+    assert kwargs["tool_choice"] == "auto"
+
+
+def test_responses_tools_preserves_explicit_tool_choice_without_caller_tools() -> None:
+    _, kwargs = OpenAIResponsesToolsHandler().prepare_request(
+        ResponseToolModel,
+        {"tool_choice": "none"},
+    )
+
+    assert len(kwargs["tools"]) == 1
+    assert kwargs["tools"][0]["name"] == "ResponseToolModel"
+    assert kwargs["tool_choice"] == "none"
+
+
+def test_responses_tools_defaults_to_forced_tool_choice_when_no_caller_tools() -> None:
+    _, kwargs = OpenAIResponsesToolsHandler().prepare_request(
+        ResponseToolModel,
+        {},
+    )
+
+    assert len(kwargs["tools"]) == 1
+    assert kwargs["tools"][0]["name"] == "ResponseToolModel"
+    assert kwargs["tool_choice"] == {
+        "type": "function",
+        "name": "ResponseToolModel",
+    }
+
+
 def _make_mock_response(arguments: str | None) -> MagicMock:
     tool_call = MagicMock()
     tool_call.type = "function_call"

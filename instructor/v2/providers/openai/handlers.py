@@ -1094,11 +1094,18 @@ class OpenAIResponsesToolsHandler(OpenAIHandlerBase):
                 f"the required parameters with correct types"
             )
 
-        new_kwargs["tools"] = [tool_definition]
-        new_kwargs["tool_choice"] = {
-            "type": "function",
-            "name": schema["function"]["name"],
-        }
+        caller_tools = list(kwargs.get("tools") or [])
+        if caller_tools:
+            new_kwargs["tools"] = [*caller_tools, tool_definition]
+            if "tool_choice" not in kwargs:
+                new_kwargs.pop("tool_choice", None)
+        else:
+            new_kwargs["tools"] = [tool_definition]
+            if "tool_choice" not in kwargs:
+                new_kwargs["tool_choice"] = {
+                    "type": "function",
+                    "name": schema["function"]["name"],
+                }
         _ensure_text_format_config(
             new_kwargs,
             prepared_model,
