@@ -31,7 +31,7 @@ Over the past 10 months, we've enjoyed healthy growth with over 4000+ github sta
 
 ![downloads](./img/downloads.png)
 
-## Whats new?
+## What's new?
 
 Honestly, nothing much, the simplest change you'll need to make is to replace `instructor.patch` with `instructor.from_openai`.
 
@@ -85,7 +85,7 @@ user: User = client.create(
 
 ## Type are inferred correctly
 
-This was the dream of instructor but due to the patching of openai, it wasnt possible for me to get typing to work well. Now, with the new client, we can get typing to work well! We've also added a few `create_*` methods to make it easier to create iterables and partials, and to access the original completion.
+This was the dream of instructor but due to the patching of openai, it wasn't possible for me to get typing to work well. Now, with the new client, we can get typing to work well! We've also added a few `create_*` methods to make it easier to create iterables and partials, and to access the original completion.
 
 ### Calling `create`
 
