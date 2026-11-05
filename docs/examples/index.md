@@ -112,6 +112,7 @@ Our cookbooks demonstrate how to use Instructor to solve real-world problems wit
 | [Source-grounded claims and product facts](product_fact_provenance.md) | Validate extracted evidence against its source | Extraction and review |
 | [Cost Optimization with Batch API](batch_job_oai.md) | Reduce API costs | Production efficiency |
 | [Few-Shot Learning](examples.md) | Use contextual examples in prompts | Performance tuning |
+| [Persistent memory with Dakera](persistent_memory_dakera.md) | Recall scoped statements and store confirmed quotes | Stateful applications |
 
 ### Observability & Tracing
 
