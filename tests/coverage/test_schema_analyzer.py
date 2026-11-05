@@ -373,3 +373,29 @@ def test_tuple_and_dictionary_values_are_analyzed():
     report = analyze_schema(Container)
     assert report.total_fields == 3
     assert report.max_depth == 3
+
+
+def test_provider_independent_schema_hints():
+    from instructor.v2.core.schema_analyzer import SchemaAnalysis
+
+    assert SchemaAnalysis().recommended_mode is None
+    assert SchemaAnalysis(max_depth=5).recommended_mode == "JSON_SCHEMA"
+    wide = SchemaAnalysis(total_fields=50, max_depth=5, estimated_token_overhead=1800)
+    assert wide.recommended_mode == "JSON_SCHEMA"
+
+
+def test_boolean_items_and_missing_local_references(monkeypatch):
+    class Container(BaseModel):
+        pass
+
+    monkeypatch.setattr(
+        Container,
+        "model_json_schema",
+        lambda: {
+            "type": "array",
+            "prefixItems": [True, {"$ref": "#/$defs/Absent"}],
+        },
+    )
+    report = analyze_schema(Container)
+    assert report.max_depth == 1
+    assert report.total_fields == 0
