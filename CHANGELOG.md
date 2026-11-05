@@ -21,6 +21,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Anthropic tool mode uses automatic choice for requested thinking and models that reject forced tool use.
 - Message templating now renders Bedrock Converse text, Anthropic system blocks and OpenAI Responses input text.
 - Sync and async response helpers now log raw provider responses only when DEBUG is enabled and `INSTRUCTOR_LOG_RAW_RESPONSES=1` is set.
+- Distillation resolves quoted model return types. Distillation and LLM validators default to gpt-4.1-mini.
 - Image, PDF and audio data URIs accept case-insensitive media types and optional parameters. Audio MIME aliases are normalized consistently across input sources.
 - Request preparation logs only the mode and response model, keeping provider credentials and custom authentication headers out of debug records.
 - Parallel tools dispatch by their declared provider names and reject ambiguous names before sending a request.

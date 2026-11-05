@@ -24,6 +24,10 @@ Replicating the behavior of a Python function in a language model involves intri
 
 By using `Instructions`, you can annotate a Python function that returns a Pydantic object, thereby automating the dataset creation for fine-tuning. A handler for logging is all that's needed to build this dataset.
 
+Return annotations can also be quoted model names or use `from __future__ import annotations`.
+String annotations are resolved when the decorator runs, so their referenced types must be
+available in the function's module. This works in both `distil` and `dispatch` modes.
+
 ## How to Implement `Instructions` in Your Code
 
 ## Quick Start: How to Use Instructor's Distillation Feature

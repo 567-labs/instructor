@@ -13,7 +13,7 @@ def llm_validator(
     statement: str,
     client: Instructor,
     allow_override: bool = False,
-    model: str = "gpt-3.5-turbo",
+    model: str = "gpt-4.1-mini",
     temperature: float = 0,
 ) -> Callable[[str], str]:
     """Create a validator that uses an LLM to validate an attribute.
