@@ -86,7 +86,7 @@ class OpenAIProvider(BatchProvider):
             raise Exception(f"Failed to get OpenAI batch status: {e}") from e
 
     def _get_results_text(self, batch_id: str) -> str:
-        """Return success and error records for a completed OpenAI batch."""
+        """Return success and error records for a completed or expired OpenAI batch."""
         from openai import OpenAI
         from openai.types import Batch
         import time
@@ -94,7 +94,8 @@ class OpenAIProvider(BatchProvider):
         client = OpenAI()
         batch = client.batches.retrieve(batch_id)
 
-        if batch.status != "completed":
+        result_statuses = {"completed", "expired"}
+        if batch.status not in result_statuses:
             raise Exception(f"Batch not completed, status: {batch.status}")
 
         def files_ready(batch: Batch) -> bool:
@@ -116,7 +117,7 @@ class OpenAIProvider(BatchProvider):
                 )
                 time.sleep(wait_time)
                 batch = client.batches.retrieve(batch_id)
-                if batch.status != "completed":
+                if batch.status not in result_statuses:
                     raise Exception(
                         f"Batch status changed to {batch.status} while waiting for result files"
                     )
