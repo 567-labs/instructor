@@ -59,19 +59,22 @@ def clear_schema_cache():
 def test_generated_classes_are_collectible(input_model: Any, with_schema: bool):
     capacity = generate_openai_schema.cache_info().maxsize
     assert capacity is not None
-    refs = []
+    refs: dict[weakref.ReferenceType, None] = {}
     for _ in range(capacity + 10 if with_schema else 10):
         prepared = prepare_response_model(input_model)
         assert prepared is not None
-        refs.append(weakref.ref(prepared))
+        refs[weakref.ref(prepared)] = None
         if with_schema:
             generate_openai_schema(prepared)
     del prepared
     gc.collect()
-    # Schema generation intentionally retains only the most recent cache entries.
-    assert sum(ref() is not None for ref in refs) == (capacity if with_schema else 0)
+    # Count distinct live classes: repeated requests may reuse one wrapper.
+    # The schema cache retains at most its capacity and releases every wrapper on clear.
+    assert sum(ref() is not None for ref in refs) == (
+        min(len(refs), capacity) if with_schema else 0
+    )
     if with_schema:
-        assert all(ref() is None for ref in refs[:10])
+        assert all(ref() is None for ref in list(refs)[:-capacity])
     generate_openai_schema.cache_clear()
     gc.collect()
     assert all(ref() is None for ref in refs)
