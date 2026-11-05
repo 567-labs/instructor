@@ -8,6 +8,7 @@ from openai import OpenAI
 from pydantic import (
     AfterValidator,
     BaseModel,
+    ConfigDict,
     ValidationError,
     ValidationInfo,
     field_validator,
@@ -15,6 +16,7 @@ from pydantic import (
 
 import instructor.v2 as instructor_v2
 from instructor.v2.core.client import Instructor
+from instructor.v2.core.errors import AsyncValidationError
 from instructor.v2.core.validators import Validator
 from instructor.v2.validation import (
     ASYNC_MODEL_VALIDATOR_KEY,
@@ -25,6 +27,8 @@ from instructor.v2.validation import (
     llm_validator,
     openai_moderation,
 )
+
+from instructor.v2.validation.async_validators import run_async_validators
 
 
 class ValidationInput(BaseModel):
@@ -107,6 +111,94 @@ async def test_async_model_validators_keep_callable_and_use_pydantic_context():
     original, needs_info = getattr(uppercase, ASYNC_MODEL_VALIDATOR_KEY)
     assert (original, needs_info) == (uppercase, False)
     assert (await uppercase(payload)).value == "HELLO"
+
+
+@pytest.mark.asyncio
+async def test_set_container_transformations_preserve_type_and_original() -> None:
+    class HashableOrdered(BaseModel):
+        model_config = ConfigDict(frozen=True)
+
+        value: str
+
+        @async_field_validator("value")
+        async def transform(cls, value: str) -> str:
+            return f"validated:{value}"
+
+    class Parent(BaseModel):
+        mutable: set[HashableOrdered]
+        immutable: frozenset[HashableOrdered]
+
+    original = Parent(
+        mutable={HashableOrdered(value="a")},
+        immutable=frozenset({HashableOrdered(value="b")}),
+    )
+    result = await run_async_validators(original, context=None)
+
+    assert isinstance(result.mutable, set)
+    assert isinstance(result.immutable, frozenset)
+    assert {item.value for item in result.mutable} == {"validated:a"}
+    assert {item.value for item in result.immutable} == {"validated:b"}
+    assert {item.value for item in original.mutable} == {"a"}
+    assert {item.value for item in original.immutable} == {"b"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("container", [list, tuple, dict, set, frozenset])
+async def test_container_validation_collects_errors_from_every_item(
+    container: type,
+) -> None:
+    class Rejected(BaseModel):
+        model_config = ConfigDict(frozen=True)
+
+        value: str
+
+        @async_model_validator()
+        async def reject(self) -> "Rejected":
+            raise ValueError(f"Rejected {self.value}")
+
+    items = [Rejected(value="first"), Rejected(value="second")]
+    value = dict(enumerate(items)) if container is dict else container(items)
+    with pytest.raises(AsyncValidationError) as error:
+        await run_async_validators(value, context=None)
+
+    messages = [str(item) for item in error.value.errors]
+    if container in (set, frozenset):
+        messages.sort()
+    assert messages == ["Rejected first", "Rejected second"]
+
+
+@pytest.mark.asyncio
+async def test_nested_errors_are_collected_across_model_fields() -> None:
+    class Rejected(BaseModel):
+        value: str
+
+        @async_model_validator()
+        async def reject(self) -> "Rejected":
+            raise ValueError(f"Rejected {self.value}")
+
+    class Parent(BaseModel):
+        children: dict[str, tuple[Rejected, list[Rejected]]]
+        sibling: Rejected
+
+    value = Parent(
+        children={
+            "group": (
+                Rejected(value="first"),
+                [Rejected(value="second"), Rejected(value="third")],
+            )
+        },
+        sibling=Rejected(value="fourth"),
+    )
+
+    with pytest.raises(AsyncValidationError, match="Rejected first") as error:
+        await run_async_validators(value, context=None)
+
+    assert [str(item) for item in error.value.errors] == [
+        "Rejected first",
+        "Rejected second",
+        "Rejected third",
+        "Rejected fourth",
+    ]
 
 
 def test_async_model_validator_rejects_invalid_signatures():
