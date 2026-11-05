@@ -141,6 +141,67 @@ def test_remote_media_types_ignore_http_parameters(
     assert pdf.media_type == "application/pdf"
 
 
+def test_is_base64_accepts_optional_data_uri_parameters() -> None:
+    # RFC 2397 data URIs may carry media-type parameters before ;base64.
+    # is_base64 must still classify them so autodetect routes to from_base64.
+    image_uri = "data:image/png;charset=utf-8;name=photo.png;base64,aW1hZ2U="
+    pdf_uri = "data:application/pdf;name=report.pdf;base64,JVBERi0="
+
+    assert Image.is_base64(image_uri)
+    assert PDF.is_base64(pdf_uri)
+    # Plain form without parameters still matches.
+    assert Image.is_base64("data:image/png;base64,aW1hZ2U=")
+    assert PDF.is_base64("data:application/pdf;base64,JVBERi0=")
+    # Non-base64 or wrong type stay rejected.
+    assert not Image.is_base64("data:image/png;charset=utf-8,aW1hZ2U=")
+    assert not PDF.is_base64("data:application/json;base64,e30=")
+
+
+def test_autodetect_media_keeps_data_uris_with_parameters() -> None:
+    image_uri = "data:image/png;charset=utf-8;name=photo.png;base64,aW1hZ2U="
+    pdf_uri = "data:application/pdf;name=report.pdf;base64,JVBERi0="
+
+    image = autodetect_media(image_uri)
+    pdf = autodetect_media(pdf_uri)
+
+    assert isinstance(image, Image)
+    assert image.media_type == "image/png"
+    assert image.data == "aW1hZ2U="
+    assert isinstance(pdf, PDF)
+    assert pdf.media_type == "application/pdf"
+    assert pdf.data == "JVBERi0="
+
+
+def test_convert_messages_autodetects_data_uri_with_parameters() -> None:
+    # Real producer path: convert_messages -> autodetect_media -> provider encoder.
+    image_uri = "data:image/png;charset=utf-8;name=photo.png;base64,aW1hZ2U="
+    pdf_uri = "data:application/pdf;name=report.pdf;base64,JVBERi0="
+    messages: list[dict[str, Any]] = [
+        {"role": "user", "content": [image_uri, pdf_uri]},
+    ]
+
+    converted = convert_messages(messages, Mode.TOOLS, autodetect_images=True)
+
+    assert converted == [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,aW1hZ2U="},
+                },
+                {
+                    "type": "file",
+                    "file": {
+                        "filename": pdf_uri,
+                        "file_data": "data:application/pdf;base64,JVBERi0=",
+                    },
+                },
+            ],
+        }
+    ]
+
+
 def test_image_path_probe_falls_back_to_raw_base64(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

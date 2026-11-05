@@ -130,7 +130,10 @@ class Image(BaseModel):
 
     @classmethod
     def is_base64(cls, s: str) -> bool:
-        return bool(re.match(r"^data:image/[a-zA-Z]+;base64,", s))
+        # RFC 2397 allows optional media-type parameters (charset, name, ...)
+        # before the ;base64 marker. Without them we miss valid data URIs and
+        # autodetect falls through to Path/raw-base64, which then fails.
+        return bool(re.match(r"^data:image/[a-zA-Z]+(?:;[\w.-]+=[^;,]*)*;base64,", s))
 
     @classmethod  # Caching likely unnecessary
     def from_base64(cls, data_uri: str) -> Image:
@@ -520,7 +523,8 @@ class PDF(BaseModel):
 
     @classmethod
     def is_base64(cls, s: str) -> bool:
-        return bool(re.match(r"^data:application/pdf;base64,", s))
+        # Mirror Image: accept optional RFC 2397 parameters before ;base64.
+        return bool(re.match(r"^data:application/pdf(?:;[\w.-]+=[^;,]*)*;base64,", s))
 
     @classmethod
     def from_base64(cls, data_uri: str) -> PDF:
