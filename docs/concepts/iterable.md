@@ -164,6 +164,19 @@ We also support more complex extraction patterns such as Unions as you'll see be
 
 ---
 
+## Stopping Iteration Early
+
+Once iteration has started, close the iterable if you stop before consuming all
+results. Put synchronous iteration in a `try`/`finally` block and call
+`resp.close()` in `finally`. For asynchronous iteration, use
+`await resp.aclose()` instead. A `break` statement alone does not close a Python
+generator.
+
+The shared iterable parser releases a closable upstream source when parsing ends,
+including validation failures. OpenAI chat-completion and Responses modes use this
+path. This cleanup does not cover partial-model streaming or providers with their
+own iterable parsers.
+
 ## See Also
 
 - [Streaming Lists](./lists.md) - Similar functionality with different API
@@ -266,3 +279,9 @@ We also support more complex extraction patterns such as Unions as you'll see be
 
     asyncio.run(main())
     ```
+
+### Markdown output and multiple tool calls
+
+Native tool streams yield complete items as they arrive. Interleaved OpenAI tool calls are assembled by call index. In Markdown mode, a fenced JSON block takes precedence over JSON quoted in the surrounding prose. Fenced items can be emitted immediately. When the response has no fence, Instructor emits all bare JSON candidates in order at the end of the stream.
+
+Code that calls `extract_json_from_stream` or its async counterpart directly with a known bare JSON stream can pass `prefer_fenced=False` to consume each completed value immediately.

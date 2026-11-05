@@ -121,3 +121,65 @@ async def test_single_model_size_limit_and_incomplete_fallback() -> None:
             async_items(oversized), single_model=True
         ):
             pass
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "prefix", ['user said {"value":99}', '{"value":99} before the answer']
+)
+async def test_iterable_prefers_fenced_items_over_prose(prefix):
+    from instructor.v2.core.json import (
+        extract_json_from_stream,
+        extract_json_from_stream_async,
+    )
+
+    fence = "```"
+    text = (
+        prefix
+        + "\n"
+        + fence
+        + 'json\n[{"value":1},{"value":2}]\n'
+        + fence
+        + ' after {"value":88}'
+    )
+    expected_text = '[{"value":1},{"value":2}]'
+    assert "".join(extract_json_from_stream(iter(text))) == expected_text
+    assert (
+        "".join(
+            [
+                part
+                async for part in extract_json_from_stream_async(
+                    async_items(list(text))
+                )
+            ]
+        )
+        == expected_text
+    )
+
+    handler = OpenAIMDJSONHandler()
+    model = IterableModel(Answer)
+    events = [event(part) for part in text]
+    expected = [Answer(value=1), Answer(value=2)]
+    assert list(handler.parse_response(iter(events), model, stream=True)) == expected
+    assert [
+        item
+        async for item in handler.parse_response(
+            async_items(events), model, stream=True
+        )
+    ] == expected
+
+
+def test_fenced_items_are_available_before_consuming_later_chunks():
+    fence = "```"
+    seen = []
+
+    def chunks():
+        seen.append(1)
+        yield fence + 'json\n{"value":1}'
+        seen.append(2)
+        yield '{"value":2}\n' + fence
+
+    result = extract_json_from_stream(chunks())
+    assert "".join(next(result) for _ in '{"value":1}') == '{"value":1}'
+    assert seen == [1]
+    assert "".join(result) == '{"value":2}'

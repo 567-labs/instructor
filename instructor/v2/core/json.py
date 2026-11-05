@@ -88,234 +88,122 @@ class _SingleModelStream:
             yield span
 
 
+class _MultiModelStream:
+    """Separate fenced output from prose while scanning each input character once."""
+
+    def __init__(self, prefer_fenced: bool) -> None:
+        self.prefer_fenced = prefer_fenced
+        self.in_fence = False
+        self.saw_fence = False
+        self.ticks = 0
+        self.quoted = False
+        self.escaped = False
+        self.stack: list[str] = []
+        self.buffer: list[str] = []
+        self.deferred: list[str] = []
+        self.last_invalid: str | None = None
+        self.has_valid = False
+        self.size = 0
+
+    def feed(self, chunk: str) -> Generator[str, None, None]:
+        self.size += len(chunk)
+        if self.size > MAX_JSON_EXTRACTION_CHARS:
+            raise ValueError("JSON extraction input exceeds the 1 MiB character limit")
+        for char in chunk:
+            if not self.quoted and char == "`":
+                self.ticks += 1
+                if self.ticks == 3:
+                    self.ticks = 0
+                    if self.in_fence and self.buffer:
+                        yield from self.buffer
+                    if not self.in_fence and not self.saw_fence and self.prefer_fenced:
+                        self.deferred.clear()
+                        self.last_invalid = None
+                        self.has_valid = False
+                    self.in_fence = not self.in_fence
+                    self.saw_fence = True
+                    self.stack.clear()
+                    self.buffer.clear()
+                continue
+            self.ticks = 0
+            if self.prefer_fenced and self.saw_fence and not self.in_fence:
+                continue
+            if not self.stack and char not in "{[":
+                continue
+
+            self.buffer.append(char)
+            if self.escaped:
+                self.escaped = False
+            elif char == "\\" and self.quoted:
+                self.escaped = True
+            elif char == '"':
+                self.quoted = not self.quoted
+            elif not self.quoted:
+                if char in "{[":
+                    self.stack.append("}" if char == "{" else "]")
+                    if len(self.stack) > MAX_JSON_DEPTH:
+                        raise ValueError(
+                            "JSON extraction nesting exceeds the 128 level limit"
+                        )
+                elif char == self.stack[-1]:
+                    self.stack.pop()
+                    if not self.stack:
+                        candidate = "".join(self.buffer)
+                        self.buffer.clear()
+                        try:
+                            json.loads(candidate)
+                        except ValueError:
+                            self.last_invalid = candidate
+                            continue
+                        self.has_valid = True
+                        self.last_invalid = None
+                        if self.in_fence or not self.prefer_fenced:
+                            yield from candidate
+                        else:
+                            self.deferred.append(candidate)
+
+    def finish(self) -> Generator[str, None, None]:
+        for candidate in self.deferred:
+            yield from candidate
+        if self.buffer:
+            yield from self.buffer
+        elif not self.has_valid and self.last_invalid is not None:
+            yield from self.last_invalid
+
+
 def extract_json_from_stream(
-    chunks: Iterable[str], *, single_model: bool = False
+    chunks: Iterable[str], *, single_model: bool = False, prefer_fenced: bool = True
 ) -> Generator[str, None, None]:
-    """Extract streamed JSON. Single-model responses select the last valid span at EOF."""
+    """Prefer fenced Markdown output; set prefer_fenced=False for eager bare JSON."""
     if single_model:
         selection = _SingleModelStream()
         for chunk in chunks:
             selection.append(chunk)
         yield from selection.result()
         return
-    in_codeblock = False
-    codeblock_delimiter_count = 0
-    json_started = False
-    in_string = False
-    escape_next = False
-    delimiter_stack: list[str] = []
-    buffer: list[str] = []
-    codeblock_buffer: list[str] = []
-    last_invalid_candidate: str | None = None
-    emitted_valid_candidate = False
-    total_chars = 0
-
+    selection_multi = _MultiModelStream(prefer_fenced)
     for chunk in chunks:
-        total_chars += len(chunk)
-        if total_chars > MAX_JSON_EXTRACTION_CHARS:
-            raise ValueError("JSON extraction input exceeds the 1 MiB character limit")
-        for char in chunk:
-            if not in_codeblock and char == "`" and not (json_started and in_string):
-                codeblock_buffer.append(char)
-                if len(codeblock_buffer) == 3:
-                    in_codeblock = True
-                    codeblock_delimiter_count = 0
-                    codeblock_buffer = []
-                continue
-            if codeblock_buffer and char != "`":
-                codeblock_buffer = []
-
-            if in_codeblock and not json_started:
-                if char == "`":
-                    codeblock_delimiter_count += 1
-                    if codeblock_delimiter_count == 3:
-                        in_codeblock = False
-                        codeblock_delimiter_count = 0
-                    continue
-                if codeblock_delimiter_count > 0:
-                    codeblock_delimiter_count = 0
-
-                if char in "{[":
-                    json_started = True
-                    delimiter_stack.append("}" if char == "{" else "]")
-                    buffer.append(char)
-                continue
-
-            if json_started:
-                if escape_next:
-                    escape_next = False
-                elif char == "\\" and in_string:
-                    escape_next = True
-                    buffer.append(char)
-                    continue
-                elif char == '"':
-                    in_string = not in_string
-
-                if in_codeblock and not in_string:
-                    if char == "`":
-                        codeblock_delimiter_count += 1
-                        if codeblock_delimiter_count == 3:
-                            in_codeblock = False
-                            yield from buffer
-                            buffer = []
-                            json_started = False
-                            break
-                        continue
-                    if codeblock_delimiter_count > 0:
-                        codeblock_delimiter_count = 0
-
-                if not in_string:
-                    if char in "{[":
-                        delimiter_stack.append("}" if char == "{" else "]")
-                        if len(delimiter_stack) > MAX_JSON_DEPTH:
-                            raise ValueError(
-                                "JSON extraction nesting exceeds the 128 level limit"
-                            )
-                    elif delimiter_stack and char == delimiter_stack[-1]:
-                        delimiter_stack.pop()
-                        if not delimiter_stack:
-                            buffer.append(char)
-                            candidate = "".join(buffer)
-                            buffer = []
-                            json_started = False
-                            try:
-                                json.loads(candidate)
-                            except ValueError:
-                                last_invalid_candidate = candidate
-                                continue
-                            emitted_valid_candidate = True
-                            last_invalid_candidate = None
-                            yield from candidate
-                            continue
-
-                buffer.append(char)
-                continue
-
-            if not in_codeblock and not json_started and char in "{[":
-                json_started = True
-                delimiter_stack.append("}" if char == "{" else "]")
-                buffer.append(char)
-
-    if json_started and buffer:
-        yield from buffer
-    elif not emitted_valid_candidate and last_invalid_candidate is not None:
-        yield from last_invalid_candidate
+        yield from selection_multi.feed(chunk)
+    yield from selection_multi.finish()
 
 
 async def extract_json_from_stream_async(
-    chunks: AsyncGenerator[str, None], *, single_model: bool = False
+    chunks: AsyncGenerator[str, None],
+    *,
+    single_model: bool = False,
+    prefer_fenced: bool = True,
 ) -> AsyncGenerator[str, None]:
-    """Async counterpart to :func:`extract_json_from_stream`."""
+    """Asynchronous counterpart of extract_json_from_stream."""
     if single_model:
         selection = _SingleModelStream()
         async for chunk in chunks:
             selection.append(chunk)
-        for result in selection.result():
-            yield result
+        for part in selection.result():
+            yield part
         return
-    in_codeblock = False
-    codeblock_delimiter_count = 0
-    json_started = False
-    in_string = False
-    escape_next = False
-    delimiter_stack: list[str] = []
-    buffer: list[str] = []
-    codeblock_buffer: list[str] = []
-    last_invalid_candidate: str | None = None
-    emitted_valid_candidate = False
-    total_chars = 0
-
+    selection_multi = _MultiModelStream(prefer_fenced)
     async for chunk in chunks:
-        total_chars += len(chunk)
-        if total_chars > MAX_JSON_EXTRACTION_CHARS:
-            raise ValueError("JSON extraction input exceeds the 1 MiB character limit")
-        for char in chunk:
-            if not in_codeblock and char == "`" and not (json_started and in_string):
-                codeblock_buffer.append(char)
-                if len(codeblock_buffer) == 3:
-                    in_codeblock = True
-                    codeblock_delimiter_count = 0
-                    codeblock_buffer = []
-                continue
-            if codeblock_buffer and char != "`":
-                codeblock_buffer = []
-
-            if in_codeblock and not json_started:
-                if char == "`":
-                    codeblock_delimiter_count += 1
-                    if codeblock_delimiter_count == 3:
-                        in_codeblock = False
-                        codeblock_delimiter_count = 0
-                    continue
-                if codeblock_delimiter_count > 0:
-                    codeblock_delimiter_count = 0
-
-                if char in "{[":
-                    json_started = True
-                    delimiter_stack.append("}" if char == "{" else "]")
-                    buffer.append(char)
-                continue
-
-            if json_started:
-                if escape_next:
-                    escape_next = False
-                elif char == "\\" and in_string:
-                    escape_next = True
-                    buffer.append(char)
-                    continue
-                elif char == '"':
-                    in_string = not in_string
-
-                if in_codeblock and not in_string:
-                    if char == "`":
-                        codeblock_delimiter_count += 1
-                        if codeblock_delimiter_count == 3:
-                            in_codeblock = False
-                            for buffered_char in buffer:
-                                yield buffered_char
-                            buffer = []
-                            json_started = False
-                            break
-                        continue
-                    if codeblock_delimiter_count > 0:
-                        codeblock_delimiter_count = 0
-
-                if not in_string:
-                    if char in "{[":
-                        delimiter_stack.append("}" if char == "{" else "]")
-                        if len(delimiter_stack) > MAX_JSON_DEPTH:
-                            raise ValueError(
-                                "JSON extraction nesting exceeds the 128 level limit"
-                            )
-                    elif delimiter_stack and char == delimiter_stack[-1]:
-                        delimiter_stack.pop()
-                        if not delimiter_stack:
-                            buffer.append(char)
-                            candidate = "".join(buffer)
-                            buffer = []
-                            json_started = False
-                            try:
-                                json.loads(candidate)
-                            except ValueError:
-                                last_invalid_candidate = candidate
-                                continue
-                            emitted_valid_candidate = True
-                            last_invalid_candidate = None
-                            for buffered_char in candidate:
-                                yield buffered_char
-                            continue
-
-                buffer.append(char)
-                continue
-
-            if not in_codeblock and not json_started and char in "{[":
-                json_started = True
-                delimiter_stack.append("}" if char == "{" else "]")
-                buffer.append(char)
-
-    if json_started and buffer:
-        for buffered_char in buffer:
-            yield buffered_char
-    elif not emitted_valid_candidate and last_invalid_candidate is not None:
-        for buffered_char in last_invalid_candidate:
-            yield buffered_char
+        for part in selection_multi.feed(chunk):
+            yield part
+    for part in selection_multi.finish():
+        yield part
