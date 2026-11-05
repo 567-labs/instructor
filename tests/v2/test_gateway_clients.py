@@ -35,13 +35,15 @@ class Contact(BaseModel):
 
 @pytest.fixture(scope="module")
 def wire_server():
-    received: list[tuple[str, str, dict[str, Any]]] = []
+    received: list[tuple[str, dict[str, str], dict[str, Any]]] = []
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self) -> None:
             size = int(self.headers["Content-Length"])
             payload = json.loads(self.rfile.read(size))
-            received.append((self.path, self.headers["Authorization"], payload))
+            received.append(
+                (self.path, {k.lower(): v for k, v in self.headers.items()}, payload)
+            )
             arguments = '{"name":"Ada"}'
             message: dict[str, Any] = {
                 "role": "assistant",
@@ -143,8 +145,11 @@ async def test_gateway_sync_and_async_wire(
         sync = factory(sdk, model="org/model")
         assert sync.provider == Provider(name)
         assert sync.create(response_model=Contact, **request).name == "Ada"
-        path, auth, data = received[-1]
-        assert path == "/v1/chat/completions" and auth == "Bearer explicit-key"
+        path, headers, data = received[-1]
+        assert (
+            path == "/v1/chat/completions"
+            and headers["authorization"] == "Bearer explicit-key"
+        )
         assert data["model"] == "org/model"
         assert ("tools" in data) == (default == Mode.TOOLS)
     async_client = factory(
@@ -156,7 +161,7 @@ async def test_gateway_sync_and_async_wire(
     try:
         result = await async_client.create(response_model=Contact, **request)
         assert result.name == "Ada"
-        assert received[-1][1] == "Bearer key-for-" + name
+        assert received[-1][1]["authorization"] == "Bearer key-for-" + name
         assert received[-1][2]["model"] == "org/model"
     finally:
         await async_client.client.close()
@@ -168,6 +173,7 @@ def test_regional_key_alias_and_supported_modes(
     monkeypatch.delenv("ZHIPUAI_API_KEY", raising=False)
     monkeypatch.setenv("BIGMODEL_API_KEY", "regional-test")
     client = instructor.from_zhipuai("model")
+    assert isinstance(client.client, openai.OpenAI)
     try:
         assert client.client.api_key == "regional-test"
     finally:
@@ -185,3 +191,48 @@ def test_legacy_provider_modes_and_invalid_url() -> None:
         assert instructor.from_sarvam(sdk, mode=Mode.SARVAM_JSON).mode is Mode.MD_JSON
         assert instructor.from_minimax(sdk, mode=Mode.MINIMAX_TOOLS).mode is Mode.TOOLS
     assert get_provider("https://[broken") == Provider.UNKNOWN
+
+
+@pytest.mark.asyncio
+async def test_gateway_model_factories_keep_project_and_organization_on_the_sdk(
+    wire_server,
+):
+    base_url, received = wire_server
+    sync = instructor.from_zai(
+        "model",
+        base_url=base_url,
+        api_key="fixture",
+        organization="org-fixture",
+        project="proj-fixture",
+    )
+    assert isinstance(sync.client, openai.OpenAI)
+    try:
+        assert (
+            sync.create(
+                response_model=Contact, messages=[{"role": "user", "content": "Ada"}]
+            ).name
+            == "Ada"
+        )
+    finally:
+        sync.client.close()
+    asynchronous = instructor.from_zai(
+        "model",
+        async_client=True,
+        base_url=base_url,
+        api_key="fixture",
+        organization="org-fixture",
+        project="proj-fixture",
+    )
+    assert isinstance(asynchronous.client, openai.AsyncOpenAI)
+    try:
+        assert (
+            await asynchronous.create(
+                response_model=Contact, messages=[{"role": "user", "content": "Ada"}]
+            )
+        ).name == "Ada"
+    finally:
+        await asynchronous.client.close()
+    for _path, headers, body in received[-2:]:
+        assert headers["openai-organization"] == "org-fixture"
+        assert headers["openai-project"] == "proj-fixture"
+        assert "organization" not in body and "project" not in body

@@ -7,7 +7,6 @@ from typing import (
     Any,
     Callable,
     Literal,
-    Optional,
     Union,
     cast,
     overload,
@@ -213,6 +212,28 @@ def from_provider(
     )
 
 
+def _take_openai_sdk_options(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Separate client configuration from defaults sent to completion requests."""
+    options = {
+        key: kwargs.pop(key)
+        for key in (
+            "organization",
+            "project",
+            "timeout",
+            "default_headers",
+            "default_query",
+            "http_client",
+            "_strict_response_validation",
+        )
+        if key in kwargs
+    }
+    if "_strict_response_validation" in options:
+        options["_strict_response_validation"] = bool(
+            options["_strict_response_validation"]
+        )
+    return options
+
+
 def _build_openai(
     *,
     provider: str,
@@ -225,9 +246,6 @@ def _build_openai(
 ) -> InstructorType:
     try:
         import openai
-        from openai import DEFAULT_MAX_RETRIES, NotGiven, Timeout, not_given
-        from collections.abc import Mapping
-        from typing import cast
     except ImportError as err:
         missing_root = (getattr(err, "name", "") or "").split(".")[0]
         if missing_root != "openai":
@@ -241,60 +259,13 @@ def _build_openai(
         ) from None
 
     try:
-        # Extract base_url and other OpenAI client parameters from kwargs
         base_url = kwargs.pop("base_url", None)
-        organization = cast(Optional[str], kwargs.pop("organization", None))
-
-        timeout_raw = kwargs.pop("timeout", not_given)
-        timeout: float | Timeout | None | NotGiven
-        timeout = (
-            not_given
-            if timeout_raw is not_given
-            else cast(Optional[Union[float, Timeout]], timeout_raw)
-        )
-
-        max_retries_raw = kwargs.pop("max_retries", None)
-        max_retries = (
-            DEFAULT_MAX_RETRIES
-            if max_retries_raw is None
-            else int(cast(int, max_retries_raw))
-        )
-
-        default_headers = cast(
-            Optional[Mapping[str, str]], kwargs.pop("default_headers", None)
-        )
-        default_query = cast(
-            Optional[Mapping[str, object]], kwargs.pop("default_query", None)
-        )
-        http_client = kwargs.pop("http_client", None)
-        strict_response_validation = bool(
-            kwargs.pop("_strict_response_validation", False)
-        )
-
-        if async_client:
-            client = openai.AsyncOpenAI(
-                api_key=api_key,
-                base_url=base_url,
-                organization=organization,
-                timeout=timeout,
-                max_retries=max_retries,
-                default_headers=default_headers,
-                default_query=default_query,
-                http_client=http_client,
-                _strict_response_validation=strict_response_validation,
-            )
-        else:
-            client = openai.OpenAI(
-                api_key=api_key,
-                base_url=base_url,
-                organization=organization,
-                timeout=timeout,
-                max_retries=max_retries,
-                default_headers=default_headers,
-                default_query=default_query,
-                http_client=http_client,
-                _strict_response_validation=strict_response_validation,
-            )
+        sdk_options = _take_openai_sdk_options(kwargs)
+        max_retries = kwargs.pop("max_retries", None)
+        if max_retries is not None:
+            sdk_options["max_retries"] = int(max_retries)
+        sdk_class = openai.AsyncOpenAI if async_client else openai.OpenAI
+        client = sdk_class(api_key=api_key, base_url=base_url, **sdk_options)
 
         import instructor
 
@@ -444,12 +415,7 @@ def _build_openai_compatible(
             )
 
         base_url = kwargs.pop("base_url", default_base_url)
-        # Keep SDK constructor options out of subsequent completion requests.
-        sdk_options = {
-            key: kwargs.pop(key)
-            for key in ("http_client", "default_headers", "default_query", "timeout")
-            if key in kwargs
-        }
+        sdk_options = _take_openai_sdk_options(kwargs)
         sdk_class = openai.AsyncOpenAI if async_client else openai.OpenAI
         client = sdk_class(api_key=api_key, base_url=base_url, **sdk_options)
         factory = getattr(openai_client, factory_name)
@@ -550,15 +516,8 @@ def _build_databricks(
         if not base_url.endswith("/serving-endpoints"):
             base_url = f"{base_url}/serving-endpoints"
 
-        openai_client_kwargs = {}
-        for key in (
-            "organization",
-            "timeout",
-            "max_retries",
-            "default_headers",
-            "http_client",
-            "app_info",
-        ):
+        openai_client_kwargs = _take_openai_sdk_options(kwargs)
+        for key in ("max_retries", "app_info"):
             if key in kwargs:
                 openai_client_kwargs[key] = kwargs.pop(key)
 
