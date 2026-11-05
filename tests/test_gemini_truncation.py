@@ -78,3 +78,11 @@ def test_google_sdk_finish_reasons(module):
     sdk = pytest.importorskip(module)
     assert is_truncated_at_max_tokens(response(sdk.FinishReason.MAX_TOKENS, {}))
     assert not is_truncated_at_max_tokens(response(sdk.FinishReason.STOP, {}))
+
+
+@pytest.mark.parametrize(
+    ("reason", "truncated"),
+    [("MAX_TOKENS", True), ("FinishReason.MAX_TOKENS", True), ("STOP", False)],
+)
+def test_string_finish_reasons(reason, truncated):
+    assert is_truncated_at_max_tokens(response(reason, {})) is truncated
