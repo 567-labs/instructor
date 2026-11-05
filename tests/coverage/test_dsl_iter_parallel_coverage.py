@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import json
-import sys
 from collections.abc import AsyncGenerator, Callable, Generator, Iterable
-from pathlib import Path
 from typing import Any, Union, cast
 
 import pytest
@@ -12,7 +10,6 @@ from pydantic import BaseModel, ValidationError, ValidationInfo, field_validator
 
 from instructor.v2.core.errors import ResponseParsingError
 from instructor.v2.core.mode import Mode
-from instructor.v2.dsl import parallel as parallel_module
 from instructor.v2.dsl.iterable import IterableBase, IterableModel
 from instructor.v2.dsl.parallel import (
     AnthropicParallelModel,
@@ -323,22 +320,6 @@ def test_parallel_type_helpers_support_single_and_union_models() -> None:
 
     with pytest.raises(TypeError, match="Model should be with Iterable"):
         get_types_array(list[EmailJob])
-
-
-def test_parallel_type_helpers_keep_python_39_union_behavior(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    source_path = Path(parallel_module.__file__)
-    namespace: dict[str, Any] = {
-        "__name__": "parallel_python_39",
-        "__file__": str(source_path),
-    }
-    monkeypatch.setattr(sys, "version_info", (3, 9, 18))
-    exec(compile(source_path.read_text(), str(source_path), "exec"), namespace)
-
-    legacy_is_union = namespace["is_union_type"]
-    assert legacy_is_union(Iterable[Union[EmailJob, SmsJob]]) is True
-    assert legacy_is_union(Iterable[EmailJob]) is False
 
 
 def test_parallel_schema_and_provider_factories_register_all_models() -> None:

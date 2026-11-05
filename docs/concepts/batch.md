@@ -164,8 +164,7 @@ processor = BatchProcessor("mistral/mistral-small-latest", User)
 ```
 
 Mistral sets the model on the batch job rather than on each request, so the model
-you pass to `BatchProcessor` is applied to the whole job. Both Mistral SDK
-versions are supported: `mistralai` 1.x on Python 3.9 and 2.x on Python 3.10+.
+you pass to `BatchProcessor` is applied to the whole job. The supported Mistral SDK range starts at `mistralai>=1.5.1`.
 Deleting a job needs `mistralai>=2.0.0`, because version 1.x has no delete
 endpoint.
 

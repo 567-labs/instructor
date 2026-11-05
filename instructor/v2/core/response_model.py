@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import inspect
-import sys
 from collections.abc import Iterable
 from types import MappingProxyType
 from typing import Annotated, Any, Callable, TypeVar, Union, cast, get_args, get_origin
@@ -19,16 +18,11 @@ from pydantic import (
 from typing_extensions import NotRequired, ReadOnly, Required
 from typing import get_type_hints
 
+from instructor.v2.core.utils import UNION_ORIGINS
+
 T = TypeVar("T")
 
 _create_dynamic_model = cast(Callable[..., type[BaseModel]], create_model)
-
-if sys.version_info >= (3, 10):
-    from types import UnionType
-
-    _UNION_ORIGINS: tuple[Any, ...] = (Union, UnionType)
-else:  # pragma: no cover - Python 3.9 has no runtime ``X | Y`` syntax
-    _UNION_ORIGINS = (Union,)
 
 
 def is_typed_dict(cls: Any) -> bool:
@@ -130,7 +124,7 @@ def _is_structured_item(item: Any) -> bool:
         and issubclass(item, BaseModel)
     ):
         return True
-    return get_origin(item) in _UNION_ORIGINS and all(
+    return get_origin(item) in UNION_ORIGINS and all(
         _is_structured_item(member) for member in get_args(item)
     )
 
@@ -140,7 +134,7 @@ def _prepare_iterable_item(item: Any) -> Any:
 
     if is_typed_dict(item):
         return _typed_dict_to_model(item)
-    if get_origin(item) in _UNION_ORIGINS and _is_structured_item(item):
+    if get_origin(item) in UNION_ORIGINS and _is_structured_item(item):
         return Union[tuple(_prepare_iterable_item(member) for member in get_args(item))]
     if is_simple_type(item):
         from instructor.v2.dsl.simple_type import ModelAdapter

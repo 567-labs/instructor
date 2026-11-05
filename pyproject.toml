@@ -8,27 +8,24 @@ maintainers = [
     { email = "ivan@jxnl.co" },
 ]
 license = { text = "MIT" }
-requires-python = "<4.0,>=3.9"
+requires-python = "<4.0,>=3.10"
 dependencies = [
     "openai>=2.0.0,<4.0.0",
     "httpx>=0.23.0,<1.0.0",
     "pydantic<3.0.0,>=2.8.0",
-    "eval-type-backport>=0.2.2 ; python_version < '3.10'",
     "docstring-parser<1.0,>=0.16",
     "typer<1.0.0,>=0.9.0",
     "rich>=13.7.0,<16.0.0",
-    "aiohttp<3.14.0,>=3.9.1 ; python_version < '3.10'",
-    "aiohttp<4.0.0,>=3.14.3 ; python_version >= '3.10'",
+    "aiohttp<4.0.0,>=3.14.5",
     "tenacity<10.0.0,>=8.2.3",
     "tqdm>=4.27.0,<5.0.0",
     "pydantic-core<3.0.0,>=2.18.0",
     "jiter>=0.6.1,<0.19",
     "jinja2<4.0.0,>=3.1.4",
-    "requests<2.33.0,>=2.32.3 ; python_version < '3.10'",
-    "requests<3.0.0,>=2.33.0 ; python_version >= '3.10'",
-    "urllib3<3.0.0,>=2.7.0 ; python_version >= '3.10'",
+    "requests<3.0.0,>=2.34.2",
+    "urllib3<3.0.0,>=2.8.0",
     "idna>=3.15",
-    "click>=8.3.3 ; python_version >= '3.10'",
+    "click>=8.3.3",
     "regex>=2023.0.0,<2027.0.0",
 ]
 name = "instructor"
@@ -62,24 +59,20 @@ dev = [
     "pytest-examples>=0.0.15",
     "python-dotenv>=1.0.1",
     "pytest-xdist>=3.8.0",
-    "pre-commit>=4.2.0",
     "ty==0.0.92",
-    "anthropic==0.93.0 ; python_version < '3.10'","anthropic==2.3.0 ; python_version >= '3.10'",
+    "anthropic==2.3.0",
     "xmltodict>=0.13,<1.1",
 ]
 docs = [
     "mkdocs<2.0.0,>=1.6.1",
-    "mkdocs-material[imaging]<10.0.0,>=9.5.9",
+    "mkdocs-material[imaging]>=9.6.14,<10.0.0",
     "mkdocstrings>=0.27.1,<1.1.0",
     "mkdocstrings-python>=1.12.2,<3.0.0",
     "pytest-examples>=0.0.15",
-    "mkdocs-jupyter>=0.24.6,<0.27.0",
-    "mkdocs-rss-plugin<2.0.0,>=1.12.0",
     "mkdocs-minify-plugin<1.0.0,>=0.8.0",
     "mkdocs-redirects<2.0.0,>=1.2.1",
-    "mkdocs-llmstxt>=0.5.0,<0.6.0; python_version >= '3.10'",
+    "mkdocs-llmstxt>=0.5.0,<0.6.0",
     "mkdocs-material-extensions>=1.3.1",
-    "mkdocs-material>=9.6.14",
 ]
 test-docs = [
     "fastapi>=0.109.2,<0.163.0",
@@ -88,10 +81,10 @@ test-docs = [
     "pandas<3.0.0,>=2.2.0",
     "tabulate<1.0.0,>=0.9.0",
     "pydantic-extra-types<3.0.0,>=2.6.0",
-    "litellm>=1.35.31,!=1.82.7,!=1.82.8,<=1.106.5",
+    "litellm>=1.102.4,<=1.106.5",
     "mistralai>=1.5.1,<4.0.0",
 ]
-anthropic = ["anthropic==0.93.0 ; python_version < '3.10'","anthropic==2.3.0 ; python_version >= '3.10'", "xmltodict>=0.13,<1.1"]
+anthropic = ["anthropic==2.3.0", "xmltodict>=0.13,<1.1"]
 groq = ["groq>=0.4.2,<1.8.0"]
 cohere = ["cohere>=5.1.8,<8.0.0"]
 vertexai = ["google-cloud-aiplatform>=1.53.0,<3.0.0", "jsonref<2.0.0,>=1.1.0"]
@@ -102,13 +95,13 @@ bedrock = ["boto3<2.0.0,>=1.42.42"]
 mistral = ["mistralai>=1.5.1,<4.0.0"]
 perplexity = ["openai>=2.0.0,<4.0.0"]
 google-genai = ["google-genai>=1.5.0","jsonref<2.0.0,>=1.1.0"]
-litellm = ["litellm>=1.35.31,!=1.82.7,!=1.82.8,<=1.106.5"]
-xai = ["xai-sdk>=0.2.0 ; python_version >= '3.10'"]
+litellm = ["litellm>=1.102.4,<=1.106.5"]
+xai = ["xai-sdk>=0.2.0"]
 phonenumbers = ["phonenumbers>=8.13.33,<10.0.0"]
 graphviz = ["graphviz<1.0.0,>=0.20.3"]
 sqlmodel = ["sqlmodel<1.0.0,>=0.0.22"]
 diskcache = ["diskcache<6.0.0,>=5.6.3"]
-trafilatura = ["trafilatura<3.0.0,>=1.12.2"]
+trafilatura = ["trafilatura>=2.3.1,<3.0.0"]
 pydub = ["pydub<1.0.0,>=0.25.1"]
 datasets = ["datasets>=3.0.1,<6.0.0"]
 

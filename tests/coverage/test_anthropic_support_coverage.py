@@ -34,7 +34,7 @@ from instructor.v2.providers.anthropic.usage import initialize_usage, update_tot
 
 
 def _load_sdk_httpx() -> ModuleType:
-    """anthropic>=1 uses httpx2, anthropic<1 (Python 3.9) uses httpx."""
+    """anthropic>=1 uses httpx2, anthropic<1 uses httpx."""
     try:
         return importlib.import_module("httpx2")
     except ImportError:

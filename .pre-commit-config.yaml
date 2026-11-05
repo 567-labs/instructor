@@ -1,16 +1,20 @@
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.9 # Ruff version
-    hooks:
-      - id: ruff # Run the linter.
-        name: Run Linter Check (Ruff)
-        args: [ --fix, --unsafe-fixes ]
-        files: ^(instructor|tests|examples)/
-      - id: ruff-format       # Run the formatter.
-        name: Run Formatter (Ruff)
-
   - repo: local
     hooks:
+      - id: ruff
+        name: Run Linter Check (Ruff)
+        entry: uv run --frozen ruff check --force-exclude
+        args: [--fix, --unsafe-fixes]
+        language: system
+        types_or: [python, pyi, jupyter]
+        require_serial: true
+        files: ^(instructor|tests|examples)/
+      - id: ruff-format
+        name: Run Formatter (Ruff)
+        entry: uv run --frozen ruff format --force-exclude
+        language: system
+        types_or: [python, pyi, jupyter]
+        require_serial: true
       - id: uv-lock-check
         name: Check uv.lock is up-to-date
         entry: uv
@@ -29,7 +33,7 @@ repos:
 
       - id: uv-export-requirements
         name: Export requirements.txt from pyproject.toml
-        entry: bash -c 'uv pip compile pyproject.toml -o requirements.txt && git add requirements.txt'
+        entry: bash -c 'uv pip compile --universal --python-version 3.10 pyproject.toml -o requirements.txt && git add requirements.txt'
         language: system
         files: ^pyproject\.toml$
         pass_filenames: false

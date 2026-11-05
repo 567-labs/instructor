@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from unittest.mock import Mock
 import ipaddress
 import socket
 from types import SimpleNamespace
@@ -78,6 +79,23 @@ def public_dns(monkeypatch: pytest.MonkeyPatch) -> None:
             )
         ],
     )
+
+
+def test_public_transport_connects_to_the_validated_address(
+    monkeypatch: pytest.MonkeyPatch,
+    public_dns: None,  # noqa: ARG001
+) -> None:
+    sock = Mock(spec=remote.socket.socket)
+    monkeypatch.setattr(remote.socket, "socket", lambda *_args: sock)
+    option = (remote.socket.IPPROTO_TCP, remote.socket.TCP_NODELAY, 1)
+    connection = remote._PublicHTTPSConnection(
+        "media.example", 443, timeout=2, socket_options=[option]
+    )
+
+    assert connection._new_conn() is sock
+    sock.settimeout.assert_called_once_with(2)
+    sock.setsockopt.assert_called_once_with(*option)
+    sock.connect.assert_called_once_with(("93.184.216.34", 443))
 
 
 def test_rejects_loopback_before_connecting(monkeypatch: pytest.MonkeyPatch) -> None:

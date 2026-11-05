@@ -3,7 +3,6 @@ from __future__ import annotations
 import builtins
 import importlib
 import logging
-import sys
 from collections.abc import Iterator
 from contextlib import AbstractContextManager, nullcontext
 from functools import partial
@@ -381,7 +380,6 @@ def test_ollama_builder_forwards_mode_url_and_real_client(
 
 @pytest.mark.parametrize("async_client", [False, True])
 @pytest.mark.asyncio
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="xai-sdk requires Python 3.10+")
 async def test_xai_builder_forwards_real_client_and_mode(
     monkeypatch: pytest.MonkeyPatch, async_client: bool
 ) -> None:
@@ -439,7 +437,6 @@ async def test_xai_builder_forwards_real_client_and_mode(
                 channel.close()
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="xai-sdk requires Python 3.10+")
 def test_xai_builder_reports_unavailable_factory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -595,9 +592,6 @@ FACTORY_FAILURES = [
         auto_client._build_xai,
         "instructor.v2.providers.xai.client",
         "from_xai",
-        marks=pytest.mark.skipif(
-            sys.version_info < (3, 10), reason="xai-sdk requires Python 3.10+"
-        ),
     ),
     (
         "openrouter",

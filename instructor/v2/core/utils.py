@@ -6,9 +6,12 @@ import inspect
 import re
 from collections.abc import Callable
 from functools import partial
-from typing import Any, Generic, TypeVar, cast
+from types import UnionType
+from typing import Any, Generic, TypeVar, Union, cast
 
 from pydantic import ValidationError
+
+UNION_ORIGINS = (Union, UnionType)
 
 R_co = TypeVar("R_co", covariant=True)
 _validation_error_original_str: Callable[[ValidationError], str] | None = None

@@ -1,10 +1,8 @@
-import sys
 from typing import (
     Any,
     Generic,
     Optional,
     TypeVar,
-    Union,
     cast,
     overload,
     get_args,
@@ -15,6 +13,8 @@ from pydantic import BaseModel
 from collections.abc import Iterable
 
 from instructor.v2.core.mode import Mode
+
+from instructor.v2.core.utils import UNION_ORIGINS
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -80,16 +80,8 @@ class ParallelBase(Generic[T]):
         return (result for result in results)
 
 
-if sys.version_info >= (3, 10):
-    from types import UnionType
-
-    def is_union_type(typehint: object) -> bool:
-        return get_origin(get_args(typehint)[0]) in (Union, UnionType)
-
-else:
-
-    def is_union_type(typehint: object) -> bool:
-        return get_origin(get_args(typehint)[0]) is Union
+def is_union_type(typehint: object) -> bool:
+    return get_origin(get_args(typehint)[0]) in UNION_ORIGINS
 
 
 def model_for_tool_name(

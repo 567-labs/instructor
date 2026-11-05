@@ -17,9 +17,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - python: "3.9"
+          - python: "3.10"
             sdk: minimum
-          - python: "3.9"
+          - python: "3.10"
             sdk: latest
           - python: "3.11"
             sdk: latest

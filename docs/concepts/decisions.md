@@ -187,7 +187,7 @@ Use a `Literal` for a short list, a string-valued Python `Enum` for a reusable
 type, or `Choices` when options need descriptions and examples. `Choices`
 returns enum members; names become lowercase values unless `Choice(value=...)`
 sets an explicit value. Inline `Annotated[Literal[...], Choice(...)]` branches
-return literal values. On Python 3.9, use `Union[...]` instead of `|`.
+return literal values.
 
 Every question needs instructions: use `Question(instructions=...)`,
 `Field(description=...)`, or a `Choices`/enum docstring, in that order. The

@@ -17,12 +17,6 @@ def tiny_png_data_url(tiny_png_bytes: bytes) -> str:
 
 
 @pytest.fixture(scope="session")
-def image_url() -> str:
-    # Public test asset used across the suite
-    return "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/image.jpg"
-
-
-@pytest.fixture(scope="session")
 def tiny_pdf_bytes() -> bytes:
     return base64.b64decode(
         b"JVBERi0xLjQKJSVPRgoAAAAQAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"

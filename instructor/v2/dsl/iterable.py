@@ -7,21 +7,14 @@ from typing import (
     cast,
     get_origin,
     get_args,
-    Union,
 )
 import json
 import re
 import inspect
-import sys
 
 from pydantic import BaseModel, Field, create_model
 
-if sys.version_info >= (3, 10):
-    from types import UnionType
-
-    _UNION_ORIGINS: tuple[Any, ...] = (Union, UnionType)
-else:  # pragma: no cover - Python 3.9 has no runtime ``X | Y`` syntax
-    _UNION_ORIGINS = (Union,)
+from instructor.v2.core.utils import UNION_ORIGINS
 
 
 class _ToolCallStart(str):
@@ -201,7 +194,7 @@ class IterableBase:
 
         assert cls.task_type is not None
         # PEP 604 unions use types.UnionType rather than typing.Union as their origin.
-        if get_origin(cls.task_type) in _UNION_ORIGINS:
+        if get_origin(cls.task_type) in UNION_ORIGINS:
             union_members = get_args(cls.task_type)
             for member in union_members:
                 try:
@@ -313,7 +306,7 @@ def IterableModel(
         # (and `types.UnionType` normalizes to ``typing.Union`` on modern Python), so we
         # must detect a union *origin* first and build the name from its members --
         # otherwise every union collapses to the unhelpful ``IterableUnion``.
-        if get_origin(subtask_class) in _UNION_ORIGINS:
+        if get_origin(subtask_class) in UNION_ORIGINS:
             members = get_args(subtask_class)
             task_name = "Or".join(getattr(m, "__name__", str(m)) for m in members)
         else:

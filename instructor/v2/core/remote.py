@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import ipaddress
 import socket
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urljoin, urlsplit
 
 import requests
@@ -13,6 +13,10 @@ from requests.adapters import HTTPAdapter
 from urllib3.connection import HTTPConnection, HTTPSConnection
 from urllib3.connectionpool import HTTPConnectionPool, HTTPSConnectionPool
 from urllib3.exceptions import NewConnectionError
+
+if TYPE_CHECKING:
+    from urllib3._base_connection import BaseHTTPConnection, BaseHTTPSConnection
+
 
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_AUDIO_BYTES = 25 * 1024 * 1024
@@ -202,12 +206,14 @@ class _PublicHTTPSConnection(_PublicHTTPConnection, HTTPSConnection):
     """HTTPS keeps urllib3's TLS handling with the public-only socket factory."""
 
 
+# urllib3 marks socket defaults final on its concrete classes, while its pool
+# protocols describe the same attribute as writable. The runtime classes match.
 class _PublicHTTPPool(HTTPConnectionPool):
-    ConnectionCls = _PublicHTTPConnection
+    ConnectionCls = cast("type[BaseHTTPConnection]", _PublicHTTPConnection)
 
 
 class _PublicHTTPSPool(HTTPSConnectionPool):
-    ConnectionCls = _PublicHTTPSConnection
+    ConnectionCls = cast("type[BaseHTTPSConnection]", _PublicHTTPSConnection)
 
 
 class _PublicHTTPAdapter(HTTPAdapter):
