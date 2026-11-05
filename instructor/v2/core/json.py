@@ -19,6 +19,10 @@ def extract_json_from_codeblock(content: str) -> str:
     prompt and was referenced in the model's reasoning. Returning the first
     object allowed prompt-injection to hijack the parsed output.
     """
+    return _last_json_span(content) or content
+
+
+def _last_json_span(content: str) -> str | None:
     if len(content) > MAX_JSON_EXTRACTION_CHARS:
         raise ValueError("JSON extraction input exceeds the 1 MiB character limit")
     decoder = json.JSONDecoder()
@@ -54,11 +58,46 @@ def extract_json_from_codeblock(content: str) -> str:
         remaining_work -= end - index
         last_valid = content[index:end]
         consumed = end
-    return last_valid if last_valid is not None else content
+    return last_valid
 
 
-def extract_json_from_stream(chunks: Iterable[str]) -> Generator[str, None, None]:
-    """Extract JSON characters from a plain-text or fenced streaming response."""
+class _SingleModelStream:
+    """Buffer at most one bounded response so the final JSON span wins."""
+
+    def __init__(self) -> None:
+        self.chunks: list[str] = []
+        self.size = 0
+
+    def append(self, chunk: str) -> None:
+        self.size += len(chunk)
+        if self.size > MAX_JSON_EXTRACTION_CHARS:
+            raise ValueError("JSON extraction input exceeds the 1 MiB character limit")
+        if chunk:
+            self.chunks.append(chunk)
+
+    def result(self) -> Generator[str, None, None]:
+        content = "".join(self.chunks)
+        span = _last_json_span(content)
+        if span is None:
+            # Retain incomplete input so a truncated stream can produce a partial model.
+            yield from extract_json_from_stream(self.chunks)
+        elif span == content.strip():
+            # Preserve partial snapshots at the original chunk boundaries.
+            yield from self.chunks
+        else:
+            yield span
+
+
+def extract_json_from_stream(
+    chunks: Iterable[str], *, single_model: bool = False
+) -> Generator[str, None, None]:
+    """Extract streamed JSON. Single-model responses select the last valid span at EOF."""
+    if single_model:
+        selection = _SingleModelStream()
+        for chunk in chunks:
+            selection.append(chunk)
+        yield from selection.result()
+        return
     in_codeblock = False
     codeblock_delimiter_count = 0
     json_started = False
@@ -164,9 +203,16 @@ def extract_json_from_stream(chunks: Iterable[str]) -> Generator[str, None, None
 
 
 async def extract_json_from_stream_async(
-    chunks: AsyncGenerator[str, None],
+    chunks: AsyncGenerator[str, None], *, single_model: bool = False
 ) -> AsyncGenerator[str, None]:
     """Async counterpart to :func:`extract_json_from_stream`."""
+    if single_model:
+        selection = _SingleModelStream()
+        async for chunk in chunks:
+            selection.append(chunk)
+        for result in selection.result():
+            yield result
+        return
     in_codeblock = False
     codeblock_delimiter_count = 0
     json_started = False

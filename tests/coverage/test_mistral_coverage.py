@@ -702,8 +702,11 @@ def test_mistral_parsers_reject_responses_without_choices(
     empty_response = response(content='{"name":"Ada","age":36}')
     empty_response.choices = []
 
-    with pytest.raises(IndexError, match="list index out of range"):
+    with pytest.raises(
+        ResponseParsingError, match="No choices in Mistral response"
+    ) as exc:
         handler.parse_response(empty_response, User)
+    assert exc.value.raw_response is empty_response
 
 
 def test_mistral_message_conversion_and_pdf_rules() -> None:

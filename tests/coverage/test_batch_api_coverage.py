@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from openai.types import Batch
 from pydantic import BaseModel
 
 from instructor.batch import (
@@ -327,6 +328,47 @@ def test_openai_batch_job_info_normalizes_status_timestamps_counts_and_error() -
     assert minimal.error is None
 
 
+@pytest.mark.parametrize(
+    ("counts", "metadata"),
+    [
+        (None, None),
+        ({"total": 2, "completed": 1, "failed": 0}, None),
+        (None, {"source": "example"}),
+        (
+            {"total": 2, "completed": 1, "failed": 0},
+            {"source": "example"},
+        ),
+    ],
+)
+def test_openai_batch_job_info_accepts_nullable_sdk_mappings(
+    counts: dict[str, int] | None, metadata: dict[str, str] | None
+) -> None:
+    batch = Batch.model_validate(
+        {
+            "id": "batch-pending",
+            "object": "batch",
+            "endpoint": "/v1/chat/completions",
+            "input_file_id": "file-input",
+            "completion_window": "24h",
+            "created_at": 1_700_000_000,
+            "status": "validating",
+            "request_counts": counts,
+            "metadata": metadata,
+        }
+    )
+    payload = batch.model_dump()
+
+    result = BatchJobInfo.from_openai(payload)
+
+    assert result.id == batch.id
+    assert result.status is BatchStatus.PENDING
+    assert result.request_counts.total == (counts or {}).get("total")
+    assert result.request_counts.completed == (counts or {}).get("completed")
+    assert result.request_counts.failed == (counts or {}).get("failed")
+    assert result.metadata == (metadata or {})
+    assert result.raw_data == payload
+
+
 def test_anthropic_batch_job_info_accepts_timestamp_variants_and_counts() -> None:
     created_at = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
     payload = {
@@ -378,6 +420,51 @@ def test_anthropic_batch_job_info_accepts_timestamp_variants_and_counts() -> Non
     assert minimal.status is BatchStatus.PENDING
     assert minimal.timestamps.created_at is None
     assert minimal.request_counts.total == 0
+
+
+@pytest.mark.parametrize(
+    ("processing_status", "expected_status"),
+    [
+        ("in_progress", BatchStatus.PROCESSING),
+        ("canceling", BatchStatus.CANCELLED),
+        ("ended", BatchStatus.COMPLETED),
+    ],
+)
+def test_anthropic_batch_job_info_normalizes_native_sdk_statuses(
+    processing_status: str, expected_status: BatchStatus
+) -> None:
+    sdk_types = pytest.importorskip("anthropic.types.messages")
+    batch = sdk_types.MessageBatch.model_validate(
+        {
+            "id": "msgbatch-local",
+            "type": "message_batch",
+            "processing_status": processing_status,
+            "created_at": "2026-10-24T00:00:00Z",
+            "expires_at": "2026-10-25T00:00:00Z",
+            "ended_at": (
+                "2026-10-24T00:00:20Z" if processing_status == "ended" else None
+            ),
+            "cancel_initiated_at": (
+                None if processing_status == "in_progress" else "2026-10-24T00:00:10Z"
+            ),
+            "results_url": None,
+            "request_counts": {
+                "processing": 0 if processing_status == "ended" else 2,
+                "succeeded": 1,
+                "errored": 0,
+                "canceled": 2 if processing_status == "ended" else 0,
+                "expired": 0,
+            },
+        }
+    )
+
+    result = BatchJobInfo.from_anthropic(batch.model_dump())
+
+    assert result.status is expected_status
+    assert result.raw_status == processing_status
+    assert result.timestamps.cancelled_at == batch.cancel_initiated_at
+    assert result.request_counts.total == 3
+    assert result.raw_data == batch.model_dump()
 
 
 def test_openai_batch_request_makes_nested_array_and_definition_schemas_strict() -> (

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from instructor.v2.core.providers import Provider
+from instructor.v2.core.templating import render_text_blocks
+
 
 def process_message(
     message: dict[str, Any],
@@ -12,11 +15,7 @@ def process_message(
 ) -> dict[str, Any]:
     """Apply templates to Anthropic message content."""
     if isinstance(message.get("content"), list):
-        for part in message["content"]:
-            if (
-                isinstance(part, dict)
-                and part.get("type") == "text"
-                and isinstance(part.get("text"), str)
-            ):
-                part["text"] = apply_template(part["text"], context)
+        render_text_blocks(
+            message["content"], context, apply_template, Provider.ANTHROPIC
+        )
     return message

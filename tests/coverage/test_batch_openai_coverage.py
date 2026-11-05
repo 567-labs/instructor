@@ -6,6 +6,7 @@ import io
 import importlib.util
 import runpy
 from collections.abc import Sequence
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -263,6 +264,29 @@ def test_completed_batch_reads_or_writes_results(
 
     assert client.batches.retrieve_ids == ["batch_123"]
     assert client.files.content_ids == ["file_output"]
+
+
+def test_download_results_writes_utf8_for_non_ascii(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Downloads keep their UTF-8 bytes even when the platform defaults to ASCII."""
+    monkeypatch.setattr(
+        "instructor.batch.providers.openai.open",
+        partial(open, encoding="ascii"),
+        raising=False,
+    )
+    counts = SimpleNamespace(total=1, completed=1, failed=0)
+    batch = BatchResponse(request_counts=counts)
+    client = OpenAIClient([batch])
+    client.files.text = '{"custom_id": "one", "response": "Café ☕ 東京"}\n'
+    provider = install_client(monkeypatch, client)
+    destination = tmp_path / "results.jsonl"
+
+    provider.download_results("batch_123", str(destination))
+
+    written = destination.read_text(encoding="utf-8")
+    assert written == client.files.text
+    assert "Café ☕ 東京" in written
 
 
 @pytest.mark.parametrize("operation", ["retrieve", "download"])

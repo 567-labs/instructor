@@ -21,7 +21,9 @@ def reask_perplexity_json(
     from instructor.v2.core.messages import dump_message
 
     kwargs = kwargs.copy()
-    reask_msgs = [dump_message(response.choices[0].message)]
+    reask_msgs = []
+    if getattr(response, "choices", None):
+        reask_msgs.append(dump_message(response.choices[0].message))
     reask_msgs.append(
         {
             "role": "user",

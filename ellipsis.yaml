@@ -6,7 +6,7 @@ pr_review:
   confidence_threshold: 0.85
   rules:
     # Control what gets flagged during PR review with custom rules. Here are some to get you started:
-    - "Code should be DRY (Dont Repeat Yourself)"
+    - "Code should be DRY (Don't Repeat Yourself)"
     - "Extremely Complicated Code Needs Comments"
     - "Use Descriptive Variable and Constant Names"
     - "Function and Method Naming Should Follow Consistent Patterns"
