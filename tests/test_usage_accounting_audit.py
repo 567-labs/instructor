@@ -16,7 +16,6 @@ from collections.abc import AsyncGenerator
 import pytest
 from openai.types import CompletionUsage
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
-from openai.types.responses import Response, ResponseUsage
 from pydantic import BaseModel
 
 from instructor.batch import BatchProcessor, BatchSuccess
@@ -72,34 +71,6 @@ def test_known_limitation_nested_dictionary_cost_is_last_attempt_only() -> None:
         update_total_usage(completion(usage), total)
     assert total.model_extra["cost"] == 1.0
     assert total.model_extra["cost_details"]["upstream_inference_cost"] == 0.75
-
-
-def test_known_limitation_responses_api_usage_is_not_recognized() -> None:
-    response = Response.model_validate(
-        {
-            "id": "resp_audit",
-            "created_at": 0,
-            "object": "response",
-            "model": "audit",
-            "output": [],
-            "parallel_tool_calls": False,
-            "tool_choice": "auto",
-            "tools": [],
-            "usage": {
-                "input_tokens": 10,
-                "output_tokens": 5,
-                "total_tokens": 15,
-                "input_tokens_details": {"cached_tokens": 8},
-                "output_tokens_details": {"reasoning_tokens": 2},
-            },
-        }
-    )
-    assert isinstance(response.usage, ResponseUsage)
-    total = _initialize_usage(Provider.OPENAI)
-    assert not has_compatible_usage(response, total)
-    update_total_usage(response, total)
-    assert total.total_tokens == 0
-    assert response.usage.total_tokens == 15
 
 
 def test_known_limitation_groq_sdk_usage_is_not_recognized() -> None:

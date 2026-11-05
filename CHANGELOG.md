@@ -28,6 +28,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Gemini retries preserve validation feedback when a response is blocked, empty, or contains prose instead of a tool call.
 - Bedrock tool modes now preserve the caller’s explicit tool choice and still force the response-model tool by default. ([#2775](https://github.com/567-labs/instructor/pull/2775))
 - OpenAI RESPONSES_TOOLS now preserves caller tools (e.g. code interpreter, web search) and avoids forcing tool choice when additional tools are provided. ([#2713](https://github.com/567-labs/instructor/issues/2713))
+- OpenAI-compatible and Cohere JSON modes join text blocks while ignoring reasoning blocks. Responses API token counts contribute to retry totals, and fenced JSON validates through the compatibility parser.
 
 ## [1.18.0] - 2026-09-26
 

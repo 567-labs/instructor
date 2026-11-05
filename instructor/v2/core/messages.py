@@ -9,6 +9,19 @@ if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageParam
 
 
+def text_from_content_blocks(blocks: list[Any]) -> str | None:
+    """Join text fragments while leaving opaque provider blocks untouched."""
+    parts = []
+    for block in blocks:
+        if isinstance(block, dict):
+            kind, text = block.get("type"), block.get("text")
+        else:
+            kind, text = getattr(block, "type", None), getattr(block, "text", None)
+        if kind == "text" and isinstance(text, str):
+            parts.append(text)
+    return "".join(parts) if parts else None
+
+
 def extract_messages(kwargs: dict[str, Any]) -> Any:
     if "messages" in kwargs:
         return kwargs["messages"]

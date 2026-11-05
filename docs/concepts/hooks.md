@@ -29,8 +29,11 @@ The copy is mutable and shared by handlers for that event; changing it can
 affect a later handler of the same event. Snapshots are cumulative: replace the
 previous value rather than summing them.
 
-Compatibility currently means OpenAI Chat Completions or stable Anthropic
-Messages usage types, including compatible subclasses. This is not a streaming
+Compatibility means OpenAI Chat Completions, stable Anthropic Messages, or
+OpenAI Responses, including their compatible subclasses. Only Responses
+`ResponseUsage` is projected onto `CompletionUsage` for accumulation;
+Anthropic Messages keep their own usage accumulator and are not projected
+onto the Chat Completions shape. This is not a streaming
 usage hook. See [usage tracking](usage.md#retry-totals-and-provider-differences)
 for other API/SDK limitations and local response-cache behavior.
 
