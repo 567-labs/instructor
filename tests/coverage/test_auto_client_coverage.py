@@ -558,8 +558,8 @@ FACTORY_FAILURE_CASES = [
     ("openai/gpt-4", "instructor", "from_openai", {"api_key": "test-key"}),
     (
         "azure_openai/gpt-4",
-        "instructor.v2.providers.openai.client",
-        "from_openai",
+        "instructor.v2.providers.azure.client",
+        "from_azure",
         {"api_key": "test-key", "azure_endpoint": "https://azure.invalid"},
     ),
     (

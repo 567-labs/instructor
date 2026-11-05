@@ -427,9 +427,13 @@ def test_combine_system_messages_preserve_cache_control():
 
 
 def test_provider_enum_covers_supported_providers():
+    from instructor.v2.core.provider_specs import ALIAS_TO_PROVIDER
+
     provider_values = {provider.value for provider in Provider}
     missing = [
-        provider for provider in supported_providers if provider not in provider_values
+        provider
+        for provider in supported_providers
+        if provider not in provider_values and provider not in ALIAS_TO_PROVIDER
     ]
     assert not missing, f"Missing providers in Provider enum: {missing}"
 
@@ -437,6 +441,7 @@ def test_provider_enum_covers_supported_providers():
 def test_get_provider_matches_supported_providers():
     provider_mapping = {
         "openai": Provider.OPENAI,
+        "azure": Provider.AZURE_OPENAI,
         "azure_openai": Provider.AZURE_OPENAI,
         "anyscale": Provider.ANYSCALE,
         "databricks": Provider.DATABRICKS,
@@ -462,6 +467,7 @@ def test_get_provider_matches_supported_providers():
     }
     provider_urls = {
         "openai": "https://api.openai.com/v1",
+        "azure": "https://example.openai.azure.com",
         "azure_openai": "https://example.openai.azure.com",
         "anyscale": "https://api.endpoints.anyscale.com/v1",
         "databricks": "https://dbc-databricks.com",

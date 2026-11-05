@@ -22,6 +22,7 @@ PROVIDER_API_KEYS = {
     Provider.PERPLEXITY: ("PERPLEXITY_API_KEY", "openai"),
     Provider.BEDROCK: ("AWS_ACCESS_KEY_ID", "boto3"),
     Provider.VERTEXAI: ("GOOGLE_APPLICATION_CREDENTIALS", "google.cloud.aiplatform"),
+    Provider.AZURE_OPENAI: ("AZURE_OPENAI_API_KEY", "openai"),
 }
 
 

@@ -64,6 +64,7 @@ logger = logging.getLogger("instructor")
 
 OPENAI_COMPAT_PROVIDERS = [
     Provider.OPENAI,
+    Provider.AZURE_OPENAI,
     Provider.ANYSCALE,
     Provider.TOGETHER,
     Provider.DATABRICKS,
@@ -76,6 +77,7 @@ OPENAI_COMPAT_PROVIDERS = [
 
 OPENAI_PARALLEL_TOOL_PROVIDERS = [
     Provider.OPENAI,
+    Provider.AZURE_OPENAI,
     Provider.ANYSCALE,
     Provider.TOGETHER,
     Provider.DATABRICKS,
@@ -86,6 +88,7 @@ OPENAI_PARALLEL_TOOL_PROVIDERS = [
 
 OPENAI_JSON_SCHEMA_PROVIDERS = [
     Provider.OPENAI,
+    Provider.AZURE_OPENAI,
     Provider.ANYSCALE,
     Provider.TOGETHER,
     Provider.DATABRICKS,
@@ -1167,7 +1170,7 @@ class OpenAIParallelToolsHandler(OpenAIHandlerBase):
         return iter(results)
 
 
-@register_mode_handler(Provider.OPENAI, Mode.RESPONSES_TOOLS)
+@register_mode_handler([Provider.OPENAI, Provider.AZURE_OPENAI], Mode.RESPONSES_TOOLS)
 class OpenAIResponsesToolsHandler(OpenAIHandlerBase):
     """Handler for OpenAI Responses API with tools."""
 
