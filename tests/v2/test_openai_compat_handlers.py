@@ -170,3 +170,128 @@ def test_strict_mode_does_not_pollute_schema_cache() -> None:
     assert "strict" not in result_plain["tools"][0]["function"], (
         "lru_cache was poisoned: 'strict' key survived a non-strict call"
     )
+
+
+def test_openai_json_schema_mode_emits_strict_compliant_schema() -> None:
+    """Mode.JSON_SCHEMA must emit strict: True, additionalProperties: False, and all properties required."""
+
+    class Address(BaseModel):
+        street: str
+        city: str | None = None
+
+    class User(BaseModel):
+        name: str
+        address: Address
+        tags: list[str] | None = None
+
+    handler = _handlers(Provider.OPENAI, Mode.JSON_SCHEMA)
+    _, result = handler.request_handler(
+        User,
+        {"messages": [{"role": "user", "content": "Extract user"}]},
+    )
+
+    rf = result["response_format"]
+    assert rf["type"] == "json_schema"
+    json_schema = rf["json_schema"]
+    assert json_schema["strict"] is True
+    assert json_schema["name"] == "User"
+
+    schema = json_schema["schema"]
+    assert schema["type"] == "object"
+    assert schema["additionalProperties"] is False
+    assert sorted(schema["required"]) == ["address", "name", "tags"]
+    assert "default" not in schema["properties"]["tags"]
+
+    nested_address = schema["$defs"]["Address"]
+    assert nested_address["type"] == "object"
+    assert nested_address["additionalProperties"] is False
+    assert sorted(nested_address["required"]) == ["city", "street"]
+    assert "default" not in nested_address["properties"]["city"]
+
+
+def test_openai_tools_strict_mode_emits_strict_compliant_schema() -> None:
+    """Mode.TOOLS with strict=True must normalize parameters with additionalProperties: False and all required."""
+
+    class Address(BaseModel):
+        street: str
+        city: str | None = None
+
+    class User(BaseModel):
+        name: str
+        address: Address
+        tags: list[str] | None = None
+
+    handler = _handlers(Provider.OPENAI, Mode.TOOLS)
+    _, result = handler.request_handler(
+        User,
+        {"messages": [{"role": "user", "content": "Extract user"}], "strict": True},
+    )
+
+    tool = result["tools"][0]["function"]
+    assert tool["strict"] is True
+
+    params = tool["parameters"]
+    assert params["type"] == "object"
+    assert params["additionalProperties"] is False
+    assert sorted(params["required"]) == ["address", "name", "tags"]
+
+    nested_address = params["$defs"]["Address"]
+    assert nested_address["type"] == "object"
+    assert nested_address["additionalProperties"] is False
+    assert sorted(nested_address["required"]) == ["city", "street"]
+    assert "default" not in nested_address["properties"]["city"]
+
+
+def test_openrouter_structured_outputs_emits_recursive_strict_schema() -> None:
+    """OpenRouter structured outputs must recursively constrain nested $defs and required properties."""
+    from instructor.v2.providers.openai.handlers import (
+        handle_openrouter_structured_outputs,
+    )
+
+    class Address(BaseModel):
+        street: str
+        city: str | None = None
+
+    class User(BaseModel):
+        name: str
+        address: Address
+        tags: list[str] | None = None
+
+    _, result = handle_openrouter_structured_outputs(
+        User,
+        {"messages": [{"role": "user", "content": "Extract user"}]},
+    )
+
+    rf = result["response_format"]
+    assert rf["type"] == "json_schema"
+    json_schema = rf["json_schema"]
+    assert json_schema["strict"] is True
+
+    schema = json_schema["schema"]
+    assert schema["additionalProperties"] is False
+    assert sorted(schema["required"]) == ["address", "name", "tags"]
+
+    nested_address = schema["$defs"]["Address"]
+    assert nested_address["type"] == "object"
+    assert nested_address["additionalProperties"] is False
+    assert sorted(nested_address["required"]) == ["city", "street"]
+    assert "default" not in nested_address["properties"]["city"]
+
+
+def test_openai_json_schema_mode_allows_explicit_strict_false() -> None:
+    """Mode.JSON_SCHEMA with strict=False skips strict normalization."""
+
+    class User(BaseModel):
+        name: str
+        tags: list[str] | None = None
+
+    handler = _handlers(Provider.OPENAI, Mode.JSON_SCHEMA)
+    _, result = handler.request_handler(
+        User,
+        {"messages": [{"role": "user", "content": "Extract user"}], "strict": False},
+    )
+
+    json_schema = result["response_format"]["json_schema"]
+    assert "strict" not in json_schema
+    assert "additionalProperties" not in json_schema["schema"]
+    assert json_schema["schema"]["required"] == ["name"]

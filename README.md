@@ -1,5 +1,9 @@
 # Instructor: Structured Outputs for LLMs
 
+<p align="center">
+  <b>English</b> · <a href="https://github.com/567-labs/instructor/blob/main/README.zh.md">简体中文</a>
+</p>
+
 Get reliable JSON from any LLM. Built on Pydantic for validation, type safety, and IDE support.
 
 ```python
@@ -33,7 +37,7 @@ print(user)  # User(name='John', age=25)
 
 > **Use Instructor for fast extraction, reach for PydanticAI when you need agents.** Instructor keeps schema-first flows simple and cheap. If your app needs richer agent runs, built-in observability, or shareable traces, try [PydanticAI](https://ai.pydantic.dev/). PydanticAI is the official agent runtime from the Pydantic team, adding typed tools, replayable datasets, evals, and production dashboards while using the same Pydantic models. Dive into the [PydanticAI docs](https://ai.pydantic.dev/) to see how it extends Instructor-style workflows.
 
-## Why Instructor?
+## Why use Instructor?
 
 Getting structured data from LLMs is hard. You need to:
 
@@ -119,21 +123,23 @@ poetry add instructor
 Use the same code with any LLM provider:
 
 ```python
+import os
+
 # OpenAI
 client = instructor.from_provider("openai/gpt-4o")
 
 # Anthropic
-client = instructor.from_provider("anthropic/claude-3-5-sonnet")
+client = instructor.from_provider("anthropic/claude-sonnet-5")
 
 # Google
-client = instructor.from_provider("google/gemini-pro")
+client = instructor.from_provider("google/gemini-3.8-flash")
 
 # Ollama (local)
 client = instructor.from_provider("ollama/llama3.2")
 
 # With API keys directly (no environment variables needed)
-client = instructor.from_provider("openai/gpt-4o", api_key="sk-...")
-client = instructor.from_provider("anthropic/claude-3-5-sonnet", api_key="sk-ant-...")
+client = instructor.from_provider("openai/gpt-4o", api_key=os.environ["OPENAI_API_KEY"])
+client = instructor.from_provider("anthropic/claude-sonnet-5", api_key=os.environ["ANTHROPIC_API_KEY"])
 client = instructor.from_provider("groq/llama-3.1-8b-instant", api_key="gsk_...")
 
 # All use the same API!

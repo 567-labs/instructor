@@ -67,10 +67,30 @@ def _get_model_name(response_model: Any) -> str:
     return getattr(response_model, "__name__", "Model")
 
 
+def is_truncated_at_max_tokens(response: Any) -> bool:
+    """Both Google SDK enums expose MAX_TOKENS by name; one stringifies to an integer."""
+    candidates = getattr(response, "candidates", None)
+    if not candidates:
+        return False
+    finish_reason = getattr(candidates[0], "finish_reason", None)
+    if finish_reason is None:
+        return False
+    name = getattr(finish_reason, "name", None)
+    if name is not None:
+        return name == "MAX_TOKENS"
+    return str(finish_reason).split(".")[-1] == "MAX_TOKENS"
+
+
 def extract_gemini_chunk_text(chunk: Any) -> str:
     try:
         return chunk.text
     except (AttributeError, ValueError):
+        # `candidates` (and a candidate's `parts`) can be empty — e.g. a
+        # safety-blocked chunk or a trailing usage-only chunk — in which
+        # case this raises IndexError. Both callers of this function
+        # already wrap the call in `except (AttributeError, IndexError)`
+        # to skip such chunks, so let it propagate rather than swallowing
+        # it here and returning an empty string.
         part_text = chunk.candidates[0].content.parts[0].text
         if part_text:
             return part_text

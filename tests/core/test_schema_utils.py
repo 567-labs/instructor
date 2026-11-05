@@ -234,5 +234,57 @@ def test_cached_schema_same_object():
     assert s1 is s2
 
 
+def test_make_strict_schema_delegation():
+    """Verify make_strict_schema is exposed across processing, v2 core, and provider modules."""
+    from instructor.processing.schema import make_strict_schema as processing_strict
+    from instructor.v2.core.schema import make_strict_schema as core_strict
+    from instructor.v2.providers.openai.schema import (
+        make_strict_schema as provider_strict,
+    )
+
+    schema = {"type": "object", "properties": {"a": {"type": "string"}}}
+    res1 = processing_strict(schema)
+    res2 = core_strict(schema)
+    res3 = provider_strict(schema)
+
+    assert res1 == res2 == res3
+    assert res1["additionalProperties"] is False
+    assert res1["required"] == ["a"]
+
+
+def test_make_strict_schema_nested_and_optionals():
+    """Verify make_strict_schema recursively requires properties, strips null defaults, and sets additionalProperties: False."""
+    from instructor.v2.providers.openai.schema import make_strict_schema
+
+    class Inner(BaseModel):
+        field_a: str
+        field_b: Optional[int] = None
+
+    class Outer(BaseModel):
+        title: str
+        inner: Inner
+        tags: Optional[list[str]] = None
+
+    raw_schema = Outer.model_json_schema()
+    strict_schema = make_strict_schema(raw_schema)
+
+    # Input dictionary is not mutated
+    assert "additionalProperties" not in raw_schema
+    assert raw_schema["required"] == ["title", "inner"]
+
+    # Root object assertions
+    assert strict_schema["type"] == "object"
+    assert strict_schema["additionalProperties"] is False
+    assert sorted(strict_schema["required"]) == ["inner", "tags", "title"]
+    assert "default" not in strict_schema["properties"]["tags"]
+
+    # Nested $defs assertions
+    inner_def = strict_schema["$defs"]["Inner"]
+    assert inner_def["type"] == "object"
+    assert inner_def["additionalProperties"] is False
+    assert sorted(inner_def["required"]) == ["field_a", "field_b"]
+    assert "default" not in inner_def["properties"]["field_b"]
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

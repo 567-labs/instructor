@@ -10,6 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- Gemini and Vertex AI reject completions stopped at the token limit. Google and Mistral streaming handlers skip empty metadata chunks, and GenAI JSON mode aliases are classified consistently.
 - Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
 - Cached responses accept both field names and validation aliases across supported Pydantic versions. Public cache keys include extra request-body options, and uncacheable list or scalar results emit a warning.
 - Explicit async validation visits set and frozenset items and reports validation failures from every item in a container.
@@ -21,6 +22,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Batch job listings handle nullable OpenAI metadata and request counts, expose job validation errors, and recognize Anthropic cancellation requests.
 - Anthropic batch requests omit an unset temperature and preserve explicit numeric values, including zero.
 - Anthropic tool mode uses automatic choice for requested thinking and models that reject forced tool use.
+- OpenAI and OpenRouter structured outputs normalize nested object schemas consistently. OpenAI batch callers can select permissive schemas for arbitrary mapping fields with `strict=False`.
 - Message templating now renders Bedrock Converse text, Anthropic system blocks and OpenAI Responses input text.
 - Template rendering raises on undefined variables and preserves explicit Jinja raw blocks. Consecutive plain-text messages are joined once per role run.
 - Sync and async response helpers now log raw provider responses only when DEBUG is enabled and `INSTRUCTOR_LOG_RAW_RESPONSES=1` is set.
