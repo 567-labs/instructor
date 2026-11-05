@@ -331,6 +331,8 @@ For Bedrock, you can convert a `PDF` into the Bedrock-native document format wit
 
 If a source cannot be queried as a file path, such as a long raw Base64 string, the default document name is `document`. Pass `name="Invoice"` to choose a name.
 
+`PDF.to_bedrock(name=...)` removes unsupported characters, including underscores, collapses whitespace, and limits the document name to 200 characters. If no characters remain, it uses `document`. Unicode letters and numbers are preserved.
+
 ### Usage
 
 ```python

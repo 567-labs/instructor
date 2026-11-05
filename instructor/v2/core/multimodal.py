@@ -2,7 +2,7 @@ from __future__ import annotations
 import base64
 import errno
 import re
-from collections.abc import Mapping, Hashable
+from collections.abc import Iterable, Mapping, Hashable
 from typing import (
     Any,
     Callable,
@@ -150,6 +150,10 @@ class Image(BaseModel):
             return cls.autodetect(source)
         except ValueError:
             return str(source)
+        except OSError:
+            if isinstance(source, Path):
+                return str(source)
+            raise
 
     @classmethod
     def is_base64(cls, s: str) -> bool:
@@ -336,6 +340,10 @@ class Audio(BaseModel):
             return cls.autodetect(source)
         except ValueError:
             return str(source)
+        except OSError:
+            if isinstance(source, Path):
+                return str(source)
+            raise
 
     @classmethod
     def is_base64(cls, s: str) -> bool:
@@ -537,6 +545,10 @@ class PDF(BaseModel):
             return cls.autodetect(source)
         except ValueError:
             return str(source)
+        except OSError:
+            if isinstance(source, Path):
+                return str(source)
+            raise
 
     @classmethod
     def is_base64(cls, s: str) -> bool:
@@ -655,7 +667,7 @@ class PDF(BaseModel):
         return pdf_to_genai(self)
 
     def to_bedrock(self, name: str | None = None) -> dict[str, Any]:
-        """Convert to Bedrock's document format."""
+        """Convert to Bedrock's document format with a sanitized 1-200 character name."""
         # Determine the document name
         if name is None:
             if isinstance(self.source, Path):
@@ -675,9 +687,9 @@ class PDF(BaseModel):
 
         # Sanitize name according to Bedrock requirements
         # Only allow alphanumeric, whitespace (max one in row), hyphens, parentheses, square brackets
-        name = re.sub(r"[^\w\s\-\(\)\[\]]", "", name)
+        name = re.sub(r"[^\w\s\-\(\)\[\]]|_", "", name)
         name = re.sub(r"\s+", " ", name)  # Consolidate whitespace
-        name = name.strip()
+        name = name.strip()[:200].rstrip() or "document"
 
         # Handle S3 URIs
         if isinstance(self.source, str) and self.source.startswith("s3://"):
@@ -834,19 +846,7 @@ def autodetect_media(
 
 
 def convert_messages(
-    messages: list[
-        dict[
-            str,
-            Union[  # noqa: UP007
-                str,
-                dict[str, Any],
-                Image,
-                Audio,
-                PDF,
-                list[Union[str, dict[str, Any], Image, Audio, PDF]],  # noqa: UP007
-            ],
-        ]
-    ],
+    messages: Iterable[dict[str, Any]],
     mode: Mode,
     autodetect_images: bool = False,
 ) -> list[dict[str, Any]]:
@@ -863,10 +863,17 @@ def convert_messages(
                 continue
             raise ValueError(f"Unsupported message type: {message['type']}")
         role = message["role"]
-        content = message["content"] or []
         other_kwargs = {
             k: v for k, v in message.items() if k not in ["role", "content", "type"]
         }
+        if (
+            role == "assistant"
+            and message.get("tool_calls")
+            and message.get("content") is None
+        ):
+            converted_messages.append(dict(message))
+            continue
+        content = message["content"] or []
         if autodetect_images:
             if isinstance(content, list):
                 new_content: list[str | dict[str, Any] | Image | Audio | PDF] = []  # noqa: UP007
