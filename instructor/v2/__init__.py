@@ -4,24 +4,6 @@ from __future__ import annotations
 
 from importlib import import_module
 from typing import Any
-from instructor.v2.core.provider_specs import PUBLIC_FACTORY_ATTRS
-
-__all__ = [
-    "Mode",
-    "Provider",
-    "ModeHandler",
-    "ModeHandlers",
-    "ModeRegistry",
-    "mode_registry",
-    "normalize_mode",
-    "patch_v2",
-    "register_mode_handler",
-    "ReaskHandler",
-    "RequestHandler",
-    "ResponseParser",
-    "providers",
-    *PUBLIC_FACTORY_ATTRS.keys(),
-]
 
 _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "Mode": ("instructor.v2.core.mode", "Mode"),
@@ -40,14 +22,22 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "RequestHandler": ("instructor.v2.core.protocols", "RequestHandler"),
     "ResponseParser": ("instructor.v2.core.protocols", "ResponseParser"),
     "providers": ("instructor.v2.providers", None),
-    **PUBLIC_FACTORY_ATTRS,
 }
 
 
 def __getattr__(name: str) -> Any:
-    if name not in __all__:
+    target = _LAZY_ATTRS.get(name)
+    if name == "__all__" or name.startswith("from_"):
+        from instructor.v2.core.provider_specs import PUBLIC_FACTORY_ATTRS
+
+        if name == "__all__":
+            exports = [*_LAZY_ATTRS, *PUBLIC_FACTORY_ATTRS]
+            globals()[name] = exports
+            return exports
+        target = PUBLIC_FACTORY_ATTRS.get(name)
+    if target is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    module_path, attr_name = _LAZY_ATTRS[name]
+    module_path, attr_name = target
     module = import_module(module_path)
     value = module if attr_name is None else getattr(module, attr_name)
     globals()[name] = value

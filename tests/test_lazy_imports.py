@@ -68,15 +68,7 @@ def test_mode_export_stays_lightweight():
 def test_v2_module_export_stays_lightweight():
     state = _cold_import_state("import instructor; instructor.v2")
 
-    assert state["count"] <= 6
-    assert state["modules"] == [
-        "instructor",
-        "instructor.v2",
-        "instructor.v2.core",
-        "instructor.v2.core.mode",
-        "instructor.v2.core.provider_specs",
-        "instructor.v2.core.providers",
-    ]
+    assert state["modules"] == ["instructor", "instructor.v2"]
 
 
 def test_auto_client_keeps_bedrock_provider_lazy():
@@ -84,3 +76,10 @@ def test_auto_client_keeps_bedrock_provider_lazy():
 
     assert "instructor.v2.auto_client" in state["modules"]
     assert "instructor.v2.providers.bedrock.client" not in state["modules"]
+
+
+def test_v2_gateway_factories_are_available_from_all():
+    from instructor import v2
+
+    assert "from_zai" in v2.__all__
+    assert v2.from_zai is importlib.import_module("instructor").from_zai

@@ -11,7 +11,6 @@ from collections.abc import Iterable
 from typing import Literal, Union
 
 import importlib.util
-from pathlib import Path
 
 import pytest
 from pydantic import BaseModel
@@ -20,23 +19,9 @@ import instructor
 from instructor.core.exceptions import InstructorRetryException
 from instructor import Mode
 from instructor.v2 import Provider, mode_registry
-from tests.v2.provider_matrix import legacy_config_dicts
+from tests.v2.provider_matrix import HANDLER_MODULE_PATHS, legacy_config_dicts
 
 # Ensure handlers are loaded by dynamically importing them
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_HANDLER_MODULE_PATHS: dict[Provider, Path] = {
-    Provider.OPENAI: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
-    Provider.ANTHROPIC: _PROJECT_ROOT / "instructor/v2/providers/anthropic/handlers.py",
-    Provider.GENAI: _PROJECT_ROOT / "instructor/v2/providers/genai/handlers.py",
-    Provider.COHERE: _PROJECT_ROOT / "instructor/v2/providers/cohere/handlers.py",
-    Provider.XAI: _PROJECT_ROOT / "instructor/v2/providers/xai/handlers.py",
-    Provider.GROQ: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
-    Provider.MISTRAL: _PROJECT_ROOT / "instructor/v2/providers/mistral/handlers.py",
-    Provider.FIREWORKS: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
-    Provider.BEDROCK: _PROJECT_ROOT / "instructor/v2/providers/bedrock/handlers.py",
-    Provider.CEREBRAS: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
-    Provider.WRITER: _PROJECT_ROOT / "instructor/v2/providers/writer/handlers.py",
-}
 _HANDLERS_LOADED: set[Provider] = set()
 
 
@@ -70,7 +55,7 @@ def _ensure_handlers_loaded(provider: Provider) -> None:
     """Dynamically load handler module to ensure handlers are registered."""
     if provider in _HANDLERS_LOADED:
         return
-    handler_path = _HANDLER_MODULE_PATHS.get(provider)
+    handler_path = HANDLER_MODULE_PATHS.get(provider)
     if handler_path is None:
         return
     if not handler_path.exists():

@@ -7,39 +7,14 @@ across all providers without requiring API keys.
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
 from typing import Any
 
 import pytest
 
 from instructor import Mode, Provider
 from instructor.v2.core.registry import mode_registry, normalize_mode
-from tests.v2.provider_matrix import legacy_config_dicts
+from tests.v2.provider_matrix import HANDLER_MODULE_PATHS, legacy_config_dicts
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_HANDLER_MODULE_PATHS: dict[Provider, Path] = {
-    Provider.OPENAI: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
-    Provider.ANYSCALE: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
-    Provider.TOGETHER: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
-    Provider.DATABRICKS: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
-    Provider.DEEPSEEK: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
-    Provider.ANTHROPIC: _PROJECT_ROOT / "instructor/v2/providers/anthropic/handlers.py",
-    Provider.GENAI: _PROJECT_ROOT / "instructor/v2/providers/genai/handlers.py",
-    Provider.GEMINI: _PROJECT_ROOT / "instructor/v2/providers/gemini/handlers.py",
-    Provider.COHERE: _PROJECT_ROOT / "instructor/v2/providers/cohere/handlers.py",
-    Provider.OPENROUTER: _PROJECT_ROOT
-    / "instructor/v2/providers/openrouter/handlers.py",
-    Provider.PERPLEXITY: _PROJECT_ROOT
-    / "instructor/v2/providers/perplexity/handlers.py",
-    Provider.XAI: _PROJECT_ROOT / "instructor/v2/providers/xai/handlers.py",
-    Provider.GROQ: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
-    Provider.MISTRAL: _PROJECT_ROOT / "instructor/v2/providers/mistral/handlers.py",
-    Provider.FIREWORKS: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
-    Provider.CEREBRAS: _PROJECT_ROOT / "instructor/v2/providers/openai/handlers.py",
-    Provider.WRITER: _PROJECT_ROOT / "instructor/v2/providers/writer/handlers.py",
-    Provider.BEDROCK: _PROJECT_ROOT / "instructor/v2/providers/bedrock/handlers.py",
-    Provider.VERTEXAI: _PROJECT_ROOT / "instructor/v2/providers/vertexai/handlers.py",
-}
 _HANDLERS_LOADED: set[Provider] = set()
 
 
@@ -66,7 +41,7 @@ def _ensure_handlers_loaded(provider: Provider) -> None:
     ):
         _HANDLERS_LOADED.add(provider)
         return
-    handler_path = _HANDLER_MODULE_PATHS.get(provider)
+    handler_path = HANDLER_MODULE_PATHS.get(provider)
     if handler_path is None or not handler_path.exists():
         return
     spec = importlib.util.spec_from_file_location(
@@ -250,7 +225,7 @@ def test_from_function_importable(provider: Provider) -> None:
 @pytest.mark.parametrize("provider", _get_provider_params())
 def test_handlers_importable(provider: Provider) -> None:
     """Test that handlers are importable."""
-    handler_path = _HANDLER_MODULE_PATHS.get(provider)
+    handler_path = HANDLER_MODULE_PATHS.get(provider)
     assert handler_path is not None and handler_path.exists(), (
         f"Missing handler module path for {provider.value}"
     )
