@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import importlib
 import importlib.metadata
+import json
 import os
 from pathlib import Path
 import sys
+from typing import Any
 
 import instructor
 import openai
@@ -41,15 +43,77 @@ def main() -> None:
     assert schema["parameters"]["required"] == ["value"]
     assert instructor.response_schema(Result).model_validate({"value": 7}).value == 7
 
-    # Real SDK construction only: no network requests and no real credentials.
-    with openai.OpenAI(api_key="package-contract") as client:
-        assert isinstance(instructor.from_openai(client), instructor.Instructor)
+    sdk_major = int(importlib.metadata.version("openai").split(".", 1)[0])
+    http = importlib.import_module("httpx2" if sdk_major >= 3 else "httpx")
+    endpoint = "https://package-contract.invalid/v1"
+
+    def completion(request: Any) -> Any:
+        body = json.loads(request.content)
+        assert request.url.path == "/v1/chat/completions"
+        assert body["tools"][0]["function"]["name"] == "Result"
+        return http.Response(
+            200,
+            json={
+                "id": "offline-completion",
+                "object": "chat.completion",
+                "created": 1,
+                "model": "offline-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "tool_calls",
+                        "message": {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "id": "offline-tool",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "Result",
+                                        "arguments": '{"value":7}',
+                                    },
+                                }
+                            ],
+                        },
+                    }
+                ],
+            },
+        )
+
+    with openai.OpenAI(
+        api_key="package-contract",
+        base_url=endpoint,
+        http_client=http.Client(
+            transport=http.MockTransport(completion), trust_env=False
+        ),
+    ) as client:
+        wrapped = instructor.from_openai(client)
+        assert isinstance(wrapped, instructor.Instructor)
+        result = wrapped.chat.completions.create(
+            model="offline-model",
+            response_model=Result,
+            messages=[{"role": "user", "content": "Return seven."}],
+            max_retries=0,
+        )
+        assert isinstance(result, Result) and result.value == 7
 
     async def check_async() -> None:
-        async with openai.AsyncOpenAI(api_key="package-contract") as client:
-            assert isinstance(
-                instructor.from_openai(client), instructor.AsyncInstructor
+        async with openai.AsyncOpenAI(
+            api_key="package-contract",
+            base_url=endpoint,
+            http_client=http.AsyncClient(
+                transport=http.MockTransport(completion), trust_env=False
+            ),
+        ) as client:
+            wrapped = instructor.from_openai(client)
+            assert isinstance(wrapped, instructor.AsyncInstructor)
+            result = await wrapped.chat.completions.create(
+                model="offline-model",
+                response_model=Result,
+                messages=[{"role": "user", "content": "Return seven."}],
+                max_retries=0,
             )
+            assert isinstance(result, Result) and result.value == 7
 
     asyncio.run(check_async())
     if os.environ.get("PACKAGE_EXTRAS") == "google-genai":

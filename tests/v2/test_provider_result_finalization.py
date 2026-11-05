@@ -45,7 +45,7 @@ def test_model_keeps_original_raw_response(handler: ModeHandler) -> None:
 def test_iterable_unwraps_tasks_without_changing_items(handler: ModeHandler) -> None:
     model = IterableModel(Item)
     item = Item(value=1)
-    parsed = model(tasks=[item])
+    parsed = model.model_validate({"tasks": [item]})
 
     result = handler._finalize_parsed_result(model, {}, parsed)
 
@@ -60,7 +60,7 @@ def test_adapter_keeps_falsey_contents(handler: ModeHandler, value: Any) -> None
         Callable[[type[Any]], type[BaseModel]], ModelAdapter.__class_getitem__
     )
     model = adapter_factory(type(value))
-    parsed = model(content=value)
+    parsed = model.model_validate({"content": value})
 
     assert handler._finalize_parsed_result(model, {}, parsed) == value
 

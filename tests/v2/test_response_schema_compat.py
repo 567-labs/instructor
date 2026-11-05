@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import GenericAlias
 from typing import Annotated, Any, cast
 
 import pytest
@@ -183,7 +184,12 @@ def test_prepare_response_model_preserves_readonly_typed_dict_fields(
 ) -> None:
     make_typed_dict = cast(Any, TypedDict)
     record = make_typed_dict("Record", {"value": annotation}, total=total)
-    model = cast(Any, prepare_response_model(list[record] if as_list else record))
+    model = cast(
+        Any,
+        prepare_response_model(
+            cast(type[Any], GenericAlias(list, record)) if as_list else record
+        ),
+    )
     if as_list:
         model = model.task_type
     is_required = total if required is None else required

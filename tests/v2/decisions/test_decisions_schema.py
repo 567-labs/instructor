@@ -523,7 +523,11 @@ def test_choice_criteria_reject_non_json_or_non_structured_meanings(
 def test_empty_model_invalid_model_and_non_dictionary_context_are_rejected() -> None:
     with pytest.raises(ValueError, match="at least one question"):
         build_questions(create_model("Empty"), {})
-    for invalid in (None, object, decision_model(Literal["ok"])(value="ok")):
+    for invalid in (
+        None,
+        object,
+        decision_model(Literal["ok"]).model_validate({"value": "ok"}),
+    ):
         with pytest.raises(TypeError, match="Pydantic BaseModel"):
             build_questions(cast(Any, invalid), {})
     with pytest.raises(TypeError, match="context must be a dictionary"):

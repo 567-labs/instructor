@@ -225,7 +225,7 @@ def test_distil_rejects_invalid_modes_and_return_models() -> None:
         return 1
 
     with pytest.raises(AssertionError, match="must subclass"):
-        instructions.distil(returns_number)
+        instructions.distil(returns_number)  # ty: ignore[invalid-argument-type]
 
 
 def test_distil_openai_kwargs_handle_empty_calls_and_keyword_only_calls() -> None:

@@ -7,6 +7,6 @@ Supports TOOLS, JSON_SCHEMA, and MD_JSON modes.
 try:
     from instructor.v2.providers.mistral.client import from_mistral
 except ImportError:
-    from_mistral = None  # type: ignore
+    from_mistral = None
 
 __all__ = ["from_mistral"]

@@ -73,7 +73,7 @@ def _ensure_handlers_loaded(provider: Provider) -> None:
     except (ImportError, ModuleNotFoundError) as exc:
         if _is_expected_missing_dependency(provider, exc):
             pytest.skip(
-                f"{provider.value} handlers require optional dependency "  # ty: ignore[too-many-positional-arguments]
+                f"{provider.value} handlers require optional dependency "
                 f"{PROVIDER_CONFIGS[provider]['sdk_module']}"
             )
         raise
@@ -129,7 +129,7 @@ def test_mode_is_registered(provider: Provider, mode: Mode):
     # Skip if handler module doesn't exist or isn't registered
     if not mode_registry.is_registered(provider, mode):
         # fmt: off
-        pytest.skip(f"Mode {mode.value} not registered for {provider.value}")  # ty: ignore[too-many-positional-arguments]
+        pytest.skip(f"Mode {mode.value} not registered for {provider.value}")
         # fmt: on
 
     handlers = mode_registry.get_handlers(provider, mode)
@@ -155,7 +155,7 @@ def _skip_on_provider_quota(provider: Provider, exc: Exception) -> None:
         and "RESOURCE_EXHAUSTED" in str(exc)
     ):
         # fmt: off
-        pytest.skip("GenAI quota exhausted for this environment")  # ty: ignore[too-many-positional-arguments]
+        pytest.skip("GenAI quota exhausted for this environment")
         # fmt: on
     if (
         provider == Provider.OPENAI
@@ -165,7 +165,7 @@ def _skip_on_provider_quota(provider: Provider, exc: Exception) -> None:
         if os.environ.get("CI") or os.environ.get("INSTRUCTOR_STRICT_PROVIDER_TESTS"):
             return
         # fmt: off
-        pytest.skip("OpenAI connectivity is unavailable in this environment")  # ty: ignore[too-many-positional-arguments]
+        pytest.skip("OpenAI connectivity is unavailable in this environment")
         # fmt: on
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import builtins
 import importlib
+import inspect
 import json
 import runpy
 from pathlib import Path
@@ -73,7 +74,7 @@ def run_with_blocked_import(
     real_import = builtins.__import__
 
     def guarded_import(name: str, *args: Any, **kwargs: Any) -> Any:
-        if name == blocked_module:
+        if name == blocked_module or name.startswith(f"{blocked_module}."):
             raise ImportError(
                 f"No module named '{blocked_module}'", name=blocked_module
             )
@@ -97,7 +98,7 @@ def run_with_blocked_import(
         ),
         pytest.param(
             "fireworks",
-            "fireworks.client",
+            "fireworks",
             "Fireworks",
             "AsyncFireworks",
             "fireworks-ai",
@@ -190,6 +191,11 @@ def sync_sdk_client(
             **kwargs, http_client=http_client, _strict_response_validation=True
         )
 
+    if "http_client" in inspect.signature(module.Fireworks).parameters:
+        # Fireworks 1.x includes /v1 in its resource paths.
+        kwargs["base_url"] = kwargs["base_url"].removesuffix("/v1")
+        return module, module.Fireworks(**kwargs, http_client=http_client)
+
     client = module.Fireworks(**kwargs)
     client._client_v1._client.close()
     client._client_v1._client = http_client
@@ -224,6 +230,11 @@ async def async_sdk_client(
         return module, module.AsyncWriter(
             **kwargs, http_client=http_client, _strict_response_validation=True
         )
+
+    if "http_client" in inspect.signature(module.AsyncFireworks).parameters:
+        # Fireworks 1.x includes /v1 in its resource paths.
+        kwargs["base_url"] = kwargs["base_url"].removesuffix("/v1")
+        return module, module.AsyncFireworks(**kwargs, http_client=http_client)
 
     client = module.AsyncFireworks(**kwargs)
     await client._client_v1._async_client.aclose()

@@ -1,3 +1,5 @@
+from typing import cast
+
 import pytest
 from pydantic import BaseModel, ConfigDict, Json, computed_field
 from typing_extensions import NotRequired, TypedDict
@@ -71,7 +73,7 @@ def test_cached_typed_dict_preserves_underscore_keys_and_omission(
     if optional_present:
         payload["_note"] = "saved"
     data = {"tasks": [payload]} if nested else payload
-    original = model.model_validate(data)
+    original = cast(type[BaseModel], model).model_validate(data)
     cache = AutoCache()
 
     store_cached_response(cache, "record", original)

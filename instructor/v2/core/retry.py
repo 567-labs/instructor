@@ -364,7 +364,7 @@ def retry_sync_v2(
     # Should never reach here
     logger.error("Unexpected code path in retry_sync_v2")
     raise InstructorRetryException(
-        str(last_exception) if last_exception else "Unknown error",
+        str(failed_attempts[-1].exception) if failed_attempts else "Unknown error",
         last_completion=failed_attempts[-1].completion if failed_attempts else None,
         n_attempts=last_attempt_number,
         total_usage=total_usage,
@@ -663,7 +663,7 @@ async def retry_async_v2(
     # Should never reach here
     logger.error("Unexpected code path in retry_async_v2")
     raise InstructorRetryException(
-        str(last_exception) if last_exception else "Unknown error",
+        str(failed_attempts[-1].exception) if failed_attempts else "Unknown error",
         last_completion=failed_attempts[-1].completion if failed_attempts else None,
         n_attempts=last_attempt_number,
         total_usage=total_usage,

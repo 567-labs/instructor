@@ -8,7 +8,7 @@ import json
 from contextlib import closing, contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from typing import Any, Optional, Union
 import io
 import logging
@@ -94,7 +94,7 @@ class AnthropicProvider(BatchProvider):
             raise Exception(f"Failed to get Anthropic batch status: {e}") from e
 
     @contextmanager
-    def _result_lines(self, batch_id: str) -> Iterator[Iterator[str]]:
+    def _result_lines(self, batch_id: str) -> Generator[Iterator[str], None, None]:
         """Own the SDK client for the entire streaming response."""
         import anthropic
 

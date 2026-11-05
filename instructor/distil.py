@@ -240,7 +240,7 @@ class Instructions:
             return _dispatch if mode == "dispatch" else _distil
 
         if len(args) == 1 and callable(args[0]):
-            return _wrap_distil(cast(Callable[..., T_Retval], args[0]))
+            return _wrap_distil(cast(Callable[..., BaseModel], args[0]))
 
         return _wrap_distil
 

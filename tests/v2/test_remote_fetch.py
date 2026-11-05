@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import ipaddress
 import socket
 from types import SimpleNamespace
@@ -539,3 +540,25 @@ def test_rejects_local_nat64_prefix_without_guessing_translation_layout(
 ) -> None:
     with pytest.raises(remote.RemoteFetchError, match="non-public"):
         remote._validate_public_address(address)
+
+
+def test_anthropic_uppercase_url_downloads_pdf_through_public_transport(
+    monkeypatch: pytest.MonkeyPatch,
+    public_dns: None,  # noqa: ARG001
+) -> None:
+    from instructor.v2.core.multimodal import PDF
+    from instructor.v2.providers.anthropic.multimodal import pdf_to_anthropic
+
+    source = "HTTPS://media.example.test/document.pdf"
+    content = b"%PDF-1.4\nOffline PDF fixture."
+    session = FakeSession([FakeResponse(chunks=[content])])
+    monkeypatch.setattr(remote, "_new_session", lambda: session)
+
+    document = pdf_to_anthropic(PDF.model_construct(source=source, data=None))
+
+    assert document["source"]["type"] == "base64"
+    assert base64.b64decode(document["source"]["data"]) == content
+    assert len(session.requests) == 1
+    method, url, _ = session.requests[0]
+    assert method == "GET" and url.lower() == source.lower()
+    assert session.closed

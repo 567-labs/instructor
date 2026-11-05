@@ -124,7 +124,7 @@ def merge_consecutive_messages(messages: list[dict[str, Any]]) -> list[dict[str,
     return new_messages
 
 
-def get_message_content(message: ChatCompletionMessageParam) -> list[Any]:
+def get_message_content(message: ChatCompletionMessageParam | None) -> list[Any]:
     """Return message content in list form for Gemini-style APIs.
 
     The returned list is always a new object: callers treat it as their own

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import os
-from collections.abc import AsyncGenerator, Generator, Iterable
+from collections.abc import Callable, AsyncGenerator, Generator, Iterable
 from copy import deepcopy
 from enum import Enum
 from typing import Any, Literal, Optional, Protocol, TypeVar, Union, cast
@@ -15,7 +15,7 @@ from instructor.dsl.partial import Partial, PartialLiteralMixin, _make_field_opt
 from openai import AsyncOpenAI, OpenAI
 
 
-T_Model = TypeVar("T_Model", bound=BaseModel)
+T_Model = TypeVar("T_Model", bound=BaseModel, covariant=True)
 
 
 class _PartialModelApi(Protocol[T_Model]):
@@ -380,7 +380,7 @@ def test_partial_with_default_factory():
 
     # Verify we can instantiate and validate
     # In Partial models, all fields are made Optional with default=None
-    instance = partial_model()
+    instance = cast(Callable[[], ModelWithDefaultFactory], partial_model)()
     assert instance.items is None
     assert instance.tags is None
     assert instance.name is None
@@ -1184,8 +1184,10 @@ class TestRecursiveModels:
         }
         result = TruePartial.model_validate(data)
         assert result.value == "root"
+        assert result.children is not None
         assert len(result.children) == 2
         assert result.children[0].value == "child1"
+        assert result.children[1].children is not None
         assert result.children[1].children[0].value == "grandchild"
 
     def test_mutually_recursive_models(self):
@@ -1231,8 +1233,8 @@ class TestRecursiveModels:
         data = {"value": 1, "next": {"value": 2, "next": {"value": 3}}}
         result = TruePartial.model_validate(data)
         assert result.value == 1
-        assert result.next.value == 2
-        assert result.next.next.value == 3
+        assert result.next is not None and result.next.value == 2
+        assert result.next.next is not None and result.next.next.value == 3
 
     def test_complex_recursive_with_validators(self):
         """Complex recursive model with validators, multiple self-refs, and nested types."""
@@ -1328,14 +1330,18 @@ class TestRecursiveModels:
         result = TruePartial.model_validate(data)
         assert result.name == "root"
         assert result.node_type == NodeType.FOLDER
+        assert result.children is not None
         assert len(result.children) == 2
-        assert result.children[0].name == "documents"
-        assert len(result.children[0].children) == 2
-        assert result.children[0].children[0].name == "report.pdf"
-        assert result.children[0].children[0].size_bytes == 1024
-        assert result.children[0].children[1].children[0].name == "archive.zip"
-        assert result.children[1].symlink_target.name == "target_file"
-        assert result.permissions[0].level == "admin"
+        documents, shortcut = result.children
+        assert documents.name == "documents"
+        assert documents.children is not None and len(documents.children) == 2
+        report, data_folder = documents.children
+        assert report.name == "report.pdf" and report.size_bytes == 1024
+        assert data_folder.children is not None
+        assert data_folder.children[0].name == "archive.zip"
+        assert shortcut.symlink_target is not None
+        assert shortcut.symlink_target.name == "target_file"
+        assert result.permissions is not None and result.permissions[0].level == "admin"
 
     def test_recursive_with_union_types(self):
         """Recursive model with Union types containing self-references."""
@@ -1374,9 +1380,14 @@ class TestRecursiveModels:
         result = TruePartial.model_validate(data)
         assert result.title == "Chapter 1"
         assert len(result.content) == 3
-        assert result.content[0].text == "Introduction paragraph"
-        assert result.content[1].title == "Section 1.1"
-        assert result.content[1].content[1].title == "Subsection 1.1.1"
+        introduction, section = result.content[:2]
+        assert isinstance(introduction, TextBlock)
+        assert introduction.text == "Introduction paragraph"
+        assert isinstance(section, Container) and section.title == "Section 1.1"
+        subsection = section.content[1]
+        assert (
+            isinstance(subsection, Container) and subsection.title == "Subsection 1.1.1"
+        )
 
 
 class TestOptionalNestedBaseModelDuringPartialStreaming:
@@ -1437,6 +1448,7 @@ class TestOptionalNestedBaseModelDuringPartialStreaming:
         obj = results[-1]
 
         # Would raise AttributeError on a raw dict before the fix
+        assert obj.address is not None
         assert obj.address.city == "NYC"
         assert obj.address.zip_code == "10001"
 

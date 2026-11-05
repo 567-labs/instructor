@@ -16,7 +16,7 @@ try:
     from google.genai import types
 except ModuleNotFoundError:
     # fmt: off
-    pytest.skip("google-genai package is not installed", allow_module_level=True)  # ty: ignore[too-many-positional-arguments]
+    pytest.skip("google-genai package is not installed", allow_module_level=True)
     # fmt: on
 
 

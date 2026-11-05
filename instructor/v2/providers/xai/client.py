@@ -272,7 +272,7 @@ def from_xai(
             if is_stream:
                 chat.proto.response_format.CopyFrom(
                     xchat.chat_pb2.ResponseFormat(
-                        format_type=xchat.chat_pb2.FormatType.FORMAT_TYPE_JSON_SCHEMA,
+                        format_type="FORMAT_TYPE_JSON_SCHEMA",
                         schema=json.dumps(_get_model_schema(prepared_model)),
                     )
                 )
@@ -440,7 +440,7 @@ def from_xai(
             if is_stream:
                 chat.proto.response_format.CopyFrom(
                     xchat.chat_pb2.ResponseFormat(
-                        format_type=xchat.chat_pb2.FormatType.FORMAT_TYPE_JSON_SCHEMA,
+                        format_type="FORMAT_TYPE_JSON_SCHEMA",
                         schema=json.dumps(_get_model_schema(prepared_model)),
                     )
                 )

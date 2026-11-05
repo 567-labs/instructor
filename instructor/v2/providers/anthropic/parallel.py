@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 from collections.abc import Generator, Iterable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast, overload
 
 from pydantic import BaseModel
 
-from instructor.v2.core.function_calls import openai_schema
+from instructor.v2.core.function_calls import ResponseSchema, openai_schema
 from instructor.v2.core.mode import Mode
 from instructor.v2.dsl.parallel import (
     ParallelBase,
@@ -19,10 +19,10 @@ from instructor.v2.dsl.parallel import (
 T = TypeVar("T", bound=BaseModel)
 
 
-def handle_parallel_model(typehint: type[Iterable[T]]) -> list[dict[str, Any]]:
+def handle_parallel_model(typehint: object) -> list[dict[str, Any]]:
     """Build Anthropic tool schemas for a parallel model."""
     return [
-        openai_schema(model).anthropic_schema
+        cast(type[ResponseSchema], openai_schema(model)).anthropic_schema
         for model in AnthropicParallelModel(typehint).models
     ]
 
@@ -55,5 +55,13 @@ class AnthropicParallelBase(ParallelBase[T]):
         return (result for result in results)
 
 
-def AnthropicParallelModel(typehint: type[Iterable[T]]) -> AnthropicParallelBase[T]:
+@overload
+def AnthropicParallelModel(typehint: type[Iterable[T]]) -> AnthropicParallelBase[T]: ...
+
+
+@overload
+def AnthropicParallelModel(typehint: object) -> AnthropicParallelBase[Any]: ...
+
+
+def AnthropicParallelModel(typehint: object) -> AnthropicParallelBase[Any]:
     return AnthropicParallelBase(*get_types_array(typehint))

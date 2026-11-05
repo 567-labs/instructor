@@ -19,6 +19,12 @@ class Answer(OpenAISchema):
 MODES = [Mode.TOOLS, Mode.JSON_SCHEMA, Mode.MD_JSON]
 
 
+def thinking_block(text: str):
+    model = cohere.ThinkingAssistantMessageResponseContentItem
+    field = "thinking" if "thinking" in model.model_fields else "value"
+    return model.model_validate({field: text})
+
+
 def response_with_blocks(blocks: list[Any] | None) -> cohere.ChatResponse:
     return cohere.ChatResponse(
         id="cohere-text-blocks",
@@ -55,9 +61,9 @@ def test_parse_all_text_blocks(mode: Mode, fragments: list[str]) -> None:
 def test_skip_thinking_between_text_blocks(mode: Mode) -> None:
     response = response_with_blocks(
         [
-            cohere.ThinkingAssistantMessageResponseContentItem(value="not JSON"),
+            thinking_block("not JSON"),
             cohere.TextAssistantMessageResponseContentItem(text='{"answer":'),
-            cohere.ThinkingAssistantMessageResponseContentItem(value="still not JSON"),
+            thinking_block("still not JSON"),
             cohere.TextAssistantMessageResponseContentItem(text='"café"}'),
         ]
     )
@@ -102,7 +108,7 @@ def test_single_text_response_remains_supported(mode: Mode, version: str) -> Non
 @pytest.mark.parametrize("mode", MODES)
 @pytest.mark.parametrize(
     "blocks",
-    [None, [], [cohere.ThinkingAssistantMessageResponseContentItem(value="reasoning")]],
+    [None, [], [thinking_block("reasoning")]],
 )
 def test_response_without_text_remains_an_error(
     mode: Mode, blocks: list[Any] | None

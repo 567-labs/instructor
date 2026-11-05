@@ -6,6 +6,8 @@ Fireworks uses an OpenAI-compatible API, so the client factory follows the same 
 
 from __future__ import annotations
 
+import inspect
+
 from typing import TYPE_CHECKING, Any, overload
 
 from instructor.v2.core.client import AsyncInstructor, Instructor
@@ -17,14 +19,19 @@ from instructor.v2.core.patch import patch_v2
 # Fireworks uses OpenAI-compatible API, so handlers are registered via OpenAI handlers
 from instructor.v2.providers.openai import handlers  # noqa: F401
 
+_async_create_method = "create"
 if TYPE_CHECKING:
     from fireworks.client import AsyncFireworks, Fireworks
 else:
     try:
-        from fireworks.client import AsyncFireworks, Fireworks
+        from fireworks import AsyncFireworks, Fireworks
     except ImportError:
-        AsyncFireworks = None
-        Fireworks = None
+        _async_create_method = "acreate"
+        try:
+            from fireworks.client import AsyncFireworks, Fireworks
+        except ImportError:
+            AsyncFireworks = None
+            Fireworks = None
 
 
 @overload
@@ -124,12 +131,14 @@ def from_fireworks(
 
     # Get create function - Fireworks uses chat.completions.create like OpenAI
     if isinstance(client, AsyncFireworks):
-        # Fireworks async client uses acreate method
+        completions = client.chat.completions
+        sdk_create = getattr(completions, _async_create_method)
+
         async def async_create(*args: Any, **create_kwargs: Any) -> Any:
+            # Fireworks 0.x defaults to streaming when this argument is omitted.
             create_kwargs.setdefault("stream", False)
-            if create_kwargs.get("stream"):
-                return client.chat.completions.acreate(*args, **create_kwargs)
-            return await client.chat.completions.acreate(*args, **create_kwargs)
+            response = sdk_create(*args, **create_kwargs)
+            return await response if inspect.isawaitable(response) else response
 
         create = async_create
     else:

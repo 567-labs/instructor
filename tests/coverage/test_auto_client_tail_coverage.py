@@ -105,10 +105,8 @@ def test_cloud_sdk_builders_forward_real_client_model_and_options(
 
     expected_type = getattr(sdk, async_name if async_client else sync_name)
     assert isinstance(seen["client"], expected_type)
-    if provider == "fireworks":
-        assert seen["client"]._client_v1.api_key == "test-key"
-    else:
-        assert seen["client"].api_key == "test-key"
+    sdk_client = getattr(seen["client"], "_client_v1", seen["client"])
+    assert sdk_client.api_key == "test-key"
     assert seen["kwargs"] == {"model": "llama-test", "max_tokens": 17}
     assert result == {"provider": provider, "model": "llama-test", "max_tokens": 17}
 
@@ -500,7 +498,7 @@ MISSING_IMPORTS = [
     (
         "fireworks",
         auto_client._build_fireworks,
-        "fireworks.client",
+        "fireworks",
         "Fireworks provider",
     ),
     ("vertexai", auto_client._build_vertexai, "vertexai", "VertexAI provider"),
