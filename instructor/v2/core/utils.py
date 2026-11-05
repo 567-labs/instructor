@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import re
 from collections.abc import Callable
 from functools import partial
 from typing import Any, Generic, TypeVar, cast
@@ -44,7 +45,7 @@ class classproperty(Generic[R_co]):
 
 
 def disable_pydantic_error_url() -> None:
-    """Disable URLs in Pydantic ValidationError messages."""
+    """Disable generated documentation links in Pydantic ValidationError messages."""
     global _validation_error_original_str
     if _validation_error_original_str is None:
         _validation_error_original_str = ValidationError.__str__
@@ -56,7 +57,11 @@ def disable_pydantic_error_url() -> None:
         return "\n".join(
             line
             for line in output.split("\n")
-            if "https://errors.pydantic.dev" not in line
+            if not re.fullmatch(
+                r"    For further information visit "
+                r"https://errors\.pydantic\.dev/\d+\.\d+/v/\w+",
+                line,
+            )
         )
 
     cast(Any, ValidationError).__str__ = __str__

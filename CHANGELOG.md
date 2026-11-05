@@ -10,6 +10,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
+- Explicit async validation visits set and frozenset items and reports validation failures from every item in a container.
+- The OpenAI batch tutorial generates request files with `BatchProcessor.create_batch_from_messages`.
 - File-backed batch requests replace the destination after all records serialize. Failed writes preserve the previous batch.
 - OpenAI and Anthropic batch results that hit the token limit return an incomplete-output error, even when the partial JSON validates.
 - Anthropic batch requests omit an unset temperature and preserve explicit numeric values, including zero.
@@ -17,7 +20,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Request preparation logs only the mode and response model, keeping provider credentials and custom authentication headers out of debug records.
 - Gemini MD_JSON now prepares requests without changing the caller’s messages or nested content lists. ([#2716](https://github.com/567-labs/instructor/issues/2716))
 - Bedrock tool modes now preserve the caller’s explicit tool choice and still force the response-model tool by default. ([#2775](https://github.com/567-labs/instructor/pull/2775))
-- Explicit async validation visits set and frozenset items and reports validation failures from every item in a container.
 
 ## [1.18.0] - 2026-09-26
 
