@@ -817,14 +817,15 @@ class OpenAIJSONSchemaHandler(OpenAIHandlerBase):
         kwargs: dict[str, Any],
     ) -> tuple[type[BaseModel] | None, dict[str, Any]]:
         """Prepare request with JSON schema response format."""
-        self._register_streaming_from_kwargs(response_model, kwargs)
 
         if response_model is None:
             return None, kwargs
 
         new_kwargs = kwargs.copy()
         new_kwargs["messages"] = list(kwargs.get("messages", []))
-        return _prepare_json_schema(response_model, new_kwargs)
+        model, prepared = _prepare_json_schema(response_model, new_kwargs)
+        self._register_streaming_from_kwargs(model, prepared)
+        return model, prepared
 
     def handle_reask(
         self,
