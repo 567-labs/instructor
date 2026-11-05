@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, Union
+from typing import Any, Union, cast
 
 import pytest
 from openai.types.chat import ChatCompletion
-from pydantic import BaseModel, ConfigDict, create_model
+from pydantic import BaseModel, ConfigDict
 
 from instructor.v2.core.mode import Mode
 from instructor.v2.dsl.parallel import ParallelModel, handle_parallel_model
@@ -29,6 +29,18 @@ class Contact(BaseModel):
     name: str = ""
 
 
+class Payments:
+    class Record(BaseModel):
+        model_config = ConfigDict(title="Payment")
+        amount: int = 0
+
+
+class Contacts:
+    class Record(BaseModel):
+        model_config = ConfigDict(title="Contact")
+        name: str = ""
+
+
 @pytest.mark.parametrize("factory", [ParallelModel, AnthropicParallelModel])
 def test_parallel_models_reject_duplicate_schema_titles(factory: Any) -> None:
     with pytest.raises(ValueError, match="unique.*Record"):
@@ -46,32 +58,20 @@ def test_tool_schemas_reject_duplicate_names(factory: Any) -> None:
 def test_mistral_preparation_rejects_duplicate_names() -> None:
     with pytest.raises(ValueError, match="unique.*Record"):
         MistralToolsHandler().prepare_request(
-            Iterable[Union[Payment, Contact]],  # type: ignore[arg-type]
+            cast(Any, Iterable[Union[Payment, Contact]]),  # type: ignore[arg-type]
             {"messages": [{"role": "user", "content": "Extract records"}]},
         )
 
 
 def test_vertex_rejects_duplicate_class_names() -> None:
-    payment = create_model(
-        "Record", __config__=ConfigDict(title="Payment"), amount=(int, 0)
-    )
-    contact = create_model(
-        "Record", __config__=ConfigDict(title="Contact"), name=(str, "")
-    )
     with pytest.raises(ValueError, match="unique.*Record"):
-        VertexAIParallelModel(Iterable[Union[payment, contact]])
+        VertexAIParallelModel(Iterable[Union[Payments.Record, Contacts.Record]])
 
 
 @pytest.mark.parametrize("factory", [ParallelModel, AnthropicParallelModel])
 def test_distinct_titles_keep_models_with_the_same_class_name(factory: Any) -> None:
-    payment = create_model(
-        "Record", __config__=ConfigDict(title="Payment"), amount=(int, 0)
-    )
-    contact = create_model(
-        "Record", __config__=ConfigDict(title="Contact"), name=(str, "")
-    )
-    parallel = factory(Iterable[Union[payment, contact]])
-    assert parallel.registry == {"Payment": payment, "Contact": contact}
+    parallel = factory(Iterable[Union[Payments.Record, Contacts.Record]])
+    assert parallel.registry == {"Payment": Payments.Record, "Contact": Contacts.Record}
 
 
 def test_vertex_uses_class_names_instead_of_schema_titles() -> None:
