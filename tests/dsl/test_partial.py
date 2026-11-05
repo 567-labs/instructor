@@ -1,3 +1,4 @@
+import json
 import os
 from collections.abc import AsyncGenerator, Generator, Iterable
 from copy import deepcopy
@@ -168,6 +169,119 @@ async def test_async_partial_with_whitespace():
         assert model.model_dump() == expected_async_models[i]
         i += 1
     assert i == len(expected_async_models)
+
+
+class TextPayload(BaseModel):
+    text: str
+    labels: dict[str, str]
+
+
+def _control_character_chunks(
+    ensure_ascii: bool, chunk_size: int | None
+) -> tuple[TextPayload, list[str]]:
+    # Unlike C0 characters, DEL and C1 are legal unescaped JSON string content.
+    text = "before" + "".join(chr(code) for code in range(0x7F, 0xA0)) + "after"
+    payload = json.dumps(
+        {"text": text, "labels": {text: text}}, ensure_ascii=ensure_ascii
+    )
+    chunks = (
+        [payload]
+        if chunk_size is None
+        else [payload[i : i + chunk_size] for i in range(0, len(payload), chunk_size)]
+    )
+    return TextPayload.model_validate_json(payload), chunks
+
+
+@pytest.mark.parametrize("ensure_ascii", [False, True])
+@pytest.mark.parametrize("chunk_size", [None, 1, 3])
+def test_partial_preserves_json_valid_control_characters(
+    ensure_ascii: bool, chunk_size: int | None
+) -> None:
+    expected, chunks = _control_character_chunks(ensure_ascii, chunk_size)
+    models = list(_partial_api(Partial[TextPayload]).model_from_chunks(chunks))
+
+    assert models[-1].model_dump() == expected.model_dump()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ensure_ascii", [False, True])
+@pytest.mark.parametrize("chunk_size", [None, 1, 3])
+async def test_async_partial_preserves_json_valid_control_characters(
+    ensure_ascii: bool, chunk_size: int | None
+) -> None:
+    expected, chunks = _control_character_chunks(ensure_ascii, chunk_size)
+
+    async def async_chunks() -> AsyncGenerator[str, None]:
+        for chunk in chunks:
+            yield chunk
+
+    models = [
+        model
+        async for model in _partial_api(Partial[TextPayload]).model_from_chunks_async(
+            async_chunks()
+        )
+    ]
+
+    assert models[-1].model_dump() == expected.model_dump()
+
+
+@pytest.mark.parametrize("escaped", [False, True])
+def test_partial_c0_character_repair(escaped: bool) -> None:
+    controls = "".join(chr(code) for code in range(0x20))
+    payload = json.dumps({"text": controls, "labels": {}})
+    if not escaped:
+        payload = '{"text": "' + controls + '", "labels": {}}'
+
+    models = list(_partial_api(Partial[TextPayload]).model_from_chunks([payload]))
+
+    assert models[-1].text == (controls if escaped else "")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("escaped", [False, True])
+async def test_async_partial_c0_character_repair(escaped: bool) -> None:
+    controls = "".join(chr(code) for code in range(0x20))
+    payload = json.dumps({"text": controls, "labels": {}})
+    if not escaped:
+        payload = '{"text": "' + controls + '", "labels": {}}'
+
+    async def async_chunks() -> AsyncGenerator[str, None]:
+        yield payload
+
+    models = [
+        model
+        async for model in _partial_api(Partial[TextPayload]).model_from_chunks_async(
+            async_chunks()
+        )
+    ]
+
+    assert models[-1].text == (controls if escaped else "")
+
+
+@pytest.mark.parametrize("character", ["\x7f", "\x85"])
+def test_partial_repairs_del_c1_outside_json_strings(character: str) -> None:
+    # Preserve the historical repair of DEL/C1 outside JSON strings.
+    chunks = ["{" + character + '"text": "value", "labels": {}}']
+
+    models = list(_partial_api(Partial[TextPayload]).model_from_chunks(chunks))
+    assert models[-1].model_dump() == {"text": "value", "labels": {}}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("character", ["\x7f", "\x85"])
+async def test_async_partial_repairs_del_c1_outside_json_strings(
+    character: str,
+) -> None:
+    async def async_chunks() -> AsyncGenerator[str, None]:
+        yield "{" + character + '"text": "value", "labels": {}}'
+
+    models = [
+        model
+        async for model in _partial_api(Partial[TextPayload]).model_from_chunks_async(
+            async_chunks()
+        )
+    ]
+    assert models[-1].model_dump() == {"text": "value", "labels": {}}
 
 
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")

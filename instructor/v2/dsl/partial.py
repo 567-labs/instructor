@@ -95,8 +95,44 @@ class PartialLiteralMixin:
         )
 
 
-def remove_control_chars(s):
-    return re.sub(r"[\x00-\x1F\x7F-\x9F]", "", s)
+def remove_control_chars(s: str) -> str:
+    """Remove raw C0 characters that can make streamed JSON invalid.
+
+    DEL and C1 characters (U+007F–U+009F) are valid JSON string content and
+    must be preserved. Escaped control characters are left unchanged.
+    """
+    return re.sub(r"[\x00-\x1F]", "", s)
+
+
+class _JsonControlCharSanitizer:
+    """Repair controls outside strings without deleting valid string content.
+
+    Each stream owns its lexical state, including escapes split across chunks.
+    This only sanitizes controls; JSON parsing and completeness stay downstream.
+    """
+
+    def __init__(self) -> None:
+        self._in_string = False
+        self._escaped = False
+
+    def __call__(self, chunk: str) -> str:
+        result: list[str] = []
+        # C0 removal can join a backslash and quote. Track the repaired text,
+        # not the raw chunk, so removed characters never consume an escape.
+        for char in remove_control_chars(chunk):
+            if self._in_string:
+                if self._escaped:
+                    self._escaped = False
+                elif char == "\\":
+                    self._escaped = True
+                elif char == '"':
+                    self._in_string = False
+            elif char == '"':
+                self._in_string = True
+            elif "\x7f" <= char <= "\x9f":
+                continue
+            result.append(char)
+        return "".join(result)
 
 
 def process_potential_object(potential_object, partial_mode, partial_model, **kwargs):
@@ -444,6 +480,7 @@ class PartialBase(Generic[T_Model]):
         cls, json_chunks: Iterable[Any], **kwargs: Any
     ) -> Generator[T_Model, None, None]:
         potential_object = ""
+        sanitize = _JsonControlCharSanitizer()
         partial_model = cls.get_partial_model()
         # Always use trailing-strings mode to preserve incomplete data during streaming
         # PartialLiteralMixin is deprecated - completeness-based validation handles Literals
@@ -457,7 +494,7 @@ class PartialBase(Generic[T_Model]):
                     chunk = str(chunk)
                 except Exception:
                     continue
-            potential_object += remove_control_chars(chunk)
+            potential_object += sanitize(chunk)
             obj = process_potential_object(
                 potential_object, partial_mode, partial_model, **kwargs
             )
@@ -484,6 +521,7 @@ class PartialBase(Generic[T_Model]):
         cls, json_chunks: AsyncGenerator[str, None], **kwargs: Any
     ) -> AsyncGenerator[T_Model, None]:
         potential_object = ""
+        sanitize = _JsonControlCharSanitizer()
         partial_model = cls.get_partial_model()
         # Always use trailing-strings mode to preserve incomplete data during streaming
         # PartialLiteralMixin is deprecated - completeness-based validation handles Literals
@@ -497,7 +535,7 @@ class PartialBase(Generic[T_Model]):
                     chunk = str(chunk)
                 except Exception:
                     continue
-            potential_object += remove_control_chars(chunk)
+            potential_object += sanitize(chunk)
             obj = process_potential_object(
                 potential_object, partial_mode, partial_model, **kwargs
             )
