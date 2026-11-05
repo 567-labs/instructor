@@ -13,8 +13,7 @@ Learn how to integrate Instructor with various AI model providers. These compreh
 
     Leading AI providers with comprehensive features
 
-    [:octicons-arrow-right-16: OpenAI](./openai.md) ·
-    [:octicons-arrow-right-16: Compatible provider clients](./compatible-provider-clients.md)          ·
+    [:octicons-arrow-right-16: OpenAI](./openai.md)          ·
     [:octicons-arrow-right-16: OpenAI Responses](./openai-responses.md)          ·
     [:octicons-arrow-right-16: Azure](./azure.md)            ·
     [:octicons-arrow-right-16: Anthropic](./anthropic.md)    ·
