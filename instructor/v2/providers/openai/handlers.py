@@ -91,9 +91,14 @@ OPENAI_JSON_SCHEMA_PROVIDERS = [
 ]
 
 
-def _is_stream_response(response: Any) -> bool:
-    """Check if response is a Stream object rather than a ChatCompletion."""
-    return response is None or not hasattr(response, "choices")
+def _has_no_choice_to_replay(response: Any) -> bool:
+    """Return whether the response has no completion choice to replay.
+
+    Covers Stream objects (no ``choices`` attribute) and the empty
+    ``choices`` lists some gateways return for filtered or failed turns,
+    where a reask handler has no assistant message to append.
+    """
+    return not getattr(response, "choices", None)
 
 
 def _filter_responses_tool_calls(output_items: list[Any]) -> list[Any]:
@@ -166,7 +171,7 @@ def reask_tools(
     """Handle reask for OpenAI tools mode when validation fails."""
     kwargs = kwargs.copy()
 
-    if _is_stream_response(response):
+    if _has_no_choice_to_replay(response):
         kwargs["messages"].append(
             {
                 "role": "user",
@@ -291,7 +296,7 @@ def reask_md_json(
     """Handle reask for OpenAI JSON modes when validation fails."""
     kwargs = kwargs.copy()
 
-    if _is_stream_response(response):
+    if _has_no_choice_to_replay(response):
         kwargs["messages"].append(
             {
                 "role": "user",
@@ -334,7 +339,7 @@ def reask_default(
     """Handle reask for OpenAI default mode when validation fails."""
     kwargs = kwargs.copy()
 
-    if _is_stream_response(response):
+    if _has_no_choice_to_replay(response):
         kwargs["messages"].append(
             {
                 "role": "user",
