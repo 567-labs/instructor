@@ -71,7 +71,7 @@ The trace includes the model request, response, token usage, latency, and Instru
 
 ## Evaluate structured outputs
 
-Tracing provides examples that can become evaluation datasets and regression cases. Use the [LLM evaluation guide](https://arize.com/resources/llm-evaluation/) for general model and application quality, or the [agent evaluation guide](https://arize.com/guides/ai-agent-handbook/agent-evaluation/) when Instructor is part of a tool-using or multi-step agent workflow.
+Tracing provides examples that can become evaluation datasets and regression cases. Use the [LLM evaluation guide](https://arize.com/resources/llm-evaluation/) for general model and application quality, or the [agent evaluation guide](https://arize.com/ai-agents/agent-evaluation/) when Instructor is part of a tool-using or multi-step agent workflow.
 
 ## Resources
 
