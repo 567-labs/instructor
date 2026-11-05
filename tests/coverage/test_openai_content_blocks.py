@@ -5,7 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-import httpx
+from tests import openai_http as httpx
 import pytest
 from openai.types.chat import ChatCompletionMessage
 from pydantic import BaseModel, ValidationError

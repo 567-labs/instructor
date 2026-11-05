@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-import httpx
+from tests import openai_http as httpx
 import pytest
 from openai import OpenAI, AsyncOpenAI
 from pydantic import BaseModel
