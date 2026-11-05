@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from copy import copy
+from types import MemberDescriptorType
 from typing import (
     TYPE_CHECKING,
     TypeVar,
@@ -748,9 +750,32 @@ class Instructor:
                 kwargs[key] = value
         return kwargs
 
+    def __copy__(self) -> Self:
+        copied = object.__new__(type(self))
+        copied.__dict__.update(self.__dict__)
+        for cls in type(self).__mro__:
+            for descriptor in vars(cls).values():
+                if isinstance(descriptor, MemberDescriptorType):
+                    try:
+                        value = descriptor.__get__(self, type(self))
+                    except AttributeError:
+                        continue
+                    descriptor.__set__(copied, value)
+        try:
+            responses = object.__getattribute__(self, "responses")
+        except AttributeError:
+            responses = None
+        if (
+            isinstance(responses, (Response, AsyncResponse))
+            and responses.client is self
+        ):
+            copied.responses = copy(responses)
+            copied.responses.client = copied
+        return copied
+
     def __getattr__(self, attr: str) -> Any:
         if attr not in {"create", "chat", "messages"}:
-            return getattr(self.client, attr)
+            return getattr(object.__getattribute__(self, "client"), attr)
 
         return getattr(self, attr)
 

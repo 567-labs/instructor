@@ -1,5 +1,7 @@
 """Tests for v2 mode registry."""
 
+from __future__ import annotations
+
 from typing import Any, cast
 
 import pytest
@@ -29,6 +31,8 @@ def test_registry_registration():
 
     @register_mode_handler(Provider.DEEPSEEK, Mode.JSON)
     class TestHandler:
+        mode = Mode.TOOLS
+
         def prepare_request(self, response_model, kwargs):
             return response_model, kwargs
 
@@ -46,6 +50,31 @@ def test_registry_registration():
     assert handlers.request_handler is not None
     assert handlers.reask_handler is not None
     assert handlers.response_parser is not None
+    assert cast(Any, handlers.request_handler).__self__.mode is Mode.JSON
+
+
+@pytest.mark.parametrize("required_mode", [True, False])
+def test_registration_preserves_constructor_type_errors(required_mode: bool) -> None:
+    attempts: list[Mode | None] = []
+    error = TypeError("invalid handler configuration")
+
+    class RequiredModeHandler:
+        def __init__(self, *, mode: Mode) -> None:
+            attempts.append(mode)
+            raise error
+
+    class OptionalModeHandler:
+        def __init__(self, *, mode: Mode | None = None) -> None:
+            attempts.append(mode)
+            raise error
+
+    handler_class = RequiredModeHandler if required_mode else OptionalModeHandler
+
+    with pytest.raises(TypeError, match="invalid handler configuration") as exc_info:
+        register_mode_handler(Provider.DEEPSEEK, Mode.JSON)(handler_class)
+
+    assert exc_info.value is error
+    assert attempts == [Mode.JSON]
 
 
 def test_registry_get_handler():
@@ -248,3 +277,27 @@ def test_failed_lazy_loader_remains_retryable():
     assert registry.is_registered(Provider.DEEPSEEK, Mode.TOOLS)
     assert registry.get_handlers(Provider.DEEPSEEK, Mode.TOOLS)
     assert attempts == 2
+
+
+def test_opaque_handler_signature_constructs_with_requested_mode(monkeypatch):
+    from instructor.v2.providers.openai.handlers import OpenAIJSONHandler
+
+    calls = []
+
+    class OpaqueHandler(OpenAIJSONHandler):
+        __signature__ = object()
+
+        def __init__(self, *, mode):
+            calls.append(mode)
+            self.mode = mode
+
+    registered = []
+    monkeypatch.setattr(
+        mode_registry, "register", lambda **kwargs: registered.append(kwargs)
+    )
+    assert (
+        register_mode_handler(Provider.OPENAI, Mode.JSON)(OpaqueHandler)
+        is OpaqueHandler
+    )
+    assert calls == [Mode.JSON]
+    assert registered[0]["request_handler"].__self__.mode == Mode.JSON

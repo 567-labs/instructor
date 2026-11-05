@@ -28,6 +28,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Request preparation logs only the mode and response model, keeping provider credentials and custom authentication headers out of debug records.
 - OpenAI batch retrieval can download available records from expired batches, and the file and fine-tuning commands stop when uploaded files fail processing.
 - Parallel tools dispatch by their declared provider names and reject ambiguous names before sending a request.
+- Handler registration preserves constructor errors, opaque hook callbacks can run without a signature, and shallow client copies rebind their response helpers.
 - Gemini MD_JSON now prepares requests without changing the caller’s messages or nested content lists. ([#2716](https://github.com/567-labs/instructor/issues/2716))
 - Gemini retries preserve validation feedback when a response is blocked, empty, or contains prose instead of a tool call.
 - Bedrock tool modes now preserve the caller’s explicit tool choice and still force the response-model tool by default. ([#2775](https://github.com/567-labs/instructor/pull/2775))
