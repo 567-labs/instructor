@@ -12,6 +12,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Fixed
 - Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
 - Explicit async validation visits set and frozenset items and reports validation failures from every item in a container.
+- Partial streams construct nested mapping and sequence values as models and defer data-aware default factories until their containing object is complete.
 - The OpenAI batch tutorial generates request files with `BatchProcessor.create_batch_from_messages`.
 - File-backed batch requests replace the destination after all records serialize. Failed writes preserve the previous batch.
 - OpenAI batch request failures preserve string error messages and report HTTP status codes when an error body is missing.

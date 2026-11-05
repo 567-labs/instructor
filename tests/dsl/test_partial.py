@@ -1544,3 +1544,43 @@ class TestAliasPathDuringPartialStreaming:
 
         assert isinstance(snapshot.payload, Inner)
         assert snapshot.payload.value == 42
+
+
+def test_partial_model_builds_models_inside_mapping_values():
+    """Model values held in a mapping must become models, not stay plain dicts.
+
+    Regression test: a dict[str, Model] field, and a mapping nested inside a sequence,
+    only resolved a model when the field's own annotation was a model, so their values
+    stayed plain dicts while streaming and attribute access on them raised
+    AttributeError.
+    """
+
+    class Item(BaseModel):
+        name: str
+        qty: int
+
+    class Cart(BaseModel):
+        mapping: dict[str, Item]
+        nested: list[dict[str, Item]]
+
+    partial = _partial_api(Partial[Cart]).get_partial_model()
+    chunks = [
+        '{"mapping": {"a": {"name": "apple", "qty": 3}, "b": {"name": "ban',
+        'ana", "qty": 4}}, "nested": [{"c": {"name": "cherry", "qty": 5}, "d": {"name": "dam',
+    ]
+
+    results = list(_partial_api(partial).model_from_chunks(chunks))
+    obj = results[-1]
+
+    # A completed value is validated, and one still streaming is a partial model.
+    assert isinstance(obj.mapping["a"], Item)
+    assert obj.mapping["a"].name == "apple"
+    assert obj.mapping["a"].qty == 3
+    assert isinstance(obj.mapping["b"], Item)
+    assert obj.mapping["b"].name == "banana"
+
+    # A mapping inside a list item behaves the same way.
+    assert isinstance(obj.nested[0]["c"], Item)
+    assert obj.nested[0]["c"].name == "cherry"
+    assert isinstance(obj.nested[0]["d"], Item)
+    assert obj.nested[0]["d"].name == "dam"
