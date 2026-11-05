@@ -13,6 +13,7 @@ import openai
 from instructor.v2.core.client import AsyncInstructor, Instructor
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
+from instructor.v2.core.openai_endpoints import OPENAI_ENDPOINTS
 from instructor.v2.core.patch import patch_v2
 
 # Ensure handlers are registered (decorators auto-register on import)
@@ -527,3 +528,90 @@ def from_deepseek(
         model=model,
         **kwargs,
     )
+
+
+def _gateway_factory(provider: Provider):
+    @overload
+    def factory(
+        model_or_client: openai.AsyncOpenAI,
+        mode: Mode | None = None,
+        *,
+        model: str | None = None,
+        **kwargs: Any,
+    ) -> AsyncInstructor: ...
+
+    @overload
+    def factory(
+        model_or_client: openai.OpenAI,
+        mode: Mode | None = None,
+        *,
+        model: str | None = None,
+        **kwargs: Any,
+    ) -> Instructor: ...
+
+    @overload
+    def factory(
+        model_or_client: str,
+        mode: Mode | None = None,
+        *,
+        async_client: Literal[True],
+        **kwargs: Any,
+    ) -> AsyncInstructor: ...
+
+    @overload
+    def factory(
+        model_or_client: str,
+        mode: Mode | None = None,
+        *,
+        async_client: Literal[False] = False,
+        **kwargs: Any,
+    ) -> Instructor: ...
+
+    @overload
+    def factory(
+        model_or_client: str,
+        mode: Mode | None = None,
+        *,
+        async_client: bool,
+        **kwargs: Any,
+    ) -> Instructor | AsyncInstructor: ...
+
+    def factory(
+        model_or_client: str | openai.OpenAI | openai.AsyncOpenAI,
+        mode: Mode | None = None,
+        *,
+        model: str | None = None,
+        async_client: bool = False,
+        **kwargs: Any,
+    ) -> Instructor | AsyncInstructor:
+        if isinstance(model_or_client, str):
+            from instructor import from_provider
+
+            return from_provider(
+                f"{provider.value}/{model_or_client}",
+                mode=mode,
+                async_client=async_client,
+                **kwargs,
+            )
+        return _from_openai_compat(
+            model_or_client,
+            provider,
+            mode or OPENAI_ENDPOINTS[provider].default_mode,
+            model=model,
+            **kwargs,
+        )
+
+    factory.__name__ = f"from_{provider.value}"
+    factory.__doc__ = f"Create a {provider.value} Instructor client from a model name or an OpenAI SDK client."
+    return factory
+
+
+from_zhipuai = _gateway_factory(Provider.ZHIPUAI)
+from_zai = _gateway_factory(Provider.ZAI)
+from_hubris = _gateway_factory(Provider.HUBRIS)
+from_atlascloud = _gateway_factory(Provider.ATLASCLOUD)
+from_requesty = _gateway_factory(Provider.REQUESTY)
+from_sarvam = _gateway_factory(Provider.SARVAM)
+from_orcarouter = _gateway_factory(Provider.ORCAROUTER)
+from_minimax = _gateway_factory(Provider.MINIMAX)
+from_manifest = _gateway_factory(Provider.MANIFEST)

@@ -4,6 +4,7 @@ This module contains provider-related enums and detection logic.
 """
 
 from enum import Enum
+from urllib.parse import urlsplit
 
 from instructor.v2.core.mode import DEPRECATED_TO_CORE, Mode
 
@@ -15,6 +16,15 @@ class Provider(Enum):
     AZURE_OPENAI = "azure_openai"
     VERTEXAI = "vertexai"
     ANTHROPIC = "anthropic"
+    ZHIPUAI = "zhipuai"
+    ZAI = "zai"
+    HUBRIS = "hubris"
+    ATLASCLOUD = "atlascloud"
+    REQUESTY = "requesty"
+    SARVAM = "sarvam"
+    ORCAROUTER = "orcarouter"
+    MINIMAX = "minimax"
+    MANIFEST = "manifest"
     ANYSCALE = "anyscale"
     TOGETHER = "together"
     GROQ = "groq"
@@ -47,6 +57,10 @@ def provider_from_mode(mode: Mode, default: Provider = Provider.OPENAI) -> Provi
         Mode.ANTHROPIC_REASONING_TOOLS: Provider.ANTHROPIC,
         Mode.COHERE_TOOLS: Provider.COHERE,
         Mode.COHERE_JSON_SCHEMA: Provider.COHERE,
+        Mode.SARVAM_TOOLS: Provider.SARVAM,
+        Mode.SARVAM_JSON: Provider.SARVAM,
+        Mode.MINIMAX_TOOLS: Provider.MINIMAX,
+        Mode.MINIMAX_JSON: Provider.MINIMAX,
         Mode.MISTRAL_TOOLS: Provider.MISTRAL,
         Mode.MISTRAL_STRUCTURED_OUTPUTS: Provider.MISTRAL,
         Mode.VERTEXAI_TOOLS: Provider.VERTEXAI,
@@ -91,7 +105,15 @@ def get_provider(base_url: str) -> Provider:
     Returns:
         Provider: The detected provider enum value
     """
+    from instructor.v2.core.openai_endpoints import ENDPOINT_HOSTS
+
     normalized = str(base_url).lower()
+    try:
+        hostname = urlsplit(normalized).hostname
+    except ValueError:
+        hostname = None
+    if hostname in ENDPOINT_HOSTS:
+        return ENDPOINT_HOSTS[hostname]
     providers = (
         ("azure", Provider.AZURE_OPENAI),
         ("anyscale", Provider.ANYSCALE),

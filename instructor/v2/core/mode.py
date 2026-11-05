@@ -20,6 +20,10 @@ class Mode(enum.Enum):
     PARALLEL_TOOLS = "parallel_tool_call"
     TOOLS = "tool_call"
     TOOLS_STRICT = "tools_strict"
+    SARVAM_TOOLS = "sarvam_tools"
+    SARVAM_JSON = "sarvam_json"
+    MINIMAX_TOOLS = "minimax_tools"
+    MINIMAX_JSON = "minimax_json"
     JSON = "json_mode"
     JSON_O1 = "json_o1"
     MD_JSON = "markdown_json_mode"
@@ -91,6 +95,8 @@ class Mode(enum.Enum):
             cls.ANTHROPIC_REASONING_TOOLS,
             cls.ANTHROPIC_PARALLEL_TOOLS,
             cls.MISTRAL_TOOLS,
+            cls.MINIMAX_TOOLS,
+            cls.SARVAM_TOOLS,
             cls.VERTEXAI_TOOLS,
             cls.VERTEXAI_PARALLEL_TOOLS,
             cls.GEMINI_TOOLS,
@@ -114,6 +120,8 @@ class Mode(enum.Enum):
             cls.JSON,
             cls.JSON_O1,
             cls.MD_JSON,
+            cls.MINIMAX_JSON,
+            cls.SARVAM_JSON,
             cls.JSON_SCHEMA,
             cls.ANTHROPIC_JSON,
             cls.VERTEXAI_JSON,
@@ -209,6 +217,10 @@ DEPRECATED_TO_CORE: dict[Mode, Mode] = {
     # OpenAI legacy modes
     Mode.FUNCTIONS: Mode.TOOLS,
     Mode.TOOLS_STRICT: Mode.TOOLS,
+    Mode.SARVAM_TOOLS: Mode.TOOLS,
+    Mode.SARVAM_JSON: Mode.MD_JSON,
+    Mode.MINIMAX_TOOLS: Mode.TOOLS,
+    Mode.MINIMAX_JSON: Mode.MD_JSON,
     Mode.JSON_O1: Mode.JSON_SCHEMA,
     Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS: Mode.RESPONSES_TOOLS,
     # Anthropic legacy modes
