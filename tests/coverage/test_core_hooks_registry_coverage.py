@@ -179,6 +179,28 @@ def test_hooks_fall_back_for_legacy_handler_and_keep_emitting_after_error() -> N
     assert "LookupError: hook exploded" in str(record[0].message)
 
 
+def test_hooks_fall_back_when_handler_signature_is_unavailable() -> None:
+    class OpaqueHandler:
+        def __init__(self) -> None:
+            self.calls: list[Exception] = []
+
+        @property
+        def __signature__(self) -> object:
+            raise ValueError("signature unavailable")
+
+        def __call__(self, error: Exception) -> None:
+            self.calls.append(error)
+
+    hooks = Hooks()
+    handler = OpaqueHandler()
+    error = RuntimeError("request failed")
+    hooks.on("completion:error", handler)
+
+    hooks.emit_completion_error(error, attempt_number=1)
+
+    assert handler.calls == [error]
+
+
 def test_hooks_combine_in_place_and_copy_keep_handler_order_and_independence() -> None:
     first = Hooks()
     second = Hooks()

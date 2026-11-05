@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from inspect import signature
 
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
@@ -26,6 +27,10 @@ def register_mode_handler(
     Returns:
         Decorator function
 
+    Raises:
+        TypeError: If handler construction fails. Constructor errors propagate
+            without retrying initialization with different arguments.
+
     Example:
         >>> from instructor import Mode
         >>> @register_mode_handler(Provider.ANTHROPIC, Mode.ANTHROPIC_TOOLS)
@@ -45,11 +50,19 @@ def register_mode_handler(
         # Shared handler classes registered for multiple compatible providers should
         # remain the same object across those providers.
         try:
-            handler = handler_class(mode=mode)
+            handler_signature = signature(handler_class)
+        except (TypeError, ValueError):
+            handler_signature = None
+
+        try:
+            if handler_signature is not None:
+                handler_signature.bind(mode=mode)
         except TypeError:
             handler = handler_class()
             if hasattr(handler, "mode"):
                 handler.mode = mode
+        else:
+            handler = handler_class(mode=mode)
 
         for target_provider in providers:
             mode_registry.register(

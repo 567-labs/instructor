@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import AsyncIterable, Iterable
+from copy import copy
 from typing import Any, cast, get_args, get_origin
 
 import httpx
@@ -103,6 +104,186 @@ def test_sync_client_forwards_defaults_aliases_and_per_call_hooks(
     assert client.chat.completions.messages is client
     assert client.account == "local"
     assert Instructor.__getattr__(client, "create").__self__ is client
+
+
+@pytest.mark.parametrize("client_class", [Instructor, AsyncInstructor])
+@pytest.mark.parametrize("underlying", [None, object()])
+def test_shallow_copy_preserves_client_state(
+    client_class: type[Instructor], underlying: Any
+) -> None:
+    def create(**_kwargs: Any) -> User:
+        return User(name="Ada")
+
+    client = client_class(
+        client=underlying,
+        create=create,
+        model="default-model",
+    )
+
+    copied = copy(client)
+
+    assert copied is not client
+    assert type(copied) is client_class
+    assert copied.client is underlying
+    assert copied.create_fn is create
+    assert copied.kwargs is client.kwargs
+    assert copied.hooks is client.hooks
+    assert copied.chat.completions.messages is copied
+    with pytest.raises(AttributeError):
+        _ = copied.missing_attribute
+
+
+@pytest.mark.parametrize("client_class", [Instructor, AsyncInstructor])
+def test_shallow_copy_preserves_inherited_and_private_slots(
+    client_class: type[Instructor],
+) -> None:
+    slotted_base = type(
+        "SlottedBase", (client_class,), {"__slots__": ("inherited_state",)}
+    )
+    slotted_client = type(
+        "SlottedClient",
+        (slotted_base,),
+        {"__slots__": ("custom_state", "__private_state", "unset_state")},
+    )
+    client = slotted_client(client=None, create=lambda **kwargs: kwargs)
+    client.inherited_state = object()
+    client.custom_state = object()
+    client._SlottedClient__private_state = object()
+
+    copied = copy(client)
+
+    assert type(copied) is slotted_client
+    assert copied.inherited_state is client.inherited_state
+    assert copied.custom_state is client.custom_state
+    assert copied._SlottedClient__private_state is client._SlottedClient__private_state
+    assert not hasattr(copied, "unset_state")
+
+
+@pytest.mark.parametrize(
+    "mode", [Mode.RESPONSES_TOOLS, Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS]
+)
+@pytest.mark.parametrize(
+    "client_class",
+    [
+        Instructor,
+        type("SlottedInstructor", (Instructor,), {"__slots__": ("responses",)}),
+    ],
+)
+def test_shallow_copy_rebinds_sync_response_facade(
+    mode: Mode, client_class: type[Instructor]
+) -> None:
+    received: list[dict[str, Any]] = []
+
+    def create(**kwargs: Any) -> User:
+        received.append(kwargs)
+        return User(name="Original")
+
+    def copied_create(**kwargs: Any) -> User:
+        received.append(kwargs)
+        return User(name="Copied")
+
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(503, request=request)
+    )
+    with openai.OpenAI(
+        api_key="offline-key",
+        base_url="https://offline.invalid/v1",
+        http_client=httpx.Client(transport=transport),
+    ) as native_client:
+        client = client_class(
+            client=native_client,
+            create=create,
+            mode=mode,
+            model="original-model",
+        )
+        copied = copy(client)
+        copied.create_fn = copied_create
+        copied.kwargs = {"model": "copied-model"}
+        copied.hooks = Hooks()
+
+        assert isinstance(copied.responses, Response)
+        assert isinstance(client.responses, Response)
+        assert copied.responses.create(input="Return a user", response_model=User) == (
+            User(name="Copied")
+        )
+        assert client.responses.create(input="Return a user", response_model=User) == (
+            User(name="Original")
+        )
+        assert copied.responses is not client.responses
+        assert copied.responses.client is copied
+        assert client.responses.client is client
+        assert copied.client is native_client
+        assert [call["model"] for call in received] == [
+            "copied-model",
+            "original-model",
+        ]
+        assert received[0]["hooks"] is copied.hooks
+        assert received[1]["hooks"] is client.hooks
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mode", [Mode.RESPONSES_TOOLS, Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS]
+)
+@pytest.mark.parametrize(
+    "client_class",
+    [
+        AsyncInstructor,
+        type(
+            "SlottedAsyncInstructor", (AsyncInstructor,), {"__slots__": ("responses",)}
+        ),
+    ],
+)
+async def test_shallow_copy_rebinds_async_response_facade(
+    mode: Mode, client_class: type[AsyncInstructor]
+) -> None:
+    received: list[dict[str, Any]] = []
+
+    async def create(**kwargs: Any) -> User:
+        received.append(kwargs)
+        return User(name="Original")
+
+    async def copied_create(**kwargs: Any) -> User:
+        received.append(kwargs)
+        return User(name="Copied")
+
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(503, request=request)
+    )
+    async with openai.AsyncOpenAI(
+        api_key="offline-key",
+        base_url="https://offline.invalid/v1",
+        http_client=httpx.AsyncClient(transport=transport),
+    ) as native_client:
+        client = client_class(
+            client=native_client,
+            create=create,
+            mode=mode,
+            model="original-model",
+        )
+        copied = copy(client)
+        copied.create_fn = copied_create
+        copied.kwargs = {"model": "copied-model"}
+        copied.hooks = Hooks()
+
+        assert isinstance(copied.responses, AsyncResponse)
+        assert isinstance(client.responses, AsyncResponse)
+        assert await copied.responses.create(
+            input="Return a user", response_model=User
+        ) == User(name="Copied")
+        assert await client.responses.create(
+            input="Return a user", response_model=User
+        ) == User(name="Original")
+        assert copied.responses is not client.responses
+        assert copied.responses.client is copied
+        assert client.responses.client is client
+        assert copied.client is native_client
+        assert [call["model"] for call in received] == [
+            "copied-model",
+            "original-model",
+        ]
+        assert received[0]["hooks"] is copied.hooks
+        assert received[1]["hooks"] is client.hooks
 
 
 def test_sync_streaming_and_completion_helpers_preserve_models_and_hooks() -> None:
