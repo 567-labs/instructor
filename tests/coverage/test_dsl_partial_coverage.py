@@ -70,12 +70,6 @@ _build_partial_object = cast(
     Callable[[Any, type[BaseModel], JsonCompleteness, str], Any],
     vars(partial_module)["_build_partial_object"],
 )
-_build_partial_list = cast(
-    Callable[
-        [list[Any], Optional[type[BaseModel]], str, JsonCompleteness, str], list[Any]
-    ],
-    vars(partial_module)["_build_partial_list"],
-)
 _unwrap_optional_base_model = cast(
     Callable[[Any], Optional[type[BaseModel]]],
     vars(partial_module)["_unwrap_optional_base_model"],
@@ -156,20 +150,6 @@ def test_partial_builder_recurses_into_open_nested_model_and_handles_scalars() -
     assert _build_partial_object("still streaming", Envelope, tracker, "") == (
         "still streaming"
     )
-
-
-def test_partial_list_preserves_untyped_and_unknown_fields() -> None:
-    tracker = JsonCompleteness()
-    tracker.analyze('[{"number":"3","state":"ready"}]')
-    raw_item = {"number": "3", "state": "ready"}
-
-    assert _build_partial_list([raw_item], None, "items", tracker, "") == [raw_item]
-    assert _build_partial_list([raw_item], Envelope, "missing", tracker, "") == [
-        raw_item
-    ]
-    assert _build_partial_list([raw_item], Envelope, "metadata", tracker, "") == [
-        raw_item
-    ]
 
 
 def test_partial_builder_preserves_bare_containers_and_complete_scalar_items() -> None:

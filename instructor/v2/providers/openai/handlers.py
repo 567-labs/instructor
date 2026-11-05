@@ -33,7 +33,7 @@ from instructor.v2.core.errors import (
     IncompleteOutputException,
     ResponseParsingError,
 )
-from instructor.v2.dsl.iterable import IterableBase
+from instructor.v2.dsl.iterable import IterableBase, _ToolCallStart
 from instructor.v2.dsl.parallel import (
     ParallelBase as ParallelBase,
     ParallelModel,
@@ -466,7 +466,9 @@ class _ChatToolArguments:
 
     def finish(self) -> Generator[str, None, None]:
         for index in sorted(self.deferred):
-            yield from self.deferred[index]
+            fragments = iter(self.deferred[index])
+            yield _ToolCallStart(next(fragments))
+            yield from fragments
 
 
 class OpenAIHandlerBase(StreamingModelState, ModeHandler):
