@@ -86,3 +86,10 @@ def test_aac_alias_data_uri_is_detected_and_normalized() -> None:
     assert autodetect_media(source) == audio
     with pytest.raises(ValueError, match="Expected WAV or MP3"):
         audio.to_openai(Mode.TOOLS)
+
+
+def test_audio_path_with_unknown_media_type(tmp_path: Path, wav_bytes: bytes) -> None:
+    path = tmp_path / "clip.instructor-no-mime"
+    path.write_bytes(wav_bytes)
+    with pytest.raises(ValueError, match="Unsupported audio format"):
+        Audio.from_path(path)
