@@ -27,6 +27,7 @@ def test_bedrock_bearer_token_is_scoped_to_each_client(monkeypatch):
         raise Captured(request.headers["Authorization"])
 
     for client, token in zip(clients, ("first", "second", "ambient")):
+        assert client is not None
         client.meta.events.register_first(
             "before-send.bedrock-runtime.Converse", capture
         )
