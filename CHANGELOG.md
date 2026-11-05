@@ -38,6 +38,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - OpenAI RESPONSES_TOOLS now preserves caller tools (e.g. code interpreter, web search) and avoids forcing tool choice when additional tools are provided. ([#2713](https://github.com/567-labs/instructor/issues/2713))
 - OpenAI-compatible and Cohere JSON modes join text blocks while ignoring reasoning blocks. Responses API token counts contribute to retry totals, and fenced JSON validates through the compatibility parser.
 
+### Changed
+
+- The dependency resolver supports OpenAI 3.x and newer Jiter while retaining Python 3.9 compatibility. The LiteLLM extras accept 1.x releases and exclude the compromised 1.82.7 and 1.82.8 versions.
+
 ### Tests / CI
 
 - Update the pinned checkout, artifact, setup-uv, and Codex actions.
