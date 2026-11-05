@@ -1370,3 +1370,18 @@ class TestOptionalNestedBaseModelDuringPartialStreaming:
         # Would be a raw dict before the fix, raising AttributeError on .name
         assert isinstance(obj.items[-1], Item)
         assert obj.items[-1].name == "banana"
+
+
+def test_partial_preserves_valid_del_and_c1_characters() -> None:
+    """DEL (0x7F) and C1 (0x80-0x9F) characters are valid unescaped JSON string
+    characters per RFC 8259 Section 7 and must not be stripped during streaming (#2865)."""
+    import json
+
+    class Text(BaseModel):
+        text: str
+
+    for char_code in (0x7F, 0x85, 0x90, 0x9F):
+        expected = "A" + chr(char_code) + "B"
+        payload = json.dumps({"text": expected}, ensure_ascii=False)
+        results = list(Partial[Text].model_from_chunks([payload]))
+        assert results[-1].text == expected
