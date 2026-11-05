@@ -11,6 +11,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 - Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
+- Cached responses accept both field names and validation aliases across supported Pydantic versions. Public cache keys include extra request-body options, and uncacheable list or scalar results emit a warning.
 - Explicit async validation visits set and frozenset items and reports validation failures from every item in a container.
 - Partial streams construct nested mapping and sequence values as models and defer data-aware default factories until their containing object is complete.
 - The OpenAI batch tutorial generates request files with `BatchProcessor.create_batch_from_messages`.

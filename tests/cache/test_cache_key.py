@@ -46,6 +46,62 @@ def test_cache_key_isolates_generation_configuration(field):
     assert key({"temperature": 0.2, "seed": 4}) == key({"seed": 4, "temperature": 0.2})
 
 
+@pytest.mark.parametrize(
+    ("left", "right"),
+    [
+        (
+            {"chat_template_kwargs": {"enable_thinking": False}},
+            {"chat_template_kwargs": {"enable_thinking": True}},
+        ),
+        ({"top_k": 10}, {"top_k": 20}),
+        ({}, {"top_k": 10}),
+    ],
+)
+def test_cache_key_isolates_extra_body(left, right):
+    def key(body):
+        return make_cache_key(
+            messages=messages,
+            model=model_name,
+            response_model=None,
+            request_kwargs={"extra_body": body},
+        )
+
+    assert key(left) != key(right)
+
+
+def test_cache_key_normalizes_extra_body_key_order():
+    def key(body):
+        return make_cache_key(
+            messages=messages,
+            model=model_name,
+            response_model=None,
+            request_kwargs={"extra_body": body},
+        )
+
+    assert key({"top_k": 10, "chat_template_kwargs": {"b": 2, "a": 1}}) == key(
+        {"chat_template_kwargs": {"a": 1, "b": 2}, "top_k": 10}
+    )
+
+
+def test_cache_key_rejects_opaque_extra_body():
+    with pytest.raises(TypeError, match="disable caching"):
+        make_cache_key(
+            messages=messages,
+            model=model_name,
+            response_model=None,
+            request_kwargs={"extra_body": {"value": object()}},
+        )
+
+
+def test_cache_key_treats_none_extra_body_as_omitted():
+    kwargs: dict[str, Any] = dict(
+        messages=messages, model=model_name, response_model=None
+    )
+    assert make_cache_key(**kwargs, request_kwargs={}) == make_cache_key(
+        **kwargs, request_kwargs={"extra_body": None}
+    )
+
+
 def test_cache_key_isolates_provider():
     kwargs: dict[str, Any] = dict(
         messages=messages, model=model_name, response_model=None

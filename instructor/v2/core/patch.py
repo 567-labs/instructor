@@ -12,7 +12,7 @@ from uuid import uuid4
 from instructor.v2.validation.async_validators import reject_async_validators
 from collections.abc import Awaitable
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast, get_args, overload
 
 from pydantic import BaseModel
 
@@ -35,6 +35,31 @@ if TYPE_CHECKING:
     from tenacity import AsyncRetrying, Retrying
 
 logger = logging.getLogger("instructor.v2")
+
+
+def _store_cached_result(
+    cache: Any, key: str, result: Any, requested_model: Any, ttl: int | None
+) -> None:
+    if isinstance(result, BaseModel):
+        from instructor.v2.core.cache_response import store_cached_response
+
+        try:
+            store_cached_response(cache, key, result, ttl=ttl)
+        except ModuleNotFoundError:
+            pass
+        return
+
+    name = getattr(requested_model, "__name__", type(requested_model).__name__)
+    args = get_args(requested_model)
+    if args and all(isinstance(arg, type) for arg in args):
+        name += "[" + ", ".join(arg.__name__ for arg in args) + "]"
+    logger.warning(
+        "Caching is not supported for this response model: %s returned a %s. "
+        "The next request will call the provider again.",
+        name,
+        type(result).__name__,
+    )
+
 
 T_Model = TypeVar("T_Model", bound=BaseModel)
 T_Retval = TypeVar("T_Retval")
@@ -232,6 +257,7 @@ def _create_sync_wrapper(
         # Get handlers from registry
         handlers = mode_registry.get_handlers(provider, mode)
 
+        requested_model = response_model
         if response_model is not None and mode not in Mode.parallel_modes():
             response_model = prepare_response_model(response_model)
 
@@ -301,13 +327,8 @@ def _create_sync_wrapper(
             token_budget=token_budget,
         )
 
-        if key is not None and isinstance(response, BaseModel):
-            from instructor.v2.core.cache_response import store_cached_response
-
-            try:
-                store_cached_response(cache, key, response, ttl=cache_ttl)
-            except ModuleNotFoundError:
-                pass
+        if key is not None:
+            _store_cached_result(cache, key, response, requested_model, cache_ttl)
 
         return response  # type: ignore[return-value]
 
@@ -356,6 +377,7 @@ def _create_async_wrapper(
         # Get handlers from registry
         handlers = mode_registry.get_handlers(provider, mode)
 
+        requested_model = response_model
         if response_model is not None and mode not in Mode.parallel_modes():
             response_model = prepare_response_model(response_model)
 
@@ -425,13 +447,8 @@ def _create_async_wrapper(
             token_budget=token_budget,
         )
 
-        if key is not None and isinstance(response, BaseModel):
-            from instructor.v2.core.cache_response import store_cached_response
-
-            try:
-                store_cached_response(cache, key, response, ttl=cache_ttl)
-            except ModuleNotFoundError:
-                pass
+        if key is not None:
+            _store_cached_result(cache, key, response, requested_model, cache_ttl)
 
         return response  # type: ignore[return-value]
 
