@@ -51,6 +51,31 @@ def test_iterable_get_object_handles_even_backslashes_before_quote() -> None:
     assert rest == '{"bio": "next"}'
 
 
+def test_iterable_scan_object_resumes_like_a_full_rescan() -> None:
+    payload = (
+        '{"bio": "quote \\" } {"}, {"bio": "ends \\\\"}, '
+        '{"x": {"y": "}"}, "z": [1, {"w": 2}]}, {"tail": "cut'
+    )
+    from instructor.v2.dsl.iterable import _TaskObjects
+
+    scanner = _TaskObjects(unwrap_tasks=False)
+    buffer = ""
+    objects = []
+    for char in payload:
+        buffer += char
+        expected, buffer = IterableBase.get_object(buffer, 0)
+        actual = [obj for obj, _ in scanner.feed(char)]
+        assert actual == ([expected] if expected is not None else [])
+        objects.extend(actual)
+
+    assert objects == [
+        '{"bio": "quote \\" } {"}',
+        '{"bio": "ends \\\\"}',
+        '{"x": {"y": "}"}, "z": [1, {"w": 2}]}',
+    ]
+    assert "".join(scanner.buffer) == buffer[buffer.index("{") :]
+
+
 def test_iterable_tasks_from_chunks_handles_braces_inside_strings() -> None:
     chunks = [
         '{"tasks": [',
@@ -147,3 +172,63 @@ async def test_streaming_is_independent_of_chunk_boundaries() -> None:
 
         actual = [item async for item in model.tasks_from_chunks_async(source())]
         assert actual == expected, chunks
+
+
+# A stream cut off by the provider (e.g. at max_tokens) ends inside an item. The
+# non-streaming path raises IncompleteOutputException for this; streaming must too,
+# and must still yield every item that did arrive complete.
+TRUNCATED_CHUNKS = [
+    '{"tasks": [',
+    '{"name": "Alice", "bio": "first"}',
+    ', {"name": "Bob", "bio": "quote \\" and } inside, then cut',
+]
+
+
+def test_tasks_from_chunks_raises_when_stream_ends_inside_an_item() -> None:
+    from instructor.v2.core.errors import IncompleteOutputException
+
+    model = cast(Any, IterableModel(User))
+    received = []
+    with pytest.raises(IncompleteOutputException):
+        for user in model.tasks_from_chunks(TRUNCATED_CHUNKS):
+            received.append(user)
+
+    assert received == [User(name="Alice", bio="first")]
+
+
+@pytest.mark.asyncio
+async def test_tasks_from_chunks_async_raises_when_stream_ends_inside_an_item() -> None:
+    from instructor.v2.core.errors import IncompleteOutputException
+
+    async def source():
+        for chunk in TRUNCATED_CHUNKS:
+            yield chunk
+
+    model = cast(Any, IterableModel(User))
+    received = []
+    with pytest.raises(IncompleteOutputException):
+        async for user in model.tasks_from_chunks_async(source()):
+            received.append(user)
+
+    assert received == [User(name="Alice", bio="first")]
+
+
+@pytest.mark.parametrize(
+    ("chunks", "expected"),
+    [
+        (['{"tasks": []}'], []),
+        (
+            ['{"tasks": [{"name": "Alice", "bio": "a { b"}]}'],
+            [User(name="Alice", bio="a { b")],
+        ),
+        (
+            ['{"tasks": [{"name": "Alice", "bio": "x"}], "note": "has { inside"}'],
+            [User(name="Alice", bio="x")],
+        ),
+    ],
+)
+def test_tasks_from_chunks_complete_stream_does_not_raise(
+    chunks: list[str], expected: list[User]
+) -> None:
+    model = cast(Any, IterableModel(User))
+    assert list(model.tasks_from_chunks(chunks)) == expected

@@ -111,10 +111,10 @@ class ModeHandler(ABC):
         """Normalize common DSL results without interpreting provider payloads."""
         from instructor.v2.dsl.iterable import IterableBase
         from instructor.v2.dsl.parallel import ParallelBase
-        from instructor.v2.dsl.simple_type import AdapterBase
+        from instructor.v2.dsl.simple_type import AdapterBase, unwrap_adapter
 
         if isinstance(parsed, IterableBase):
-            return [task for task in parsed.tasks]
+            return [unwrap_adapter(task) for task in parsed.tasks]
         if isinstance(response_model, ParallelBase):
             return parsed
         if isinstance(parsed, AdapterBase):

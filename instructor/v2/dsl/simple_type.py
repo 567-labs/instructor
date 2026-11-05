@@ -29,6 +29,14 @@ class AdapterBase(BaseModel):
     pass
 
 
+def unwrap_adapter(value: typing.Any) -> typing.Any:
+    return (
+        typing.cast(typing.Any, value).content
+        if isinstance(value, AdapterBase)
+        else value
+    )
+
+
 class ModelAdapter(typing.Generic[T]):
     """
     Accepts a response model and returns a BaseModel with the response model as the content.
@@ -130,6 +138,9 @@ def is_simple_type(
         int,
         float,
         bool,
+        dict,
+        set,
+        tuple,
     }:
         return True
 
@@ -137,8 +148,11 @@ def is_simple_type(
     if origin in {
         typing.Annotated,
         typing.Literal,
-        typing.Union,
+        *_UNION_ORIGINS,
         list,  # origin of List[T] is list
+        dict,
+        set,
+        tuple,
     }:
         return True
 

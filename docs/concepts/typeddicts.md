@@ -43,6 +43,7 @@ response = client.create(
 ```
 
 Instructor converts a `TypedDict` into a Pydantic model. Keys starting with an
-underscore, such as `_id`, use field aliases because Pydantic reserves those
-attribute names. Use `response.model_dump(by_alias=True)` to export the original
-keys. Required keys must still be present, and `NotRequired` keys may be omitted.
+underscore or `model_`, and keys that match model methods such as `schema` or
+`model_dump`, use field aliases to keep the model's methods available. Use
+`response.model_dump(by_alias=True)` to export the original keys. Required keys
+must still be present, and `NotRequired` keys may be omitted.
