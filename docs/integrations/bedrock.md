@@ -65,6 +65,23 @@ Or configure using AWS CLI:
 aws configure
 ```
 
+### Bedrock API keys
+
+Pass a bearer token to `from_provider` to scope it to that client. For example:
+
+```python
+import os
+
+import instructor
+
+client = instructor.from_provider(
+    "bedrock/us.anthropic.claude-opus-5-5",
+    api_key=os.environ["BEDROCK_API_KEY"],
+)
+```
+
+When you omit `api_key`, boto3 uses its standard authentication configuration, including `AWS_BEARER_TOKEN_BEDROCK`. See the [AWS Bedrock API key guide](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html).
+
 ## Sync Example
 
 ```python

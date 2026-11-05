@@ -139,19 +139,45 @@ def from_bedrock(
     )
 
 
+def _runtime_client(api_key: str | None, aws_kwargs: dict[str, Any]) -> Any:
+    import boto3
+
+    if api_key is None:
+        return boto3.client("bedrock-runtime", **aws_kwargs)
+
+    from botocore.session import get_session
+
+    try:
+        from botocore.tokens import ScopedEnvTokenProvider
+    except ImportError as exc:
+        from instructor.v2.core.errors import ConfigurationError
+
+        raise ConfigurationError(
+            "Install the instructor[bedrock] extra to use Bedrock API keys."
+        ) from exc
+
+    session = get_session()
+    session.register_component(
+        "token_provider",
+        ScopedEnvTokenProvider(session, environ={"AWS_BEARER_TOKEN_BEDROCK": api_key}),
+    )
+    return boto3.Session(botocore_session=session).client(
+        "bedrock-runtime", **aws_kwargs
+    )
+
+
 def _build_from_model(
     *,
     provider: str,
     model_name: str,
     async_client: bool,
     mode: Mode | None,
+    api_key: str | None = None,
     kwargs: dict[str, Any],
     provider_info: dict[str, str],
 ) -> Instructor | AsyncInstructor:
     """Construct and wrap a native Bedrock SDK client for ``from_provider``."""
     try:
-        import boto3
-
         if "region" in kwargs:
             region = kwargs.pop("region")
         else:
@@ -173,7 +199,7 @@ def _build_from_model(
                 aws_kwargs[key] = os.environ[key.upper()]
 
         aws_kwargs["region_name"] = region
-        client = boto3.client("bedrock-runtime", **aws_kwargs)
+        client = _runtime_client(api_key, aws_kwargs)
 
         if mode is None:
             if model_name and (

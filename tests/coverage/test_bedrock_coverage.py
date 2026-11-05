@@ -270,6 +270,18 @@ def test_content_conversion_keeps_native_cache_and_string_parts() -> None:
     ]
 
 
+def test_content_conversion_keeps_native_reasoning_content() -> None:
+    """Assistant turns returned by Converse can be sent back unchanged."""
+    redacted = {"reasoningContent": {"redactedContent": b"rsn_opaque"}}
+    text = {"reasoningContent": {"reasoningText": {"text": "thinking"}}}
+
+    assert _to_bedrock_content_items([redacted, text, {"text": "done"}]) == [
+        redacted,
+        text,
+        {"text": "done"},
+    ]
+
+
 @pytest.mark.parametrize(
     ("content", "message"),
     [
