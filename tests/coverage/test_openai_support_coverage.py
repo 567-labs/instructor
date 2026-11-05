@@ -6,7 +6,7 @@ import runpy
 from pathlib import Path
 from typing import Any, cast
 
-import httpx
+from tests import openai_http as httpx
 import openai
 import pytest
 from openai.types.responses import Response

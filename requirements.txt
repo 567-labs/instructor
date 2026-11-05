@@ -50,7 +50,8 @@ idna==3.19
     #   yarl
 jinja2==3.1.6
     # via instructor (pyproject.toml)
-jiter==0.14.0
+jiter==0.16.0 ; python_version < "3.10"
+jiter==0.17.0 ; python_version >= "3.10"
     # via
     #   instructor (pyproject.toml)
     #   openai
@@ -64,7 +65,8 @@ multidict==6.7.1
     # via
     #   aiohttp
     #   yarl
-openai==2.54.0
+openai==2.48.0 ; python_version < "3.10"
+openai==3.23.0 ; python_version >= "3.10"
     # via instructor (pyproject.toml)
 propcache==0.5.2
     # via

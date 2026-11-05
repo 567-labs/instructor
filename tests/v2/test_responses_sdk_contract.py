@@ -9,7 +9,7 @@ from inspect import isawaitable
 import threading
 from typing import Any
 
-import httpx
+from tests import openai_http as httpx
 import openai
 from openai.types.responses import Response, ResponseFunctionToolCall
 from openai.types.responses.response import IncompleteDetails

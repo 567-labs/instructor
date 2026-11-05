@@ -5,7 +5,7 @@ from collections.abc import AsyncIterable, Iterable
 from copy import copy
 from typing import Any, cast, get_args, get_origin
 
-import httpx
+from tests import openai_http as httpx
 import openai
 import pytest
 from openai.types.chat import ChatCompletionMessageParam
