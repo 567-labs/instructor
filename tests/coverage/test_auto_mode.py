@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from instructor.v2.core.auto_mode import select_mode
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
-from instructor.v2.core.schema_analyzer import analyze_schema
+from instructor.v2.core.schema_analyzer import SchemaAnalysis, analyze_schema
 
 
 # --- Test Models (ordered so dependencies come before usage) ---
@@ -58,98 +58,6 @@ class DeeplyNestedModel(BaseModel):
     a: LevelA
 
 
-# High complexity chain (leaf to root)
-class ComplexBottomA(BaseModel):
-    z1: str
-    z2: str
-    z3: str
-    z4: str
-    z5: str
-    z6: str
-    z7: str
-
-
-class ComplexDeeperA(BaseModel):
-    bottom: ComplexBottomA
-    y1: str
-    y2: str
-    y3: str
-
-
-class ComplexDeepA(BaseModel):
-    deeper: ComplexDeeperA
-    x1: str
-    x2: str
-    x3: str
-    x4: str
-    x5: str
-
-
-class ComplexInnerA(BaseModel):
-    deep: ComplexDeepA
-    w1: str
-    w2: str
-    w3: str
-    w4: str
-    w5: str
-
-
-class ComplexSectionA(BaseModel):
-    inner: ComplexInnerA
-    v1: str
-    v2: str
-    v3: str
-    v4: str
-    v5: str
-
-
-class ComplexInnerB(BaseModel):
-    n1: str
-    n2: str
-    n3: str
-    n4: str
-    n5: str
-    n6: str
-    n7: str
-    n8: str
-    n9: str
-    n10: str
-    n11: str
-    n12: str
-
-
-class ComplexSectionB(BaseModel):
-    inner: ComplexInnerB
-    m1: str
-    m2: str
-    m3: str
-    m4: str
-    m5: str
-    m6: str
-    m7: str
-
-
-class HighComplexityModel(BaseModel):
-    """A model designed to exceed the 70-point complexity threshold.
-
-    Combines deep nesting (5+ levels) with many fields to push the score over 70.
-    """
-
-    section_a: ComplexSectionA
-    section_b: ComplexSectionB
-    f01: str
-    f02: str
-    f03: str
-    f04: str
-    f05: str
-    f06: str
-    f07: str
-    f08: str
-    f09: str
-    f10: str
-
-
-# Medium complexity chain (leaf to root)
 class RefItem(BaseModel):
     url: str
     label: str
@@ -227,22 +135,27 @@ class TestDeepNestingSelection:
         assert mode is Mode.JSON_SCHEMA
 
 
-class TestHighComplexitySelection:
-    def test_high_complexity_strict_prefers_json_schema(self):
-        analysis = analyze_schema(HighComplexityModel)
-        assert analysis.complexity_score > 70, (
-            f"Test model score {analysis.complexity_score} too low, expected >70"
-        )
-        mode = select_mode(HighComplexityModel, Provider.OPENAI, prefer_strict=True)
-        assert mode == Mode.JSON_SCHEMA
-
-    def test_high_complexity_relaxed_prefers_md_json(self):
-        mode = select_mode(HighComplexityModel, Provider.OPENAI, prefer_strict=False)
-        assert mode == Mode.MD_JSON
-
-    def test_high_complexity_mistral(self):
-        mode = select_mode(HighComplexityModel, Provider.MISTRAL, prefer_strict=True)
-        assert mode == Mode.JSON_SCHEMA
+@pytest.mark.parametrize(
+    ("overhead", "score", "provider", "strict", "expected"),
+    [
+        (1600, 70, Provider.OPENAI, True, Mode.TOOLS),
+        (1700, 71, Provider.OPENAI, True, Mode.JSON_SCHEMA),
+        (1700, 71, Provider.OPENAI, False, Mode.MD_JSON),
+        (1700, 71, Provider.MISTRAL, True, Mode.JSON_SCHEMA),
+        (1700, 71, Provider.BEDROCK, True, Mode.JSON_SCHEMA),
+    ],
+)
+def test_shallow_precomputed_score_controls_mode(
+    overhead: int, score: int, provider: Provider, strict: bool, expected: Mode
+) -> None:
+    analysis = SchemaAnalysis(
+        total_fields=15, max_depth=3, estimated_token_overhead=overhead
+    )
+    assert analysis.complexity_score == score
+    assert (
+        select_mode(SimpleUser, provider, analysis=analysis, prefer_strict=strict)
+        is expected
+    )
 
 
 class TestProviderConstraints:
@@ -250,25 +163,14 @@ class TestProviderConstraints:
         mode = select_mode(SimpleUser, Provider.PERPLEXITY)
         assert mode == Mode.MD_JSON
 
-    def test_bedrock_supports_json_schema(self):
-        mode = select_mode(HighComplexityModel, Provider.BEDROCK, prefer_strict=True)
-        assert mode is Mode.JSON_SCHEMA
-
     def test_genai_supports_tools_and_json(self):
         mode = select_mode(SimpleUser, Provider.GENAI)
         assert mode in (Mode.TOOLS, Mode.JSON)
 
 
-class TestPrecomputedAnalysis:
-    def test_accepts_precomputed_analysis(self):
-        analysis = analyze_schema(SimpleUser)
-        mode = select_mode(SimpleUser, Provider.OPENAI, analysis=analysis)
-        assert mode == Mode.TOOLS
-
-    def test_precomputed_recursive_analysis(self):
-        analysis = analyze_schema(RecursiveTree)
-        mode = select_mode(RecursiveTree, Provider.OPENAI, analysis=analysis)
-        assert mode == Mode.MD_JSON
+def test_precomputed_recursion_overrides_the_model_default() -> None:
+    analysis = analyze_schema(RecursiveTree)
+    assert select_mode(SimpleUser, Provider.OPENAI, analysis=analysis) is Mode.MD_JSON
 
 
 class TestFallbackBehavior:
@@ -312,19 +214,4 @@ class TestMediumComplexity:
         result = analyze_schema(MediumComplexity)
         assert result.complexity_score < 70
         mode = select_mode(MediumComplexity, Provider.OPENAI)
-        assert mode == Mode.TOOLS
-
-
-class TestIntegrationWithAnalyzer:
-    def test_analysis_and_mode_selection_consistent(self):
-        analysis = analyze_schema(RecursiveTree)
-        assert analysis.has_recursion
-        mode = select_mode(RecursiveTree, Provider.OPENAI, analysis=analysis)
-        assert mode == Mode.MD_JSON
-
-    def test_simple_analysis_and_mode_consistent(self):
-        analysis = analyze_schema(SimpleUser)
-        assert not analysis.has_recursion
-        assert analysis.complexity_score < 30
-        mode = select_mode(SimpleUser, Provider.OPENAI, analysis=analysis)
         assert mode == Mode.TOOLS

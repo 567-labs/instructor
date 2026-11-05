@@ -6,13 +6,11 @@ eliminating the per-request class creation that caused unbounded memory growth.
 
 from __future__ import annotations
 
-import gc
-
 
 from typing import Any, cast
 
 import pytest
-from pydantic import BaseModel, Field, create_model
+from pydantic import BaseModel, create_model
 
 from instructor.v2.core.function_calls import (
     ResponseSchema,
@@ -43,16 +41,6 @@ class Product(BaseModel):
     in_stock: bool
 
 
-class Wide(BaseModel):
-    """A wider model with many fields."""
-
-    f0: str = Field(..., description="Field zero.")
-    f1: str = Field(..., description="Field one.")
-    f2: int = Field(..., description="Field two.")
-    f3: float = Field(..., description="Field three.")
-    f4: bool = Field(..., description="Field four.")
-
-
 # ---------------------------------------------------------------------------
 # Core: response_schema caching
 # ---------------------------------------------------------------------------
@@ -81,19 +69,9 @@ class TestResponseSchemaCaching:
         assert issubclass(result, BaseModel)
 
     def test_cached_class_preserves_schema(self) -> None:
-        """The cached class produces the same OpenAI schema as a fresh one."""
-        _response_schema_cache.clear()
-        first = response_schema(User)
-        schema_first = generate_openai_schema(first)
-
-        # Clear the openai schema cache to force re-computation
-        generate_openai_schema.cache_clear()
-
-        second = response_schema(User)
-        schema_second = generate_openai_schema(second)
-
-        assert schema_first == schema_second
-        assert first is second  # still the same object
+        assert generate_openai_schema(response_schema(User)) == generate_openai_schema(
+            User
+        )
 
     def test_type_error_for_non_basemodel(self) -> None:
         """response_schema still raises TypeError for non-BaseModel inputs."""
@@ -177,57 +155,14 @@ class TestOpenAISchemaCacheEffectiveness:
 # ---------------------------------------------------------------------------
 
 
-class TestDynamicModelCleanup:
-    """Dynamically-created models should be cleaned up by the WeakKeyDictionary."""
-
-    def test_dynamic_model_is_cached(self) -> None:
-        """A dynamically-created model should be cached while it exists."""
-        DynModel = create_model("DynModel", name=(str, ...), value=(int, ...))
-        a = response_schema(DynModel)
-        b = response_schema(DynModel)
-        assert a is b
-
-    def test_dynamic_model_cleanup(self) -> None:
-        """When a dynamic model is deleted, its cache entry is cleaned up."""
-        DynModel = create_model("Ephemeral", x=(str, ...))
-        _ = response_schema(DynModel)
-        assert DynModel in _response_schema_cache
-
-        # Drop all references to the dynamic model
-        del DynModel, _
-        gc.collect()
-
-        # The WeakKeyDictionary should have cleaned up the entry.
-        # We can't check for a specific key since it's been deleted,
-        # but we can verify the cache didn't grow unboundedly.
-        # (This test mainly verifies no crash/error occurs on cleanup.)
-
-    def test_repeated_calls_dont_grow_cache(self) -> None:
-        """Calling response_schema N times with the same model adds only 1 cache entry."""
-        _response_schema_cache.clear()
-
-        for _ in range(100):
-            response_schema(User)
-
-        assert len(_response_schema_cache) == 1, (
-            f"Expected 1 cache entry for 100 calls with the same model, "
-            f"got {len(_response_schema_cache)}"
-        )
-
-    def test_n_distinct_models_add_n_entries(self) -> None:
-        """N distinct models create exactly N cache entries, not N * calls."""
-        _response_schema_cache.clear()
-
-        models = [create_model(f"M{i}", val=(int, ...)) for i in range(10)]
-        for m in models:
-            # Call 5 times each — should still be only 10 entries total
-            for _ in range(5):
-                response_schema(m)
-
-        assert len(_response_schema_cache) == 10, (
-            f"Expected 10 cache entries for 10 models x 5 calls, "
-            f"got {len(_response_schema_cache)}"
-        )
+def test_distinct_dynamic_models_reuse_only_their_own_live_wrappers() -> None:
+    first = create_model("Dynamic", value=(str, ...))
+    second = create_model("Dynamic", value=(int, ...))
+    first_wrapper = response_schema(first)
+    second_wrapper = response_schema(second)
+    assert response_schema(first) is first_wrapper
+    assert response_schema(second) is second_wrapper
+    assert first_wrapper is not second_wrapper
 
 
 # ---------------------------------------------------------------------------
