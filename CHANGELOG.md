@@ -43,6 +43,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - OpenAI RESPONSES_TOOLS now preserves caller tools (e.g. code interpreter, web search) and avoids forcing tool choice when additional tools are provided. ([#2713](https://github.com/567-labs/instructor/issues/2713))
 - OpenAI-compatible and Cohere JSON modes join text blocks while ignoring reasoning blocks. Responses API token counts contribute to retry totals, and fenced JSON validates through the compatibility parser.
 - Reserved TypedDict keys survive schema and cache round trips. Collection response types and Iterable scalar items return native values. Response-schema wrappers are reused without keeping dynamic input models alive.
+- Update provider SDKs and developer tooling, with Python 3.9-compatible core and example pins and separate OpenAI 2.x and 3.x installation coverage.
 
 ### Changed
 

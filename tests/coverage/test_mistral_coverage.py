@@ -688,7 +688,9 @@ def test_streaming_extension_and_parsed_result_variants() -> None:
         True,
     )
     iterable_model = IterableModel(User)
-    iterable_result = iterable_model(tasks=[User(name="Ada", age=36)])
+    iterable_result = iterable_model.model_validate(
+        {"tasks": [User(name="Ada", age=36)]}
+    )
     parallel_model = ParallelBase(User, Answer)
     adapter_model = cast(type[BaseModel], ModelAdapter[int])
     adapter_result = adapter_model.model_validate({"content": 7})

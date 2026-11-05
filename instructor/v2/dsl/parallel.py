@@ -5,6 +5,8 @@ from typing import (
     Optional,
     TypeVar,
     Union,
+    cast,
+    overload,
     get_args,
     get_origin,
 )
@@ -81,12 +83,12 @@ class ParallelBase(Generic[T]):
 if sys.version_info >= (3, 10):
     from types import UnionType
 
-    def is_union_type(typehint: type[Iterable[T]]) -> bool:
+    def is_union_type(typehint: object) -> bool:
         return get_origin(get_args(typehint)[0]) in (Union, UnionType)
 
 else:
 
-    def is_union_type(typehint: type[Iterable[T]]) -> bool:
+    def is_union_type(typehint: object) -> bool:
         return get_origin(get_args(typehint)[0]) is Union
 
 
@@ -112,7 +114,7 @@ def model_for_tool_name(
     )
 
 
-def get_types_array(typehint: type[Iterable[T]]) -> tuple[type[T], ...]:
+def get_types_array(typehint: object) -> tuple[type[Any], ...]:
     should_be_iterable = get_origin(typehint)
 
     if should_be_iterable is not Iterable:
@@ -126,18 +128,21 @@ def get_types_array(typehint: type[Iterable[T]]) -> tuple[type[T], ...]:
     return get_args(typehint)
 
 
-def handle_parallel_model(typehint: type[Iterable[T]]) -> list[dict[str, Any]]:
+def handle_parallel_model(typehint: object) -> list[dict[str, Any]]:
     # Import at runtime to avoid circular import
-    from instructor.v2.core.function_calls import openai_schema
+    from instructor.v2.core.function_calls import ResponseSchema, openai_schema
 
     return [
-        {"type": "function", "function": openai_schema(model).openai_schema}
+        {
+            "type": "function",
+            "function": cast(type[ResponseSchema], openai_schema(model)).openai_schema,
+        }
         for model in ParallelModel(typehint).models
     ]
 
 
 def handle_anthropic_parallel_model(
-    typehint: type[Iterable[T]],
+    typehint: object,
 ) -> list[dict[str, Any]]:
     """Compatibility shim for Anthropic-owned parallel schema generation."""
     from instructor.v2.providers.anthropic.parallel import handle_parallel_model
@@ -145,7 +150,15 @@ def handle_anthropic_parallel_model(
     return handle_parallel_model(typehint)
 
 
-def ParallelModel(typehint: type[Iterable[T]]) -> ParallelBase[T]:
+@overload
+def ParallelModel(typehint: type[Iterable[T]]) -> ParallelBase[T]: ...
+
+
+@overload
+def ParallelModel(typehint: object) -> ParallelBase[Any]: ...
+
+
+def ParallelModel(typehint: object) -> ParallelBase[Any]:
     return ParallelBase(*get_types_array(typehint))
 
 

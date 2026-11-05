@@ -364,12 +364,12 @@ def test_streaming_protocol_model_and_result_finalization_keep_expected_values()
 
     raw = object()
     iterable_model = IterableModel(User)
-    parsed_iterable = iterable_model(tasks=[User(name="Ada")])
+    parsed_iterable = iterable_model.model_validate({"tasks": [User(name="Ada")]})
     assert handler._finalize_parsed_result(iterable_model, raw, parsed_iterable) == [
         User(name="Ada")
     ]
     adapter_model = cast(type[BaseModel], ModelAdapter[str])
-    adapter = adapter_model(content="plain value")
+    adapter = adapter_model.model_validate({"content": "plain value"})
     assert handler._finalize_parsed_result(adapter_model, raw, adapter) == "plain value"
     parsed = User(name="Ada")
     assert handler._finalize_parsed_result(User, raw, parsed) is parsed

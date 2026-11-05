@@ -537,7 +537,7 @@ def test_finalize_parsed_result_handles_parallel_iterable_adapter_and_base_model
     assert handler._finalize_parsed_result(
         iterable_user,
         response,
-        iterable_user(tasks=[User(name="Ada")]),
+        iterable_user.model_validate({"tasks": [User(name="Ada")]}),
     ) == [User(name="Ada")]
     assert handler._finalize_parsed_result(parallel, response, ("kept",)) == ("kept",)
     assert (

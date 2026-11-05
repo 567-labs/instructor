@@ -82,7 +82,9 @@ def test_package_and_client_report_missing_optional_bedrock_dependency(
         client_namespace["from_bedrock"](None)
 
 
-def test_sync_bedrock_client_sends_native_converse_request_and_parses_tool() -> None:
+def test_sync_bedrock_client_sends_native_converse_request_and_parses_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls: list[dict[str, Any]] = []
 
     def converse(**kwargs: Any) -> dict[str, Any]:
@@ -90,7 +92,7 @@ def test_sync_bedrock_client_sends_native_converse_request_and_parses_tool() -> 
         return _tool_response(7)
 
     client = BaseClient.__new__(BaseClient)
-    client.converse = converse
+    monkeypatch.setitem(vars(client), "converse", converse)
     wrapped = bedrock_client.from_bedrock(
         client, mode=Mode.TOOLS, model="anthropic.claude-test"
     )
@@ -128,7 +130,9 @@ def test_sync_bedrock_client_sends_native_converse_request_and_parses_tool() -> 
 
 
 @pytest.mark.asyncio
-async def test_async_bedrock_client_wraps_sync_converse_and_parses_tool() -> None:
+async def test_async_bedrock_client_wraps_sync_converse_and_parses_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls: list[dict[str, Any]] = []
 
     def converse(**kwargs: Any) -> dict[str, Any]:
@@ -136,7 +140,7 @@ async def test_async_bedrock_client_wraps_sync_converse_and_parses_tool() -> Non
         return _tool_response(11)
 
     client = BaseClient.__new__(BaseClient)
-    client.converse = converse
+    monkeypatch.setitem(vars(client), "converse", converse)
     wrapped = bedrock_client.from_bedrock(
         client,
         mode=Mode.TOOLS,

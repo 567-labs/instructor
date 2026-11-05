@@ -181,9 +181,7 @@ def _dependency_missing(module: str) -> bool:
 
 def _skip_if_missing(module: str) -> None:
     if _dependency_missing(module):
-        pytest.skip(
-            f"{module} is not installed"  # ty: ignore[too-many-positional-arguments]
-        )
+        pytest.skip(f"{module} is not installed")
 
 
 def _provider_mode_params():
@@ -453,14 +451,10 @@ def test_prepare_request_with_none_model(provider: Provider, mode: Mode) -> None
     if provider == Provider.MISTRAL and mode == Mode.JSON_SCHEMA:
         _skip_if_missing("mistralai")
     if mode == Mode.PARALLEL_TOOLS:
-        pytest.skip(
-            "Parallel tools requires special response_model setup"  # ty: ignore[too-many-positional-arguments]
-        )
+        pytest.skip("Parallel tools requires special response_model setup")
     # Anthropic JSON_SCHEMA requires a response_model
     if provider == Provider.ANTHROPIC and mode == Mode.JSON_SCHEMA:
-        pytest.skip(
-            "Anthropic JSON_SCHEMA mode requires a response_model"  # ty: ignore[too-many-positional-arguments]
-        )
+        pytest.skip("Anthropic JSON_SCHEMA mode requires a response_model")
 
     handlers = _get_handlers(provider, mode)
     kwargs = {"messages": [{"role": "user", "content": "Hello"}]}
@@ -485,9 +479,7 @@ def test_prepare_request_with_model(provider: Provider, mode: Mode) -> None:
     if provider == Provider.MISTRAL and mode == Mode.JSON_SCHEMA:
         _skip_if_missing("mistralai")
     if mode == Mode.PARALLEL_TOOLS:
-        pytest.skip(
-            "Parallel tools requires special response_model setup"  # ty: ignore[too-many-positional-arguments]
-        )
+        pytest.skip("Parallel tools requires special response_model setup")
 
     handlers = _get_handlers(provider, mode)
     kwargs = {"messages": [{"role": "user", "content": "What is 2+2?"}]}
@@ -502,9 +494,7 @@ def test_parse_response(provider: Provider, mode: Mode) -> None:
     """parse_response should return a validated model for supported scenarios."""
     scenario = PARSE_SCENARIOS.get(provider, {}).get(mode)
     if scenario is None:
-        pytest.skip(
-            "No parse_response scenario defined for this provider/mode"  # ty: ignore[too-many-positional-arguments]
-        )
+        pytest.skip("No parse_response scenario defined for this provider/mode")
 
     handlers = _get_handlers(provider, mode)
     builder = MockResponseBuilder(provider)
@@ -539,9 +529,7 @@ def test_parse_response_validation_error(provider: Provider, mode: Mode) -> None
     """parse_response should raise ValidationError on invalid payloads."""
     scenario = PARSE_SCENARIOS.get(provider, {}).get(mode)
     if scenario is None:
-        pytest.skip(
-            "No parse_response scenario defined for this provider/mode"  # ty: ignore[too-many-positional-arguments]
-        )
+        pytest.skip("No parse_response scenario defined for this provider/mode")
 
     handlers = _get_handlers(provider, mode)
     builder = MockResponseBuilder(provider)

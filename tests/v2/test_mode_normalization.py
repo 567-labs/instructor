@@ -11,7 +11,7 @@ try:
     from instructor.v2.core import mode_registry, normalize_mode
 except ModuleNotFoundError:
     # fmt: off
-    pytest.skip("v2 module not available", allow_module_level=True)  # ty: ignore[too-many-positional-arguments]
+    pytest.skip("v2 module not available", allow_module_level=True)
     # fmt: on
 
 

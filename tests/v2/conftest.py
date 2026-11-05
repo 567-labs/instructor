@@ -71,9 +71,7 @@ def check_api_key_requirement(request):
         for _prov, (env_var, _pkg) in PROVIDER_API_KEYS.items():
             if os.getenv(env_var):
                 return  # At least one API key is set
-        pytest.skip(
-            "No provider API key environment variable is set"  # ty: ignore[too-many-positional-arguments]
-        )
+        pytest.skip("No provider API key environment variable is set")
         return
 
     # Check for specific provider
@@ -81,17 +79,11 @@ def check_api_key_requirement(request):
         env_var, package = PROVIDER_API_KEYS[provider]
 
         if not os.getenv(env_var):
-            pytest.skip(
-                f"{env_var} environment variable not set"  # ty: ignore[too-many-positional-arguments]
-            )
+            pytest.skip(f"{env_var} environment variable not set")
 
         if importlib.util.find_spec(package.split(".")[0]) is None:
-            pytest.skip(
-                f"{package} package is not installed"  # ty: ignore[too-many-positional-arguments]
-            )
+            pytest.skip(f"{package} package is not installed")
 
     if request.node.get_closest_marker("asyncio"):
         if importlib.util.find_spec("pytest_asyncio") is None:
-            pytest.skip(
-                "pytest-asyncio is not installed"  # ty: ignore[too-many-positional-arguments]
-            )
+            pytest.skip("pytest-asyncio is not installed")

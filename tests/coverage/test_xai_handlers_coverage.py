@@ -455,10 +455,12 @@ async def test_streaming_iterables_allow_empty_streams_without_validation_option
 def test_finalize_unwraps_iterable_parallel_and_simple_type_results() -> None:
     handler = handlers.XAIToolsHandler()
     users = IterableModel(User)
-    parsed_users = users(tasks=[User(name="Ada", age=31), User(name="Lin", age=29)])
+    parsed_users = users.model_validate(
+        {"tasks": [User(name="Ada", age=31), User(name="Lin", age=29)]}
+    )
     parallel = ParallelBase(Answer, User)
     adapter_model = cast(type[BaseModel], ModelAdapter[int])
-    adapted = adapter_model(content=42)
+    adapted = adapter_model.model_validate({"content": 42})
 
     iterable_result = handler._finalize_parsed_result(users, object(), parsed_users)
     parallel_result = handler._finalize_parsed_result(parallel, object(), ["kept"])

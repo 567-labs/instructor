@@ -50,7 +50,7 @@ class EmailIterable(IterableBase):
 
 
 class UnionIterable(IterableBase):
-    task_type = Union[EmailJob, SmsJob]
+    task_type = Union[EmailJob, SmsJob]  # ty: ignore[invalid-assignment]
 
 
 def extract_deltas(completion: Iterable[Any]) -> Generator[str, None, None]:

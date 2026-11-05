@@ -433,7 +433,9 @@ async def test_async_patch_ignores_an_unsupported_cache() -> None:
 def test_finalize_converts_iterable_models_and_unwraps_simple_types() -> None:
     response = _completion(0)
     iterable_type = IterableModel(Answer)
-    iterable = iterable_type(tasks=[Answer(value=1), Answer(value=2)])
+    iterable = iterable_type.model_validate(
+        {"tasks": [Answer(value=1), Answer(value=2)]}
+    )
 
     finalized = _finalize_parsed_response(iterable, response)
 

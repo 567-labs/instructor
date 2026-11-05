@@ -1112,7 +1112,10 @@ def _build_fireworks(
     provider_info: dict[str, str],
 ) -> InstructorType:
     try:
-        from fireworks.client import AsyncFireworks, Fireworks
+        try:
+            from fireworks import AsyncFireworks, Fireworks
+        except ImportError:
+            from fireworks.client import AsyncFireworks, Fireworks
         from instructor.v2.providers.fireworks.client import from_fireworks
 
         client = (

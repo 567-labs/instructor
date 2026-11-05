@@ -3,6 +3,6 @@
 try:
     from instructor.v2.providers.writer.client import from_writer
 except ImportError:
-    from_writer = None  # type: ignore
+    from_writer = None
 
 __all__ = ["from_writer"]

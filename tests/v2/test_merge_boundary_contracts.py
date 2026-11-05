@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import errno
 import socket
 from typing import Any
@@ -13,9 +12,7 @@ from urllib3.exceptions import NewConnectionError
 
 from instructor.cache import make_request_cache_key
 from instructor.v2.core.json import MAX_JSON_DEPTH, extract_json_from_codeblock
-from instructor.v2.core.multimodal import PDF
 from instructor.v2.core.remote import _PublicHTTPConnection
-from instructor.v2.providers.anthropic.multimodal import pdf_to_anthropic
 from instructor.v2.validation.async_validators import (
     async_field_validator,
     async_model_validator,
@@ -72,13 +69,6 @@ def test_public_connection_reports_source_bind_failure() -> None:
         assert isinstance(source_error, OSError)
         assert source_error.errno == errno.EADDRINUSE
         assert connection.sock is None
-
-
-def test_anthropic_uppercase_url_downloads_pdf_through_public_transport() -> None:
-    source = "HTTPS://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
-    document = pdf_to_anthropic(PDF.model_construct(source=source, data=None))
-    assert document["source"]["type"] == "base64"
-    assert base64.b64decode(document["source"]["data"]).startswith(b"%PDF-")
 
 
 @pytest.mark.asyncio

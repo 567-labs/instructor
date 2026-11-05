@@ -12,6 +12,7 @@ from typing import Any, Protocol, TypeVar
 from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
+RequestModel = TypeVar("RequestModel")
 
 
 class RequestHandler(Protocol):
@@ -23,9 +24,9 @@ class RequestHandler(Protocol):
 
     def __call__(
         self,
-        response_model: type[T] | None,
+        response_model: type[RequestModel] | None,
         kwargs: dict[str, Any],
-    ) -> tuple[type[T] | None, dict[str, Any]]:
+    ) -> tuple[type[RequestModel] | None, dict[str, Any]]:
         """Prepare request kwargs for this mode.
 
         Args:

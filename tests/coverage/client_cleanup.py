@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import warnings
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any
 
@@ -24,7 +24,7 @@ def clear_proxy_environment(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @contextmanager
-def ignore_fireworks_pydantic_warning() -> Iterator[None]:
+def ignore_fireworks_pydantic_warning() -> Generator[None, None, None]:
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",

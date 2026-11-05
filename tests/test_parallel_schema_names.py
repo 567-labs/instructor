@@ -47,7 +47,9 @@ class SchemaExtraName(BaseModel):
 def test_parallel_dispatches_declared_schema_name(
     model: type[BaseModel], provider: str, parse_path: str
 ) -> None:
-    assert parse_tools((model,), provider, parse_path) == [model(value=1)]
+    assert parse_tools((model,), provider, parse_path) == [
+        model.model_validate({"value": 1})
+    ]
 
 
 @pytest.mark.parametrize("provider", ["openai", "anthropic"])
@@ -61,8 +63,8 @@ def test_parallel_distinguishes_models_with_the_same_class_name(
         "Entry", __config__=ConfigDict(title="second_entry"), value=(int, ...)
     )
     assert parse_tools((first, second), provider, parse_path) == [
-        first(value=1),
-        second(value=2),
+        first.model_validate({"value": 1}),
+        second.model_validate({"value": 2}),
     ]
 
 
@@ -77,8 +79,8 @@ def test_parallel_schema_name_can_match_another_class_name(
         "Second", __config__=ConfigDict(title="First"), value=(int, ...)
     )
     assert parse_tools((first, second), provider, parse_path) == [
-        first(value=1),
-        second(value=2),
+        first.model_validate({"value": 1}),
+        second.model_validate({"value": 2}),
     ]
 
 

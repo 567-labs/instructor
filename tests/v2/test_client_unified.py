@@ -289,9 +289,7 @@ def test_from_function_raises_without_sdk(provider: Provider) -> None:
     from_function = config["from_function"]
 
     if not _dependency_missing(sdk_module):
-        pytest.skip(
-            f"{sdk_module} is installed"  # ty: ignore[too-many-positional-arguments]
-        )
+        pytest.skip(f"{sdk_module} is installed")
 
     # Try to import the from_* function from the provider's client module
     try:
@@ -300,9 +298,7 @@ def test_from_function_raises_without_sdk(provider: Provider) -> None:
         from_function_obj = getattr(client_module, from_function, None)
 
         if from_function_obj is None:
-            pytest.skip(
-                f"{from_function} not found in client module"  # ty: ignore[too-many-positional-arguments]
-            )
+            pytest.skip(f"{from_function} not found in client module")
 
         from instructor.core.exceptions import ClientError
 
@@ -314,9 +310,7 @@ def test_from_function_raises_without_sdk(provider: Provider) -> None:
             from_function_obj("not a client")  # type: ignore[call-arg]
     except (ImportError, ModuleNotFoundError) as exc:
         if _is_expected_missing_dependency(provider, exc):
-            pytest.skip(
-                f"{sdk_module} import path is unavailable in this environment"  # ty: ignore[too-many-positional-arguments]
-            )
+            pytest.skip(f"{sdk_module} import path is unavailable in this environment")
         raise
 
 
@@ -350,9 +344,7 @@ def test_string_based_initialization_delegates_to_from_provider(
     func = getattr(module, from_function, None)
 
     if func is None:
-        pytest.skip(
-            f"{from_function} not available (SDK may not be installed)"  # ty: ignore[too-many-positional-arguments]
-        )
+        pytest.skip(f"{from_function} not available (SDK may not be installed)")
 
     # Mock from_provider to verify it's called
     from unittest.mock import patch
@@ -382,9 +374,7 @@ def test_string_based_initialization_with_async_client(provider: Provider) -> No
     func = getattr(module, from_function, None)
 
     if func is None:
-        pytest.skip(
-            f"{from_function} not available (SDK may not be installed)"  # ty: ignore[too-many-positional-arguments]
-        )
+        pytest.skip(f"{from_function} not available (SDK may not be installed)")
 
     # Mock from_provider to verify it's called
     from unittest.mock import patch
@@ -415,9 +405,7 @@ def test_string_based_initialization_forwards_kwargs(provider: Provider) -> None
     func = getattr(module, from_function, None)
 
     if func is None:
-        pytest.skip(
-            f"{from_function} not available (SDK may not be installed)"  # ty: ignore[too-many-positional-arguments]
-        )
+        pytest.skip(f"{from_function} not available (SDK may not be installed)")
 
     # Mock from_provider to verify it's called
     from unittest.mock import patch
@@ -458,26 +446,20 @@ def test_client_based_initialization_still_works(
 
     # Skip if SDK not installed
     if _dependency_missing(sdk_module):
-        pytest.skip(
-            f"{sdk_module} not installed"  # ty: ignore[too-many-positional-arguments]
-        )
+        pytest.skip(f"{sdk_module} not installed")
 
     # Import the from_* function
     module = __import__("instructor.v2", fromlist=[from_function])
     func = getattr(module, from_function, None)
 
     if func is None:
-        pytest.skip(
-            f"{from_function} not available"  # ty: ignore[too-many-positional-arguments]
-        )
+        pytest.skip(f"{from_function} not available")
 
     # Import OpenAI client
     try:
         import openai
     except ImportError:
-        pytest.skip(
-            "openai package not installed"  # ty: ignore[too-many-positional-arguments]
-        )
+        pytest.skip("openai package not installed")
 
     _clear_proxy_env(monkeypatch)
 

@@ -597,4 +597,4 @@ def test_batch_provider_contract_requires_and_defines_all_operations() -> None:
     }
     assert BatchProvider.__abstractmethods__ == expected
     with pytest.raises(TypeError, match="abstract methods"):
-        BatchProvider()
+        BatchProvider()  # ty: ignore[call-non-callable]
