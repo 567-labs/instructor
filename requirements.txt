@@ -82,17 +82,17 @@ multidict==7.1.0
     # via
     #   aiohttp
     #   yarl
-openai==3.40.0
+openai==3.41.0
     # via instructor (pyproject.toml)
 propcache==0.5.4
     # via
     #   aiohttp
     #   yarl
-pydantic==2.14.1
+pydantic==2.14.2
     # via
     #   instructor (pyproject.toml)
     #   openai
-pydantic-core==2.50.1
+pydantic-core==2.50.2
     # via
     #   instructor (pyproject.toml)
     #   pydantic
