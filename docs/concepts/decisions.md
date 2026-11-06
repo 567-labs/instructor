@@ -5,6 +5,8 @@ description: Evaluate a shared context with typed choices, probabilities, and sc
 
 # Typed decisions
 
+Decision mode requires Instructor 1.18.0 or later.
+
 Decision models evaluate one context against several questions in a single request.
 Use `Mode.DECISIONS` with Jev through OpenRouter or TypeSafe, or OpenAI's Decisions API. Define the questions
 as a Pydantic model and receive a validated instance.
@@ -124,7 +126,7 @@ print(raw["answers"]["severity"]["probabilities"])
 print(raw["answers"]["severity"]["legend"])
 ```
 
-`context` is a dictionary sent in full as provider state and passed to Pydantic
+For Jev, `context` is a dictionary sent in full as provider state and passed to Pydantic
 validators. Do not include validator-only values that should not be sent. Use
 `create()` for the validated model alone, or `create_with_completion()` to also
 inspect the unchanged provider response and its probabilities and confidence.
@@ -166,19 +168,49 @@ decision, raw = client.create_with_completion(
 )
 ```
 
-This route sends the JSON-serialized `context` as text `input` to
-`POST /v1/decisions`. It translates choices and score levels into ordered
-questions and maps `Noul` to OpenAI predicate probabilities. Structured criteria
-and examples are serialized into descriptions or predicate instructions, not
-sent as Jev-specific wire fields. This adapter currently supports text context,
-not OpenAI's inline-image input. Refusals, missing answers, wrong names/types,
-and out-of-range values raise errors rather than returning partial results.
+With `context` alone, Instructor serializes the dictionary as text for
+`POST /v1/decisions`. It maps `Noul` to a predicate and translates choices,
+score levels, and structured criteria into OpenAI questions. Structured
+question metadata is encoded as text. Refusals, missing
+answers, mismatched names or types, and out-of-range values raise errors.
+`create_with_completion()` returns the original OpenAI answer array, probability
+distributions, confidence, and usage alongside the validated model.
 
-`raw` remains the unchanged OpenAI response, including its answer array,
-probability arrays, confidence, and usage. It is not the Jev answer dictionary.
-The HTTP adapter does not require an SDK upgrade; OpenAI's native SDK Decisions
-resource requires Python SDK 3.26.0 or later. Offline HTTP contracts cover sync
-and async paths; live OpenAI Decisions compatibility has not been tested.
+To reuse an OpenAI SDK client's credentials, base URL, timeout, and transport,
+pass it to `instructor.from_openai()`. The default Decisions model is
+`gpt-6-luna`. A supplied `AsyncOpenAI` client gives you an async Decisions
+client. Your application owns the supplied SDK client.
+
+```python
+from openai import OpenAI
+
+with OpenAI() as sdk:
+    client = instructor.from_openai(sdk, mode=instructor.Mode.DECISIONS)
+    decision = client.create(
+        response_model=ModerationDecision,
+        input=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_json",
+                        "data": {"post": "I disagree.", "policy": ["No harassment"]},
+                    }
+                ],
+            }
+        ],
+    )
+```
+
+Both OpenAI entry points accept a text string or native input items through
+`input`. For images, add an `input_image` part with a public image URL or an
+inline base64 data URL in `image_url`. When you supply `input`, Instructor uses it as the request’s `input` field.
+`context` remains available to Pydantic validators and question templates.
+Values interpolated into question instructions are sent in those instructions.
+
+OpenAI Python SDK 3.26.0 and later expose the native Decisions resource.
+Instructor also supports earlier SDK versions through the same authenticated
+HTTP endpoint.
 See the [OpenAI Decisions guide](https://developers.openai.com/api/docs/guides/decisions).
 
 ## Choices
@@ -244,25 +276,3 @@ than being replaced with defaults. Decision mode currently does not support
 streaming, retries, caching, or completion hooks; HTTP errors propagate to the
 caller. See the [TypeSafe API reference](https://docs.typesafe.ai/api) and
 [OpenRouter's Jev guide](https://openrouter.ai/blog/tutorials/how-to-use-jev/).
-
-## Testing
-
-The local suites in `tests/v2/decisions/` cover annotations and answer parsing,
-client configuration, and common provider contracts over localhost HTTP. They
-do not call provider services or require API keys:
-
-```bash
-uv run pytest tests/v2/decisions/
-```
-
-Live provider contracts are a separate, opt-in suite. They use synthetic ticket
-data, make billed API requests, and skip providers whose keys are missing:
-
-```bash
-uv run pytest tests/llm/test_decisions/ --run-decisions-live
-```
-
-Set `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, and/or `OPENAI_API_KEY` for the selected providers.
-`TYPESAFE_DECISIONS_MODEL`, `OPENROUTER_DECISIONS_MODEL`, and `OPENAI_DECISIONS_MODEL` optionally override
-the live model IDs. Without the explicit flag, live cases are skipped even
-when credentials are present. Local contracts do not certify a live provider.
