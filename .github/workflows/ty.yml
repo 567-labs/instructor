@@ -30,7 +30,7 @@ jobs:
           instructor tests scripts/ci_test_plan.py scripts/run_unit_tests.py scripts/ci_worker_coverage.py scripts/check_statement_coverage.py ty.toml ty-tests.toml pyproject.toml uv.lock .github/workflows/ty.yml
       - name: Install uv
         if: steps.scope.outputs.changed == 'true'
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: latest-known
           enable-cache: true
