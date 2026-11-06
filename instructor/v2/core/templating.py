@@ -168,7 +168,11 @@ def handle_templating(
         return new_kwargs
 
     system = new_kwargs.get("system")
-    if provider in (Provider.ANTHROPIC, Provider.BEDROCK) and isinstance(system, list):
+    if provider == Provider.ANTHROPIC and isinstance(system, str):
+        new_kwargs["system"] = apply_template(system, context)
+    elif provider in (Provider.ANTHROPIC, Provider.BEDROCK) and isinstance(
+        system, list
+    ):
         new_kwargs["system"] = _copy_blocks(system)
         render_text_blocks(new_kwargs["system"], context, apply_template, provider)
 

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from copy import deepcopy
 from typing import Any
 
 import pytest
+from pydantic import BaseModel
 
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
@@ -116,4 +118,40 @@ def test_bedrock_templates_render_after_request_preparation() -> None:
         {"text": "Report: snow"},
         {"cachePoint": {"type": "default"}},
     ]
+    assert kwargs == original
+
+
+@pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.PARALLEL_TOOLS])
+@pytest.mark.parametrize("with_response_model", [False, True])
+def test_anthropic_string_system_renders_after_request_preparation(
+    mode: Mode, with_response_model: bool
+) -> None:
+    from instructor.v2.core.registry import mode_registry
+
+    class Classification(BaseModel):
+        category: str
+
+    response_model: Any = None
+    if with_response_model:
+        response_model = (
+            Iterable[Classification] if mode == Mode.PARALLEL_TOOLS else Classification
+        )
+    kwargs = {
+        "model": "claude-sonnet-4-5",
+        "system": "Classify {{ topic }}",
+        "messages": [{"role": "user", "content": "Report: {{ text }}"}],
+    }
+    original = deepcopy(kwargs)
+    handlers = mode_registry.get_handlers(Provider.ANTHROPIC, mode)
+    _, prepared = handlers.request_handler(response_model=response_model, kwargs=kwargs)
+
+    result = handle_templating(
+        prepared,
+        mode,
+        provider=Provider.ANTHROPIC,
+        context={"topic": "airports", "text": "snow"},
+    )
+
+    assert result["system"] == "Classify airports"
+    assert result["messages"] == [{"role": "user", "content": "Report: snow"}]
     assert kwargs == original
