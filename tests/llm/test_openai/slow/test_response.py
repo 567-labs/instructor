@@ -3,7 +3,7 @@ from tests.llm.test_openai.util import models
 from openai import OpenAI, AsyncOpenAI
 from pydantic import BaseModel
 import pytest
-from collections.abc import Iterable
+from collections.abc import AsyncIterable, Iterable
 from itertools import product
 
 
@@ -139,14 +139,15 @@ async def test_create_iterable_from_create_async(aclient: AsyncOpenAI, mode, mod
     )
 
     # Test create
-    profiles = instructor_client.responses.create(
+    profiles = await instructor_client.responses.create(
         model=model,
         input="Generate three fake profiles",
         response_model=Iterable[UserProfile],
     )
 
     count = 0
-    async for profile in await profiles:
+    assert isinstance(profiles, AsyncIterable)
+    async for profile in profiles:
         assert isinstance(profile, UserProfile)
         count += 1
 

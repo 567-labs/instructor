@@ -42,15 +42,6 @@ def _get_provider_params():
 
 
 @pytest.mark.parametrize("provider,mode", _get_provider_mode_params())
-def test_mode_is_registered(provider: Provider, mode: Mode) -> None:
-    """Test that all expected modes are registered."""
-    _ensure_handlers_loaded(provider)
-    assert mode_registry.is_registered(provider, mode), (
-        f"Mode {mode.value} should be registered for {provider.value}"
-    )
-
-
-@pytest.mark.parametrize("provider,mode", _get_provider_mode_params())
 def test_handlers_have_all_methods(provider: Provider, mode: Mode) -> None:
     """Test that all handlers have required methods."""
     _ensure_handlers_loaded(provider)

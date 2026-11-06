@@ -4,18 +4,15 @@ from instructor.processing.multimodal import Image, Audio
 import instructor
 from pydantic import Field, BaseModel
 from itertools import product
-import requests
 from pathlib import Path
 import base64
-import os
 
 audio_url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/gettysburg.wav"
 image_url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/image.jpg"
 
 pdf_url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/invoice.pdf"
-curr_file = os.path.dirname(__file__)
-pdf_path = os.path.join(curr_file, "../../assets/invoice.pdf")
-pdf_base64 = base64.b64encode(open(pdf_path, "rb").read()).decode("utf-8")
+pdf_path = Path(__file__).resolve().parents[2] / "assets" / "invoice.pdf"
+pdf_base64 = base64.b64encode(pdf_path.read_bytes()).decode("utf-8")
 pdf_base64_string = f"data:application/pdf;base64,{pdf_base64}"
 
 
@@ -33,16 +30,6 @@ class LineItem(BaseModel):
 class Receipt(BaseModel):
     total: int
     items: list[str]
-
-
-def gettysburg_audio():
-    audio_file = Path("gettysburg.wav")
-    if not audio_file.exists():
-        response = requests.get(audio_url)
-        response.raise_for_status()
-        with open(audio_file, "wb") as f:
-            f.write(response.content)
-    return audio_file
 
 
 @pytest.mark.parametrize(
@@ -71,10 +58,10 @@ def test_multimodal_audio_description(audio_file, mode, client):
                 "content": [
                     "Where's this excerpt from?",
                     audio_file,
-                ],  # type: ignore
+                ],
             },
         ],
-        audio={"voice": "alloy", "format": "wav"},  # type: ignore
+        audio={"voice": "alloy", "format": "wav"},
     )
 
 
@@ -100,7 +87,7 @@ def test_multimodal_image_description(model, mode, client):
                 "content": [
                     "What is this?",
                     Image.from_url(image_url),
-                ],  # type: ignore
+                ],
             },
         ],
     )
@@ -130,10 +117,10 @@ def test_multimodal_image_description_autodetect(model, mode, client):
                 "content": [
                     "What is this?",
                     image_url,
-                ],  # type: ignore
+                ],
             },
         ],
-        autodetect_images=True,  # type: ignore
+        autodetect_images=True,
     )
 
     # Assertions to validate the response
@@ -176,7 +163,7 @@ def test_multimodal_image_description_autodetect_no_response_model(model, mode, 
         assert response.output[0].content[0].text
 
 
-@pytest.mark.parametrize("pdf_source", [pdf_path, pdf_url, pdf_base64_string])
+@pytest.mark.parametrize("pdf_source", [str(pdf_path), pdf_url, pdf_base64_string])
 @pytest.mark.parametrize("model, mode", product(models, modes))
 def test_multimodal_pdf_file(model, mode, client, pdf_source):
     client = instructor.from_openai(client, mode=mode)
