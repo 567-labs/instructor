@@ -10,6 +10,11 @@ from typing import Any, Literal, Protocol, cast, overload
 
 import openai
 
+from instructor.decisions.client import (
+    AsyncDecisionsClient,
+    DecisionsClient,
+    from_openai_decisions,
+)
 from instructor.v2.core.client import AsyncInstructor, Instructor
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
@@ -102,6 +107,24 @@ def _from_openai_compat(
 @overload
 def from_openai(
     client: openai.OpenAI,
+    mode: Literal[Mode.DECISIONS],
+    model: str | None = None,
+    **kwargs: Any,
+) -> DecisionsClient: ...
+
+
+@overload
+def from_openai(
+    client: openai.AsyncOpenAI,
+    mode: Literal[Mode.DECISIONS],
+    model: str | None = None,
+    **kwargs: Any,
+) -> AsyncDecisionsClient: ...
+
+
+@overload
+def from_openai(
+    client: openai.OpenAI,
     mode: Mode = Mode.TOOLS,
     model: str | None = None,
     **kwargs: Any,
@@ -122,7 +145,7 @@ def from_openai(
     mode: Mode = Mode.TOOLS,
     model: str | None = None,
     **kwargs: Any,
-) -> Instructor | AsyncInstructor:
+) -> Instructor | AsyncInstructor | DecisionsClient | AsyncDecisionsClient:
     """Create an Instructor instance from an OpenAI client using v2 registry.
 
     Args:
@@ -149,6 +172,8 @@ def from_openai(
         >>> # Or use JSON_SCHEMA mode for structured outputs
         >>> instructor_client = from_openai(client, mode=Mode.JSON_SCHEMA)
     """
+    if mode is Mode.DECISIONS:
+        return from_openai_decisions(client, model, **kwargs)
     return _from_openai_compat(
         client=client,
         provider=Provider.OPENAI,

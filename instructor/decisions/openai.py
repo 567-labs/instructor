@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from .schema import _Field
+
+DecisionInput = str | Iterable[Mapping[str, Any]]
 
 
 def _text(value: Any) -> str:
@@ -13,7 +16,10 @@ def _text(value: Any) -> str:
 
 
 def request_body(
-    model: str, fields: list[_Field], context: dict[str, Any]
+    model: str,
+    fields: list[_Field],
+    context: dict[str, Any],
+    native_input: DecisionInput | None = None,
 ) -> dict[str, Any]:
     questions: list[dict[str, Any]] = []
     for field in fields:
@@ -40,7 +46,13 @@ def request_body(
             # OpenAI predicates have no separate criteria field.
             question["instructions"] += "\nCriteria: " + _text(source["criteria"])
         questions.append(question)
-    return {"model": model, "input": _text(context), "questions": questions}
+    if native_input is None:
+        evidence = _text(context)
+    elif isinstance(native_input, str):
+        evidence = native_input
+    else:
+        evidence = [dict(item) for item in native_input]
+    return {"model": model, "input": evidence, "questions": questions}
 
 
 def answer_envelope(fields: list[_Field], raw: Any) -> dict[str, Any]:
