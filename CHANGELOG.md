@@ -56,9 +56,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [1.18.0] - 2026-09-26
 
 ### Added
-- **OpenAI Decisions**: Reuse typed decision models with `openai/gpt-6-luna` in `Mode.DECISIONS`, including predicate probabilities, choices, and scaled scores. Preserve the original OpenAI response and reject refusals or malformed answers. Text-context HTTP contracts cover sync/async behavior; inline images and live-provider validation are not covered.
+- **OpenAI Decisions**: Reuse typed decision models with `openai/gpt-6-luna` in `Mode.DECISIONS`, including predicate probabilities, choices, and scaled scores. Preserve the original OpenAI response and reject refusals or malformed answers. Use synchronous or asynchronous clients with text context and all three question types.
 - **Decisions**: Evaluate typed Choice, Noul, and Score questions with Jev through TypeSafe or OpenRouter.
-- **Decisions validation**: Add shared sync/async provider contracts, schema and configuration suites, and explicitly opt-in live checks. Preserve provider response metadata, borrowed-client timeouts, alias-disabled models, reusable examples, and finite score scaling.
+- **Decision clients**: Preserve provider response metadata, borrowed-client timeouts, alias-disabled models, reusable examples, and finite score scaling.
 - **Batch custom IDs**: Accept optional request IDs with count, uniqueness, and Anthropic format checks before writing a batch file or buffer. Preserve generated IDs when the option is omitted. ([#2691](https://github.com/567-labs/instructor/pull/2691))
 
 ### Fixed
@@ -89,7 +89,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Upgrade Notes
 - Completed batch retrieval includes failed requests as `BatchError` records instead of rejecting an all-failed batch or returning only successful requests. OpenAI retrieval waits for the files indicated by request counts; unfinished jobs remain unavailable.
 - OpenAI batch schemas use strict structured outputs: every named property is required, including fields with model defaults. Use nullable fields when the output may be null. Arbitrary-key mappings are unsupported in this path; use named model fields or a list of key/value objects. Anthropic mapping schemas are unchanged.
-- Decision mode is opt-in; existing chat modes are unchanged. TypeSafe and OpenRouter use the same typed questions but require their own credentials and model IDs. Retries, caching, streaming, and completion hooks are not supported in decision mode. OpenRouter Jev sync/async contracts passed live; direct TypeSafe compatibility remains unverified live.
+- Decision mode is opt-in; existing chat modes are unchanged. TypeSafe and OpenRouter use the same typed questions but require their own credentials and model IDs. Retries, caching, streaming, and completion hooks are not supported in decision mode.
 - Citation context may be a string or a list/tuple of strings. Other supplied source types raise a validation error; missing context retains the existing no-validation behavior.
 - Unknown parallel tool calls now raise `ResponseParsingError` and follow the configured retry policy instead of being silently omitted. Native SDK and wire formats remain provider-specific; live provider compatibility is not established by offline tests.
 - Incomplete non-streaming Responses raise `IncompleteOutputException` even when their arguments satisfy model defaults. Increase the output budget or handle the exception; incomplete responses are not cached.
