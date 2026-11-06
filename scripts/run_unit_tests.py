@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import configparser
 import os
 import subprocess
 import sys
@@ -81,19 +80,13 @@ def main() -> None:
     with tempfile.TemporaryDirectory(dir=destination.parent) as temporary:
         directory = Path(temporary)
         data = directory / ".coverage"
-        config_path = directory / "coverage.ini"
-        config = configparser.ConfigParser(interpolation=None)
-        config.read(".coveragerc")
-        config["run"].update(
-            branch=str(args.group != "focused" or sys.version_info[:2] == (3, 11)),
-            parallel="True",
-        )
-        with config_path.open("w") as out:
-            config.write(out)
         env = {
             **os.environ,
-            "COVERAGE_RCFILE": str(config_path),
             "COVERAGE_FILE": str(data),
+            "COVERAGE_RCFILE": str(Path(".coveragerc").resolve()),
+            "INSTRUCTOR_CI_BRANCH_COVERAGE": str(
+                int(args.group != "focused" or sys.version_info[:2] == (3, 11))
+            ),
         }
         coverage = [sys.executable, "-m", "coverage"]
         pytest = [

@@ -18,7 +18,6 @@ def bedrock_credentials():
         pytest.skip("AWS Bedrock credentials are unavailable")
 
 
-@pytest.mark.skip(reason="Skip for now")
 def test_client_anthropic_bedrock_response():
     client = anthropic.AnthropicBedrock(
         aws_access_key=os.getenv("AWS_ACCESS_KEY_ID"),
@@ -36,13 +35,11 @@ def test_client_anthropic_bedrock_response():
     user = instructor_client.messages.create(
         response_model=User,
         messages=[{"role": "user", "content": "Jason is 10"}],
-        temperature=0,
     )
     assert user.name == "Jason"
     assert user.age == 10
 
 
-@pytest.mark.skip(reason="Skip for now")
 @pytest.mark.asyncio
 async def test_async_client_anthropic_bedrock_response():
     client = anthropic.AsyncAnthropicBedrock(
@@ -61,7 +58,6 @@ async def test_async_client_anthropic_bedrock_response():
     user = await instructor_client.messages.create(
         response_model=User,
         messages=[{"role": "user", "content": "Jason is 10"}],
-        temperature=0,
     )
     assert user.name == "Jason"
     assert user.age == 10

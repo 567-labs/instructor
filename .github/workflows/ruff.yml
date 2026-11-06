@@ -39,9 +39,9 @@ jobs:
       - name: Set up Python
         if: steps.scope.outputs.changed == 'true'
         run: uv python install 3.10
-      - name: Ruff lint
+      - name: Check lint and formatting
         if: steps.scope.outputs.changed == 'true'
-        run: uv run --frozen --only-group lint ruff check ${{ env.CUSTOM_PACKAGES }}
-      - name: Ruff format
-        if: steps.scope.outputs.changed == 'true'
-        run: uv run --frozen --only-group lint ruff format --check ${{ env.CUSTOM_PACKAGES }}
+        run: |
+          read -r -a packages <<< "$CUSTOM_PACKAGES"
+          uv run --frozen --only-group lint ruff check "${packages[@]}"
+          uv run --frozen --only-group lint ruff format --check "${packages[@]}"

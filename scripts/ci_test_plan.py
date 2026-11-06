@@ -111,11 +111,17 @@ def select_tests(paths: list[str]) -> TestPlan:
 
 
 def shared_test_dependency(paths: list[str], root: Path) -> bool:
-    owners = {
-        Path(p).stem: group_for_path(p)
-        for p in paths
-        if p.startswith("tests/") and not p.startswith(("tests/docs/", "tests/llm/"))
-    }
+    def area(path: str) -> str:
+        if path.startswith("tests/llm/"):
+            return "/".join(path.split("/")[:3])
+        if path.startswith("tests/docs/"):
+            return "docs"
+        return group_for_path(path)
+
+    owners: dict[str, set[str]] = {}
+    for path in paths:
+        if path.startswith("tests/") and path.endswith(".py"):
+            owners.setdefault(Path(path).stem, set()).add(area(path))
     if not owners:
         return False
     pattern = re.compile(r"\b(?:" + "|".join(map(re.escape, owners)) + r")\b")
@@ -124,8 +130,7 @@ def shared_test_dependency(paths: list[str], root: Path) -> bool:
         for match in pattern.finditer(source.read_text(encoding="utf-8")):
             if (
                 not re.fullmatch(r"test_.*\.py|.*_test\.py", source.name)
-                or relative.startswith(("tests/docs/", "tests/llm/"))
-                or group_for_path(relative) != owners[match[0]]
+                or area(relative) not in owners[match[0]]
             ):
                 return True
     return False

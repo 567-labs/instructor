@@ -9,7 +9,6 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.mark.skip(reason="Skip for now")
 def test_client_from_mistral_with_response():
     from instructor.v2.providers.mistral.client import Mistral
 
@@ -30,7 +29,6 @@ def test_client_from_mistral_with_response():
     assert user.age == 10
 
 
-@pytest.mark.skip(reason="Skip for now")
 def test_client_mistral_response():
     from instructor.v2.providers.mistral.client import Mistral
 

@@ -67,15 +67,23 @@ def test_shared_inputs_run_all_suites(path: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "consumer",
-    ["tests/conftest.py", "tests/v2/test_consumer.py"],
-    ids=["shared-fixture", "another-shard"],
+    ("source", "consumer"),
+    [
+        ("tests/test_source.py", "tests/conftest.py"),
+        ("tests/test_source.py", "tests/v2/test_consumer.py"),
+        ("tests/llm/test_openai/provider_case.py", "tests/test_shared_runtime.py"),
+    ],
+    ids=["shared-fixture", "another-shard", "live-helper-used-by-unit"],
 )
-def test_cross_suite_import_disables_reuse(tmp_path: Path, consumer: str) -> None:
+def test_cross_suite_import_disables_reuse(
+    tmp_path: Path, source: str, consumer: str
+) -> None:
     path = tmp_path / consumer
     path.parent.mkdir(parents=True)
-    path.write_text("from tests.test_source import sample")
-    assert ci.shared_test_dependency(["tests/test_source.py"], tmp_path)
+    path.write_text(
+        f"from {source.removesuffix('.py').replace('/', '.')} import sample"
+    )
+    assert ci.shared_test_dependency([source], tmp_path)
 
 
 @pytest.mark.parametrize(

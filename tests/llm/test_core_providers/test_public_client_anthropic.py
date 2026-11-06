@@ -21,7 +21,6 @@ def test_client_from_anthropic_with_response():
     user, response = client.messages.create_with_completion(
         response_model=User,
         messages=[{"role": "user", "content": "Jason is 10"}],
-        temperature=0,
     )
     assert user.name == "Jason"
     assert user.age == 10
@@ -39,7 +38,6 @@ def test_client_anthropic_response():
     user = instructor_client.messages.create(
         response_model=User,
         messages=[{"role": "user", "content": "Jason is 10"}],
-        temperature=0,
     )
     assert user.name == "Jason"
     assert user.age == 10
@@ -57,7 +55,6 @@ async def test_async_client_anthropic_response():
     user = await instructor_client.messages.create(
         response_model=User,
         messages=[{"role": "user", "content": "Jason is 10"}],
-        temperature=0,
     )
     assert user.name == "Jason"
     assert user.age == 10

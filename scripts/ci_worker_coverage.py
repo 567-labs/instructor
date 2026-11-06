@@ -1,5 +1,7 @@
 """Measure pytest processes without instrumenting the subprocesses tests launch."""
 
+import os
+
 import pytest
 from coverage import Coverage
 
@@ -8,7 +10,9 @@ MEASUREMENT = pytest.StashKey[Coverage]()
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_load_initial_conftests(early_config: pytest.Config) -> None:
-    measurement = Coverage(data_suffix=True)
+    measurement = Coverage(
+        branch=os.environ["INSTRUCTOR_CI_BRANCH_COVERAGE"] == "1", data_suffix=True
+    )
     early_config.stash[MEASUREMENT] = measurement
     measurement.start()
 

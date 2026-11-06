@@ -39,7 +39,7 @@ jobs:
           CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: >-
           python -m scripts.ci_test_plan --changed-paths
-          instructor tests/typing scripts pyproject.toml uv.lock README.md LICENSE .github/workflows/package-compatibility.yml
+          instructor tests/packaging tests/typing scripts pyproject.toml uv.lock README.md LICENSE .github/workflows/package-compatibility.yml
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         if: steps.scope.outputs.changed == 'true'
         with:

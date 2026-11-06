@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from typing_extensions import assert_type
 
 import openai
@@ -16,6 +17,7 @@ from instructor import (
     from_openai,
     from_provider,
     from_together,
+    from_vertexai,
     response_schema,
 )
 from instructor.v2.dsl.maybe import MaybeBase
@@ -28,7 +30,11 @@ class User(BaseModel):
 def check_public_factories(
     sync_client: openai.OpenAI,
     async_client: openai.AsyncOpenAI,
+    vertex_model: Any,
 ) -> None:
+    assert_type(from_vertexai(vertex_model), Instructor)
+    assert_type(from_vertexai(vertex_model, use_async=True), AsyncInstructor)
+    assert_type(from_vertexai(vertex_model, _async=True), AsyncInstructor)
     assert_type(from_openai(sync_client), Instructor)
     assert_type(from_openai(async_client), AsyncInstructor)
     assert_type(from_anyscale("model"), Instructor)
