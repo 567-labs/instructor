@@ -13,102 +13,75 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  core-tests:
-    name: ${{ matrix.name }}
+  select-tests:
+    name: Select affected tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Core Tests
-            shard: core
-            path: tests
-            pytest-options: >-
-              --ignore=tests/v2 --ignore=tests/coverage
-              --ignore=tests/test_batch_processor_coverage.py
-          - name: V2 Tests
-            shard: v2
-            path: tests/v2
-            pytest-options: --ignore=tests/v2/decisions
-
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      unit: ${{ steps.plan.outputs.unit }}
+      reuse: ${{ steps.plan.outputs.reuse }}
+      baseline: ${{ steps.plan.outputs.baseline }}
+      versions: ${{ steps.plan.outputs.versions }}
+      live_jobs: ${{ steps.plan.outputs.live_jobs }}
+      providers: ${{ steps.plan.outputs.providers }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 2
           persist-credentials: false
-      - name: Install test dependencies
-        uses: ./.github/actions/setup-test-environment
-      - name: Run offline tests with branch coverage
+      - id: plan
         env:
-          INSTRUCTOR_ENV: CI
-          TEST_PATH: ${{ matrix.path }}
-          PYTEST_ADDOPTS: ${{ matrix.pytest-options }}
-          COVERAGE_FILE: ${{ runner.temp }}/coverage.${{ matrix.shard }}
-        run: >-
-          uv run --frozen coverage run --branch -m pytest "$TEST_PATH"
-          --asyncio-mode=auto --strict-config --strict-markers
-          -m 'not llm' -k 'not docs'
-      - name: Upload shard coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: offline-coverage-${{ github.run_id }}-${{ matrix.shard }}
-          path: ${{ runner.temp }}/coverage.${{ matrix.shard }}
-          if-no-files-found: error
-          overwrite: true
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: python -m scripts.ci_test_plan
 
-  # Offline coverage tests must not be filtered by provider names.
+  core-tests:
+    name: Core Tests
+    needs: select-tests
+    if: needs.select-tests.outputs.unit == 'true'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/unit-tests.yml
+    with:
+      shard: core
+      baseline-run: ${{ contains(fromJSON(needs.select-tests.outputs.reuse), 'core') && needs.select-tests.outputs.baseline || '' }}
+
+  v2-tests:
+    name: V2 Tests
+    needs: select-tests
+    if: needs.select-tests.outputs.unit == 'true'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/unit-tests.yml
+    with:
+      shard: v2
+      baseline-run: ${{ contains(fromJSON(needs.select-tests.outputs.reuse), 'v2') && needs.select-tests.outputs.baseline || '' }}
+
   offline-coverage-tests:
     name: Offline Coverage Tests (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    needs: select-tests
+    if: needs.select-tests.outputs.unit == 'true'
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
-    env:
-      INSTRUCTOR_ENV: CI
-      PYTHONWARNINGS: error::ResourceWarning
+        python-version: ${{ fromJSON(needs.select-tests.outputs.versions) }}
+    uses: ./.github/workflows/unit-tests.yml
+    with:
+      shard: focused
+      python-version: ${{ matrix.python-version }}
+      baseline-run: ${{ matrix.python-version == '3.11' && contains(fromJSON(needs.select-tests.outputs.reuse), 'focused') && needs.select-tests.outputs.baseline || '' }}
 
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install test dependencies
-        uses: ./.github/actions/setup-test-environment
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache-suffix: offline-py${{ matrix.python-version }}
-      - name: Run focused coverage tests
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          COVERAGE_FILE: ${{ runner.temp }}/coverage.focused
-        run: |
-          coverage_args=()
-          if [[ "$PYTHON_VERSION" == "3.11" ]]; then
-            coverage_args+=(--branch)
-          fi
-          uv run --frozen coverage run "${coverage_args[@]}" -m pytest \
-            tests/coverage tests/test_batch_processor_coverage.py tests/v2/decisions \
-            --asyncio-mode=auto --strict-config --strict-markers \
-            -W error::pytest.PytestUnraisableExceptionWarning \
-            -W error::pytest.PytestUnhandledThreadExceptionWarning
-          uv run --frozen coverage report --show-missing
-          uv run --frozen coverage json -o "$RUNNER_TEMP/focused-coverage.json"
-          uv run --frozen python scripts/check_statement_coverage.py "$RUNNER_TEMP/focused-coverage.json" 90
-      - name: Upload Python 3.11 focused coverage
-        if: matrix.python-version == '3.11'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: offline-coverage-${{ github.run_id }}-focused
-          path: ${{ runner.temp }}/coverage.focused
-          if-no-files-found: error
-          overwrite: true
-
-  # Enforce repository-wide statement and branch coverage without provider secrets.
   full-coverage:
     name: Full Coverage (Python 3.11)
-    needs: [core-tests, offline-coverage-tests]
-    if: ${{ !cancelled() }}
+    needs: [select-tests, core-tests, v2-tests, offline-coverage-tests]
+    if: ${{ !cancelled() && needs.select-tests.outputs.unit == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -144,7 +117,10 @@ jobs:
   core-openai:
     name: Core Provider Tests (OpenAI)
     runs-on: ubuntu-latest
-    needs: core-tests
+    needs: [select-tests, core-tests]
+    if: >-
+      !failure() && !cancelled() &&
+      contains(fromJSON(needs.select-tests.outputs.live_jobs || '[]'), 'core-openai')
     env:
       PROVIDER_TEST_REQUIREMENTS: OPENAI_API_KEY
       HAS_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
@@ -161,7 +137,7 @@ jobs:
         run: echo "Skipping OpenAI core provider tests (missing OPENAI_API_KEY)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run core provider tests (OpenAI)
         if: ${{ env.HAS_OPENAI_API_KEY == 'true' }}
-        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers -v -k "openai"
+        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers tests/llm/test_decisions -v -k "openai"
         env:
           INSTRUCTOR_ENV: CI
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -174,7 +150,10 @@ jobs:
   core-anthropic:
     name: Core Provider Tests (Anthropic)
     runs-on: ubuntu-latest
-    needs: core-tests
+    needs: [select-tests, core-tests]
+    if: >-
+      !failure() && !cancelled() &&
+      contains(fromJSON(needs.select-tests.outputs.live_jobs || '[]'), 'core-anthropic')
     env:
       PROVIDER_TEST_REQUIREMENTS: ANTHROPIC_API_KEY
       HAS_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
@@ -204,7 +183,10 @@ jobs:
   core-google:
     name: Core Provider Tests (Google)
     runs-on: ubuntu-latest
-    needs: core-tests
+    needs: [select-tests, core-tests]
+    if: >-
+      !failure() && !cancelled() &&
+      contains(fromJSON(needs.select-tests.outputs.live_jobs || '[]'), 'core-google')
     env:
       PROVIDER_TEST_REQUIREMENTS: GOOGLE_API_KEY GOOGLE_GENAI_MODEL
       HAS_GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY != '' }}
@@ -236,7 +218,10 @@ jobs:
   core-other:
     name: Core Provider Tests (Other)
     runs-on: ubuntu-latest
-    needs: core-tests
+    needs: [select-tests, core-tests]
+    if: >-
+      !failure() && !cancelled() &&
+      contains(fromJSON(needs.select-tests.outputs.live_jobs || '[]'), 'core-other')
     env:
       PROVIDER_TEST_REQUIREMENTS: COHERE_API_KEY XAI_API_KEY MISTRAL_API_KEY CEREBRAS_API_KEY FIREWORKS_API_KEY WRITER_API_KEY PERPLEXITY_API_KEY
       HAS_COHERE_API_KEY: ${{ secrets.COHERE_API_KEY != '' }}
@@ -297,7 +282,10 @@ jobs:
   provider-tests:
     name: ${{ matrix.provider.name }} Tests
     runs-on: ubuntu-latest
-    needs: core-tests
+    needs: [select-tests, core-tests]
+    if: >-
+      !failure() && !cancelled() &&
+      needs.select-tests.outputs.providers != '[]'
     env:
       PROVIDER_TEST_REQUIREMENTS: PROVIDER_API_KEY
       HAS_PROVIDER_API_KEY: >-
@@ -312,26 +300,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        provider:
-          - name: OpenAI
-            env_key: OPENAI_API_KEY
-            test_path: tests/llm/test_openai
-          - name: Anthropic
-            env_key: ANTHROPIC_API_KEY
-            test_path: tests/llm/test_anthropic
-          - name: Gemini
-            env_key: GOOGLE_API_KEY
-            test_path: tests/llm/test_gemini
-          - name: Google GenAI
-            env_key: GOOGLE_API_KEY
-            test_path: tests/llm/test_genai
-          - name: Vertex AI
-            env_key: GOOGLE_API_KEY
-            test_path: tests/llm/test_vertexai
-          - name: Writer
-            env_key: WRITER_API_KEY
-            test_path: tests/llm/test_writer
-
+        provider: ${{ fromJSON(needs.select-tests.outputs.providers || '[]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -339,8 +308,6 @@ jobs:
       - name: Install test dependencies
         if: ${{ env.HAS_PROVIDER_API_KEY == 'true' && ((matrix.provider.name != 'Gemini' && matrix.provider.name != 'Google GenAI' && matrix.provider.name != 'Vertex AI') || env.HAS_GOOGLE_GENAI_MODEL == 'true') }}
         uses: ./.github/actions/setup-test-environment
-        with:
-          cache-suffix: provider-${{ matrix.provider.name }}-py311
       - name: Skip ${{ matrix.provider.name }} tests
         if: >-
           ${{ env.HAS_PROVIDER_API_KEY != 'true' ||
@@ -371,7 +338,10 @@ jobs:
   auto-client-test:
     name: Auto Client Tests
     runs-on: ubuntu-latest
-    needs: core-tests
+    needs: [select-tests, core-tests]
+    if: >-
+      !failure() && !cancelled() &&
+      contains(fromJSON(needs.select-tests.outputs.live_jobs || '[]'), 'auto-client-test')
     env:
       PROVIDER_TEST_REQUIREMENTS: OPENAI_API_KEY GOOGLE_API_KEY COHERE_API_KEY ANTHROPIC_API_KEY XAI_API_KEY
       HAS_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY != '' }}

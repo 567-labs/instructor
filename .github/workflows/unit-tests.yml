@@ -1,0 +1,49 @@
+name: Offline unit shard
+on:
+  workflow_call:
+    inputs:
+      shard:
+        type: string
+        required: true
+      python-version:
+        type: string
+        default: "3.11"
+      baseline-run:
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Prepare test environment
+        id: environment
+        uses: ./.github/actions/setup-test-environment
+        with:
+          python-version: ${{ inputs.python-version }}
+          coverage-shard: ${{ inputs.shard }}
+          baseline-run: ${{ inputs.baseline-run }}
+      - name: Run offline tests with branch coverage
+        if: steps.environment.outputs.reused != 'true'
+        env:
+          UNIT_GROUP: ${{ inputs.shard }}
+          COVERAGE_FILE: ${{ runner.temp }}/coverage.${{ inputs.shard }}
+        run: uv run --frozen python -m scripts.run_unit_tests "$UNIT_GROUP"
+      - name: Upload shard coverage
+        if: inputs.python-version == '3.11'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: offline-coverage-${{ github.run_id }}-${{ inputs.shard }}
+          path: ${{ runner.temp }}/coverage.${{ inputs.shard }}
+          if-no-files-found: error
+          overwrite: true
+
+  # Offline coverage tests must not be filtered by provider names.

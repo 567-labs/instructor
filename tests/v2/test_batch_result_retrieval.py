@@ -6,9 +6,10 @@ import json
 import threading
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, NamedTuple
 
 import pytest
 from pydantic import BaseModel
@@ -75,7 +76,8 @@ def endpoint(monkeypatch: pytest.MonkeyPatch) -> Iterator[BatchEndpoint]:
     monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
     # The local endpoint advances its scripted batch state on each request.
     monkeypatch.setattr(
-        "instructor.batch.providers.openai.time",
+        import_module("instructor.batch.providers.openai"),
+        "time",
         SimpleNamespace(sleep=lambda _seconds: None),
     )
     thread = threading.Thread(
@@ -312,24 +314,39 @@ def test_completed_all_failed_batch_retains_native_error_records(
     assert endpoint.requests.count(result_path) == 2
 
 
-def test_openai_waits_for_expected_error_file_even_when_output_is_ready(
-    endpoint: BatchEndpoint, tmp_path: Path
+class BatchFileCase(NamedTuple):
+    output: str | None
+    error: str | None
+    counts_known: bool
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param(BatchFileCase("file-output", None, True), id="late-error"),
+        pytest.param(BatchFileCase(None, "file-errors", True), id="late-output"),
+        pytest.param(BatchFileCase(None, None, False), id="unknown-counts"),
+    ],
+)
+def test_openai_waits_for_expected_result_files(
+    endpoint: BatchEndpoint, tmp_path: Path, config: BatchFileCase
 ) -> None:
     record, error_type, message = openai_error("delayed-failure", "top-level")
-    endpoint.json_states(
-        "/batches/batch-local",
-        openai_batch(completed=1, failed=1, output_file="file-output", error_file=None),
-        openai_batch(
-            completed=1, failed=1, output_file="file-output", error_file="file-errors"
-        ),
+    first = openai_batch(
+        completed=1, failed=1, output_file=config.output, error_file=config.error
     )
+    ready = openai_batch(
+        completed=1, failed=1, output_file="file-output", error_file="file-errors"
+    )
+    if not config.counts_known:
+        first["request_counts"] = ready["request_counts"] = None
+    endpoint.json_states("/batches/batch-local", first, ready)
     endpoint.jsonl("/files/file-output/content", [openai_success()])
     endpoint.jsonl("/files/file-errors/content", [record])
 
     results = assert_retrieve_download_parity(
         BatchProcessor("openai/local", Person), tmp_path
     )
-
     assert results == [
         BatchSuccess(custom_id="successful-request", result=Person(name="Ada")),
         BatchError(
@@ -339,7 +356,8 @@ def test_openai_waits_for_expected_error_file_even_when_output_is_ready(
             raw_data=record,
         ),
     ]
-    assert endpoint.requests.count("/batches/batch-local") >= 3
+    assert endpoint.requests.count("/batches/batch-local") == 3
+    assert endpoint.requests.count("/files/file-output/content") == 2
     assert endpoint.requests.count("/files/file-errors/content") == 2
 
 
@@ -387,45 +405,6 @@ def test_openai_reads_available_files_when_request_counts_are_unknown(
     assert endpoint.requests.count("/batches/batch-local") == 2
     assert endpoint.requests.count("/files/file-output/content") == 2 * has_output
     assert endpoint.requests.count("/files/file-errors/content") == 2 * has_error
-
-
-@pytest.mark.parametrize("missing", ["output", "both"])
-def test_openai_waits_for_output_or_any_file_when_counts_are_unknown(
-    endpoint: BatchEndpoint, tmp_path: Path, missing: str
-) -> None:
-    record, error_type, message = openai_error("delayed-file-failure", "top-level")
-    first = openai_batch(
-        completed=1,
-        failed=1,
-        output_file=None,
-        error_file="file-errors" if missing == "output" else None,
-    )
-    ready = openai_batch(
-        completed=1, failed=1, output_file="file-output", error_file="file-errors"
-    )
-    if missing == "both":
-        first["request_counts"] = None
-        ready["request_counts"] = None
-    endpoint.json_states("/batches/batch-local", first, ready)
-    endpoint.jsonl("/files/file-output/content", [openai_success()])
-    endpoint.jsonl("/files/file-errors/content", [record])
-
-    results = assert_retrieve_download_parity(
-        BatchProcessor("openai/local", Person), tmp_path
-    )
-
-    assert results == [
-        BatchSuccess(custom_id="successful-request", result=Person(name="Ada")),
-        BatchError(
-            custom_id="delayed-file-failure",
-            error_type=error_type,
-            error_message=message,
-            raw_data=record,
-        ),
-    ]
-    assert endpoint.requests.count("/batches/batch-local") == 3
-    assert endpoint.requests.count("/files/file-output/content") == 2
-    assert endpoint.requests.count("/files/file-errors/content") == 2
 
 
 @pytest.mark.parametrize("contents", ["empty", "no-final-newline", "trailing-newlines"])

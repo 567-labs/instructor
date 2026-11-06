@@ -19,27 +19,49 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 2
           persist-credentials: false
+      - name: Select changed inputs
+        id: scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: >-
+          python -m scripts.ci_test_plan --changed-paths
+          instructor tests scripts/ci_test_plan.py scripts/run_unit_tests.py scripts/ci_worker_coverage.py scripts/check_statement_coverage.py ty.toml ty-tests.toml pyproject.toml uv.lock .github/workflows/ty.yml
       - name: Install uv
+        if: steps.scope.outputs.changed == 'true'
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
           python-version: "3.11"
       - name: Set up Python
+        if: steps.scope.outputs.changed == 'true'
         run: uv python install 3.11
       - name: Install the project
+        if: steps.scope.outputs.changed == 'true'
         run: uv sync --locked --all-extras
       - name: Run type check with ty
+        if: steps.scope.outputs.changed == 'true'
         run: uv run --frozen ty check --error-on-warning --output-format github instructor/
       - name: Run type check with ty (tests)
+        if: steps.scope.outputs.changed == 'true'
         run: uv run --frozen ty check --config-file ty-tests.toml --error-on-warning --output-format github tests
       - name: Check installed-package public typing
+        if: steps.scope.outputs.changed == 'true'
         run: tests/typing/check_installed_package.sh
       - name: Check supported Python versions and platforms
+        if: steps.scope.outputs.changed == 'true'
         run: |
           uv run --frozen ty check --python-version 3.10 --python-platform all --error-on-warning --output-format github instructor/
           uv run --frozen ty check --python-version 3.14 --python-platform all --error-on-warning --output-format github instructor/
       - name: Check tests on supported Python versions and platforms
+        if: steps.scope.outputs.changed == 'true'
         run: |
           uv run --frozen ty check --config-file ty-tests.toml --python-version 3.10 --python-platform all --error-on-warning --output-format github tests
           uv run --frozen ty check --config-file ty-tests.toml --python-version 3.14 --python-platform all --error-on-warning --output-format github tests
+
+      - name: Check CI helper types
+        if: steps.scope.outputs.changed == 'true'
+        run: >-
+          uv run --frozen ty check --error-on-warning
+          scripts/ci_test_plan.py scripts/run_unit_tests.py scripts/ci_worker_coverage.py scripts/check_statement_coverage.py
