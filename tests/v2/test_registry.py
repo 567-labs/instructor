@@ -9,6 +9,8 @@ import pytest
 from instructor import Mode
 from instructor.v2 import Provider, mode_registry
 from instructor.v2.core.decorators import register_mode_handler
+from instructor.v2.core.protocols import ReaskHandler, RequestHandler
+from instructor.v2.core.registry import ModeRegistry
 from tests.v2.conftest import get_registered_provider_mode_pairs
 
 
@@ -26,7 +28,14 @@ def _get_registered_provider_modes() -> list[tuple[Provider, Mode]]:
     return get_registered_provider_mode_pairs()
 
 
-def test_registry_registration():
+@pytest.fixture
+def decorator_registry(monkeypatch: pytest.MonkeyPatch) -> ModeRegistry:
+    registry = ModeRegistry()
+    monkeypatch.setattr("instructor.v2.core.decorators.mode_registry", registry)
+    return registry
+
+
+def test_registry_registration(decorator_registry: ModeRegistry):
     """Test basic registration."""
 
     @register_mode_handler(Provider.DEEPSEEK, Mode.JSON)
@@ -43,10 +52,10 @@ def test_registry_registration():
             return response_model()
 
     # Check it's registered
-    assert mode_registry.is_registered(Provider.DEEPSEEK, Mode.JSON)
+    assert decorator_registry.is_registered(Provider.DEEPSEEK, Mode.JSON)
 
     # Get handlers
-    handlers = mode_registry.get_handlers(Provider.DEEPSEEK, Mode.JSON)
+    handlers = decorator_registry.get_handlers(Provider.DEEPSEEK, Mode.JSON)
     assert handlers.request_handler is not None
     assert handlers.reask_handler is not None
     assert handlers.response_parser is not None
@@ -77,7 +86,7 @@ def test_registration_preserves_constructor_type_errors(required_mode: bool) -> 
     assert attempts == [Mode.JSON]
 
 
-def test_registry_get_handler():
+def test_registry_get_handler(decorator_registry: ModeRegistry):
     """Test getting specific handler types."""
 
     @register_mode_handler(Provider.OPENROUTER, Mode.TOOLS)
@@ -92,15 +101,19 @@ def test_registry_get_handler():
             return response_model()
 
     # Get individual handlers
-    request_handler = mode_registry.get_handler(
-        Provider.OPENROUTER, Mode.TOOLS, "request"
+    request_handler = cast(
+        RequestHandler,
+        decorator_registry.get_handler(Provider.OPENROUTER, Mode.TOOLS, "request"),
     )
     result = request_handler(None, {})
     assert result[1]["test"] == "request"
 
-    reask_handler = mode_registry.get_handler(Provider.OPENROUTER, Mode.TOOLS, "reask")
-    result = reask_handler({}, None, None)
-    assert result["test"] == "reask"
+    reask_handler = cast(
+        ReaskHandler,
+        decorator_registry.get_handler(Provider.OPENROUTER, Mode.TOOLS, "reask"),
+    )
+    retry_kwargs = reask_handler({}, None, ValueError("invalid response"))
+    assert retry_kwargs["test"] == "reask"
 
 
 @pytest.mark.parametrize("provider", _get_registered_providers())
