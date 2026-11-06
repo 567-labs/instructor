@@ -905,6 +905,9 @@ async def test_md_json_rejects_unsupported_content_objects(
 def test_deprecated_xai_modes_warn_and_normalize(
     deprecated_mode: Mode, replacement: Mode
 ) -> None:
+    from instructor.v2.core.mode import reset_deprecated_mode_warnings
+
+    reset_deprecated_mode_warnings()
     with pytest.warns(
         DeprecationWarning, match=f"Use Mode\\.{replacement.name} instead"
     ):

@@ -5,7 +5,7 @@ import importlib
 import logging
 from collections.abc import Iterator
 from contextlib import AbstractContextManager, nullcontext
-from functools import partial
+from functools import partial, partialmethod
 from typing import Any
 
 import pytest
@@ -34,8 +34,18 @@ def expected_provider_deprecation(provider: str) -> AbstractContextManager[Any]:
 
 
 @pytest.fixture(autouse=True)
-def isolated_provider_environment(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def isolated_provider_environment(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> Iterator[None]:
     clear_proxy_environment(monkeypatch)
+    callspec = getattr(request.node, "callspec", None)
+    if callspec is not None and callspec.params.get("provider") == "cerebras":
+        from cerebras.cloud.sdk import AsyncCerebras, Cerebras
+
+        for sdk in (Cerebras, AsyncCerebras):
+            monkeypatch.setattr(
+                sdk, "__init__", partialmethod(sdk.__init__, warm_tcp_connection=False)
+            )
 
     yield
 

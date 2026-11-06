@@ -94,6 +94,8 @@ def select_tests(paths: list[str]) -> TestPlan:
             if not re.fullmatch(r"test_.*\.py|.*_test\.py", Path(path).name):
                 return full_plan()
             plan.shards.add(group_for_path(path))
+            if path == "tests/v2/test_provider_modes.py":
+                plan.live_jobs.update(LIVE_JOBS - {"auto-client-test"})
             if path == "tests/providers/test_auto_client.py":
                 plan.live_jobs.add("auto-client-test")
             continue

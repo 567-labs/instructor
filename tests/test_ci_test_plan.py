@@ -21,6 +21,11 @@ CASES = {
     "two-unit-groups": PlanCase(
         ("tests/v2/test_parser.py", "tests/coverage/test_batch.py"), ("v2", "focused")
     ),
+    "mixed-provider-modes": PlanCase(
+        ("tests/v2/test_provider_modes.py",),
+        ("v2",),
+        tuple(ci.LIVE_JOBS - {"auto-client-test"}),
+    ),
     "mixed-auto-client": PlanCase(
         ("tests/providers/test_auto_client.py",), ("core",), ("auto-client-test",)
     ),

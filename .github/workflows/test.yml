@@ -138,7 +138,7 @@ jobs:
         run: echo "Skipping OpenAI core provider tests (missing OPENAI_API_KEY)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run core provider tests (OpenAI)
         if: ${{ env.HAS_OPENAI_API_KEY == 'true' }}
-        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers tests/llm/test_decisions -v -k "openai"
+        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers tests/llm/test_decisions tests/v2/test_provider_modes.py -v -m llm -k "openai and not azure"
         env:
           INSTRUCTOR_ENV: CI
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -171,7 +171,7 @@ jobs:
         run: echo "Skipping Anthropic core provider tests (missing ANTHROPIC_API_KEY)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run core provider tests (Anthropic)
         if: ${{ env.HAS_ANTHROPIC_API_KEY == 'true' }}
-        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers -v -k "anthropic"
+        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers tests/v2/test_provider_modes.py -v -m llm -k "anthropic"
         env:
           INSTRUCTOR_ENV: CI
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -205,7 +205,7 @@ jobs:
         run: echo "Skipping Google core provider tests (missing GOOGLE_API_KEY or GOOGLE_GENAI_MODEL)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run core provider tests (Google)
         if: ${{ env.HAS_GOOGLE_API_KEY == 'true' && env.HAS_GOOGLE_GENAI_MODEL == 'true' }}
-        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers -v -k "google"
+        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers tests/v2/test_provider_modes.py -v -m llm -k "google or genai"
         env:
           INSTRUCTOR_ENV: CI
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
@@ -252,7 +252,7 @@ jobs:
           || env.HAS_MISTRAL_API_KEY == 'true' || env.HAS_CEREBRAS_API_KEY == 'true'
           || env.HAS_FIREWORKS_API_KEY == 'true' || env.HAS_WRITER_API_KEY == 'true'
           || env.HAS_PERPLEXITY_API_KEY == 'true' }}
-        run: bash scripts/run_provider_tests.sh --retry-failures tests/llm/test_core_providers -v -k "cohere or xai or mistral or cerebras or fireworks or writer or perplexity"
+        run: bash scripts/run_provider_tests.sh --retry-failures tests/llm/test_core_providers tests/v2/test_provider_modes.py -v -m llm -k "cohere or xai or mistral or cerebras or fireworks or writer or perplexity"
         env:
           INSTRUCTOR_ENV: CI
           COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
