@@ -10,6 +10,7 @@ from instructor import (
     AsyncInstructor,
     Instructor,
     Maybe,
+    Mode,
     Partial,
     from_anyscale,
     from_databricks,
@@ -21,7 +22,6 @@ from instructor import (
     response_schema,
 )
 from instructor.decisions.client import AsyncDecisionsClient, DecisionsClient
-from instructor import Mode
 from instructor.v2.dsl.maybe import MaybeBase
 
 

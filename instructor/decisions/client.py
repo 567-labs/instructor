@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import os
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import httpx
-import openai
 from pydantic import BaseModel
 
 from .openai import DecisionInput, answer_envelope, request_body
 from .schema import _Field, build_questions, parse_answers
+
+if TYPE_CHECKING:
+    import openai
 
 T = TypeVar("T", bound=BaseModel)
 _ENDPOINTS = {
@@ -36,7 +38,7 @@ def _request(
 ) -> tuple[list[_Field], dict[str, Any], dict[str, Any]]:
     if native_input is not None and provider != "openai":
         raise TypeError(
-            "input is supported only for OpenAI Decisions; use context for Jev"
+            "input is supported only for OpenAI Decisions. Use context for Jev."
         )
     if context is None:
         if native_input is None:
@@ -60,18 +62,18 @@ def _post(
     api_key: str | None,
     timeout: Any,
 ) -> Any:
-    if isinstance(client, (openai.OpenAI, openai.AsyncOpenAI)):
-        resource = getattr(client, "decisions", None)
-        if resource is not None:
-            return resource.with_raw_response.create(**body)
-        # Older supported SDKs still provide authenticated requests to this endpoint.
-        return client.post("/decisions", cast_to=object, body=body)
-    return client.post(
-        endpoint,
-        json=body,
-        headers={"Authorization": f"Bearer {api_key}"},
-        timeout=timeout,
-    )
+    if isinstance(client, (httpx.Client, httpx.AsyncClient)):
+        return client.post(
+            endpoint,
+            json=body,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=timeout,
+        )
+    resource = getattr(client, "decisions", None)
+    if resource is not None:
+        return resource.with_raw_response.create(**body)
+    # Older supported SDKs still provide authenticated requests to this endpoint.
+    return client.post("/decisions", cast_to=object, body=body)
 
 
 def _raw_json(response: Any) -> Any:
@@ -252,6 +254,8 @@ def from_openai_decisions(
     *,
     timeout: float | None | _DefaultTimeout = _DEFAULT_TIMEOUT,
 ) -> DecisionsClient | AsyncDecisionsClient:
+    import openai
+
     options: dict[str, Any] = {"max_retries": 0}
     if not isinstance(timeout, _DefaultTimeout):
         options["timeout"] = timeout
