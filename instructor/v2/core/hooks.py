@@ -4,7 +4,6 @@ from collections import defaultdict
 from typing import Any, Literal, TypeVar, Protocol, Union
 
 import inspect
-import traceback
 import warnings
 
 T = TypeVar("T")
@@ -168,12 +167,15 @@ class Hooks:
                         handler(*args)
                         continue
                 handler(*args, **kwargs)
-            except Exception:
-                error_traceback = traceback.format_exc()
-                warnings.warn(
-                    f"Error in {hook_name.value} handler:\n{error_traceback}",
-                    stacklevel=2,
-                )
+            except Exception as error:
+                try:
+                    warnings.warn(
+                        f"Error in {hook_name.value} handler ({type(error).__name__})",
+                        stacklevel=1,
+                    )
+                except UserWarning as warning:
+                    # Warning-as-error must not expose the provider or handler traceback.
+                    raise warning from None
 
     def emit_completion_arguments(self, *args: Any, **kwargs: Any) -> None:
         """

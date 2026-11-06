@@ -1011,6 +1011,7 @@ async def test_retry_async_v2_reports_each_validation_api_error_and_last_attempt
     assert "API call failed on attempt 1" in caplog.text
     assert "API call failed on attempt 2" in caplog.text
     assert "Max retries exceeded. Total attempts: 2" in caplog.text
+    assert str(errors[0]) not in caplog.text
 
 
 @pytest.mark.asyncio

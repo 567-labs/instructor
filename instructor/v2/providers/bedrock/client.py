@@ -6,6 +6,7 @@ import logging
 import os
 from typing import TYPE_CHECKING, Any, Literal, overload
 
+from instructor.v2.core.errors import log_provider_initialization_error
 from instructor.v2.core.client import AsyncInstructor, Instructor
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
@@ -231,13 +232,7 @@ def _build_from_model(
             "Install it with `pip install boto3`."
         ) from None
     except Exception as e:
-        logger.error(
-            "Error initializing %s client: %s",
-            provider,
-            e,
-            exc_info=True,
-            extra={**provider_info, "status": "error"},
-        )
+        log_provider_initialization_error(logger, provider, e, provider_info)
         raise
 
 

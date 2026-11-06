@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import traceback
+import warnings
+
 import builtins
 from typing import Any, TypeVar, cast
 
@@ -176,7 +179,8 @@ def test_hooks_fall_back_for_legacy_handler_and_keep_emitting_after_error() -> N
 
     assert seen == [("legacy", error), ("final", error)]
     assert len(record) == 1
-    assert "LookupError: hook exploded" in str(record[0].message)
+    assert "LookupError" in str(record[0].message)
+    assert "hook exploded" not in str(record[0].message)
 
 
 def test_hooks_fall_back_when_handler_signature_is_unavailable() -> None:
@@ -421,3 +425,32 @@ def test_provider_helpers_detect_known_urls_and_normalize_legacy_modes() -> None
     assert normalized is Mode.TOOLS
     assert normalize_mode_for_provider(Mode.JSON, Provider.COHERE) is Mode.JSON
     reset_deprecated_mode_warnings()
+
+
+def test_hook_warning_hides_caller_source_and_chained_runtime_values() -> None:
+    hooks = Hooks()
+
+    def fail(error: Exception) -> None:
+        raise LookupError("private hook detail") from error
+
+    hooks.on("completion:error", fail)
+    with pytest.warns(UserWarning) as caught:
+        hooks.emit(HookName.COMPLETION_ERROR, RuntimeError("private inline detail"))
+    warning = caught[0]
+    formatted = warnings.formatwarning(
+        warning.message, warning.category, warning.filename, warning.lineno
+    )
+    assert "private inline detail" not in formatted
+
+    runtime_value = "private " + "provider value"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        with pytest.raises(UserWarning) as raised:
+            hooks.emit_completion_error(RuntimeError(runtime_value))
+    trace = "".join(
+        traceback.format_exception(
+            type(raised.value), raised.value, raised.value.__traceback__
+        )
+    )
+    assert runtime_value not in trace
+    assert "private hook detail" not in trace

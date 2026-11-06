@@ -225,7 +225,11 @@ def retry_sync_v2(
                 except IncompleteOutputException:
                     raise
                 except Exception as e:
-                    logger.error(f"API call failed on attempt {attempt_number}: {e}")
+                    logger.error(
+                        "API call failed on attempt %d (%s)",
+                        attempt_number,
+                        type(e).__name__,
+                    )
                     if hooks:
                         hooks.emit_completion_error(
                             e,
@@ -279,7 +283,11 @@ def retry_sync_v2(
                 except IncompleteOutputException:
                     raise
                 except _RETRYABLE_PARSE_ERRORS as e:
-                    logger.debug(f"Validation error on attempt {attempt_number}: {e}")
+                    logger.debug(
+                        "Validation error on attempt %d (%s)",
+                        attempt_number,
+                        type(e).__name__,
+                    )
                     failed_attempts.append(
                         FailedAttempt(
                             attempt_number=attempt_number,
@@ -338,8 +346,9 @@ def retry_sync_v2(
         last_exception = e
 
         logger.error(
-            f"Max retries exceeded. Total attempts: {last_attempt_number}, "
-            f"Last error: {last_exception}"
+            "Max retries exceeded. Total attempts: %d (%s)",
+            last_attempt_number,
+            type(last_exception).__name__,
         )
         if hooks:
             hooks.emit_completion_last_attempt(
@@ -524,7 +533,11 @@ async def retry_async_v2(
                 except IncompleteOutputException:
                     raise
                 except Exception as e:
-                    logger.error(f"API call failed on attempt {attempt_number}: {e}")
+                    logger.error(
+                        "API call failed on attempt %d (%s)",
+                        attempt_number,
+                        type(e).__name__,
+                    )
                     if hooks:
                         hooks.emit_completion_error(
                             e,
@@ -578,7 +591,11 @@ async def retry_async_v2(
                 except IncompleteOutputException:
                     raise
                 except _RETRYABLE_PARSE_ERRORS as e:
-                    logger.debug(f"Validation error on attempt {attempt_number}: {e}")
+                    logger.debug(
+                        "Validation error on attempt %d (%s)",
+                        attempt_number,
+                        type(e).__name__,
+                    )
                     failed_attempts.append(
                         FailedAttempt(
                             attempt_number=attempt_number,
@@ -637,8 +654,9 @@ async def retry_async_v2(
         last_exception = e
 
         logger.error(
-            f"Max retries exceeded. Total attempts: {last_attempt_number}, "
-            f"Last error: {last_exception}"
+            "Max retries exceeded. Total attempts: %d (%s)",
+            last_attempt_number,
+            type(last_exception).__name__,
         )
         if hooks:
             hooks.emit_completion_last_attempt(

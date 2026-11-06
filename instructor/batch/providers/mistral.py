@@ -119,10 +119,12 @@ class MistralProvider(BatchProvider):
             return batch_job.id
         except (ValueError, TypeError) as e:
             # Re-raise validation errors as-is
-            logger.error(f"Validation error in Mistral batch submission: {e}")
+            logger.error(
+                "Validation error in Mistral batch submission (%s)", type(e).__name__
+            )
             raise
         except Exception as e:
-            logger.error(f"Failed to submit Mistral batch: {e}")
+            logger.error("Failed to submit Mistral batch (%s)", type(e).__name__)
             raise RuntimeError(f"Failed to submit Mistral batch: {e}") from e
 
     def get_status(self, batch_id: str) -> dict[str, Any]:

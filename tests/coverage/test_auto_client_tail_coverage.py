@@ -650,3 +650,9 @@ def test_tail_builder_factory_failure_is_logged_and_propagated(
                 )
 
     assert f"Error initializing {provider} client" in caplog.text
+    record = next(
+        record for record in caplog.records if record.name == "instructor.auto_client"
+    )
+    assert record.exc_info is None
+    assert record.funcName == builder.__name__
+    assert "provider factory failed" not in record.getMessage()
