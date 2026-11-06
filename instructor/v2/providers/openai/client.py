@@ -10,6 +10,11 @@ from typing import Any, Literal, Protocol, cast, overload
 
 import openai
 
+from instructor.decisions.client import (
+    AsyncDecisionsClient,
+    DecisionsClient,
+    from_openai_decisions,
+)
 from instructor.v2.core.client import AsyncInstructor, Instructor
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
@@ -102,6 +107,24 @@ def _from_openai_compat(
 @overload
 def from_openai(
     client: openai.OpenAI,
+    mode: Literal[Mode.DECISIONS],
+    model: str | None = None,
+    **kwargs: Any,
+) -> DecisionsClient: ...
+
+
+@overload
+def from_openai(
+    client: openai.AsyncOpenAI,
+    mode: Literal[Mode.DECISIONS],
+    model: str | None = None,
+    **kwargs: Any,
+) -> AsyncDecisionsClient: ...
+
+
+@overload
+def from_openai(
+    client: openai.OpenAI,
     mode: Mode = Mode.TOOLS,
     model: str | None = None,
     **kwargs: Any,
@@ -122,17 +145,19 @@ def from_openai(
     mode: Mode = Mode.TOOLS,
     model: str | None = None,
     **kwargs: Any,
-) -> Instructor | AsyncInstructor:
-    """Create an Instructor instance from an OpenAI client using v2 registry.
+) -> Instructor | AsyncInstructor | DecisionsClient | AsyncDecisionsClient:
+    """Wrap a synchronous or asynchronous OpenAI SDK client.
 
     Args:
         client: An instance of OpenAI client (sync or async)
         mode: The mode to use (defaults to Mode.TOOLS)
-        model: Optional model to inject if not provided in requests
-        **kwargs: Additional keyword arguments to pass to the Instructor constructor
+        model: Default model for requests. Decisions mode defaults to gpt-6-luna.
+        **kwargs: Client options. Decisions mode accepts a timeout override.
 
     Returns:
-        An Instructor instance (sync or async depending on the client type)
+        A typed Decisions client for Mode.DECISIONS, or an Instructor client for
+        chat and Responses modes. The wrapper follows the supplied client's
+        synchronous or asynchronous interface.
 
     Raises:
         ModeError: If mode is not registered for OpenAI
@@ -149,6 +174,8 @@ def from_openai(
         >>> # Or use JSON_SCHEMA mode for structured outputs
         >>> instructor_client = from_openai(client, mode=Mode.JSON_SCHEMA)
     """
+    if mode is Mode.DECISIONS:
+        return from_openai_decisions(client, model, **kwargs)
     return _from_openai_compat(
         client=client,
         provider=Provider.OPENAI,

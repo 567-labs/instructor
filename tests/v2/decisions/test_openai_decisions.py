@@ -1,19 +1,25 @@
 from __future__ import annotations
 
+from contextlib import AsyncExitStack
 from copy import deepcopy
 import json
 from typing import Annotated, Literal
+from unittest.mock import Mock
 
 import httpx
+import openai
 import pytest
 from pydantic import BaseModel, Field
 
 import instructor
 from instructor.decisions import Choice, Noul, Question, Score
+from instructor.decisions.client import AsyncDecisionsClient
 
 
 class Decision(BaseModel):
-    action: Literal["allow", "review"] = Field(description="Apply {{ policy }}")
+    action: Literal["allow", "review"] = Field(
+        description="Apply {{ policy | default('the policy') }}"
+    )
     probability: Annotated[
         float,
         Noul(instructions="Is this unsafe?", when_true="Unsafe", when_false="Safe"),
@@ -44,31 +50,141 @@ def completion() -> dict:
     }
 
 
+def test_supplied_sdk_prefers_decisions_resource_and_keeps_raw_fields(monkeypatch):
+    raw = {**completion(), "provider_metadata": {"version": 3}}
+    resource = Mock()
+    resource.with_raw_response.create.return_value.http_response = httpx.Response(
+        200, json=raw
+    )
+    monkeypatch.setattr(openai.OpenAI, "decisions", resource, raising=False)
+    with openai.OpenAI(
+        api_key="local-contract-key",
+        http_client=openai.DefaultHttpxClient(trust_env=False),
+    ) as sdk:
+        with instructor.from_openai(sdk, mode=instructor.Mode.DECISIONS) as client:
+            result, returned = client.create_with_completion(
+                response_model=Decision, input="Evaluate this ticket."
+            )
+        assert not sdk.is_closed()
+    assert result.severity == 7.0 and returned == raw
+    request = resource.with_raw_response.create.call_args.kwargs
+    assert request["input"] == "Evaluate this ticket."
+    assert request["questions"][0]["instructions"] == "Apply the policy"
+    assert [q["type"] for q in request["questions"]] == ["choice", "predicate", "score"]
+
+
+def test_supplied_sdk_preserves_caller_settings_and_does_not_retry(decision_endpoint):
+    decision_endpoint.status = 503
+    with openai.OpenAI(
+        api_key="local-contract-key",
+        base_url=decision_endpoint.url + "/v1",
+        http_client=openai.DefaultHttpxClient(trust_env=False),
+        max_retries=2,
+    ) as sdk:
+        timeout = sdk.timeout
+        with instructor.from_openai(
+            sdk, mode=instructor.Mode.DECISIONS, timeout=5.0
+        ) as client:
+            with pytest.raises(openai.APIStatusError):
+                client.create(response_model=Decision, input="Evaluate this ticket.")
+        assert sdk.max_retries == 2 and sdk.timeout == timeout
+        assert not sdk.is_closed()
+    assert len(decision_endpoint.calls) == 1
+
+
+def test_jev_rejects_openai_input_before_sending(decision_endpoint):
+    with (
+        httpx.Client(trust_env=False) as http,
+        instructor.from_provider(
+            "typesafe/jev-latest",
+            mode=instructor.Mode.DECISIONS,
+            api_key="local-contract-key",
+            http_client=http,
+            endpoint=decision_endpoint.url,
+        ) as client,
+    ):
+        with pytest.raises(TypeError, match="only for OpenAI"):
+            client.create(response_model=Decision, input="Evaluate this ticket.")
+        with pytest.raises(TypeError, match="context must be a dictionary"):
+            client.create(response_model=Decision)
+    assert decision_endpoint.calls == []
+
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("async_client", [False, True])
-async def test_openai_decisions_round_trip(decision_endpoint, async_client):
+@pytest.mark.parametrize("async_client", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("use_sdk", [False, True], ids=["provider", "sdk"])
+@pytest.mark.parametrize(
+    "native_input",
+    [
+        None,
+        [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_json", "data": {"ticket": "duplicate charge"}},
+                    {
+                        "type": "input_image",
+                        "image_url": "https://example.test/policy.png",
+                    },
+                ],
+            }
+        ],
+    ],
+    ids=["context", "content-parts"],
+)
+async def test_openai_decisions_round_trip(
+    decision_endpoint, async_client, use_sdk, native_input
+):
     raw = completion()
     decision_endpoint.response = deepcopy(raw)
     context = {"policy": "moderation", "text": "A disputed comment"}
     original = deepcopy(context)
-    http = (
-        httpx.AsyncClient(trust_env=False)
-        if async_client
-        else httpx.Client(trust_env=False)
-    )
-    client = instructor.from_provider(
-        "openai/gpt-6-luna",
-        mode=instructor.Mode.DECISIONS,
-        async_client=async_client,
-        api_key="local-contract-key",
-        http_client=http,
-        endpoint=decision_endpoint.url + "/v1/decisions",
-    )
-    try:
-        pending = client.create_with_completion(
-            response_model=Decision, context=context
-        )
-        result, returned = await pending if async_client else pending
+    async with AsyncExitStack() as stack:
+        if use_sdk and async_client:
+            transport = openai.DefaultAsyncHttpxClient(trust_env=False)
+            sdk = await stack.enter_async_context(
+                openai.AsyncOpenAI(
+                    api_key="local-contract-key",
+                    base_url=decision_endpoint.url + "/v1",
+                    http_client=transport,
+                )
+            )
+            client = instructor.from_openai(sdk, mode=instructor.Mode.DECISIONS)
+        elif use_sdk:
+            transport = openai.DefaultHttpxClient(trust_env=False)
+            sdk = stack.enter_context(
+                openai.OpenAI(
+                    api_key="local-contract-key",
+                    base_url=decision_endpoint.url + "/v1",
+                    http_client=transport,
+                )
+            )
+            client = instructor.from_openai(sdk, mode=instructor.Mode.DECISIONS)
+        else:
+            transport = (
+                await stack.enter_async_context(httpx.AsyncClient(trust_env=False))
+                if async_client
+                else stack.enter_context(httpx.Client(trust_env=False))
+            )
+            client = instructor.from_provider(
+                "openai/gpt-6-luna",
+                mode=instructor.Mode.DECISIONS,
+                async_client=async_client,
+                api_key="local-contract-key",
+                http_client=transport,
+                endpoint=decision_endpoint.url + "/v1/decisions",
+            )
+        if isinstance(client, AsyncDecisionsClient):
+            async with client:
+                result, returned = await client.create_with_completion(
+                    response_model=Decision, context=context, input=native_input
+                )
+        else:
+            with client:
+                result, returned = client.create_with_completion(
+                    response_model=Decision, context=context, input=native_input
+                )
+        assert not transport.is_closed
         assert result.model_dump() == {
             "action": "review",
             "probability": 0.8,
@@ -82,7 +198,9 @@ async def test_openai_decisions_round_trip(decision_endpoint, async_client):
             "authorization": "Bearer local-contract-key",
             "body": {
                 "model": "gpt-6-luna",
-                "input": json.dumps(context, ensure_ascii=False),
+                "input": json.dumps(context, ensure_ascii=False)
+                if native_input is None
+                else native_input,
                 "questions": [
                     {
                         "name": "action",
@@ -107,16 +225,6 @@ async def test_openai_decisions_round_trip(decision_endpoint, async_client):
                 ],
             },
         }
-        if async_client:
-            await client.close()
-        else:
-            client.close()
-        assert not http.is_closed
-    finally:
-        if isinstance(http, httpx.AsyncClient):
-            await http.aclose()
-        else:
-            http.close()
 
 
 @pytest.mark.asyncio
