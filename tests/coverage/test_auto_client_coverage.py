@@ -346,7 +346,7 @@ def test_mistral_builder_supports_sdk_v1_export(
             provider="mistral",
             model_name="mistral-small",
             async_client=True,
-            mode=None,
+            mode=Mode.JSON_SCHEMA,
             api_key="test-key",
             kwargs={"temperature": 0.2},
             provider_info={"provider": "mistral", "operation": "initialize"},
@@ -357,6 +357,7 @@ def test_mistral_builder_supports_sdk_v1_export(
     assert captured["client"].api_key == "test-key"
     assert captured["kwargs"] == {
         "model": "mistral-small",
+        "mode": Mode.JSON_SCHEMA,
         "use_async": True,
         "temperature": 0.2,
     }

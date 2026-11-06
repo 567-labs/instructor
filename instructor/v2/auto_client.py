@@ -709,12 +709,16 @@ def _build_gemini(
         raise
 
 
+def _with_requested_mode(kwargs: dict[str, Any], mode: Mode | None) -> dict[str, Any]:
+    return kwargs if mode is None else {**kwargs, "mode": mode}
+
+
 def _build_mistral(
     *,
     provider: str,
     model_name: str,
     async_client: bool,
-    mode: Mode | None,  # noqa: ARG001
+    mode: Mode | None,
     api_key: str | None,
     kwargs: dict[str, Any],
     provider_info: dict[str, str],
@@ -738,10 +742,12 @@ def _build_mistral(
                 "Set it with `export MISTRAL_API_KEY=<your-api-key>`."
             )
 
-        if async_client:
-            result = from_mistral(client, model=model_name, use_async=True, **kwargs)
-        else:
-            result = from_mistral(client, model=model_name, **kwargs)
+        result = from_mistral(
+            client,
+            model=model_name,
+            use_async=async_client,
+            **_with_requested_mode(kwargs, mode),
+        )
         logger.info(
             "Client initialized",
             extra={**provider_info, "status": "success"},
@@ -807,7 +813,7 @@ def _build_perplexity(
     provider: str,
     model_name: str,
     async_client: bool,
-    mode: Mode | None,  # noqa: ARG001
+    mode: Mode | None,
     api_key: str | None,
     kwargs: dict[str, Any],
     provider_info: dict[str, str],
@@ -831,7 +837,9 @@ def _build_perplexity(
             if async_client
             else openai.OpenAI(api_key=api_key, base_url="https://api.perplexity.ai")
         )
-        result = from_perplexity(client, model=model_name, **kwargs)
+        result = from_perplexity(
+            client, model=model_name, **_with_requested_mode(kwargs, mode)
+        )
         logger.info(
             "Client initialized",
             extra={**provider_info, "status": "success"},
@@ -854,7 +862,7 @@ def _build_groq(
     provider: str,
     model_name: str,
     async_client: bool,
-    mode: Mode | None,  # noqa: ARG001
+    mode: Mode | None,
     api_key: str | None,
     kwargs: dict[str, Any],
     provider_info: dict[str, str],
@@ -868,7 +876,9 @@ def _build_groq(
             if async_client
             else groq.Groq(api_key=api_key)
         )
-        result = from_groq(client, model=model_name, **kwargs)
+        result = from_groq(
+            client, model=model_name, **_with_requested_mode(kwargs, mode)
+        )
         logger.info(
             "Client initialized",
             extra={**provider_info, "status": "success"},
@@ -891,7 +901,7 @@ def _build_writer(
     provider: str,
     model_name: str,
     async_client: bool,
-    mode: Mode | None,  # noqa: ARG001
+    mode: Mode | None,
     api_key: str | None,
     kwargs: dict[str, Any],
     provider_info: dict[str, str],
@@ -903,7 +913,9 @@ def _build_writer(
         client = (
             AsyncWriter(api_key=api_key) if async_client else Writer(api_key=api_key)
         )
-        result = from_writer(client, model=model_name, **kwargs)
+        result = from_writer(
+            client, model=model_name, **_with_requested_mode(kwargs, mode)
+        )
         logger.info(
             "Client initialized",
             extra={**provider_info, "status": "success"},
@@ -950,7 +962,7 @@ def _build_cerebras(
     provider: str,
     model_name: str,
     async_client: bool,
-    mode: Mode | None,  # noqa: ARG001
+    mode: Mode | None,
     api_key: str | None,
     kwargs: dict[str, Any],
     provider_info: dict[str, str],
@@ -964,7 +976,9 @@ def _build_cerebras(
             if async_client
             else Cerebras(api_key=api_key)
         )
-        result = from_cerebras(client, model=model_name, **kwargs)
+        result = from_cerebras(
+            client, model=model_name, **_with_requested_mode(kwargs, mode)
+        )
         logger.info(
             "Client initialized",
             extra={**provider_info, "status": "success"},
@@ -987,7 +1001,7 @@ def _build_fireworks(
     provider: str,
     model_name: str,
     async_client: bool,
-    mode: Mode | None,  # noqa: ARG001
+    mode: Mode | None,
     api_key: str | None,
     kwargs: dict[str, Any],
     provider_info: dict[str, str],
@@ -1004,7 +1018,9 @@ def _build_fireworks(
             if async_client
             else Fireworks(api_key=api_key)
         )
-        result = from_fireworks(client, model=model_name, **kwargs)
+        result = from_fireworks(
+            client, model=model_name, **_with_requested_mode(kwargs, mode)
+        )
         logger.info(
             "Client initialized",
             extra={**provider_info, "status": "success"},

@@ -96,7 +96,7 @@ def test_cloud_sdk_builders_forward_real_client_model_and_options(
         provider=provider,
         model_name="llama-test",
         async_client=async_client,
-        mode=Mode.JSON,
+        mode=Mode.JSON_SCHEMA,
         api_key="test-key",
         kwargs={"max_tokens": 17},
         provider_info=provider_info(provider),
@@ -106,8 +106,17 @@ def test_cloud_sdk_builders_forward_real_client_model_and_options(
     assert isinstance(seen["client"], expected_type)
     sdk_client = getattr(seen["client"], "_client_v1", seen["client"])
     assert sdk_client.api_key == "test-key"
-    assert seen["kwargs"] == {"model": "llama-test", "max_tokens": 17}
-    assert result == {"provider": provider, "model": "llama-test", "max_tokens": 17}
+    assert seen["kwargs"] == {
+        "model": "llama-test",
+        "max_tokens": 17,
+        "mode": Mode.JSON_SCHEMA,
+    }
+    assert result == {
+        "provider": provider,
+        "model": "llama-test",
+        "max_tokens": 17,
+        "mode": Mode.JSON_SCHEMA,
+    }
 
 
 @pytest.mark.parametrize("async_client", [False, True])
@@ -656,3 +665,35 @@ def test_tail_builder_factory_failure_is_logged_and_propagated(
     assert record.exc_info is None
     assert record.funcName == builder.__name__
     assert "provider factory failed" not in record.getMessage()
+
+
+@pytest.mark.parametrize(
+    ("provider", "mode"),
+    [
+        ("mistral", Mode.JSON_SCHEMA),
+        ("groq", Mode.MD_JSON),
+        ("writer", Mode.JSON_SCHEMA),
+        ("cerebras", Mode.JSON_SCHEMA),
+        ("fireworks", Mode.JSON_SCHEMA),
+    ],
+)
+def test_from_provider_preserves_a_registered_mode(
+    provider: str, mode: Mode, request: pytest.FixtureRequest
+) -> None:
+    with ignore_fireworks_pydantic_warning():
+        client = auto_client.from_provider(
+            f"{provider}/unit", mode=mode, api_key="test-placeholder"
+        )
+    request.addfinalizer(
+        partial(close_provider_client, client.client, async_client=False)
+    )
+    assert client.mode == mode
+
+
+def test_from_provider_rejects_an_unregistered_perplexity_mode() -> None:
+    from instructor.v2.core.errors import ModeError
+
+    with pytest.raises(ModeError):
+        auto_client.from_provider(
+            "perplexity/unit", mode=Mode.TOOLS, api_key="test-placeholder"
+        )
