@@ -87,43 +87,48 @@ def test_cross_suite_import_disables_reuse(
 
 
 @pytest.mark.parametrize(
-    ("head", "event", "conclusion", "expected"),
+    ("overrides", "coverage", "expected"),
     [
-        ("base", "push", "success", "42"),
-        ("different", "push", "success", ""),
-        ("base", "push", "failure", ""),
-        ("base", "pull_request", "success", ""),
-    ],
-    ids=[
-        "verified-base",
-        "different-commit",
-        "failed-coverage",
-        "pull-request-artifact",
+        pytest.param({}, "success", "42", id="completed-base-with-provider-failure"),
+        pytest.param({"head_sha": "different"}, "success", "", id="different-commit"),
+        pytest.param({}, "failure", "", id="failed-coverage"),
+        pytest.param({"event": "pull_request"}, "success", "", id="pull-request"),
+        pytest.param({"status": "in_progress"}, "success", "", id="unfinished-run"),
+        pytest.param({"head_branch": "feature"}, "success", "", id="different-branch"),
+        pytest.param(
+            {"head_repository": {"full_name": "fork/repo"}},
+            "success",
+            "",
+            id="different-repository",
+        ),
     ],
 )
 def test_baseline_requires_success_on_the_exact_base(
-    monkeypatch, head, event, conclusion, expected
+    monkeypatch, overrides, coverage, expected
 ):
+    run = {
+        "id": 42,
+        "head_sha": "base",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "failure",
+        "head_branch": "main",
+        "head_repository": {"full_name": "owner/repo"},
+        **overrides,
+    }
+
     def api(command, **_kwargs):
-        response = (
-            {
+        if "/jobs?" in command[-1]:
+            response = {
                 "jobs": [
-                    {"name": "Full Coverage (Python 3.11)", "conclusion": conclusion}
+                    {"name": "Full Coverage (Python 3.11)", "conclusion": coverage}
                 ]
             }
-            if "/jobs?" in command[-1]
-            else {
-                "workflow_runs": [
-                    {
-                        "id": 42,
-                        "head_sha": head,
-                        "event": event,
-                        "head_branch": "main",
-                        "head_repository": {"full_name": "owner/repo"},
-                    }
-                ]
+        else:
+            # GitHub omits this concluded failed run when filtering by status=completed.
+            response = {
+                "workflow_runs": [] if "status=completed" in command[-1] else [run]
             }
-        )
         return SimpleNamespace(stdout=json.dumps(response))
 
     monkeypatch.setattr(ci.subprocess, "run", api)

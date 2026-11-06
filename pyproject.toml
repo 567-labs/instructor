@@ -108,6 +108,7 @@ datasets = ["datasets>=3.0.1,<6.0.0"]
 [dependency-groups]
 coverage = ["coverage"]
 lint = ["ruff"]
+mutation = ["mutmut==3.8.1"]
 
 [project.scripts]
 instructor = "instructor.cli.cli:app"

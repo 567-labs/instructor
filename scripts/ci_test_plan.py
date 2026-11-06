@@ -149,13 +149,14 @@ def verified_baseline(repository: str, sha: str) -> str:
 
     try:
         runs = read(
-            f"/actions/workflows/test.yml/runs?event=push&branch=main&head_sha={sha}&status=completed&per_page=1"
+            f"/actions/workflows/test.yml/runs?event=push&branch=main&head_sha={sha}&per_page=1"
         )["workflow_runs"]
         if not runs:
             return ""
         run = runs[0]
         if (
-            run["head_sha"] != sha
+            run["status"] != "completed"
+            or run["head_sha"] != sha
             or run["event"] != "push"
             or run["head_branch"] != "main"
             or run["head_repository"]["full_name"] != repository

@@ -32,6 +32,7 @@ jobs:
         if: steps.scope.outputs.changed == 'true'
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          version: latest-known
           enable-cache: true
           python-version: "3.11"
       - name: Set up Python
