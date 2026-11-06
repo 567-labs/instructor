@@ -4,7 +4,7 @@ from copy import copy
 from types import MemberDescriptorType
 from typing import (
     TYPE_CHECKING,
-    TypeVar,
+    Generic,
     Callable,
     Literal,
     Any,
@@ -24,7 +24,7 @@ from tenacity import (
     Retrying,
 )
 from collections.abc import Generator, Iterable, Awaitable, AsyncGenerator, Coroutine
-from typing_extensions import Self, overload
+from typing_extensions import Self, TypeVar, overload
 from pydantic_core import PydanticUndefined, PydanticUndefinedType
 from instructor.v2.dsl.partial import Partial
 from instructor.v2.core.hooks import Hooks, HookName
@@ -67,7 +67,7 @@ class Response(_ResponseBase):
 
     def __init__(
         self,
-        client: Instructor,
+        client: Instructor[Any],
     ):
         self.client = client
 
@@ -396,7 +396,19 @@ class AsyncResponse(_ResponseBase):
         )
 
 
-class Instructor:
+_ResponseT = TypeVar("_ResponseT", bound=_ResponseBase, default=Response)
+
+
+def _uses_responses_api(client: Any, mode: Mode) -> bool:
+    if mode not in (Mode.RESPONSES_TOOLS, Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS):
+        return False
+    import openai
+
+    assert isinstance(client, (openai.OpenAI, openai.AsyncOpenAI))
+    return True
+
+
+class Instructor(Generic[_ResponseT]):
     """Sync client wrapper that adds structured output support."""
 
     client: Any | None
@@ -425,14 +437,8 @@ class Instructor:
         self.provider = provider
         self.hooks = hooks or Hooks()
 
-        if mode in {
-            Mode.RESPONSES_TOOLS,
-            Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS,
-        }:
-            import openai as _openai
-
-            assert isinstance(client, (_openai.OpenAI, _openai.AsyncOpenAI))
-            self.responses = Response(client=self)
+        if _uses_responses_api(client, mode):
+            self.responses: _ResponseT = cast(_ResponseT, Response(client=self))
 
     def on(
         self,
@@ -792,7 +798,7 @@ class Instructor:
         return getattr(self, attr)
 
 
-class AsyncInstructor(Instructor):
+class AsyncInstructor(Instructor[AsyncResponse]):
     """Async client wrapper that adds structured output support."""
 
     client: Any | None
@@ -818,13 +824,7 @@ class AsyncInstructor(Instructor):
         self.provider = provider
         self.hooks = hooks or Hooks()
 
-        if mode in {
-            Mode.RESPONSES_TOOLS,
-            Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS,
-        }:
-            import openai as _openai
-
-            assert isinstance(client, (_openai.OpenAI, _openai.AsyncOpenAI))
+        if _uses_responses_api(client, mode):
             self.responses = AsyncResponse(client=self)
 
     async def create(  # type: ignore[override]  # ty: ignore[invalid-method-override]
