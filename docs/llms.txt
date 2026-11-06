@@ -1,0 +1,918 @@
+# Instructor: Type-Safe Structured Outputs from LLMs
+
+Instructor is a library for extracting structured outputs from Large Language Models (LLMs) with type safety and validation.
+
+## Table of Contents
+
+- [Instructor: Type-Safe Structured Outputs from LLMs](#instructor-type-safe-structured-outputs-from-llms)
+  - [Table of Contents](#table-of-contents)
+  - [Installation](#installation)
+  - [Core Concept](#core-concept)
+  - [Supported Providers](#supported-providers)
+    - [OpenAI](#openai)
+    - [Anthropic](#anthropic)
+    - [Google (Gemini)](#google-gemini)
+    - [Mistral](#mistral)
+    - [Cohere](#cohere)
+    - [Groq](#groq)
+    - [Other Providers](#other-providers)
+  - [Key Features](#key-features)
+    - [Response Validation](#response-validation)
+    - [Streaming Responses](#streaming-responses)
+    - [Partial Streaming](#partial-streaming)
+    - [Iterables](#iterables)
+    - [Multimodal Support](#multimodal-support)
+    - [Caching](#caching)
+    - [Hooks](#hooks)
+    - [Retries and Error Handling](#retries-and-error-handling)
+  - [Advanced Usage](#advanced-usage)
+    - [Parallel Processing](#parallel-processing)
+    - [Templating](#templating)
+    - [Maybe Responses](#maybe-responses)
+  - [Examples](#examples)
+    - [Simple Extraction](#simple-extraction)
+    - [Classification](#classification)
+    - [Complex Schema](#complex-schema)
+    - [Vision and Multimodal](#vision-and-multimodal)
+    - [Validation Context](#validation-context)
+    - [Validation Context with Jinja Templating](#validation-context-with-jinja-templating)
+
+## Installation
+
+```bash
+pip install instructor
+```
+
+For specific providers:
+
+```bash
+# OpenAI
+pip install "instructor[openai]"
+
+# Anthropic
+pip install "instructor[anthropic]"
+
+# Google (Gemini)
+pip install "instructor[gemini]"
+
+# Mistral
+pip install "instructor[mistral]"
+
+# Cohere
+pip install "instructor[cohere]"
+```
+
+## Core Concept
+
+Instructor uses Pydantic models to define structured outputs and patches LLM clients to enable extraction with validation.
+
+```python
+import instructor
+from pydantic import BaseModel
+
+# Define your output structure
+class User(BaseModel):
+    name: str
+    age: int
+
+# Create client using from_provider
+client = instructor.from_provider("openai/gpt-5.4-mini")
+
+# Extract structured data
+user = client.create(
+    response_model=User,
+    messages=[
+        {"role": "user", "content": "Extract the user: John Doe is 30 years old."}
+    ]
+)
+
+print(user.name)  # "John Doe"
+print(user.age)   # 30
+```
+
+## Supported Providers
+
+### OpenAI
+
+```python
+import instructor
+
+client = instructor.from_provider("openai/gpt-4o-mini")
+```
+
+Available Modes:
+- `Mode.TOOLS` (default) - Uses OpenAI function calling
+- `Mode.JSON` - Uses JSON mode
+- `Mode.MD_JSON` - Uses Markdown JSON mode
+- `Mode.FUNCTIONS` - Uses legacy function calling
+
+### Anthropic
+
+```python
+import instructor
+
+client = instructor.from_provider("anthropic/claude-3-5-sonnet")
+```
+
+Available Modes:
+- `Mode.ANTHROPIC_TOOLS` (default) - Uses Claude tool calling
+- `Mode.JSON` - Uses JSON mode
+
+### Google (Gemini)
+
+```python
+import instructor
+
+client = instructor.from_provider("google/gemini-2.5-flash")
+```
+
+Available Modes:
+- `Mode.GEMINI_JSON` (default) - Generates JSON responses
+- `Mode.GEMINI_TOOL` - Uses Gemini's function calling
+
+### Mistral
+
+```python
+import instructor
+
+client = instructor.from_provider("mistral/mistral-large-latest")
+```
+
+Available Modes:
+- `Mode.MISTRAL_TOOLS` (default) - Uses tools mode
+- `Mode.JSON` - Uses JSON mode
+
+### Cohere
+
+```python
+import instructor
+
+client = instructor.from_provider("cohere/command-r-plus")
+```
+
+Available Modes:
+- `Mode.COHERE_TOOL` (default) - Uses Cohere's tool calling
+
+### Groq
+
+```python
+import instructor
+
+client = instructor.from_provider("groq/mixtral-8x7b-32768")
+```
+
+Available Modes:
+- `Mode.TOOLS` (default) - Uses function calling
+
+### Other Providers
+
+Instructor supports many additional providers:
+- Azure OpenAI
+- Vertex AI
+- Fireworks
+- Cerebras
+- Writer
+- Anyscale
+- Databricks
+- Together
+- Perplexity
+- Ollama
+- OpenRouter
+- LiteLLM
+- llama-cpp-python
+
+## Key Features
+
+### Response Validation
+
+Instructor automatically validates responses against your Pydantic models:
+
+```python
+from pydantic import BaseModel, Field
+import instructor
+from openai import OpenAI
+
+class UserWithValidation(BaseModel):
+    name: str
+    age: int = Field(gt=0, lt=150)  # Age must be between 0 and 150
+    email: str = Field(pattern=r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+
+client = instructor.from_provider("openai/gpt-5.4-mini")
+
+user = client.create(
+    model="gpt-5.4-mini",
+    response_model=UserWithValidation,
+    messages=[
+        {"role": "user", "content": "Extract the user: John Doe is 30 years old, email is john@example.com"}
+    ]
+)
+```
+
+If validation fails, instructor will automatically reattempt the request with error details.
+
+### Streaming Responses
+
+Stream partial responses as they're generated:
+
+```python
+import instructor
+from pydantic import BaseModel
+
+class Report(BaseModel):
+    summary: str
+    analysis: str
+    recommendations: list[str]
+
+client = instructor.from_provider("openai/gpt-5.4-mini")
+
+# Enable streaming
+for partial in client.create(
+    model="gpt-5.4-mini",
+    response_model=Report,
+    stream=True,
+    messages=[
+        {"role": "user", "content": "Write a detailed report about renewable energy."}
+    ]
+):
+    # Process each update
+    print(f"Received update: {partial.model_dump_json()}")
+
+# The final response has the complete model
+print(f"Final report: {partial}")
+```
+
+### Partial Streaming
+
+Stream specific fields as they complete:
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel
+from instructor.dsl import partial
+
+class LongReport(BaseModel):
+    executive_summary: str = partial()
+    detailed_analysis: str = partial()
+    conclusion: str = partial()
+
+client = instructor.from_provider("openai/gpt-5.4-mini")
+
+for chunk in client.create(
+    model="gpt-5.4-mini",
+    response_model=LongReport,
+    stream=True,
+    messages=[
+        {"role": "user", "content": "Create a detailed report on climate change impacts."}
+    ]
+):
+    # Each chunk will contain completed fields
+    if hasattr(chunk, 'executive_summary') and chunk.executive_summary:
+        print("Executive Summary Complete!")
+    if hasattr(chunk, 'detailed_analysis') and chunk.detailed_analysis:
+        print("Analysis Complete!")
+    if hasattr(chunk, 'conclusion') and chunk.conclusion:
+        print("Conclusion Complete!")
+```
+
+### Iterables
+
+Process multiple items efficiently:
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel
+from instructor.dsl import iterable
+
+class Person(BaseModel):
+    name: str
+    age: int
+
+class PeopleList(BaseModel):
+    people: list[Person] = iterable()
+
+client = instructor.from_provider("openai/gpt-5.4-mini")
+
+for person in client.create(
+    model="gpt-5.4-mini",
+    response_model=PeopleList,
+    stream=True,
+    messages=[
+        {"role": "user", "content": "List 5 fictional characters with their ages."}
+    ]
+).people:
+    print(f"Received: {person.name}, {person.age}")
+```
+
+### Multimodal Support
+
+Process images and other media:
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel
+import base64
+
+class ImageContent(BaseModel):
+    objects: list[str]
+    description: str
+    dominant_colors: list[str]
+
+# Load image
+with open("image.jpg", "rb") as image_file:
+    base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+
+client = instructor.from_provider("openai/gpt-5.4-mini")
+
+content = client.create(
+    model="gpt-5.4-mini",
+    response_model=ImageContent,
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Describe this image in detail"},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}"
+                    }
+                }
+            ]
+        }
+    ]
+)
+
+print(content.model_dump_json(indent=2))
+```
+
+### Caching
+
+Cache responses to improve performance and reduce API costs:
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel
+import diskcache
+
+# Create a cache
+cache = diskcache.Cache("./my_cache_directory")
+
+# Create client with caching
+client = instructor.from_provider(
+    "openai/gpt-5.4-mini",
+    cache=cache
+)
+
+class Summary(BaseModel):
+    points: list[str]
+
+# This will use the cache if the same request was made before
+summary = client.create(
+    model="gpt-5.4-mini",
+    response_model=Summary,
+    messages=[
+        {"role": "user", "content": "Summarize the key benefits of renewable energy."}
+    ]
+)
+```
+
+### Hooks
+
+Monitor and customize the processing flow:
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel
+import json
+
+class User(BaseModel):
+    name: str
+    age: int
+
+# Define hooks
+def log_prompt(prompt, **kwargs):
+    print(f"PROMPT: {json.dumps(prompt)}")
+    return prompt
+
+def log_response(response, **kwargs):
+    print(f"RESPONSE: {response}")
+    return response
+
+def log_parsed(parsed, **kwargs):
+    print(f"PARSED: {parsed}")
+    return parsed
+
+# Apply hooks
+client = instructor.from_provider(
+    "openai/gpt-5.4-mini",
+    mode=instructor.Mode.TOOLS,
+    hooks={
+        "prompt": log_prompt,
+        "response": log_response, 
+        "parsed": log_parsed
+    }
+)
+
+user = client.create(
+    model="gpt-5.4-mini",
+    response_model=User,
+    messages=[
+        {"role": "user", "content": "Extract the user: John Doe is 30 years old."}
+    ]
+)
+```
+
+### Retries and Error Handling
+
+Handle validation failures with customizable retry logic:
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel, Field
+
+class StrictUser(BaseModel):
+    name: str
+    age: int = Field(gt=0, lt=150)
+    email: str = Field(pattern=r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+
+# Configure max retries
+client = instructor.from_provider(
+    "openai/gpt-5.4-mini",
+    max_retries=3  # Will retry up to 3 times if validation fails
+)
+
+try:
+    user = client.create(
+        model="gpt-5.4-mini",
+        response_model=StrictUser,
+        messages=[
+            {"role": "user", "content": "Extract the user: John Doe is 30 years old."}
+        ]
+    )
+except instructor.exceptions.ValidationError as e:
+    print(f"Validation failed: {e}")
+```
+
+## Advanced Usage
+
+### Parallel Processing
+
+Process multiple tasks concurrently:
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel
+from instructor.dsl.parallel import parallel
+
+class Data(BaseModel):
+    summary: str
+    entities: list[str]
+    sentiment: str
+
+client = instructor.from_provider("openai/gpt-5.4-mini")
+
+# Create parallel tasks
+tasks = [
+    {"text": "Apple announces new iPhone with revolutionary features."},
+    {"text": "Climate scientists warn of increasing global temperatures."},
+    {"text": "Stock market hits record high amid economic recovery."}
+]
+
+# Process in parallel
+results = parallel(
+    client=client,
+    model="gpt-5.4-mini",
+    response_model=Data,
+    prompts=[
+        [{"role": "user", "content": f"Analyze this text: {task['text']}"}]
+        for task in tasks
+    ],
+    max_workers=3
+)
+
+for i, result in enumerate(results):
+    print(f"Result {i+1}:")
+    print(f"  Summary: {result.summary}")
+    print(f"  Entities: {', '.join(result.entities)}")
+    print(f"  Sentiment: {result.sentiment}")
+```
+
+### Templating
+
+Instructor supports Jinja templates directly in message content, automatically applying variables from the `context` parameter:
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel
+
+class Analysis(BaseModel):
+    key_points: list[str]
+    summary: str
+
+client = instructor.from_provider("openai/gpt-5.4-mini")
+
+# Context will be used to render templates in messages
+analysis = client.create(
+    model="gpt-5.4-mini",
+    response_model=Analysis,
+    messages=[
+        {
+            "role": "system", 
+            "content": "You are an expert {{ analyst_type }} analyst."
+        },
+        {
+            "role": "user", 
+            "content": """
+            Please analyze the following {{ document_type }}:
+            
+            {{ content }}
+            
+            Provide a detailed analysis.
+            """
+        }
+    ],
+    context={
+        "analyst_type": "financial",
+        "document_type": "news article",
+        "content": "Renewable energy investments reached record levels in 2023..."
+    }
+)
+
+print(f"Key points: {analysis.key_points}")
+print(f"Summary: {analysis.summary}")
+```
+
+The templating system automatically processes all message content containing Jinja syntax (`{{ variable }}`, `{% if condition %}`, etc.) using the variables provided in the `context` parameter. This same context is also available to validators through `info.context`.
+
+### Maybe Responses
+
+Handle uncertain responses gracefully:
+
+```python
+import instructor
+from pydantic import BaseModel
+from instructor import Maybe
+
+class Person(BaseModel):
+    name: str
+    age: int
+    occupation: str
+
+client = instructor.from_provider("openai/gpt-5.4-mini")
+
+# Maybe is a factory: Maybe(Person), not Maybe[Person]
+MaybePerson = Maybe(Person)
+
+result = client.create(
+    model="gpt-5.4-mini",
+    response_model=MaybePerson,
+    messages=[
+        {"role": "user", "content": "Extract info about Jane Doe who is 28 years old."}
+    ]
+)
+
+if result.result:
+    print(f"Name: {result.result.name}, Age: {result.result.age}")
+    print(f"Occupation: {result.result.occupation}")
+elif result.error:
+    print(f"Unable to extract person. Message: {result.message}")
+else:
+    print("No person extracted")
+```
+
+## Examples
+
+### Simple Extraction
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel
+
+class Contact(BaseModel):
+    name: str
+    email: str
+    phone: str
+
+client = instructor.from_provider("openai/gpt-5.4-mini")
+
+contact = client.create(
+    model="gpt-5.4-mini",
+    response_model=Contact,
+    messages=[
+        {"role": "user", "content": "My name is John Doe, email is john@example.com and phone is 555-123-4567"}
+    ]
+)
+
+print(contact.model_dump_json(indent=2))
+```
+
+### Classification
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel
+from enum import Enum
+
+class Sentiment(str, Enum):
+    POSITIVE = "positive"
+    NEGATIVE = "negative"
+    NEUTRAL = "neutral"
+
+class SentimentAnalysis(BaseModel):
+    sentiment: Sentiment
+    confidence: float
+    explanation: str
+
+client = instructor.from_provider("openai/gpt-5.4-mini")
+
+analysis = client.create(
+    model="gpt-5.4-mini",
+    response_model=SentimentAnalysis,
+    messages=[
+        {"role": "user", "content": "I absolutely loved the new movie! It was fantastic!"}
+    ]
+)
+
+print(f"Sentiment: {analysis.sentiment}")
+print(f"Confidence: {analysis.confidence}")
+print(f"Explanation: {analysis.explanation}")
+```
+
+### Complex Schema
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel, Field
+from typing import List, Optional
+from datetime import datetime
+
+class Address(BaseModel):
+    street: str
+    city: str
+    state: str
+    zip_code: str
+
+class Experience(BaseModel):
+    company: str
+    position: str
+    start_date: datetime
+    end_date: Optional[datetime] = None
+    description: str
+
+class Person(BaseModel):
+    name: str
+    age: int = Field(gt=0, lt=150)
+    email: str
+    phone: Optional[str] = None
+    address: Address
+    skills: List[str] = Field(min_items=1)
+    experience: List[Experience] = Field(min_items=0)
+
+client = instructor.from_provider("openai/gpt-5.4-mini")
+
+person = client.create(
+    model="gpt-5.4-mini",
+    response_model=Person,
+    messages=[
+        {"role": "user", "content": """
+        Extract information about Jane Smith who is 35 years old.
+        Email: jane.smith@example.com
+        Phone: 555-987-6543
+        Address: 123 Main St, Springfield, IL 62701
+        Skills: Python, Data Analysis, Machine Learning, Communication
+        
+        Work Experience:
+        - Data Scientist at TechCorp (2019-01-15 to 2023-04-30)
+          Led data science projects for major clients
+        - Junior Analyst at DataFirm (2015-06-01 to 2018-12-15)
+          Performed statistical analysis and created reports
+        """}
+    ]
+)
+
+print(person.model_dump_json(indent=2))
+```
+
+### Vision and Multimodal
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel, Field
+import base64
+from typing import List
+
+class Item(BaseModel):
+    name: str
+    price: float = Field(gt=0)
+    quantity: int = Field(gt=0)
+
+class Receipt(BaseModel):
+    store_name: str
+    date: str
+    items: List[Item]
+    subtotal: float
+    tax: float
+    total: float
+
+client = instructor.from_provider("openai/gpt-5.4-mini")
+
+# Load the receipt image
+with open("receipt.jpg", "rb") as image_file:
+    base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+
+receipt = client.create(
+    model="gpt-5.4-mini",
+    response_model=Receipt,
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Extract all information from this receipt"},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}"
+                    }
+                }
+            ]
+        }
+    ]
+)
+
+print(receipt.model_dump_json(indent=2))
+```
+
+### Validation Context
+
+Validation context allows you to pass additional contextual information to validators, enabling sophisticated validation that depends on external data:
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel, field_validator, ValidationInfo
+
+class CitationCheck(BaseModel):
+    statement: str
+    citation: str
+    
+    @field_validator('citation')
+    def validate_citation(cls, citation: str, info: ValidationInfo) -> str:
+        # Access the validation context
+        source_text = info.context.get("source_document", "")
+        
+        # Check if the citation actually exists in the source document
+        if citation not in source_text:
+            raise ValueError(f"Citation '{citation}' not found in source document")
+        return citation
+
+client = instructor.from_provider("openai/gpt-5.4-mini")
+
+source_document = "The Earth is the third planet from the Sun and the only astronomical object known to harbor life."
+
+result = client.create(
+    model="gpt-4o",
+    response_model=CitationCheck,
+    messages=[
+        {"role": "user", "content": "Make a statement about Earth and provide a citation from the text."}
+    ],
+    context={"source_document": source_document}
+)
+
+print(f"Statement: {result.statement}")
+print(f"Citation: {result.citation} (verified to exist in source)")
+```
+
+Validation context is particularly useful for:
+
+1. **Citation validation**: Ensuring quoted text exists in source documents
+2. **Content moderation**: Checking against banned word lists
+3. **LLM-as-validator**: Using one LLM to validate the output of another
+4. **Reference data validation**: Checking responses against reference data
+
+Combined with Instructor's automatic reasking, validation context creates a powerful feedback loop:
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel, field_validator, ValidationInfo
+
+class RelevantAnswer(BaseModel):
+    answer: str
+    
+    @field_validator('answer')
+    def check_relevance(cls, answer: str, info: ValidationInfo) -> str:
+        question = info.context.get("question", "")
+        if "climate change" in question.lower() and "climate" not in answer.lower():
+            raise ValueError("Answer doesn't address climate change as requested in the question")
+        return answer
+
+client = instructor.from_provider(
+    "openai/gpt-5.4-mini",
+    max_retries=2  # Will retry up to 2 times if validation fails
+)
+
+question = "What are the major impacts of climate change?"
+
+result = client.create(
+    model="gpt-5.4-mini",
+    response_model=RelevantAnswer,
+    messages=[
+        {"role": "user", "content": """
+        Answer the following question:
+
+        <question>
+        {{ question }}
+        </question>
+        """}
+    ],
+    context={"question": question}
+)
+
+print(result.answer)  # Guaranteed to mention climate change
+```
+
+This mechanism enables powerful templating through validation, where you can enforce that responses meet specific criteria or follow particular formats by providing the necessary context for validation.
+
+### Validation Context with Jinja Templating
+
+Validation context can also be used directly in Jinja templates, creating a powerful combination where you can both template your prompts and validate responses against the same context:
+
+```python
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel, field_validator, ValidationInfo
+from instructor.templating import template
+
+class AnswerWithContext(BaseModel):
+    answer: str
+    
+    @field_validator('answer')
+    def validate_answer(cls, answer: str, info: ValidationInfo) -> str:
+        # Access the same context used in the template
+        context_doc = info.context.get("document", "")
+        if len(context_doc) > 100 and not any(fact in answer for fact in context_doc.split('.')[:3]):
+            raise ValueError("Answer doesn't use key facts from the context document")
+        return answer
+
+client = instructor.from_provider("openai/gpt-5.4-mini", max_retries=2)
+
+# Document to use in both template and validation
+context_document = """
+The James Webb Space Telescope (JWST) was launched on December 25, 2021. 
+It is the largest optical telescope in space and can observe objects too 
+old, distant, or faint for the Hubble Space Telescope. The telescope is 
+named after James E. Webb, who was the administrator of NASA from 1961 to 1968.
+"""
+
+# Use the template with variables from context
+question = "When was the James Webb Space Telescope launched and what can it do?"
+
+result = client.create(
+    model="gpt-4o",
+    response_model=AnswerWithContext,
+    messages=[
+        {
+            "role": "user", 
+            "content": """
+            Please answer the following question based on this information:
+
+            {{ document }}
+
+            Question: {{ question }}
+            """
+        }
+    ],
+    # Pass the same context to validation
+    context={
+        "document": context_document,
+        "question": question
+    }
+)
+
+print(result.answer)  # Guaranteed to include facts from the context
+```
+
+This approach creates a seamless flow where:
+
+1. The same context variables are used in your Jinja templates for prompt construction
+2. Those same variables are available to validators to ensure the LLM's response is faithful to the provided information
+3. If validation fails, Instructor will automatically retry with error details
+
+This pattern is especially useful for:
+- RAG applications where you need to ensure responses are grounded in retrieved documents
+- Q&A systems where answers must be factually consistent with provided context
+- Any scenario where you want to template prompts and validate responses against the same data
+
+This guide covers the core features and usage patterns of the Instructor library. For more detailed examples and advanced use cases, refer to the official documentation.

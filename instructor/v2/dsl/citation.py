@@ -1,0 +1,120 @@
+from pydantic import BaseModel, Field, model_validator, ValidationInfo
+from collections.abc import Generator
+
+
+class CitationMixin(BaseModel):
+    """
+    Validate extracted quotations against source text supplied in validation context.
+
+    ## Usage
+
+    ```python
+    from pydantic import Field
+    from instructor import CitationMixin
+
+    class User(CitationMixin):
+        name: str = Field(description="The name of the person")
+        age: int = Field(description="The age of the person")
+        role: str = Field(description="The role of the person")
+
+
+    context = "Betty was a student. Jason was a student. Jason is 20 years old"
+
+    user = User.model_validate(
+        {
+            "name": "Jason",
+            "age": 20,
+            "role": "student",
+            "substring_quotes": ["Jason was a student", "Jason is 20 years old"],
+        },
+        context={"context": context},
+    )
+
+    for quote in user.substring_quotes:
+        assert quote in context
+
+    print(user.model_dump_json(indent=4))
+    ```
+
+    ## Result
+    ```json
+    {
+        "substring_quotes": [
+            "Jason was a student",
+            "Jason is 20 years old"
+        ],
+        "name": "Jason",
+        "age": 20,
+        "role": "student"
+    }
+    ```
+
+    """
+
+    substring_quotes: list[str] = Field(
+        description="List of unique and specific substrings of the quote that was used to answer the question.",
+    )
+
+    @model_validator(mode="after")  # type: ignore[misc]
+    def validate_sources(self, info: ValidationInfo) -> "CitationMixin":
+        """
+        For each substring_phrase, find the span of the substring_phrase in the context.
+        If the span is not found, remove the substring_phrase from the list.
+        """
+        if info.context is None:
+            return self
+
+        # Get the context from the info
+        text_chunks = info.context.get("context", None)
+        if text_chunks is None:
+            return self
+
+        if isinstance(text_chunks, str):
+            chunks = [text_chunks]
+        elif isinstance(text_chunks, (list, tuple)) and all(
+            isinstance(chunk, str) for chunk in text_chunks
+        ):
+            chunks = text_chunks
+        else:
+            raise ValueError(
+                "Citation context must be text or a list/tuple of text chunks"
+            )
+
+        # Search each source independently; joined chunks can invent cross-source quotes.
+        self.substring_quotes = [
+            chunk[start:end] for chunk in chunks for start, end in self.get_spans(chunk)
+        ]
+        return self
+
+    def _get_span(
+        self, quote: str, context: str, errs: int = 5
+    ) -> Generator[tuple[int, int], None, None]:
+        if not quote or not context:
+            return
+
+        import regex
+
+        # Escape the quote so regex metacharacters in LLM-generated text
+        # (e.g. unbalanced parentheses or brackets) are matched literally
+        # instead of crashing the fuzzy search with a regex compile error.
+        minor = regex.escape(quote)
+        major = context
+
+        # Cap the error budget to 1/3 of the quote length (up to max `errs`)
+        # so short quotes do not match arbitrary substrings via excessive fuzzy edits.
+        max_errs = min(errs, len(quote) // 3)
+
+        errs_ = 0
+        s = regex.search(f"({minor}){{e<={errs_}}}", major)
+        while s is None and errs_ < max_errs:
+            errs_ += 1
+            s = regex.search(f"({minor}){{e<={errs_}}}", major)
+
+        if s is not None:
+            for start, end in s.spans():
+                if start != end:
+                    yield (start, end)
+
+    def get_spans(self, context: str) -> Generator[tuple[int, int], None, None]:
+        for quote in self.substring_quotes:
+            yield from self._get_span(quote, context)

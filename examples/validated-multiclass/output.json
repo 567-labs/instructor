@@ -1,0 +1,26 @@
+{
+  "texts": [
+    "What is your phone number?",
+    "What is your email address?",
+    "What is your address?",
+    "What is your privacy policy?"
+  ],
+  "predictions": [
+    {
+      "id": 1,
+      "name": "phone"
+    },
+    {
+      "id": 2,
+      "name": "email"
+    },
+    {
+      "id": 3,
+      "name": "address"
+    },
+    {
+      "id": 4,
+      "name": "Other"
+    }
+  ]
+}

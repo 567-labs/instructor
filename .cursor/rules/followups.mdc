@@ -1,0 +1,8 @@
+---
+description: when AI agents are collaborating on code
+globs: "*"
+alwaysApply: true
+---
+Make sure to come up with follow-up hot keys. They should be thoughtful and actionable and result in small additional code changes based on the context that you have available.
+
+using [J], [K], [L]

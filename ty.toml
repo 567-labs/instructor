@@ -1,0 +1,11 @@
+[src]
+respect-ignore-files = true
+exclude = [
+    ".venv/",
+    "docs/",
+    "examples/",
+    "plan/",
+    "scripts/",
+    "tests/",
+    "**/*.ipynb",
+]

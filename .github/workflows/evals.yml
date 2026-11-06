@@ -1,0 +1,39 @@
+name: Weekly Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * 0" # Runs at 00:00 UTC every Sunday
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**" # Ignore all paths to ensure it only triggers on schedule
+
+permissions:
+  contents: read
+
+jobs:
+  weekly-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: latest-known
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --frozen --all-extras --dev
+
+      - name: Run all tests
+        run: uv run --frozen pytest tests/ --asyncio-mode=auto
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

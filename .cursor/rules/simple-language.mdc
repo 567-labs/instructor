@@ -1,0 +1,8 @@
+---
+description: when writing documentation
+globs: *.md
+alwaysApply: false
+---
+
+- When writing documents and concepts make sure that you write at a grade 10 reading level 
+- make sure every code block has complete imports and makes no references to previous code blocks, each one needs to be self contained

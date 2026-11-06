@@ -1,0 +1,6 @@
+[run]
+relative_files = True
+source =
+    instructor/
+omit =
+    instructor/cli/*

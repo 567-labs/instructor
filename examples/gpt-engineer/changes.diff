@@ -1,0 +1,83 @@
+--- readme.md
++++ readme.md
+@@ -1,9 +1,9 @@
+ # FastAPI App
+ 
+-This is a FastAPI app that provides some basic math functions.
++This is a Flask app that provides some basic math functions.
+ 
+ ## Usage
+ 
+ To use this app, follow the instructions below:
+ 
+ 1. Install the required dependencies by running `pip install -r requirements.txt`.
+-2. Start the app by running `uvicorn main:app --reload`.
++2. Start the app by running `flask run`.
+ 3. Open your browser and navigate to `http://localhost:5000/docs` to access the Swagger UI documentation.
+ 
+ ## Example
+ 
+ To perform a basic math operation, you can use the following curl command:
+ 
+ ```bash
+-curl -X POST -H "Content-Type: application/json" -d '{"operation": "add", "operands": [2, 3]}' http://localhost:8000/calculate
++curl -X POST -H "Content-Type: application/json" -d '{"operation": "add", "operands": [2, 3]}' http://localhost:5000/calculate
+ ```
+
+--- main.py
++++ main.py
+@@ -1,29 +1,29 @@
+-from fastapi import FastAPI
+-from pydantic import BaseModel
++from flask import Flask, request, jsonify
+ 
+-app = FastAPI()
++app = Flask(__name__)
+ 
+ 
+-class Operation(BaseModel):
+-    operation: str
+-    operands: list
++@app.route('/calculate', methods=['POST'])
++def calculate():
++    data = request.get_json()
++    operation = data.get('operation')
++    operands = data.get('operands')
+ 
+ 
+-@app.post('/calculate')
+-async def calculate(operation: Operation):
+-    if operation.operation == 'add':
+-        result = sum(operation.operands)
+-    elif operation.operation == 'subtract':
+-        result = operation.operands[0] - sum(operation.operands[1:])
+-    elif operation.operation == 'multiply':
++    if operation == 'add':
++        result = sum(operands)
++    elif operation == 'subtract':
++        result = operands[0] - sum(operands[1:])
++    elif operation == 'multiply':
+         result = 1
+-        for operand in operation.operands:
++        for operand in operands:
+             result *= operand
+-    elif operation.operation == 'divide':
+-        result = operation.operands[0]
+-        for operand in operation.operands[1:]:
++    elif operation == 'divide':
++        result = operands[0]
++        for operand in operands[1:]:
+             result /= operand
+     else:
+         result = None
+-    return {'result': result}
++    return jsonify({'result': result})
+
+--- requirements.txt
++++ requirements.txt
+@@ -1,3 +1,2 @@
+-fastapi
+-uvicorn
+-pydantic
++flask
++flask-cors

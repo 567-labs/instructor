@@ -1,0 +1,55 @@
+name: Package compatibility
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  installed-package:
+    name: Wheel / Python ${{ matrix.python }} / ${{ matrix.sdk }} / ${{ matrix.extras || 'core' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python: "3.10"
+            sdk: minimum
+          - python: "3.10"
+            sdk: latest
+          - python: "3.11"
+            sdk: latest
+          - python: "3.14"
+            sdk: latest
+          - python: "3.11"
+            sdk: latest
+            extras: google-genai
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Select changed inputs
+        id: scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: >-
+          python -m scripts.ci_test_plan --changed-paths
+          instructor tests/packaging tests/typing scripts pyproject.toml uv.lock README.md LICENSE .github/workflows/package-compatibility.yml
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        if: steps.scope.outputs.changed == 'true'
+        with:
+          version: latest-known
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+      - name: Build sdist and exercise installed wheel without checkout imports
+        if: steps.scope.outputs.changed == 'true'
+        env:
+          PACKAGE_PYTHON: ${{ matrix.python }}
+          PACKAGE_SDK: ${{ matrix.sdk }}
+          PACKAGE_EXTRAS: ${{ matrix.extras }}
+        run: tests/packaging/check_package.sh

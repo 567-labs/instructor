@@ -1,0 +1,18 @@
+{"queries": [{"query": "sales Q1", "source_type": "CRM"}], "user_id": "user_1"}
+{"queries": [{"query": "customer churn", "source_type": "WEB", "is_priority": true}], "user_id": "user_2", "total_queries": 1}
+{"queries": ["query": "email campaigns", "source_type": "EMAIL"}, {"query": "social ads", "source_type": "SOCIAL_MEDIA"}], "user_id": "user_3", "total_queries": 2}
+{"queries": [{"query": "sales Q2", "source_type": "INVALID_ENUM"}], "user_id": "user_4"}
+{queries: [{"query": "sales Q3", "source_type": "CRM"}], "user_id": "user_5"}
+{"queries": [{"query": "sales Q4", "source_type": "CRM", "timestamp": "2023-09-10T12:00:00Z"}], "total_queries": 1}
+{"queries": [{"query": "customer retention", "source_type": "EMAIL", "is_priority": "should_be_bool"}], "user_id": "user_6"}
+{"queries": [{"query": "sales Q1", "source_type": "CRM"}, {"query": "sales Q2", "source_type": "WEB"}], "user_id": "user_7", "total_queries": 2}
+{"queries": [{"query": "sales Q1", "source_type": "CRM", "timestamp": "2023-09-10T12:00:00Z"}], "user_id": "user_8", "total_queries": 1}
+{"queries": [{"query": "revenue 2022", "source_type": "WEB", "results_limit": 10, "is_priority": true}], "user_id": "user_9", "total_queries": 1}
+{"queries": [{"query": "email outreach", "source_type": "EMAIL", "tags": ["outreach", "2022"]}], "user_id": "user_10", "total_queries": 1}
+{"queries": [{"query": "product sales", "source_type": "CRM"}, {"query": "customer satisfaction", "source_type": "EMAIL"}], "user_id": "user_11", "total_queries": 2}
+{"queries": [{"query": "social impact", "source_type": "SOCIAL_MEDIA"}, {"query": "email campaigns", "source_type": "EMAIL"}, {"query": "web traffic", "source_type": "WEB"}], "user_id": "user_12", "total_queries": 3}
+{"queries": [{"query": "sales Q1", "source_type": "CRM", "is_priority": false}], "user_id": "user_13", "total_queries": 1}
+{"queries": [{"query": "marketing strategies", "source_type": "WEB", "results_limit": 15, "is_priority": true, "tags": ["strategy", "2023"]}], "user_id": "user_14", "total_queries": 1}
+{"queries": [{"query": "customer feedback", "source_type": "EMAIL", "tags": ["feedback"]}], "user_id": "user_15", "total_queries": 1}
+{"queries": [{"query": "revenue streams", "source_type": "CRM"}, {"query": "new products", "source_type": "WEB"}], "user_id": "user_16", "total_queries": 2}
+{"queries": [{"query": "social trends", "source_type": "SOCIAL_MEDIA", "is_priority": true}, {"query": "email open rates", "source_type": "EMAIL", "results_limit": 5}, {"query": "website analytics", "source_type": "WEB", "tags": ["analytics"]}], "user_id": "user_17", "total_queries": 3}

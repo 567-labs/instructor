@@ -1,0 +1,1330 @@
+"""OpenAI v2 mode handlers with DSL-aware parsing.
+
+This module implements mode handlers for OpenAI using the v2 registry system.
+Supports TOOLS, JSON_SCHEMA, MD_JSON, PARALLEL_TOOLS, and RESPONSES_TOOLS modes.
+"""
+
+from __future__ import annotations
+
+import inspect
+import json
+import logging
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Generator,
+    Iterable as TypingIterable,
+)
+from functools import partial
+from textwrap import dedent
+from typing import TYPE_CHECKING, Any, cast, get_origin
+
+from pydantic import BaseModel
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from openai.types.chat import ChatCompletion
+
+from instructor.v2.core.messages import text_from_content_blocks
+from instructor.v2.core.mode import Mode
+from instructor.v2.core.providers import Provider
+from instructor.v2.core.openai_endpoints import endpoint_providers
+from instructor.v2.core.errors import (
+    ConfigurationError,
+    IncompleteOutputException,
+    ResponseParsingError,
+)
+from instructor.v2.dsl.iterable import IterableBase, _ToolCallStart
+from instructor.v2.dsl.parallel import (
+    ParallelBase as ParallelBase,
+    ParallelModel,
+    model_for_tool_name,
+)
+from instructor.v2.dsl.simple_type import AdapterBase as AdapterBase
+from instructor.v2.core.multimodal import convert_messages as convert_messages_v1
+from instructor.v2.core.json import (
+    extract_json_from_codeblock,
+    extract_json_from_stream,
+    extract_json_from_stream_async,
+)
+from instructor.v2.core.messages import (
+    copy_messages_for_mutation,
+    dump_message,
+    merge_consecutive_messages,
+)
+from instructor.v2.providers.openai.schema import (
+    generate_openai_schema,
+    make_strict_schema,
+)
+from instructor.v2.core.decorators import register_mode_handler
+from instructor.v2.core.handler import ModeHandler
+from instructor.v2.core.streaming import StreamingModelState
+
+logger = logging.getLogger("instructor")
+
+
+OPENAI_COMPAT_PROVIDERS = [
+    Provider.OPENAI,
+    Provider.AZURE_OPENAI,
+    Provider.ANYSCALE,
+    Provider.TOGETHER,
+    Provider.DATABRICKS,
+    Provider.DEEPSEEK,
+    Provider.OPENROUTER,
+    Provider.GROQ,
+    Provider.FIREWORKS,
+    Provider.CEREBRAS,
+]
+
+OPENAI_PARALLEL_TOOL_PROVIDERS = [
+    Provider.OPENAI,
+    Provider.AZURE_OPENAI,
+    Provider.ANYSCALE,
+    Provider.TOGETHER,
+    Provider.DATABRICKS,
+    Provider.DEEPSEEK,
+    Provider.OPENROUTER,
+    Provider.CEREBRAS,
+]
+
+OPENAI_JSON_SCHEMA_PROVIDERS = [
+    Provider.OPENAI,
+    Provider.AZURE_OPENAI,
+    Provider.ANYSCALE,
+    Provider.TOGETHER,
+    Provider.DATABRICKS,
+    Provider.DEEPSEEK,
+    Provider.GROQ,
+    Provider.FIREWORKS,
+    Provider.CEREBRAS,
+]
+
+
+def _has_no_choice_to_replay(response: Any) -> bool:
+    """Return whether the response has no completion choice to replay.
+
+    Covers Stream objects (no ``choices`` attribute) and the empty
+    ``choices`` lists some gateways return for filtered or failed turns,
+    where a reask handler has no assistant message to append.
+    """
+    return not getattr(response, "choices", None)
+
+
+def _filter_responses_tool_calls(output_items: list[Any]) -> list[Any]:
+    """Return response output items that represent tool calls."""
+    tool_calls: list[Any] = []
+    for item in output_items:
+        item_type = getattr(item, "type", None)
+        if item_type in {"function_call", "tool_call"}:
+            tool_calls.append(item)
+            continue
+        if item_type is None and hasattr(item, "arguments"):
+            tool_calls.append(item)
+    return tool_calls
+
+
+def _format_responses_tool_call_details(tool_call: Any) -> str:
+    """Format tool call name/id details for reask messages."""
+    tool_name = getattr(tool_call, "name", None)
+    tool_id = (
+        getattr(tool_call, "id", None)
+        or getattr(tool_call, "call_id", None)
+        or getattr(tool_call, "tool_call_id", None)
+    )
+    details: list[str] = []
+    if tool_name:
+        details.append(f"name={tool_name}")
+    if tool_id:
+        details.append(f"id={tool_id}")
+    if not details:
+        return ""
+    return f" (tool call {', '.join(details)})"
+
+
+def _ensure_text_format_config(
+    new_kwargs: dict[str, Any],
+    response_model: type[Any],
+    parameters_schema: dict[str, Any],
+) -> None:
+    """Align Responses API text.format with the forced tool schema."""
+    desired_format = {
+        "type": "json_schema",
+        "name": response_model.__name__,
+        "strict": True,
+        "schema": parameters_schema,
+    }
+
+    existing_text = new_kwargs.get("text")
+    if isinstance(existing_text, dict):
+        existing_format = existing_text.get("format")
+        if existing_format == desired_format:
+            return
+        if isinstance(existing_format, dict):
+            logger.debug(
+                "Overriding user-provided text.format with tool schema "
+                "to prevent competing Responses output paths."
+            )
+        updated_text = existing_text.copy()
+        updated_text["format"] = desired_format
+        new_kwargs["text"] = updated_text
+        return
+
+    new_kwargs["text"] = {"format": desired_format}
+
+
+def reask_tools(
+    kwargs: dict[str, Any],
+    response: Any,
+    exception: Exception,
+):
+    """Handle reask for OpenAI tools mode when validation fails."""
+    kwargs = kwargs.copy()
+
+    if _has_no_choice_to_replay(response):
+        kwargs["messages"].append(
+            {
+                "role": "user",
+                "content": (
+                    f"Validation Error found:\n{exception}\n"
+                    "Recall the function correctly, fix the errors"
+                ),
+            }
+        )
+        return kwargs
+
+    message = response.choices[0].message
+    reask_msgs: list[Any] = [dump_message(message)]
+    tool_calls = message.tool_calls or []
+    if not tool_calls:
+        # Model replied without calling the tool (e.g. OpenAI-compatible
+        # providers that don't honor forced tool_choice). Fall back to a plain
+        # user correction instead of iterating None, mirroring the streaming
+        # branch and the GenAI reask handler.
+        reask_msgs.append(
+            {
+                "role": "user",
+                "content": (
+                    f"Validation Error found:\n{exception}\n"
+                    "Recall the function correctly, fix the errors"
+                ),
+            }
+        )
+    for tool_call in tool_calls:
+        reask_msgs.append(
+            {
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": tool_call.function.name,
+                "content": (
+                    f"Validation Error found:\n{exception}\n"
+                    "Recall the function correctly, fix the errors"
+                ),
+            }
+        )
+    kwargs["messages"].extend(reask_msgs)
+    return kwargs
+
+
+def reask_responses_tools(
+    kwargs: dict[str, Any],
+    response: Any,
+    exception: Exception,
+):
+    """Handle reask for OpenAI responses tools mode when validation fails."""
+    kwargs = kwargs.copy()
+
+    if response is None or not hasattr(response, "output"):
+        kwargs["messages"].append(
+            {
+                "role": "user",
+                "content": (
+                    f"Validation Error found:\n{exception}\n"
+                    "Recall the function correctly, fix the errors"
+                ),
+            }
+        )
+        return kwargs
+
+    reask_messages = []
+    for tool_call in _filter_responses_tool_calls(response.output):
+        details = _format_responses_tool_call_details(tool_call)
+        args = getattr(tool_call, "arguments", "")
+        is_empty_args = not args or (
+            isinstance(args, str) and args.strip() in {"", "{}"}
+        )
+        if is_empty_args:
+            reask_messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        f"Validation Error found:\n{exception}\n"
+                        "The function was called with empty arguments '{}'. "
+                        "You MUST populate ALL required fields in the function "
+                        "call according to the schema. Do not return empty "
+                        f"arguments.{details}"
+                    ),
+                }
+            )
+            continue
+
+        reask_messages.append(
+            {
+                "role": "user",
+                "content": (
+                    f"Validation Error found:\n{exception}\n"
+                    "Recall the function correctly, fix the errors with "
+                    f"{args}{details}"
+                ),
+            }
+        )
+
+    if not reask_messages:
+        # Model produced no tool calls at all (e.g. a reasoning-only or plain
+        # message output). Fall back to a plain user correction so the retry
+        # carries feedback instead of resending the identical request,
+        # mirroring reask_tools and the Anthropic reask handler.
+        reask_messages.append(
+            {
+                "role": "user",
+                "content": (
+                    f"Validation Error found:\n{exception}\n"
+                    "Recall the function correctly, fix the errors"
+                ),
+            }
+        )
+
+    kwargs["messages"].extend(reask_messages)
+    return kwargs
+
+
+def reask_md_json(
+    kwargs: dict[str, Any],
+    response: Any,
+    exception: Exception,
+):
+    """Handle reask for OpenAI JSON modes when validation fails."""
+    kwargs = kwargs.copy()
+
+    if _has_no_choice_to_replay(response):
+        kwargs["messages"].append(
+            {
+                "role": "user",
+                "content": (
+                    "Correct your JSON ONLY RESPONSE, based on the following errors:\n"
+                    f"{exception}"
+                ),
+            }
+        )
+        return kwargs
+
+    message = response.choices[0].message
+    try:
+        assistant_message = dump_message(message)
+    except (AttributeError, KeyError, TypeError):
+        assistant_message = {
+            "role": getattr(message, "role", "assistant"),
+            "content": getattr(message, "content", "") or "",
+        }
+
+    reask_msgs = [assistant_message]
+    reask_msgs.append(
+        {
+            "role": "user",
+            "content": (
+                "Correct your JSON ONLY RESPONSE, based on the following errors:\n"
+                f"{exception}"
+            ),
+        }
+    )
+    kwargs["messages"].extend(reask_msgs)
+    return kwargs
+
+
+def reask_default(
+    kwargs: dict[str, Any],
+    response: Any,
+    exception: Exception,
+):
+    """Handle reask for OpenAI default mode when validation fails."""
+    kwargs = kwargs.copy()
+
+    if _has_no_choice_to_replay(response):
+        kwargs["messages"].append(
+            {
+                "role": "user",
+                "content": (
+                    "Recall the function correctly, fix the errors, exceptions found\n"
+                    f"{exception}"
+                ),
+            }
+        )
+        return kwargs
+
+    reask_msgs = [dump_message(response.choices[0].message)]
+    reask_msgs.append(
+        {
+            "role": "user",
+            "content": (
+                "Recall the function correctly, fix the errors, exceptions found\n"
+                f"{exception}"
+            ),
+        }
+    )
+    kwargs["messages"].extend(reask_msgs)
+    return kwargs
+
+
+def _prepare_json_schema(
+    response_model: type[Any], kwargs: dict[str, Any]
+) -> tuple[type[Any], dict[str, Any]]:
+    from instructor.v2.core.response_model import prepare_response_model
+
+    model = cast(type[BaseModel], prepare_response_model(response_model))
+    schema = model.model_json_schema()
+    definition = {"name": model.__name__, "schema": schema}
+    if kwargs.pop("strict", True):
+        definition["schema"] = make_strict_schema(schema)
+        definition["strict"] = True
+    kwargs["response_format"] = {"type": "json_schema", "json_schema": definition}
+    return model, kwargs
+
+
+def handle_openrouter_structured_outputs(
+    response_model: type[Any], new_kwargs: dict[str, Any]
+) -> tuple[type[Any], dict[str, Any]]:
+    """Prepare a structured-output request for OpenRouter."""
+    return _prepare_json_schema(response_model, new_kwargs)
+
+
+def _apply_tool_strictness(kwargs: dict[str, Any]) -> None:
+    if kwargs.pop("strict", False):
+        # Tool definitions can be cached and shared between parallel and single requests.
+        kwargs["tools"] = [
+            {
+                **tool,
+                "function": {
+                    **tool["function"],
+                    "strict": True,
+                    "parameters": make_strict_schema(tool["function"]["parameters"]),
+                },
+            }
+            for tool in kwargs["tools"]
+        ]
+
+
+class _ResponsesStreamResult:
+    """Select one structured result while skipping calls to the caller's tools."""
+
+    def __init__(self, tool_name: str | None) -> None:
+        self.tool_name = tool_name
+        self.foreign_calls: set[int] = set()
+        self.output_index: int | None = None
+
+    def delta(self, event: Any) -> str | None:
+        from openai.types.responses import (
+            ResponseFunctionCallArgumentsDeltaEvent,
+            ResponseOutputItemAddedEvent,
+            ResponseTextDeltaEvent,
+        )
+
+        if isinstance(event, ResponseOutputItemAddedEvent):
+            if (
+                self.tool_name is not None
+                and event.item.type == "function_call"
+                and event.item.name != self.tool_name
+            ):
+                self.foreign_calls.add(event.output_index)
+            return None
+        if not isinstance(
+            event, (ResponseFunctionCallArgumentsDeltaEvent, ResponseTextDeltaEvent)
+        ):
+            return None
+        if event.output_index in self.foreign_calls or not event.delta:
+            return None
+        if self.output_index is None:
+            self.output_index = event.output_index
+        return event.delta if event.output_index == self.output_index else None
+
+
+class _ChatToolArguments:
+    """Stream the first call immediately, then emit other calls in index order."""
+
+    def __init__(self, single_model: bool) -> None:
+        self.single_model = single_model
+        self.deferred: dict[int, list[str]] = {}
+
+    def feed(self, calls: Any) -> Generator[str, None, None]:
+        for position, call in enumerate(calls or ()):
+            arguments = getattr(getattr(call, "function", None), "arguments", None)
+            if arguments is None:
+                continue
+            index = getattr(call, "index", None)
+            index = position if index is None else index
+            if index == 0:
+                yield arguments
+            elif not self.single_model:
+                self.deferred.setdefault(index, []).append(arguments)
+
+    def finish(self) -> Generator[str, None, None]:
+        for index in sorted(self.deferred):
+            fragments = iter(self.deferred[index])
+            yield _ToolCallStart(next(fragments))
+            yield from fragments
+
+
+class OpenAIHandlerBase(StreamingModelState, ModeHandler):
+    """Base class for OpenAI handlers with shared utilities."""
+
+    mode: Mode
+
+    def extract_streaming_json(
+        self,
+        completion: TypingIterable[Any],
+        response_tool_name: str | None = None,
+        *,
+        single_model: bool = False,
+    ) -> Generator[str, None, None]:
+        """Extract JSON chunks from OpenAI-compatible streaming responses."""
+
+        def _raw_chunks() -> Generator[str, None, None]:
+            result = _ResponsesStreamResult(response_tool_name)
+            tool_arguments = _ChatToolArguments(single_model)
+            for chunk in completion:
+                try:
+                    if self.mode == Mode.RESPONSES_TOOLS:
+                        if (delta := result.delta(chunk)) is not None:
+                            yield delta
+                        continue
+
+                    if not getattr(chunk, "choices", None):
+                        continue
+
+                    if self.mode == Mode.FUNCTIONS:
+                        Mode.warn_mode_functions_deprecation()
+                        if json_chunk := chunk.choices[0].delta.function_call.arguments:
+                            yield json_chunk
+                    elif self.mode in {
+                        Mode.JSON,
+                        Mode.MD_JSON,
+                        Mode.JSON_SCHEMA,
+                    }:
+                        if json_chunk := chunk.choices[0].delta.content:
+                            yield json_chunk
+                    elif self.mode in {
+                        Mode.TOOLS,
+                        Mode.TOOLS_STRICT,
+                        Mode.PARALLEL_TOOLS,
+                    }:
+                        for arguments in tool_arguments.feed(
+                            chunk.choices[0].delta.tool_calls
+                        ):
+                            yield arguments
+                except AttributeError:
+                    continue
+            for arguments in tool_arguments.finish():
+                yield arguments
+
+        raw_chunks = _raw_chunks()
+        if self.mode == Mode.MD_JSON:
+            yield from extract_json_from_stream(raw_chunks, single_model=single_model)
+            return
+        yield from raw_chunks
+
+    async def extract_streaming_json_async(
+        self,
+        completion: AsyncGenerator[Any, None],
+        response_tool_name: str | None = None,
+        *,
+        single_model: bool = False,
+    ) -> AsyncGenerator[str, None]:
+        """Extract JSON chunks from OpenAI-compatible async streams."""
+
+        async def _raw_chunks() -> AsyncGenerator[str, None]:
+            result = _ResponsesStreamResult(response_tool_name)
+            tool_arguments = _ChatToolArguments(single_model)
+            async for chunk in completion:
+                try:
+                    if self.mode == Mode.RESPONSES_TOOLS:
+                        if (delta := result.delta(chunk)) is not None:
+                            yield delta
+                        continue
+
+                    if not getattr(chunk, "choices", None):
+                        continue
+
+                    if self.mode == Mode.FUNCTIONS:
+                        Mode.warn_mode_functions_deprecation()
+                        if json_chunk := chunk.choices[0].delta.function_call.arguments:
+                            yield json_chunk
+                    elif self.mode in {
+                        Mode.JSON,
+                        Mode.MD_JSON,
+                        Mode.JSON_SCHEMA,
+                    }:
+                        if json_chunk := chunk.choices[0].delta.content:
+                            yield json_chunk
+                    elif self.mode in {
+                        Mode.TOOLS,
+                        Mode.TOOLS_STRICT,
+                        Mode.PARALLEL_TOOLS,
+                    }:
+                        for arguments in tool_arguments.feed(
+                            chunk.choices[0].delta.tool_calls
+                        ):
+                            yield arguments
+                except AttributeError:
+                    continue
+            for arguments in tool_arguments.finish():
+                yield arguments
+
+        raw_chunks = _raw_chunks()
+        if self.mode == Mode.MD_JSON:
+            async for chunk in extract_json_from_stream_async(
+                raw_chunks, single_model=single_model
+            ):
+                yield chunk
+            return
+        async for chunk in raw_chunks:
+            yield chunk
+
+    def convert_messages(
+        self, messages: list[dict[str, Any]], autodetect_images: bool = False
+    ) -> list[dict[str, Any]]:
+        """Convert multimodal messages for OpenAI-compatible formats."""
+        return convert_messages_v1(
+            messages, self.mode, autodetect_images=autodetect_images
+        )
+
+    def _parse_streaming_response(
+        self,
+        response_model: type[BaseModel],
+        response: Any,
+        validation_context: dict[str, Any] | None,
+        strict: bool | None,
+    ) -> Any:
+        """Parse a streaming response using DSL methods."""
+        parse_kwargs: dict[str, Any] = {}
+        if validation_context is not None:
+            parse_kwargs["context"] = validation_context
+        if strict is not None:
+            parse_kwargs["strict"] = strict
+
+        streaming_model = cast(Any, response_model)
+        streaming_kwargs = dict(parse_kwargs)
+        try:
+            if (
+                "mode"
+                in inspect.signature(streaming_model.from_streaming_response).parameters
+            ):
+                streaming_kwargs["mode"] = self.mode
+        except (TypeError, ValueError):
+            pass
+
+        extractor_options: dict[str, Any] = {}
+        if self.mode == Mode.RESPONSES_TOOLS:
+            extractor_options["response_tool_name"] = response_model.__name__
+        elif self.mode in {
+            Mode.MD_JSON,
+            Mode.TOOLS,
+            Mode.TOOLS_STRICT,
+            Mode.PARALLEL_TOOLS,
+        }:
+            extractor_options["single_model"] = not issubclass(
+                response_model, IterableBase
+            )
+
+        if inspect.isasyncgen(response) or isinstance(response, AsyncIterator):
+            return streaming_model.from_streaming_response_async(
+                response,
+                stream_extractor=partial(
+                    self.extract_streaming_json_async,
+                    **extractor_options,
+                ),
+                **streaming_kwargs,
+            )
+
+        generator = streaming_model.from_streaming_response(
+            response,
+            stream_extractor=partial(self.extract_streaming_json, **extractor_options),
+            **streaming_kwargs,
+        )
+        if inspect.isclass(response_model) and issubclass(response_model, IterableBase):
+            return generator
+        return list(generator)
+
+    def _extract_tool_call_json(self, response: Any) -> str:
+        """Extract JSON from tool call response."""
+        choices = getattr(response, "choices", None)
+        if not choices:
+            raise ResponseParsingError(
+                "No choices in OpenAI response",
+                mode=str(self.mode.value),
+                raw_response=response,
+            )
+        message = choices[0].message
+        refusal = getattr(message, "refusal", None)
+        if refusal is not None:
+            raise AssertionError(f"Unable to generate a response due to {refusal}")
+
+        def _normalize_args(args: Any) -> str:
+            if args is None:
+                raise ResponseParsingError(
+                    "Tool call arguments missing in response",
+                    mode="TOOLS",
+                    raw_response=response,
+                )
+            if isinstance(args, dict):
+                return json.dumps(args)
+            if isinstance(args, str):
+                return args
+            try:
+                return json.dumps(args)
+            except TypeError as exc:
+                raise ResponseParsingError(
+                    "Tool call arguments must be JSON-serializable",
+                    mode="TOOLS",
+                    raw_response=response,
+                ) from exc
+
+        tool_calls = getattr(message, "tool_calls", None) or []
+        if tool_calls:
+            return _normalize_args(tool_calls[0].function.arguments)
+
+        function_call = getattr(message, "function_call", None)
+        if function_call is not None:
+            return _normalize_args(getattr(function_call, "arguments", None))
+
+        raise ResponseParsingError(
+            "No tool calls or function call found in response",
+            mode="TOOLS",
+            raw_response=response,
+        )
+
+    def _extract_text_content(self, response: Any) -> str:
+        """Extract a string or concatenate text blocks from compatible providers."""
+        choices = getattr(response, "choices", None)
+        if not choices:
+            raise ResponseParsingError(
+                "No choices in OpenAI response",
+                mode=str(self.mode.value),
+                raw_response=response,
+            )
+        content = choices[0].message.content
+        if isinstance(content, list):
+            return text_from_content_blocks(content) or ""
+        return content or ""
+
+    def _parse_json_response(
+        self,
+        response: Any,
+        response_model: type[BaseModel],
+        validation_context: dict[str, Any] | None = None,
+        strict: bool | None = None,
+        stream: bool | None = None,
+    ) -> Any:
+        if self._should_parse_streaming(response_model, stream):
+            return self._parse_streaming_response(
+                response_model,
+                response,
+                validation_context,
+                strict,
+            )
+
+        if hasattr(response, "choices") and response.choices:
+            if response.choices[0].finish_reason == "length":
+                raise IncompleteOutputException(last_completion=response)
+
+        text = self._extract_text_content(response)
+        parsed = response_model.model_validate_json(
+            text,
+            context=validation_context,
+            strict=strict,
+        )
+        return self._finalize_parsed_result(response_model, response, parsed)
+
+
+@register_mode_handler(
+    OPENAI_COMPAT_PROVIDERS + endpoint_providers(Mode.TOOLS), Mode.TOOLS
+)
+class OpenAIToolsHandler(OpenAIHandlerBase):
+    """Handler for OpenAI TOOLS mode.
+
+    Supports `strict=True` parameter for strict schema validation.
+    """
+
+    supports_schema_strict = True
+    mode = Mode.TOOLS
+
+    def prepare_request(
+        self,
+        response_model: Any,
+        kwargs: dict[str, Any],
+    ) -> tuple[Any, dict[str, Any]]:
+        """Prepare request with tool definitions."""
+        new_kwargs = kwargs.copy()
+        new_kwargs["messages"] = list(kwargs.get("messages", []))
+
+        if response_model is None:
+            return None, new_kwargs
+
+        # Detect if this is a parallel tools request (Iterable[Union[...]])
+        # When streaming, treat Iterable[T] as streaming instead of parallel tools.
+        origin = get_origin(response_model)
+        is_parallel = origin is TypingIterable and not new_kwargs.get("stream")
+
+        # Prepare response model: wrap simple types in ModelAdapter
+        if not is_parallel:
+            from instructor.v2.core.response_model import prepare_response_model
+
+            response_model = prepare_response_model(response_model)
+
+        self._register_streaming_from_kwargs(response_model, new_kwargs)
+
+        if is_parallel:
+            # Handle parallel model
+            from instructor.v2.dsl.parallel import handle_parallel_model
+
+            new_kwargs["tools"] = handle_parallel_model(cast(Any, response_model))
+            new_kwargs["tool_choice"] = "auto"
+        else:
+            schema = generate_openai_schema(response_model)
+            new_kwargs["tools"] = [{"type": "function", "function": schema}]
+            new_kwargs["tool_choice"] = {
+                "type": "function",
+                "function": {"name": schema["name"]},
+            }
+
+        _apply_tool_strictness(new_kwargs)
+        return response_model, new_kwargs
+
+    def handle_reask(
+        self,
+        kwargs: dict[str, Any],
+        response: ChatCompletion,
+        exception: Exception,
+    ) -> dict[str, Any]:
+        """Handle reask for tools mode."""
+        return reask_tools(kwargs, response, exception)
+
+    def parse_response(
+        self,
+        response: Any,
+        response_model: type[BaseModel],
+        validation_context: dict[str, Any] | None = None,
+        strict: bool | None = None,
+        stream: bool | None = None,
+        is_async: bool = False,  # noqa: ARG002
+    ) -> Any:
+        """Parse tool call response."""
+        # Check for streaming
+        if self._should_parse_streaming(response_model, stream):
+            return self._parse_streaming_response(
+                response_model,
+                response,
+                validation_context,
+                strict,
+            )
+
+        # Check for incomplete output
+        if hasattr(response, "choices") and response.choices:
+            if response.choices[0].finish_reason == "length":
+                raise IncompleteOutputException(last_completion=response)
+
+        # Handle parallel tools (Iterable[Union[...]])
+        origin = get_origin(response_model)
+        if origin is TypingIterable:
+            return ParallelModel(response_model).from_response(
+                response, self.mode, validation_context, strict
+            )
+
+        # Standard tool call parsing
+        json_str = self._extract_tool_call_json(response)
+        parsed = response_model.model_validate_json(
+            json_str,
+            context=validation_context,
+            strict=strict,
+        )
+        return self._finalize_parsed_result(response_model, response, parsed)
+
+
+@register_mode_handler(
+    OPENAI_JSON_SCHEMA_PROVIDERS + endpoint_providers(Mode.JSON_SCHEMA),
+    Mode.JSON_SCHEMA,
+)
+class OpenAIJSONSchemaHandler(OpenAIHandlerBase):
+    """Handler for OpenAI structured outputs (JSON_SCHEMA mode).
+
+    Uses OpenAI's native structured outputs via response_format parameter.
+    """
+
+    supports_schema_strict = True
+    mode = Mode.JSON_SCHEMA
+
+    def prepare_request(
+        self,
+        response_model: type[BaseModel] | None,
+        kwargs: dict[str, Any],
+    ) -> tuple[type[BaseModel] | None, dict[str, Any]]:
+        """Prepare request with JSON schema response format."""
+
+        if response_model is None:
+            return None, kwargs
+
+        new_kwargs = kwargs.copy()
+        new_kwargs["messages"] = list(kwargs.get("messages", []))
+        model, prepared = _prepare_json_schema(response_model, new_kwargs)
+        self._register_streaming_from_kwargs(model, prepared)
+        return model, prepared
+
+    def handle_reask(
+        self,
+        kwargs: dict[str, Any],
+        response: ChatCompletion,
+        exception: Exception,
+    ) -> dict[str, Any]:
+        """Handle reask for JSON schema mode."""
+        return reask_md_json(kwargs, response, exception)
+
+    def parse_response(
+        self,
+        response: Any,
+        response_model: type[BaseModel],
+        validation_context: dict[str, Any] | None = None,
+        strict: bool | None = None,
+        stream: bool | None = None,
+        is_async: bool = False,  # noqa: ARG002
+    ) -> Any:
+        return self._parse_json_response(
+            response, response_model, validation_context, strict, stream
+        )
+
+
+@register_mode_handler(
+    OPENAI_COMPAT_PROVIDERS + endpoint_providers(Mode.JSON), Mode.JSON
+)
+class OpenAIJSONHandler(OpenAIHandlerBase):
+    """Handler for OpenAI JSON mode (response_format=json_object)."""
+
+    mode = Mode.JSON
+
+    def prepare_request(
+        self,
+        response_model: type[BaseModel] | None,
+        kwargs: dict[str, Any],
+    ) -> tuple[type[BaseModel] | None, dict[str, Any]]:
+        self._register_streaming_from_kwargs(response_model, kwargs)
+
+        if response_model is None:
+            return None, kwargs
+
+        new_kwargs = kwargs.copy()
+        new_kwargs["response_format"] = {"type": "json_object"}
+        schema = response_model.model_json_schema()
+        message = dedent(
+            f"""
+            As a genius expert, your task is to understand the content and provide
+            the parsed objects in json that match the following json_schema:\n
+
+            {json.dumps(schema, indent=2, ensure_ascii=False)}
+
+            Make sure to return an instance of the JSON, not the schema itself
+            """
+        )
+        messages = copy_messages_for_mutation(new_kwargs.get("messages", []))
+        if messages and messages[0]["role"] != "system":
+            messages.insert(
+                0,
+                {
+                    "role": "system",
+                    "content": message,
+                },
+            )
+        elif messages and isinstance(messages[0]["content"], str):
+            messages[0]["content"] += f"\n\n{message}"
+        elif messages and isinstance(messages[0]["content"], list):
+            messages[0]["content"][0]["text"] += f"\n\n{message}"
+        else:
+            messages.insert(0, {"role": "system", "content": message})
+        new_kwargs["messages"] = merge_consecutive_messages(messages)
+        return response_model, new_kwargs
+
+    def handle_reask(
+        self,
+        kwargs: dict[str, Any],
+        response: ChatCompletion,
+        exception: Exception,
+    ) -> dict[str, Any]:
+        return reask_md_json(kwargs, response, exception)
+
+    def parse_response(
+        self,
+        response: Any,
+        response_model: type[BaseModel],
+        validation_context: dict[str, Any] | None = None,
+        strict: bool | None = None,
+        stream: bool | None = None,
+        is_async: bool = False,  # noqa: ARG002
+    ) -> Any:
+        return self._parse_json_response(
+            response, response_model, validation_context, strict, stream
+        )
+
+
+@register_mode_handler(
+    OPENAI_COMPAT_PROVIDERS + endpoint_providers(Mode.MD_JSON), Mode.MD_JSON
+)
+class OpenAIMDJSONHandler(OpenAIHandlerBase):
+    """Handler for MD_JSON mode - extract JSON from markdown code blocks."""
+
+    mode = Mode.MD_JSON
+
+    def prepare_request(
+        self,
+        response_model: type[BaseModel] | None,
+        kwargs: dict[str, Any],
+    ) -> tuple[type[BaseModel] | None, dict[str, Any]]:
+        """Prepare request with JSON schema instruction in messages."""
+        self._register_streaming_from_kwargs(response_model, kwargs)
+
+        if response_model is None:
+            return None, kwargs
+
+        new_kwargs = kwargs.copy()
+        schema = response_model.model_json_schema()
+
+        message = dedent(
+            f"""
+            As a genius expert, your task is to understand the content and provide
+            the parsed objects in json that match the following json_schema:\n
+
+            {json.dumps(schema, indent=2, ensure_ascii=False)}
+
+            Make sure to return an instance of the JSON, not the schema itself
+            """
+        )
+
+        # Add system message with schema
+        messages = copy_messages_for_mutation(new_kwargs.get("messages", []))
+        if messages and messages[0]["role"] != "system":
+            messages.insert(
+                0,
+                {
+                    "role": "system",
+                    "content": message,
+                },
+            )
+        elif messages and isinstance(messages[0]["content"], str):
+            messages[0]["content"] += f"\n\n{message}"
+        elif messages and isinstance(messages[0]["content"], list):
+            messages[0]["content"][0]["text"] += f"\n\n{message}"
+        else:
+            messages.insert(0, {"role": "system", "content": message})
+
+        # Add user message requesting JSON in code block
+        messages.append(
+            {
+                "role": "user",
+                "content": "Return the correct JSON response within a ```json codeblock. not the JSON_SCHEMA",
+            },
+        )
+        new_kwargs["messages"] = merge_consecutive_messages(messages)
+
+        return response_model, new_kwargs
+
+    def handle_reask(
+        self,
+        kwargs: dict[str, Any],
+        response: ChatCompletion,
+        exception: Exception,
+    ) -> dict[str, Any]:
+        """Handle reask for MD_JSON mode."""
+        return reask_md_json(kwargs, response, exception)
+
+    def parse_response(
+        self,
+        response: Any,
+        response_model: type[BaseModel],
+        validation_context: dict[str, Any] | None = None,
+        strict: bool | None = None,
+        stream: bool | None = None,
+        is_async: bool = False,  # noqa: ARG002
+    ) -> Any:
+        """Parse JSON from markdown code block in response."""
+        # Check for streaming
+        if self._should_parse_streaming(response_model, stream):
+            return self._parse_streaming_response(
+                response_model,
+                response,
+                validation_context,
+                strict,
+            )
+
+        # Check for incomplete output
+        if hasattr(response, "choices") and response.choices:
+            if response.choices[0].finish_reason == "length":
+                raise IncompleteOutputException(last_completion=response)
+
+        text = self._extract_text_content(response)
+        json_str = extract_json_from_codeblock(text)
+        parsed = response_model.model_validate_json(
+            json_str,
+            context=validation_context,
+            strict=strict,
+        )
+        return self._finalize_parsed_result(response_model, response, parsed)
+
+
+@register_mode_handler(
+    OPENAI_PARALLEL_TOOL_PROVIDERS + endpoint_providers(Mode.PARALLEL_TOOLS),
+    Mode.PARALLEL_TOOLS,
+)
+class OpenAIParallelToolsHandler(OpenAIHandlerBase):
+    """Handler for OpenAI parallel tool calling."""
+
+    supports_schema_strict = True
+    mode = Mode.PARALLEL_TOOLS
+
+    def prepare_request(
+        self,
+        response_model: type[BaseModel] | None,
+        kwargs: dict[str, Any],
+    ) -> tuple[type[BaseModel] | None, dict[str, Any]]:
+        """Prepare request for parallel tool calling."""
+        if response_model is None:
+            return None, kwargs
+
+        new_kwargs = kwargs.copy()
+        new_kwargs["messages"] = list(kwargs.get("messages", []))
+        if new_kwargs.get("stream", False):
+            raise ConfigurationError(
+                "stream=True is not supported when using PARALLEL_TOOLS mode"
+            )
+
+        from instructor.v2.dsl.parallel import handle_parallel_model
+
+        new_kwargs["tools"] = handle_parallel_model(cast(Any, response_model))
+        _apply_tool_strictness(new_kwargs)
+        new_kwargs["tool_choice"] = "auto"
+
+        # Wrap in ParallelModel for proper parsing
+        parallel_model = ParallelModel(typehint=response_model)
+        return cast(type[BaseModel], parallel_model), new_kwargs
+
+    def handle_reask(
+        self,
+        kwargs: dict[str, Any],
+        response: ChatCompletion,
+        exception: Exception,
+    ) -> dict[str, Any]:
+        """Handle reask for parallel tools mode."""
+        return reask_tools(kwargs, response, exception)
+
+    def parse_response(
+        self,
+        response: Any,
+        response_model: type[BaseModel],
+        validation_context: dict[str, Any] | None = None,
+        strict: bool | None = None,
+        stream: bool = False,  # noqa: ARG002
+        is_async: bool = False,  # noqa: ARG002
+    ) -> Any:
+        """Parse parallel tool response."""
+        # Check for incomplete output
+        choices = getattr(response, "choices", None)
+        if not choices:
+            raise ResponseParsingError(
+                "No choices in OpenAI response",
+                mode=str(self.mode.value),
+                raw_response=response,
+            )
+        if choices[0].finish_reason == "length":
+            raise IncompleteOutputException(last_completion=response)
+
+        # Extract model types from response_model
+        type_registry: dict[str, type[BaseModel]] = ParallelModel(
+            cast(Any, response_model)
+        ).registry
+
+        results = []
+        tool_calls = choices[0].message.tool_calls
+        if not tool_calls:
+            raise ResponseParsingError(
+                "No tool calls in response",
+                mode="PARALLEL_TOOLS",
+                raw_response=response,
+            )
+        for tool_call in tool_calls:
+            name = tool_call.function.name
+            args = tool_call.function.arguments
+            model_class = model_for_tool_name(
+                type_registry,
+                name,
+                mode=self.mode,
+                raw_response=response,
+            )
+            results.append(
+                model_class.model_validate_json(
+                    args,
+                    context=validation_context,
+                    strict=strict,
+                )
+            )
+
+        return iter(results)
+
+
+@register_mode_handler([Provider.OPENAI, Provider.AZURE_OPENAI], Mode.RESPONSES_TOOLS)
+class OpenAIResponsesToolsHandler(OpenAIHandlerBase):
+    """Handler for OpenAI Responses API with tools."""
+
+    mode = Mode.RESPONSES_TOOLS
+
+    def prepare_request(
+        self,
+        response_model: type[BaseModel] | None,
+        kwargs: dict[str, Any],
+    ) -> tuple[type[BaseModel] | None, dict[str, Any]]:
+        """Prepare request for Responses API with tools."""
+        new_kwargs = kwargs.copy()
+        new_kwargs["messages"] = list(kwargs.get("messages", []))
+
+        # Handle max_tokens to max_output_tokens conversion
+        if new_kwargs.get("max_tokens") is not None:
+            new_kwargs["max_output_tokens"] = new_kwargs.pop("max_tokens")
+
+        if response_model is None:
+            return None, new_kwargs
+
+        from typing import cast
+        from instructor.v2.core.response_model import prepare_response_model
+
+        prepared_model = cast(type[BaseModel], prepare_response_model(response_model))
+        self._register_streaming_from_kwargs(prepared_model, kwargs)
+
+        from openai import pydantic_function_tool
+
+        schema = pydantic_function_tool(prepared_model)
+        del schema["function"]["strict"]
+
+        schema_function = schema["function"]
+        tool_definition: dict[str, Any] = {
+            "type": "function",
+            "name": schema_function["name"],
+            "parameters": schema_function.get("parameters", {}),
+        }
+
+        if "description" in schema_function:
+            tool_definition["description"] = schema_function["description"]
+        else:
+            tool_definition["description"] = (
+                f"Correctly extracted `{prepared_model.__name__}` with all "
+                f"the required parameters with correct types"
+            )
+
+        caller_tools = kwargs.get("tools") or []
+        new_kwargs["tools"] = [*caller_tools, tool_definition]
+        if not caller_tools:
+            new_kwargs.setdefault(
+                "tool_choice", {"type": "function", "name": tool_definition["name"]}
+            )
+        _ensure_text_format_config(
+            new_kwargs,
+            prepared_model,
+            tool_definition["parameters"],
+        )
+
+        return prepared_model, new_kwargs
+
+    def handle_reask(
+        self,
+        kwargs: dict[str, Any],
+        response: Any,
+        exception: Exception,
+    ) -> dict[str, Any]:
+        """Handle reask for Responses API."""
+        return reask_responses_tools(kwargs, response, exception)
+
+    def parse_response(
+        self,
+        response: Any,
+        response_model: type[BaseModel],
+        validation_context: dict[str, Any] | None = None,
+        strict: bool | None = None,
+        stream: bool | None = None,
+        is_async: bool = False,  # noqa: ARG002
+    ) -> Any:
+        """Parse Responses API response."""
+        # Check for streaming
+        if self._should_parse_streaming(response_model, stream):
+            return self._parse_streaming_response(
+                response_model,
+                response,
+                validation_context,
+                strict,
+            )
+
+        if getattr(response, "status", None) == "incomplete":
+            reason = getattr(
+                getattr(response, "incomplete_details", None), "reason", None
+            )
+            message = "The Responses API output is incomplete."
+            if reason is not None:
+                message = f"The Responses API output is incomplete due to {reason}."
+            raise IncompleteOutputException(last_completion=response, message=message)
+
+        # Handle Responses API format - output is a list of items
+        if hasattr(response, "output"):
+            for item in response.output:
+                item_type = getattr(item, "type", None)
+                if item_type in {"function_call", "tool_call"}:
+                    if getattr(item, "name", None) not in {
+                        None,
+                        response_model.__name__,
+                    }:
+                        continue
+                    args = getattr(item, "arguments", None)
+                    if not args or (
+                        isinstance(args, str) and args.strip() in {"", "{}"}
+                    ):
+                        logger.warning(
+                            "RESPONSES_TOOLS: tool '%s' returned empty arguments. "
+                            "This can indicate a text.format/tool_choice conflict "
+                            "or insufficient reasoning budget.",
+                            getattr(item, "name", "unknown"),
+                        )
+                    if args:
+                        parsed = response_model.model_validate_json(
+                            args,
+                            context=validation_context,
+                            strict=strict,
+                        )
+                        return self._finalize_parsed_result(
+                            response_model, response, parsed
+                        )
+
+        # With built-in tools, text.format can carry the structured final answer.
+        output_text = getattr(response, "output_text", None)
+        json_str = (
+            output_text
+            if isinstance(output_text, str) and output_text
+            else self._extract_tool_call_json(response)
+        )
+        parsed = response_model.model_validate_json(
+            json_str,
+            context=validation_context,
+            strict=strict,
+        )
+        return self._finalize_parsed_result(response_model, response, parsed)
+
+
+__all__ = [
+    "handle_openrouter_structured_outputs",
+    "reask_default",
+    "reask_md_json",
+    "reask_responses_tools",
+    "reask_tools",
+    "OpenAIToolsHandler",
+    "OpenAIJSONSchemaHandler",
+    "OpenAIMDJSONHandler",
+    "OpenAIParallelToolsHandler",
+    "OpenAIResponsesToolsHandler",
+]

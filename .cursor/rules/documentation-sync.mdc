@@ -1,0 +1,36 @@
+---
+description: when making code changes or adding documentation
+globs: ["*.py", "*.md"]
+alwaysApply: true
+---
+
+- When making code changes:
+    - Update related documentation files to reflect the changes
+    - Check docstrings and type hints are up to date
+    - Update any example code in markdown files
+    - Review README.md if the changes affect installation or usage
+
+- When creating new markdown files:
+    - Add the file to mkdocs.yml under the appropriate section
+    - Follow the existing hierarchy and indentation
+    - Use descriptive nav titles
+    - Example:
+        ```yaml
+        nav:
+          - Home: index.md
+          - Guides:
+              - Getting Started: guides/getting-started.md
+              - Your New File: guides/your-new-file.md
+        ```
+
+- For API documentation:
+    - Ensure new functions/classes are documented
+    - Include type hints and docstrings
+    - Add usage examples
+    - Update API reference docs if auto-generated
+
+- Documentation Quality:
+    - Write at grade 10 reading level (see simple-language.mdc)
+    - Include working code examples
+    - Add links to related documentation
+    - Use consistent formatting and style 

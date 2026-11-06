@@ -1,0 +1,186 @@
+# type: ignore[all]
+from __future__ import annotations
+from typing import Any, Callable
+from textwrap import dedent
+from instructor.v2.core.mode import Mode
+from instructor.v2.core.providers import Provider, provider_from_mode
+from jinja2.sandbox import SandboxedEnvironment
+from jinja2 import StrictUndefined
+
+
+_TEXT_BLOCK_TYPES = {
+    Provider.BEDROCK: ("text", None),
+    Provider.OPENAI: ("text", "input_text"),
+    Provider.AZURE_OPENAI: ("text", "input_text"),
+}
+
+
+def apply_template(text: str, context: dict[str, Any]) -> str:
+    """Apply Jinja2 template to the given text."""
+    return dedent(
+        SandboxedEnvironment(undefined=StrictUndefined)
+        .from_string(text)
+        .render(**context)
+    )
+
+
+def render_text_blocks(
+    blocks: list[Any],
+    context: dict[str, Any],
+    render: Callable[[str, dict[str, Any]], str],
+    provider: Provider,
+) -> None:
+    """Render text fields in the provider's content-block format."""
+    text_types = _TEXT_BLOCK_TYPES.get(provider, ("text",))
+    for block in blocks:
+        if (
+            isinstance(block, dict)
+            and block.get("type") in text_types
+            and isinstance(block.get("text"), str)
+        ):
+            block["text"] = render(block["text"], context)
+
+
+def process_message(
+    message: dict[str, Any], context: dict[str, Any], provider: Provider
+) -> dict[str, Any]:
+    """Process a single message, applying templates to its content."""
+    if provider == Provider.GENAI:
+        from instructor.v2.providers.genai.templating import (
+            process_message as process_genai_message,
+        )
+
+        return process_genai_message(message, context, apply_template)
+
+    # VertexAI Support
+    if (
+        hasattr(message, "parts")
+        and isinstance(message.parts, list)
+        and len(message.parts) > 0
+        and not isinstance(message.parts[0], str)
+    ):
+        from instructor.v2.providers.vertexai.templating import (
+            process_message as process_vertexai_message,
+        )
+
+        return process_vertexai_message(message, context, apply_template)
+
+    # OpenAI format
+    if isinstance(message.get("content"), str):
+        from instructor.v2.providers.openai.templating import (
+            process_message as process_openai_message,
+        )
+
+        return process_openai_message(message, context, apply_template)
+
+    if isinstance(message.get("content"), list):
+        if provider in _TEXT_BLOCK_TYPES:
+            render_text_blocks(message["content"], context, apply_template, provider)
+            return message
+
+        from instructor.v2.providers.anthropic.templating import (
+            process_message as process_anthropic_message,
+        )
+
+        return process_anthropic_message(message, context, apply_template)
+
+    # Gemini Support
+    if isinstance(message.get("parts"), list):
+        from instructor.v2.providers.gemini.templating import (
+            process_message as process_gemini_message,
+        )
+
+        return process_gemini_message(message, context, apply_template)
+
+    # Cohere format
+    if isinstance(message.get("message"), str):
+        from instructor.v2.providers.cohere.templating import (
+            process_message as process_cohere_message,
+        )
+
+        return process_cohere_message(message, context, apply_template)
+
+    return message
+
+
+def _copy_blocks(parts: list[Any]) -> list[Any]:
+    return [part.copy() if isinstance(part, dict) else part for part in parts]
+
+
+def _copy_message_for_templating(message: Any) -> Any:
+    if not isinstance(message, dict):
+        return message
+
+    copied_message = message.copy()
+    for field in ("content", "parts"):
+        parts = copied_message.get(field)
+        if isinstance(parts, list):
+            copied_message[field] = _copy_blocks(parts)
+    return copied_message
+
+
+def handle_templating(
+    kwargs: dict[str, Any],
+    mode: Mode,  # noqa: ARG001
+    provider: Provider | dict[str, Any] | None = None,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Handle templating for messages using the provided context.
+
+    This function processes messages, applying Jinja2 templating to their content
+    using the provided context. It supports various message formats including
+    OpenAI, Anthropic, Bedrock, Cohere, VertexAI, and Gemini.
+
+    Args:
+        kwargs (Dict[str, Any]): Keyword arguments being passed to the create method.
+        context (Dict[str, Any] | None, optional): Variables to use in templating. Defaults to None.
+
+    Returns:
+        Dict[str, Any]: The processed kwargs with templated content.
+
+    Raises:
+        ValueError: If no recognized message format is found in kwargs.
+    """
+    if context is None and isinstance(provider, dict):
+        context = provider
+        provider = None
+
+    if not context:
+        return kwargs
+
+    if not isinstance(provider, Provider):
+        provider = provider_from_mode(mode, Provider.OPENAI)
+
+    new_kwargs = kwargs.copy()
+
+    # Handle Cohere's message field
+    if "message" in new_kwargs:
+        new_kwargs["message"] = apply_template(new_kwargs["message"], context)
+        new_kwargs["chat_history"] = [
+            process_message(_copy_message_for_templating(message), context, provider)
+            for message in new_kwargs.get("chat_history", [])
+        ]
+
+        return new_kwargs
+
+    if isinstance(new_kwargs, list):
+        return new_kwargs
+
+    system = new_kwargs.get("system")
+    if provider in (Provider.ANTHROPIC, Provider.BEDROCK) and isinstance(system, list):
+        new_kwargs["system"] = _copy_blocks(system)
+        render_text_blocks(new_kwargs["system"], context, apply_template, provider)
+
+    message_key = "messages" if new_kwargs.get("messages") else "contents"
+    messages = new_kwargs.get(message_key)
+
+    if not messages:
+        return new_kwargs
+
+    new_kwargs[message_key] = [
+        process_message(_copy_message_for_templating(message), context, provider)
+        for message in messages
+    ]
+
+    return new_kwargs

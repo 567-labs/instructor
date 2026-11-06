@@ -1,0 +1,7 @@
+[src]
+respect-ignore-files = true
+exclude = [
+    ".venv/",
+    "tests/llm/",
+    "tests/docs/",
+]

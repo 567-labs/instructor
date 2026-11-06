@@ -1,0 +1,45 @@
+---
+description: when asked to implement new features or clients
+globs: *.py
+alwaysApply: true
+---
+
+- When being asked to make new features, make sure that you check out from main a new branch and make incremental commits
+  - Use conventional commit format: `<type>(<scope>): <description>`
+    - Types: feat, fix, docs, style, refactor, perf, test, chore
+    - Example: `feat(validation): add email validation function`
+    - Keep commits focused on a single change
+    - Write descriptive commit messages in imperative mood
+  - Use `git commit -m "type(scope): subject" -m "body" -m "footer"` for multiline commits
+- If the feature is very large, create a temporary `todo.md`
+- And start a pull request using `gh`
+  - Create PRs with multiline bodies using:
+    ```bash
+    gh pr create --title "feat(component): add new feature" --body "$(cat <<EOF
+    ## Description
+    Detailed explanation of the changes
+
+    ## Changes
+    - List important changes
+    - Another change
+
+    ## Testing
+    How this was tested
+
+    This PR was written by [Cursor](cursor.com)
+    EOF
+    )" -r jxnl,ivanleomk
+    ```
+  - Or use the `-F` flag with a file: `gh pr create -F pr_body.md`
+- Make sure to include `This PR was written by [Cursor](mdc:cursor.com)`
+- Add default reviewers:
+    - Use `gh pr edit <id> --add-reviewer jxnl,ivanleomk`
+    - Or include `-r jxnl,ivanleomk` when creating the PR
+- use `gh pr view <id> --comments | cat` to view all the comments
+- For PR updates:
+    - Do not directly commit to an existing PR branch
+    - Instead, create a new PR that builds on top of the original PR's branch
+    - This creates a "stacked PR" pattern where:
+        1. The original PR (base) contains the initial changes
+        2. The new PR (stack) contains only the review-related updates
+        3. Once the base PR is merged, the stack can be rebased onto main

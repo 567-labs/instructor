@@ -1,0 +1,265 @@
+name: Release Readiness
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  pull_request:
+    paths:
+      - .github/ci/release-build/**
+      - .github/workflows/python-publish.yml
+      - .github/workflows/scheduled-release.yml
+      - CHANGELOG.md
+      - pyproject.toml
+      - scripts/prepare_release.py
+      - scripts/verify_release_artifacts.py
+      - tests/test_prepare_release.py
+      - uv.lock
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: Exact version already declared in pyproject.toml
+        required: true
+        type: string
+      publish:
+        description: Publish the tested artifacts as a GitHub release
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-readiness-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  unit:
+    name: Release unit tests (${{ matrix.shard }})
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [focused, v2, core]
+    uses: ./.github/workflows/unit-tests.yml
+    with:
+      shard: ${{ matrix.shard }}
+
+  prepare:
+    name: Prepare exact release artifacts
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      release_needed: ${{ steps.metadata.outputs.release_needed }}
+      tag: ${{ steps.metadata.outputs.tag }}
+      version: ${{ steps.metadata.outputs.version }}
+      artifact_id: ${{ steps.candidate.outputs.artifact-id }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: latest-known
+          enable-cache: true
+          python-version: "3.11"
+      - name: Set up Python
+        run: uv python install 3.11
+      - name: Install source-check dependencies
+        if: github.event_name != 'pull_request'
+        run: uv sync --locked --all-extras
+
+      - name: Validate release metadata
+        id: metadata
+        env:
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+        run: |
+          args=(--output release-notes.md)
+          if [ -n "$EXPECTED_VERSION" ]; then
+            args+=(--expected-version "$EXPECTED_VERSION")
+          fi
+          VERSION=$(uv run --no-project --offline --python 3.11 python scripts/prepare_release.py "${args[@]}")
+          TAG="v$VERSION"
+
+          if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
+            TAG_SHA=$(git rev-list -n 1 "$TAG")
+            if [ "$TAG_SHA" != "$GITHUB_SHA" ]; then
+              echo "::error::Tag $TAG already points to $TAG_SHA; source needs a new version."
+              exit 1
+            fi
+            RELEASE_NEEDED=false
+          else
+            RELEASE_NEEDED=true
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "release_needed=$RELEASE_NEEDED" >> "$GITHUB_OUTPUT"
+
+      - name: Run release source checks
+        if: github.event_name != 'pull_request'
+        run: |
+          uv run --no-sync ruff check instructor examples tests scripts/prepare_release.py
+          uv run --no-sync ruff format --check instructor examples tests scripts/prepare_release.py
+          uv run --no-sync ty check --error-on-warning instructor/
+          uv run --no-sync ty check --config-file ty-tests.toml --error-on-warning tests
+
+      - name: Build and validate distributions
+        run: |
+          uv sync --locked --project .github/ci/release-build
+          tools=.github/ci/release-build/.venv/bin
+          uv build --offline --no-build-isolation --python "$tools/python"
+          "$tools/twine" check dist/*
+
+      - name: Upload exact release candidate
+        id: candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: instructor-${{ steps.metadata.outputs.version }}-${{ github.sha }}
+          path: |
+            dist/*
+            release-notes.md
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Summarize readiness
+        env:
+          RELEASE_NEEDED: ${{ steps.metadata.outputs.release_needed }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+          PUBLISH_REQUESTED: ${{ inputs.publish || false }}
+        run: |
+          {
+            echo "## Release readiness"
+            echo "- Version: $RELEASE_VERSION"
+            echo "- Tag: $RELEASE_TAG"
+            echo "- Commit: $GITHUB_SHA"
+            echo "- Release needed: $RELEASE_NEEDED"
+            echo "- Publish requested: $PUBLISH_REQUESTED"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  verify:
+    name: Verify distributions against the source checkout
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact_id }}
+          merge-multiple: true
+      - name: Check source files, metadata, entry points, and wheel hashes
+        run: |
+          python3 -m venv "$RUNNER_TEMP/verifier"
+          "$RUNNER_TEMP/verifier/bin/python" -m pip install --no-deps --only-binary=:all: --require-hashes -r /dev/stdin <<'REQUIREMENTS'
+          packaging==25.0 --hash=sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484
+          REQUIREMENTS
+          "$RUNNER_TEMP/verifier/bin/python" -I scripts/verify_release_artifacts.py dist
+
+  smoke:
+    name: Wheel smoke test (Python ${{ matrix.python-version }})
+    needs: [prepare, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+
+    steps:
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: latest-known
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+      - name: Download exact release candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact_id }}
+          merge-multiple: true
+      - name: Install and exercise wheel
+        env:
+          EXPECTED_VERSION: ${{ needs.prepare.outputs.version }}
+          SMOKE_PYTHON: ${{ matrix.python-version }}
+        run: |
+          uv venv --python "$SMOKE_PYTHON" .smoke
+          WHEEL=$(find dist -name '*.whl' -print -quit)
+          test -n "$WHEEL"
+          uv pip install --python .smoke/bin/python "$WHEEL"
+          .smoke/bin/python - <<'PY'
+          import os
+          from importlib.metadata import version
+
+          import instructor
+          from pydantic import BaseModel
+
+          from instructor.v2.core.schema import generate_openai_schema
+
+          class Result(BaseModel):
+              value: int
+
+          expected = os.environ["EXPECTED_VERSION"]
+          assert version("instructor") == expected
+          assert instructor.__version__ == expected
+          schema = generate_openai_schema(Result)
+          assert schema["parameters"]["required"] == ["value"]
+          assert Result.model_validate({"value": 7}).value == 7
+          PY
+
+  attest:
+    name: Attest tested distributions from main
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.prepare.outputs.release_needed == 'true'
+    needs: [prepare, smoke, unit]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact_id }}
+          merge-multiple: true
+      - name: Record build provenance for the verified wheel and source archive
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/*
+
+  publish:
+    name: Publish approved GitHub release
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.publish &&
+      needs.prepare.outputs.release_needed == 'true'
+    needs: [prepare, smoke, attest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download exact release candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact_id }}
+          merge-multiple: true
+      - name: Create GitHub release from tested artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          gh release create "$TAG" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Instructor $TAG" \
+            --notes-file release-notes.md \
+            --latest

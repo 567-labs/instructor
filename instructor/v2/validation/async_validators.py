@@ -1,0 +1,269 @@
+"""Async validation decorators owned by the v2 runtime."""
+
+from __future__ import annotations
+
+from inspect import signature
+from typing import Any, Callable, TypeVar, get_args, get_origin
+
+from pydantic import BaseModel, ValidationInfo
+from typing_extensions import TypeAliasType
+
+from instructor.v2.core.errors import AsyncValidationError
+
+ASYNC_VALIDATOR_KEY = "__async_validator__"
+ASYNC_MODEL_VALIDATOR_KEY = "__async_model_validator__"
+T = TypeVar("T", bound=Callable[..., Any])
+
+
+class AsyncValidationContext:
+    """Carry context through async validation hooks."""
+
+    context: dict[str, Any]
+
+    def __init__(self, context: dict[str, Any]):
+        self.context = context
+
+
+def async_field_validator(field: str, *fields: str) -> Callable[[T], T]:
+    """Mark a callable as an async field validator."""
+    field_names = field, *fields
+
+    def decorator(func: T) -> T:
+        params = signature(func).parameters
+        requires_validation_context = False
+        if len(params) == 3:
+            if "info" not in params:
+                raise ValueError(
+                    "Async validator can only have a value parameter and an optional info parameter"
+                )
+            if params["info"].annotation not in (ValidationInfo, "ValidationInfo"):
+                raise ValueError(
+                    "Async validator info parameter must be of type ValidationInfo"
+                )
+            requires_validation_context = True
+
+        setattr(
+            func, ASYNC_VALIDATOR_KEY, (field_names, func, requires_validation_context)
+        )
+        return func
+
+    return decorator
+
+
+def async_model_validator() -> Callable[[T], T]:
+    """Mark a callable as an async model validator."""
+
+    def decorator(func: T) -> T:
+        params = signature(func).parameters
+        requires_validation_context = False
+        if len(params) > 2:
+            raise ValueError("Invalid Parameter Count!")
+
+        if len(params) == 2:
+            if "info" not in params:
+                raise ValueError(
+                    "Async validator can only have a value parameter and an optional info parameter"
+                )
+            if params["info"].annotation not in (ValidationInfo, "ValidationInfo"):
+                raise ValueError(
+                    "Async validator info parameter must be of type ValidationInfo"
+                )
+            requires_validation_context = True
+
+        setattr(
+            func,
+            ASYNC_MODEL_VALIDATOR_KEY,
+            (func, requires_validation_context),
+        )
+        return func
+
+    return decorator
+
+
+def _collect_markers(model_cls: type[BaseModel], key: str) -> list[Any]:
+    """Walk the MRO (base classes first) collecting distinct decorator markers.
+
+    A subclass redefining a validator under the same attribute name overrides
+    the base class's version, matching normal Python method-override semantics.
+    """
+    markers: dict[str, Any] = {}
+    for klass in reversed(model_cls.__mro__):
+        for name, member in vars(klass).items():
+            marker = getattr(member, key, None)
+            if marker is not None:
+                markers[name] = marker
+            else:
+                markers.pop(name, None)
+    return list(markers.values())
+
+
+def model_declares_async_validators(model_cls: Any) -> bool:
+    """Detect validators on a model or any nested model, including containers."""
+    visited: set[type[BaseModel]] = set()
+
+    def declares(annotation: Any) -> bool:
+        origin = get_origin(annotation)
+        if origin is not None and origin is not annotation:
+            return any(declares(arg) for arg in get_args(annotation)) or declares(
+                origin
+            )
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            if annotation in visited:
+                return False
+            visited.add(annotation)
+            if _collect_markers(annotation, ASYNC_VALIDATOR_KEY) or _collect_markers(
+                annotation, ASYNC_MODEL_VALIDATOR_KEY
+            ):
+                return True
+            return any(
+                declares(field.annotation) for field in annotation.model_fields.values()
+            )
+        return any(declares(arg) for arg in get_args(annotation))
+
+    return declares(model_cls)
+
+
+async def run_async_validators(value: Any, *, context: dict[str, Any] | None) -> Any:
+    """Recursively run declared async field/model validators over a parsed value.
+
+    Nested models inside lists, tuples, sets, frozensets and dictionary values
+    are validated depth-first so parent validators see the validated children. Returns the (possibly updated) value; raises
+    `AsyncValidationError` aggregating every failure found in the subtree.
+    """
+    if isinstance(value, BaseModel):
+        return await _run_on_model(value, context=context)
+    if isinstance(value, (list, tuple, set, frozenset, dict)):
+        errors: list[ValueError] = []
+        validated: list[Any] = []
+        items = value.values() if isinstance(value, dict) else value
+        for item in items:
+            try:
+                validated.append(await run_async_validators(item, context=context))
+            except AsyncValidationError as exc:
+                errors.extend(exc.errors)
+        if errors:
+            summary = "; ".join(str(error) for error in errors)
+            raise AsyncValidationError(
+                f"Async validation failed for {type(value).__name__}: {summary}",
+                errors=errors,
+            )
+        if isinstance(value, dict):
+            return dict(zip(value, validated))
+        if isinstance(value, list):
+            return validated
+        if isinstance(value, tuple):
+            return tuple(validated)
+        if isinstance(value, set):
+            return set(validated)
+        return frozenset(validated)
+    return value
+
+
+async def _run_on_model(
+    model: BaseModel, *, context: dict[str, Any] | None
+) -> BaseModel:
+    model_cls = type(model)
+    info = AsyncValidationContext(context or {})
+    errors: list[ValueError] = []
+    updates: dict[str, Any] = {}
+
+    for field_name in model_cls.model_fields:
+        current = getattr(model, field_name)
+        try:
+            new_value = await run_async_validators(current, context=context)
+        except AsyncValidationError as exc:
+            errors.extend(exc.errors)
+            continue
+        if new_value is not current:
+            updates[field_name] = new_value
+    if updates:
+        model = model.model_copy(update=updates)
+        updates = {}
+
+    for field_names, validator, needs_info in _collect_markers(
+        model_cls, ASYNC_VALIDATOR_KEY
+    ):
+        for field_name in field_names:
+            if field_name not in model_cls.model_fields:
+                continue
+            current = updates.get(field_name, getattr(model, field_name))
+            try:
+                new_value = (
+                    await validator(model_cls, current, info)
+                    if needs_info
+                    else await validator(model_cls, current)
+                )
+            except ValueError as exc:
+                errors.append(exc)
+                continue
+            if new_value is not current:
+                updates[field_name] = new_value
+    if updates:
+        model = model.model_copy(update=updates)
+
+    for validator, needs_info in _collect_markers(model_cls, ASYNC_MODEL_VALIDATOR_KEY):
+        try:
+            result = (
+                await validator(model, info) if needs_info else await validator(model)
+            )
+        except ValueError as exc:
+            errors.append(exc)
+            continue
+        if result is not None:
+            model = result
+
+    if errors:
+        summary = "; ".join(str(error) for error in errors)
+        raise AsyncValidationError(
+            f"Async validation failed for {model_cls.__name__}: {summary}",
+            errors=errors,
+        )
+
+    return model
+
+
+def reject_async_validators(response_model: Any) -> None:
+    """Fail closed: the runtime does not execute marked asynchronous validators."""
+    seen: set[int] = set()
+
+    def visit(model: Any) -> None:
+        if id(model) in seen:
+            return
+        seen.add(id(model))
+        if isinstance(model, TypeAliasType):
+            visit(model.__value__)
+        origin = get_origin(model)
+        for argument in get_args(model):
+            visit(argument)
+        if origin is not None:
+            # Some generic aliases pass the type check but are invalid for issubclass.
+            visit(origin)
+            return
+        if not isinstance(model, type):
+            for child in getattr(model, "models", ()):
+                visit(child)
+            return
+        if issubclass(model, BaseModel):
+            # Inspect effective attributes, including inherited descriptors.
+            members = {}
+            for base in reversed(model.__mro__):
+                members.update(vars(base))
+            for name, member in members.items():
+                if isinstance(member, (classmethod, staticmethod)):
+                    member = member.__func__
+                if (
+                    getattr(member, ASYNC_VALIDATOR_KEY, None) is not None
+                    or getattr(member, ASYNC_MODEL_VALIDATOR_KEY, None) is not None
+                ):
+                    raise ValueError(
+                        f"{model.__name__}.{name}: Instructor async validators are "
+                        "not supported by the runtime. Use Pydantic validators or "
+                        "explicitly await validation before consuming results."
+                    )
+            for field in model.model_fields.values():
+                visit(field.annotation)
+        else:
+            for annotation in getattr(model, "__annotations__", {}).values():
+                visit(annotation)
+
+    visit(response_model)

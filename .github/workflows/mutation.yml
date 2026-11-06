@@ -1,0 +1,72 @@
+name: Retry mutation tests
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retry-mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: latest-known
+          enable-cache: true
+          python-version: "3.11"
+          cache-suffix: retry-mutation-py311
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Run retry mutation tests
+        env:
+          INSTRUCTOR_ENV: CI
+        run: |
+          set -euo pipefail
+          mutation_dir="${RUNNER_TEMP}/instructor-mutation"
+          mkdir -p "${mutation_dir}"
+          git archive HEAD | tar -x -C "${mutation_dir}"
+          cd "${mutation_dir}"
+          uv sync --locked --extra dev --group mutation
+
+          # Keep this manual check focused on the async retry contract.
+          uv run --no-sync \
+            mutmut run 'instructor.v2.core.retry.x_retry_async_v2__mutmut_*' \
+            --max-children 4
+          uv run --no-sync \
+            mutmut results --all true \
+            | grep -E '^[[:space:]]*instructor\.v2\.core\.retry\.x_retry_async_v2__mutmut_[0-9]+: ' \
+            | tee "${RUNNER_TEMP}/mutmut-results.txt"
+
+          # Require a 95% kill rate and cap surviving or timed-out mutations.
+          awk -F ': ' '
+            {
+              total++
+              if ($2 == "killed") killed++
+              else if ($2 == "survived") survived++
+              else if ($2 == "timeout") timeout++
+              else unexpected++
+            }
+            END {
+              printf "Async retry mutation results: %d killed, %d survived, %d timeout, %d unexpected, %d total\n", killed, survived, timeout, unexpected, total
+              if (total == 0 || unexpected > 0 || survived > 7 || timeout > 1 || killed * 100 < total * 95) exit 1
+            }
+          ' "${RUNNER_TEMP}/mutmut-results.txt"
+
+      - name: Upload mutation results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: retry-mutation-results
+          path: ${{ runner.temp }}/mutmut-results.txt
+          if-no-files-found: ignore

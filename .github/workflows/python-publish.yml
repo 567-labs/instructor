@@ -1,0 +1,85 @@
+name: Upload Python Package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing published GitHub release tag to upload
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pypi-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify release provenance
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      attestations: read
+    outputs:
+      artifact_id: ${{ steps.verified.outputs.artifact-id }}
+    steps:
+      - name: Verify the published tag and its tested distributions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9][0-9A-Za-z.+!-]*$ ]]
+          version="${TAG#v}"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+            --jq 'select(.draft == false and .published_at != null) | .id' | grep -Eq '^[0-9]+$'
+          read -r kind commit < <(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '[.object.type, .object.sha] | @tsv')
+          while [[ "$kind" == tag ]]; do
+            read -r kind commit < <(gh api "repos/$GITHUB_REPOSITORY/git/tags/$commit" --jq '[.object.type, .object.sha] | @tsv')
+          done
+          [[ "$kind" == commit && "$commit" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$GITHUB_EVENT_NAME" == release ]]; then
+            [[ "$commit" == "$GITHUB_SHA" ]]
+          fi
+          mkdir dist
+          wheel="instructor-$version-py3-none-any.whl"
+          sdist="instructor-$version.tar.gz"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir dist \
+            --pattern "$wheel" --pattern "$sdist"
+          for artifact in "dist/$wheel" "dist/$sdist"; do
+            gh attestation verify "$artifact" --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/scheduled-release.yml" \
+              --source-ref refs/heads/main --source-digest "$commit" --deny-self-hosted-runners
+          done
+      - name: Preserve verified distributions for upload
+        id: verified
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verified-pypi-distributions
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Upload verified distributions to PyPI
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/instructor/
+    permissions:
+      id-token: write
+    steps:
+      - name: Download verified distributions by artifact ID
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.verify.outputs.artifact_id }}
+          merge-multiple: true
+          path: dist
+      - name: Publish using PyPI Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3

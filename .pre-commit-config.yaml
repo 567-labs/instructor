@@ -1,0 +1,54 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: Run Linter Check (Ruff)
+        entry: uv run --frozen --isolated --only-group lint ruff check --force-exclude
+        args: [--fix, --unsafe-fixes]
+        language: system
+        types_or: [python, pyi, jupyter]
+        require_serial: true
+        files: ^(instructor|tests|examples)/
+      - id: ruff-format
+        name: Run Formatter (Ruff)
+        entry: uv run --frozen --isolated --only-group lint ruff format --force-exclude
+        language: system
+        types_or: [python, pyi, jupyter]
+        require_serial: true
+      - id: uv-lock-check
+        name: Check uv.lock is up-to-date
+        entry: uv
+        args: [lock, --check]
+        language: system
+        files: ^(pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+        
+      - id: uv-sync-check
+        name: Verify dependencies can be installed
+        entry: uv
+        args: [sync, --check, --all-extras]
+        language: system
+        files: ^(pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+
+      - id: uv-export-requirements
+        name: Export requirements.txt from pyproject.toml
+        entry: bash -c 'uv pip compile --universal --python-version 3.10 pyproject.toml -o requirements.txt && git add requirements.txt'
+        language: system
+        files: ^pyproject\.toml$
+        pass_filenames: false
+
+      - id: ty-check
+        name: Run Type Check (ty)
+        entry: uv
+        args: [run, --frozen, ty, check, --error-on-warning, instructor/]
+        language: system
+        files: ^instructor/
+        pass_filenames: false
+
+
+      - id: public-lock-sources
+        name: Check public package URLs in the lockfile
+        entry: uv run --frozen python scripts/check_public_lock.py
+        language: system
+        files: ^uv\.lock$

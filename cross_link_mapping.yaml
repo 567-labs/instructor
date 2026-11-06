@@ -1,0 +1,316 @@
+# Cross-Link Mapping for Instructor Documentation
+# This file maps blog posts and documentation pages to their related content
+# Format: 
+#   source_file:
+#     related_concepts: [list of concept docs to link]
+#     related_blog_posts: [list of related blog posts]
+#     related_examples: [list of example files]
+#     related_integrations: [list of integration docs]
+#     see_also_text: "Custom text for See Also section"
+
+# VALIDATION CLUSTER
+blog/posts/validation-part1.md:
+  related_concepts:
+    - concepts/validation.md
+    - concepts/reask_validation.md
+  related_blog_posts:
+    - blog/posts/semantic-validation-structured-outputs.md
+    - blog/posts/bad-schemas-could-break-llms.md
+    - blog/posts/pydantic-is-still-all-you-need.md
+  related_examples:
+    - examples/validators.md
+  see_also_text: |
+    ## Related Documentation
+    - [Core Validation Concepts](/concepts/validation) - Learn about validation fundamentals
+    - [Reask Validation](/concepts/reask_validation) - Handle validation failures gracefully
+    
+    ## See Also
+    - [Semantic Validation with Structured Outputs](semantic-validation-structured-outputs) - Next evolution in validation
+    - [Why Bad Schemas Break LLMs](bad-schemas-could-break-llms) - Schema design best practices
+    - [Pydantic Is Still All You Need](pydantic-is-still-all-you-need) - Why Pydantic validation matters
+
+blog/posts/semantic-validation-structured-outputs.md:
+  related_concepts:
+    - concepts/validation.md
+    - concepts/llm_validation.md
+  related_blog_posts:
+    - blog/posts/validation-part1.md
+    - blog/posts/anthropic-prompt-caching.md
+    - blog/posts/logfire.md
+  related_examples:
+    - examples/moderation.md
+  see_also_text: |
+    ## Related Documentation
+    - [Validation Fundamentals](/concepts/validation) - Core validation concepts
+    - [LLM Validation](/concepts/llm_validation) - Using LLMs for validation
+    
+    ## See Also
+    - [Validation Deep Dive](validation-part1) - Foundation validation concepts
+    - [Anthropic Prompt Caching](anthropic-prompt-caching) - Optimize validation costs
+    - [Monitoring with Logfire](logfire) - Track validation performance
+
+blog/posts/pydantic-is-still-all-you-need.md:
+  related_concepts:
+    - concepts/philosophy.md
+    - concepts/validation.md
+  related_blog_posts:
+    - blog/posts/validation-part1.md
+    - blog/posts/best_framework.md
+    - blog/posts/introduction.md
+  related_integrations:
+    - integrations/index.md
+  see_also_text: |
+    ## Related Documentation
+    - [Instructor Philosophy](/concepts/philosophy) - Why we chose Pydantic
+    - [Validation Guide](/concepts/validation) - Practical validation techniques
+    
+    ## See Also
+    - [Validation Deep Dive](validation-part1) - Advanced validation patterns
+    - [Best Framework Comparison](best_framework) - Why Instructor stands out
+    - [Introduction to Instructor](introduction) - Getting started guide
+
+# MULTIMODAL CLUSTER
+blog/posts/multimodal-gemini.md:
+  related_concepts:
+    - concepts/multimodal.md
+    - concepts/images.md
+  related_blog_posts:
+    - blog/posts/openai-multimodal.md
+    - blog/posts/structured-output-anthropic.md
+    - blog/posts/chat-with-your-pdf-with-gemini.md
+  related_integrations:
+    - integrations/google.md
+    - integrations/vertex.md
+  related_examples:
+    - examples/image_to_ad_copy.md
+  see_also_text: |
+    ## Related Documentation
+    - [Multimodal Concepts](/concepts/multimodal) - Working with images, video, and audio
+    - [Image Processing](/concepts/images) - Image-specific techniques
+    - [Google Integration](/integrations/google) - Complete Gemini setup guide
+    
+    ## See Also
+    - [OpenAI Multimodal](openai-multimodal) - Compare multimodal approaches
+    - [Anthropic Structured Output](structured-output-anthropic) - Alternative provider
+    - [Chat with PDFs using Gemini](chat-with-your-pdf-with-gemini) - Practical PDF processing
+
+blog/posts/openai-multimodal.md:
+  related_concepts:
+    - concepts/multimodal.md
+    - concepts/images.md
+  related_blog_posts:
+    - blog/posts/multimodal-gemini.md
+    - blog/posts/anthropic-prompt-caching.md
+    - blog/posts/logfire.md
+  related_integrations:
+    - integrations/openai.md
+  related_examples:
+    - examples/audio.md
+  see_also_text: |
+    ## Related Documentation
+    - [Multimodal Guide](/concepts/multimodal) - Comprehensive multimodal reference
+    - [OpenAI Integration](/integrations/openai) - Full OpenAI setup
+    
+    ## See Also
+    - [Gemini Multimodal](multimodal-gemini) - Alternative multimodal approach
+    - [Prompt Caching](anthropic-prompt-caching) - Cache large audio files
+    - [Monitoring with Logfire](logfire) - Track multimodal processing
+
+blog/posts/chat-with-your-pdf-with-gemini.md:
+  related_concepts:
+    - concepts/multimodal.md
+  related_blog_posts:
+    - blog/posts/multimodal-gemini.md
+    - blog/posts/generating-pdf-citations.md
+    - blog/posts/rag-and-beyond.md
+  related_examples:
+    - examples/pdf_to_markdown.md
+  see_also_text: |
+    ## Related Documentation
+    - [Multimodal Processing](/concepts/multimodal) - Core multimodal concepts
+    
+    ## See Also
+    - [Gemini Multimodal Features](multimodal-gemini) - Full Gemini capabilities
+    - [PDF Citation Generation](generating-pdf-citations) - Extract citations from PDFs
+    - [RAG and Beyond](rag-and-beyond) - Advanced document processing
+
+# PROVIDER INTEGRATION CLUSTER
+blog/posts/structured-output-anthropic.md:
+  related_concepts:
+    - concepts/patching.md
+  related_blog_posts:
+    - blog/posts/anthropic-prompt-caching.md
+    - blog/posts/announcing-unified-provider-interface.md
+    - blog/posts/best_framework.md
+  related_integrations:
+    - integrations/anthropic.md
+  related_examples:
+    - examples/classification.md
+  see_also_text: |
+    ## Related Documentation
+    - [How Patching Works](/concepts/patching) - Understand provider integration
+    - [Anthropic Integration](/integrations/anthropic) - Complete setup guide
+    
+    ## See Also
+    - [Anthropic Prompt Caching](anthropic-prompt-caching) - Optimize Anthropic costs
+    - [Unified Provider Interface](announcing-unified-provider-interface) - Switch providers easily
+    - [Framework Comparison](best_framework) - Why Instructor excels
+
+blog/posts/anthropic-prompt-caching.md:
+  related_concepts:
+    - concepts/caching.md
+  related_blog_posts:
+    - blog/posts/structured-output-anthropic.md
+    - blog/posts/caching.md
+    - blog/posts/logfire.md
+  related_integrations:
+    - integrations/anthropic.md
+  see_also_text: |
+    ## Related Documentation
+    - [Caching Strategies](/concepts/caching) - General caching concepts
+    - [Anthropic Integration](/integrations/anthropic) - Full Anthropic guide
+    
+    ## See Also
+    - [Anthropic Structured Outputs](structured-output-anthropic) - Use with caching
+    - [Response Caching](caching) - General caching strategies
+    - [Performance Monitoring](logfire) - Track cache performance
+
+blog/posts/announcing-unified-provider-interface.md:
+  related_concepts:
+    - concepts/patching.md
+    - concepts/philosophy.md
+  related_blog_posts:
+    - blog/posts/string-based-init.md
+    - blog/posts/best_framework.md
+    - blog/posts/introduction.md
+  related_integrations:
+    - integrations/index.md
+  related_examples:
+    - examples/groq.md
+    - examples/mistral.md
+  see_also_text: |
+    ## Related Documentation
+    - [Provider Patching](/concepts/patching) - How provider integration works
+    - [All Integrations](/integrations/) - Supported provider list
+    
+    ## See Also
+    - [String-Based Initialization](string-based-init) - Alternative init method
+    - [Framework Comparison](best_framework) - Multi-provider advantages
+    - [Getting Started](introduction) - Quick start guide
+
+# RAG AND SEARCH CLUSTER
+blog/posts/rag-and-beyond.md:
+  related_concepts:
+    - concepts/validation.md
+  related_blog_posts:
+    - blog/posts/llm-as-reranker.md
+    - blog/posts/citations.md
+    - blog/posts/chat-with-your-pdf-with-gemini.md
+  related_examples:
+    - examples/search.md
+  see_also_text: |
+    ## Related Documentation
+    - [Validation Concepts](/concepts/validation) - Validate RAG outputs
+    
+    ## See Also
+    - [LLM as Reranker](llm-as-reranker) - Improve search relevance
+    - [Citation Extraction](citations) - Verify sources
+    - [PDF Processing](chat-with-your-pdf-with-gemini) - Document handling
+
+blog/posts/llm-as-reranker.md:
+  related_blog_posts:
+    - blog/posts/rag-and-beyond.md
+    - blog/posts/validation-part1.md
+    - blog/posts/logfire.md
+  related_examples:
+    - examples/reranking.md
+  see_also_text: |
+    ## See Also
+    - [RAG and Beyond](rag-and-beyond) - Comprehensive RAG guide
+    - [Validation Fundamentals](validation-part1) - Validate ranking scores
+    - [Performance Monitoring](logfire) - Track reranking performance
+
+blog/posts/citations.md:
+  related_concepts:
+    - concepts/validation.md
+  related_blog_posts:
+    - blog/posts/rag-and-beyond.md
+    - blog/posts/generating-pdf-citations.md
+    - blog/posts/validation-part1.md
+  see_also_text: |
+    ## Related Documentation
+    - [Validation Guide](/concepts/validation) - Validate citations
+    
+    ## See Also
+    - [RAG Techniques](rag-and-beyond) - Use citations in RAG
+    - [PDF Citations](generating-pdf-citations) - Extract from PDFs
+    - [Validation Basics](validation-part1) - Ensure citation quality
+
+# PERFORMANCE AND MONITORING
+blog/posts/logfire.md:
+  related_concepts:
+    - concepts/retrying.md
+  related_blog_posts:
+    - blog/posts/full-fastapi-visibility.md
+    - blog/posts/anthropic-prompt-caching.md
+    - blog/posts/validation-part1.md
+  related_integrations:
+    - integrations/pydantic_logfire.md
+  see_also_text: |
+    ## Related Documentation
+    - [Retry Mechanisms](/concepts/retrying) - Handle failures gracefully
+    - [Logfire Integration](/integrations/pydantic_logfire) - Setup guide
+    
+    ## See Also
+    - [FastAPI Visibility](full-fastapi-visibility) - Web app monitoring
+    - [Prompt Caching](anthropic-prompt-caching) - Monitor cache hits
+    - [Validation Monitoring](validation-part1) - Track validation metrics
+
+blog/posts/caching.md:
+  related_concepts:
+    - concepts/caching.md
+  related_blog_posts:
+    - blog/posts/anthropic-prompt-caching.md
+    - blog/posts/logfire.md
+  see_also_text: |
+    ## Related Documentation
+    - [Caching Concepts](/concepts/caching) - Core caching strategies
+    
+    ## See Also
+    - [Anthropic Prompt Caching](anthropic-prompt-caching) - Provider-specific caching
+    - [Performance Monitoring](logfire) - Track cache effectiveness
+
+# GETTING STARTED AND PHILOSOPHY
+blog/posts/introduction.md:
+  related_concepts:
+    - concepts/philosophy.md
+    - concepts/quickstart.md
+  related_blog_posts:
+    - blog/posts/best_framework.md
+    - blog/posts/pydantic-is-still-all-you-need.md
+    - blog/posts/announcing-unified-provider-interface.md
+  see_also_text: |
+    ## Related Documentation
+    - [Quick Start Guide](/concepts/quickstart) - Get running in minutes
+    - [Philosophy](/concepts/philosophy) - Why we built Instructor
+    
+    ## See Also
+    - [Framework Comparison](best_framework) - See how we compare
+    - [Why Pydantic](pydantic-is-still-all-you-need) - Our foundation
+    - [Easy Provider Setup](announcing-unified-provider-interface) - Start with any LLM
+
+blog/posts/best_framework.md:
+  related_concepts:
+    - concepts/philosophy.md
+  related_blog_posts:
+    - blog/posts/introduction.md
+    - blog/posts/pydantic-is-still-all-you-need.md
+    - blog/posts/announcing-unified-provider-interface.md
+  see_also_text: |
+    ## Related Documentation
+    - [Our Philosophy](/concepts/philosophy) - Design principles
+    
+    ## See Also
+    - [Getting Started](introduction) - Quick introduction
+    - [Pydantic Foundation](pydantic-is-still-all-you-need) - Why Pydantic
+    - [Multi-Provider Support](announcing-unified-provider-interface) - Key differentiator

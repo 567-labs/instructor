@@ -1,0 +1,383 @@
+name: Test
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  select-tests:
+    name: Select affected tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      unit: ${{ steps.plan.outputs.unit }}
+      reuse: ${{ steps.plan.outputs.reuse }}
+      baseline: ${{ steps.plan.outputs.baseline }}
+      versions: ${{ steps.plan.outputs.versions }}
+      live_jobs: ${{ steps.plan.outputs.live_jobs }}
+      providers: ${{ steps.plan.outputs.providers }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - id: plan
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: python -m scripts.ci_test_plan
+
+  core-tests:
+    name: Core Tests
+    needs: select-tests
+    if: needs.select-tests.outputs.unit == 'true'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/unit-tests.yml
+    with:
+      shard: core
+      baseline-run: ${{ contains(fromJSON(needs.select-tests.outputs.reuse), 'core') && needs.select-tests.outputs.baseline || '' }}
+
+  v2-tests:
+    name: V2 Tests
+    needs: select-tests
+    if: needs.select-tests.outputs.unit == 'true'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/unit-tests.yml
+    with:
+      shard: v2
+      baseline-run: ${{ contains(fromJSON(needs.select-tests.outputs.reuse), 'v2') && needs.select-tests.outputs.baseline || '' }}
+
+  offline-coverage-tests:
+    name: Offline Coverage Tests (Python ${{ matrix.python-version }})
+    needs: select-tests
+    if: needs.select-tests.outputs.unit == 'true'
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ fromJSON(needs.select-tests.outputs.versions) }}
+    uses: ./.github/workflows/unit-tests.yml
+    with:
+      shard: focused
+      python-version: ${{ matrix.python-version }}
+      baseline-run: ${{ matrix.python-version == '3.11' && contains(fromJSON(needs.select-tests.outputs.reuse), 'focused') && needs.select-tests.outputs.baseline || '' }}
+
+  full-coverage:
+    name: Full Coverage (Python 3.11)
+    needs: [select-tests, core-tests, v2-tests, offline-coverage-tests]
+    if: ${{ !cancelled() && needs.select-tests.outputs.unit == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: latest-known
+          enable-cache: true
+          python-version: "3.11"
+      - name: Set up Python
+        run: uv python install 3.11
+      - name: Download coverage from this run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: offline-coverage-${{ github.run_id }}-*
+          path: ${{ runner.temp }}/coverage-parts
+      - name: Verify full offline coverage
+        run: |
+          parts="$RUNNER_TEMP/coverage-parts"
+          prefix="offline-coverage-$GITHUB_RUN_ID"
+          uv run --frozen --only-group coverage coverage combine \
+            "$parts/$prefix-core/coverage.core" \
+            "$parts/$prefix-v2/coverage.v2" \
+            "$parts/$prefix-focused/coverage.focused"
+          uv run --frozen --only-group coverage coverage report --show-missing --fail-under=99
+          uv run --frozen --only-group coverage coverage json -o "$RUNNER_TEMP/coverage.json"
+          uv run --frozen --only-group coverage python scripts/check_statement_coverage.py "$RUNNER_TEMP/coverage.json" 100
+
+  # Core provider tests for OpenAI
+  core-openai:
+    name: Core Provider Tests (OpenAI)
+    runs-on: ubuntu-latest
+    needs: [select-tests, core-tests]
+    if: >-
+      !failure() && !cancelled() &&
+      contains(fromJSON(needs.select-tests.outputs.live_jobs || '[]'), 'core-openai')
+    env:
+      PROVIDER_TEST_REQUIREMENTS: OPENAI_API_KEY
+      HAS_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install test dependencies
+        if: ${{ env.HAS_OPENAI_API_KEY == 'true' }}
+        uses: ./.github/actions/setup-test-environment
+      - name: Skip core provider tests (OpenAI)
+        if: ${{ env.HAS_OPENAI_API_KEY != 'true' }}
+        run: echo "Skipping OpenAI core provider tests (missing OPENAI_API_KEY)." | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Run core provider tests (OpenAI)
+        if: ${{ env.HAS_OPENAI_API_KEY == 'true' }}
+        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers tests/llm/test_decisions tests/v2/test_provider_modes.py -v -m llm -k "openai and not azure"
+        env:
+          INSTRUCTOR_ENV: CI
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Summarize provider test evidence
+        if: always()
+        run: python scripts/provider_test_evidence.py --reports "${RUNNER_TEMP}"
+
+  # Core provider tests for Anthropic
+  core-anthropic:
+    name: Core Provider Tests (Anthropic)
+    runs-on: ubuntu-latest
+    needs: [select-tests, core-tests]
+    if: >-
+      !failure() && !cancelled() &&
+      contains(fromJSON(needs.select-tests.outputs.live_jobs || '[]'), 'core-anthropic')
+    env:
+      PROVIDER_TEST_REQUIREMENTS: ANTHROPIC_API_KEY
+      HAS_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install test dependencies
+        if: ${{ env.HAS_ANTHROPIC_API_KEY == 'true' }}
+        uses: ./.github/actions/setup-test-environment
+      - name: Skip core provider tests (Anthropic)
+        if: ${{ env.HAS_ANTHROPIC_API_KEY != 'true' }}
+        run: echo "Skipping Anthropic core provider tests (missing ANTHROPIC_API_KEY)." | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Run core provider tests (Anthropic)
+        if: ${{ env.HAS_ANTHROPIC_API_KEY == 'true' }}
+        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers tests/v2/test_provider_modes.py -v -m llm -k "anthropic"
+        env:
+          INSTRUCTOR_ENV: CI
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Summarize provider test evidence
+        if: always()
+        run: python scripts/provider_test_evidence.py --reports "${RUNNER_TEMP}"
+
+  # Core provider tests for Google
+  core-google:
+    name: Core Provider Tests (Google)
+    runs-on: ubuntu-latest
+    needs: [select-tests, core-tests]
+    if: >-
+      !failure() && !cancelled() &&
+      contains(fromJSON(needs.select-tests.outputs.live_jobs || '[]'), 'core-google')
+    env:
+      PROVIDER_TEST_REQUIREMENTS: GOOGLE_API_KEY GOOGLE_GENAI_MODEL
+      HAS_GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY != '' }}
+      HAS_GOOGLE_GENAI_MODEL: ${{ secrets.GOOGLE_GENAI_MODEL != '' }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install test dependencies
+        if: ${{ env.HAS_GOOGLE_API_KEY == 'true' && env.HAS_GOOGLE_GENAI_MODEL == 'true' }}
+        uses: ./.github/actions/setup-test-environment
+      - name: Skip core provider tests (Google)
+        if: ${{ env.HAS_GOOGLE_API_KEY != 'true' || env.HAS_GOOGLE_GENAI_MODEL != 'true' }}
+        run: echo "Skipping Google core provider tests (missing GOOGLE_API_KEY or GOOGLE_GENAI_MODEL)." | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Run core provider tests (Google)
+        if: ${{ env.HAS_GOOGLE_API_KEY == 'true' && env.HAS_GOOGLE_GENAI_MODEL == 'true' }}
+        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers tests/v2/test_provider_modes.py -v -m llm -k "google or genai"
+        env:
+          INSTRUCTOR_ENV: CI
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_GENAI_MODEL: ${{ secrets.GOOGLE_GENAI_MODEL }}
+
+      - name: Summarize provider test evidence
+        if: always()
+        run: python scripts/provider_test_evidence.py --reports "${RUNNER_TEMP}"
+
+  # Core provider tests for other providers
+  core-other:
+    name: Core Provider Tests (Other)
+    runs-on: ubuntu-latest
+    needs: [select-tests, core-tests]
+    if: >-
+      !failure() && !cancelled() &&
+      contains(fromJSON(needs.select-tests.outputs.live_jobs || '[]'), 'core-other')
+    env:
+      PROVIDER_TEST_REQUIREMENTS: COHERE_API_KEY XAI_API_KEY MISTRAL_API_KEY CEREBRAS_API_KEY FIREWORKS_API_KEY WRITER_API_KEY PERPLEXITY_API_KEY
+      HAS_COHERE_API_KEY: ${{ secrets.COHERE_API_KEY != '' }}
+      HAS_XAI_API_KEY: ${{ secrets.XAI_API_KEY != '' }}
+      HAS_MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY != '' }}
+      HAS_CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY != '' }}
+      HAS_FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY != '' }}
+      HAS_WRITER_API_KEY: ${{ secrets.WRITER_API_KEY != '' }}
+      HAS_PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY != '' }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install test dependencies
+        uses: ./.github/actions/setup-test-environment
+      - name: Skip core provider tests (Other)
+        if: >-
+          ${{ env.HAS_COHERE_API_KEY != 'true' && env.HAS_XAI_API_KEY != 'true'
+          && env.HAS_MISTRAL_API_KEY != 'true' && env.HAS_CEREBRAS_API_KEY != 'true'
+          && env.HAS_FIREWORKS_API_KEY != 'true' && env.HAS_WRITER_API_KEY != 'true'
+          && env.HAS_PERPLEXITY_API_KEY != 'true' }}
+        run: echo "Skipping core provider tests (Other) (missing provider secrets)." | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Run core provider tests (Cohere, xAI, Mistral, etc)
+        if: >-
+          ${{ env.HAS_COHERE_API_KEY == 'true' || env.HAS_XAI_API_KEY == 'true'
+          || env.HAS_MISTRAL_API_KEY == 'true' || env.HAS_CEREBRAS_API_KEY == 'true'
+          || env.HAS_FIREWORKS_API_KEY == 'true' || env.HAS_WRITER_API_KEY == 'true'
+          || env.HAS_PERPLEXITY_API_KEY == 'true' }}
+        run: bash scripts/run_provider_tests.sh --retry-failures tests/llm/test_core_providers tests/v2/test_provider_modes.py -v -m llm -k "cohere or xai or mistral or cerebras or fireworks or writer or perplexity"
+        env:
+          INSTRUCTOR_ENV: CI
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
+          WRITER_API_KEY: ${{ secrets.WRITER_API_KEY }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+
+      - name: Check current documented model IDs
+        run: uv run --frozen pytest tests/llm/test_current_doc_models.py -v -rs --asyncio-mode=auto --junitxml="${RUNNER_TEMP}/provider-evidence-documented-models.xml"
+        env:
+          INSTRUCTOR_ENV: CI
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
+
+      - name: Summarize provider test evidence
+        if: always()
+        run: python scripts/provider_test_evidence.py --reports "${RUNNER_TEMP}"
+
+  # Provider tests run in parallel
+  provider-tests:
+    name: ${{ matrix.provider.name }} Tests
+    runs-on: ubuntu-latest
+    needs: [select-tests, core-tests]
+    if: >-
+      !failure() && !cancelled() &&
+      needs.select-tests.outputs.providers != '[]'
+    env:
+      PROVIDER_TEST_REQUIREMENTS: PROVIDER_API_KEY
+      HAS_PROVIDER_API_KEY: >-
+        ${{ (matrix.provider.env_key == 'OPENAI_API_KEY' && secrets.OPENAI_API_KEY != '') ||
+        (matrix.provider.env_key == 'ANTHROPIC_API_KEY' && secrets.ANTHROPIC_API_KEY != '') ||
+        (matrix.provider.env_key == 'GOOGLE_API_KEY' && secrets.GOOGLE_API_KEY != '') ||
+        (matrix.provider.env_key == 'WRITER_API_KEY' && secrets.WRITER_API_KEY != '') }}
+      PROVIDER_NAME: ${{ matrix.provider.name }}
+      PROVIDER_ENV_KEY: ${{ matrix.provider.env_key }}
+      PROVIDER_TEST_PATH: ${{ matrix.provider.test_path }}
+      HAS_GOOGLE_GENAI_MODEL: ${{ secrets.GOOGLE_GENAI_MODEL != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: ${{ fromJSON(needs.select-tests.outputs.providers || '[]') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install test dependencies
+        if: ${{ env.HAS_PROVIDER_API_KEY == 'true' && ((matrix.provider.name != 'Gemini' && matrix.provider.name != 'Google GenAI' && matrix.provider.name != 'Vertex AI') || env.HAS_GOOGLE_GENAI_MODEL == 'true') }}
+        uses: ./.github/actions/setup-test-environment
+      - name: Skip ${{ matrix.provider.name }} tests
+        if: >-
+          ${{ env.HAS_PROVIDER_API_KEY != 'true' ||
+          ((matrix.provider.name == 'Gemini' || matrix.provider.name == 'Google GenAI'
+          || matrix.provider.name == 'Vertex AI') && env.HAS_GOOGLE_GENAI_MODEL != 'true') }}
+        run: >-
+          echo "Skipping $PROVIDER_NAME tests
+          (missing $PROVIDER_ENV_KEY or GOOGLE_GENAI_MODEL)." | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Run ${{ matrix.provider.name }} tests
+        if: >-
+          ${{ env.HAS_PROVIDER_API_KEY == 'true' &&
+          ((matrix.provider.name != 'Gemini' && matrix.provider.name != 'Google GenAI'
+          && matrix.provider.name != 'Vertex AI') || env.HAS_GOOGLE_GENAI_MODEL == 'true') }}
+        run: bash scripts/run_provider_tests.sh "$PROVIDER_TEST_PATH"
+        env:
+          INSTRUCTOR_ENV: CI
+          OPENAI_API_KEY: ${{ matrix.provider.env_key == 'OPENAI_API_KEY' && secrets.OPENAI_API_KEY || '' }}
+          ANTHROPIC_API_KEY: ${{ matrix.provider.env_key == 'ANTHROPIC_API_KEY' && secrets.ANTHROPIC_API_KEY || '' }}
+          GOOGLE_API_KEY: ${{ matrix.provider.env_key == 'GOOGLE_API_KEY' && secrets.GOOGLE_API_KEY || '' }}
+          WRITER_API_KEY: ${{ matrix.provider.env_key == 'WRITER_API_KEY' && secrets.WRITER_API_KEY || '' }}
+          GOOGLE_GENAI_MODEL: ${{ matrix.provider.env_key == 'GOOGLE_API_KEY' && secrets.GOOGLE_GENAI_MODEL || '' }}
+
+      - name: Summarize provider test evidence
+        if: always()
+        run: python scripts/provider_test_evidence.py --reports "${RUNNER_TEMP}"
+
+  # Auto client needs multiple providers
+  auto-client-test:
+    name: Auto Client Tests
+    runs-on: ubuntu-latest
+    needs: [select-tests, core-tests]
+    if: >-
+      !failure() && !cancelled() &&
+      contains(fromJSON(needs.select-tests.outputs.live_jobs || '[]'), 'auto-client-test')
+    env:
+      PROVIDER_TEST_REQUIREMENTS: OPENAI_API_KEY GOOGLE_API_KEY COHERE_API_KEY ANTHROPIC_API_KEY XAI_API_KEY
+      HAS_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
+      HAS_GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY != '' }}
+      HAS_COHERE_API_KEY: ${{ secrets.COHERE_API_KEY != '' }}
+      HAS_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_XAI_API_KEY: ${{ secrets.XAI_API_KEY != '' }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install test dependencies
+        if: ${{ env.HAS_OPENAI_API_KEY == 'true' && env.HAS_GOOGLE_API_KEY == 'true' && env.HAS_COHERE_API_KEY == 'true' && env.HAS_ANTHROPIC_API_KEY == 'true' && env.HAS_XAI_API_KEY == 'true' }}
+        uses: ./.github/actions/setup-test-environment
+      - name: Skip Auto Client tests
+        if: >-
+          ${{ env.HAS_OPENAI_API_KEY != 'true' || env.HAS_GOOGLE_API_KEY != 'true'
+          || env.HAS_COHERE_API_KEY != 'true' || env.HAS_ANTHROPIC_API_KEY != 'true'
+          || env.HAS_XAI_API_KEY != 'true' }}
+        run: echo "Skipping Auto Client tests (missing one or more provider secrets)." | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Run Auto Client tests
+        if: >-
+          ${{ env.HAS_OPENAI_API_KEY == 'true' && env.HAS_GOOGLE_API_KEY == 'true'
+          && env.HAS_COHERE_API_KEY == 'true' && env.HAS_ANTHROPIC_API_KEY == 'true'
+          && env.HAS_XAI_API_KEY == 'true' }}
+        run: bash scripts/run_provider_tests.sh --retry-failures tests/providers/test_auto_client.py -m llm
+        env:
+          INSTRUCTOR_ENV: CI
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+
+      - name: Summarize provider test evidence
+        if: always()
+        run: python scripts/provider_test_evidence.py --reports "${RUNNER_TEMP}"

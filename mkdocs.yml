@@ -1,0 +1,470 @@
+site_name: Instructor
+site_author: Jason Liu
+site_description: A lightweight library for structured outputs with LLMs.
+repo_name: instructor
+repo_url: https://github.com/jxnl/instructor/
+site_url: https://python.useinstructor.com/
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2024 Jason Liu
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+    theme:
+    admonition:
+      note: octicons/tag-16
+      abstract: octicons/checklist-16
+      info: octicons/info-16
+      tip: octicons/squirrel-16
+      success: octicons/check-16
+      question: octicons/question-16
+      warning: octicons/alert-16
+      failure: octicons/x-circle-16
+      danger: octicons/zap-16
+      bug: octicons/bug-16
+      example: octicons/beaker-16
+      quote: octicons/quote-16
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.code.select
+    - content.tabs.link
+    - content.tooltips
+    - header.autohide
+    - navigation.expand
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.prune
+    - navigation.sections
+    - navigation.tabs
+    # - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+    # - toc.integrate
+  palette:
+      - scheme: default
+        primary: black
+        accent: indigo
+        toggle:
+          icon: material/brightness-7
+          name: Switch to dark mode
+      - scheme: slate
+        primary: black
+        accent: indigo
+        toggle:
+          icon: material/brightness-4
+          name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  custom_dir: docs/overrides
+# Extensions
+markdown_extensions:
+  - abbr
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      normalize_issue_symbols: true
+      repo_url_shorthand: true
+      user: jxnl
+      repo: instructor
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      auto_append:
+        - includes/mkdocs.md
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      combine_header_slug: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/katex.js
+  - https://unpkg.com/katex@0/dist/katex.min.js
+  - https://unpkg.com/katex@0/dist/contrib/auto-render.min.js
+
+extra_css:
+  - https://unpkg.com/katex@0/dist/katex.min.css
+nav:
+  - Introduction:
+    - Structured Outputs for LLMs: 'index.md'
+    - Start Here (Beginners): 'start-here.md'
+    - Getting Started: 'getting-started.md'
+    - Installation: 'installation.md'
+    - Why use Instructor?: 'why.md'
+    - Architecture: 'architecture.md'
+    - Debugging: 'debugging.md'
+    - Repository Overview: 'repository-overview.md'
+    - Mode Comparison: 'modes-comparison.md'
+    - Philosophy: 'concepts/philosophy.md'
+    - API Reference: 'api.md'
+    - FAQ: 'faq.md'
+    - Help with Instructor: 'help.md'
+    - Contributing: 'contributing.md'
+    - Newsletter: 'newsletter.md'
+    - Tutorials: 'tutorials/index.md'
+  - Learning:
+    - Installation: 'learning/getting_started/installation.md'
+    - Overview: 'learning/index.md'
+    - Getting Started with Structured Outputs: 'learning/getting_started/structured_outputs.md'
+    - Your First Extraction: 'learning/getting_started/first_extraction.md'
+    - Understanding Response Models: 'learning/getting_started/response_models.md'
+    - Simple Object Extraction: 'learning/patterns/simple_object.md'
+    - List Extraction: 'learning/patterns/list_extraction.md'
+    - Simple Nested Structure: 'learning/patterns/nested_structure.md'
+    - Field Validation: 'learning/patterns/field_validation.md'
+    - Optional Fields: 'learning/patterns/optional_fields.md'
+    - Prompt Templates: 'learning/patterns/prompt_templates.md'
+    - Streaming Basics: 'learning/streaming/basics.md'
+    - Streaming Lists: 'learning/streaming/lists.md'
+    - Validation Basics: 'learning/validation/basics.md'
+    - Custom Validators: 'learning/validation/custom_validators.md'
+    - Retry Mechanisms: 'learning/validation/retry_mechanisms.md'
+    - Field-level Validation: 'learning/validation/field_level_validation.md'
+  - Integrations:
+    - Overview: 'integrations/index.md'
+    # Major cloud providers
+    - OpenAI: 'integrations/openai.md'
+    - OpenAI-compatible gateways: 'integrations/openai-compatible-gateways.md'
+    - OpenAI Responses: 'integrations/openai-responses.md'
+    - DeepSeek: 'integrations/deepseek.md'
+    - llama-cpp-python: 'integrations/llama-cpp-python.md'
+    - Gemini: 'integrations/google.md'
+    - Anthropic: 'integrations/anthropic.md'
+    - xAI: 'integrations/xai.md'
+    - Azure OpenAI: 'integrations/azure.md'
+    - Google GenAI: 'integrations/genai.md'
+    - AWS Bedrock: 'integrations/bedrock.md'
+    - Vertex AI: 'integrations/vertex.md'
+    
+    # Fast inference providers
+    - Groq: 'integrations/groq.md'
+    - Fireworks: 'integrations/fireworks.md'
+    - Together: 'integrations/together.md'
+    - Anyscale: 'integrations/anyscale.md'
+    
+    # Other commercial providers
+    - Azure OpenAI: 'integrations/azure.md'
+    - Cerebras: 'integrations/cerebras.md'
+    - Cohere: 'integrations/cohere.md'
+    - Databricks: 'integrations/databricks.md'
+    - Cortex: 'integrations/cortex.md'
+    - LiteLLM: 'integrations/litellm.md'
+    - Mistral: 'integrations/mistral.md'
+    - Ollama: 'integrations/ollama.md'
+    - Perplexity: 'integrations/perplexity.md'
+    - Writer: 'integrations/writer.md'
+    - OpenRouter: 'integrations/openrouter.md'
+    - SambaNova: 'integrations/sambanova.md'
+    - TrueFoundry: 'integrations/truefoundry.md'
+  - Cookbook:
+    - Overview: 'examples/index.md'
+    - "Audio Information Extraction": 'examples/audio_extraction.md'
+    - "Recursive Schema Examples": 'examples/recursive.md'
+    - "Enhancing Text Classification": 'examples/classification.md'
+    - "Local Classification with Llama-cpp": 'examples/local_classification.md'
+    - "Structured Outputs with Ollama": 'examples/ollama.md'
+    - "Multi-Modal Data with Gemini": 'examples/multi_modal_gemini.md'
+    - "Exact Citations for RAG": 'examples/exact_citations.md'
+    - "Patient-reported medication use": 'examples/medication_adherence.md'
+    - "Product Fact Extraction with Provenance": 'examples/product_fact_provenance.md'
+    - "Extracting Knowledge Graphs": 'examples/knowledge_graph.md'
+    - "Scoped persistent memory with Dakera": 'examples/persistent_memory_dakera.md'
+    - "Table Extraction with GPT-4 Vision": 'examples/extracting_tables.md'
+    - "User-Defined Bulk Classification": 'examples/bulk_classification.md'
+    - "AI Model Self-Correction": 'examples/self_critique.md'
+    - "Receipt Data Extraction with GPT-4": 'examples/extracting_receipts.md'
+    - "Slide Data Extraction with GPT-4": 'examples/extract_slides.md'
+    - "Content Moderation with OpenAI": 'examples/moderation.md'
+    - "Complex Entity Resolution": 'examples/entity_resolution.md'
+    - "Expanding RAG Search Queries": 'examples/search.md'
+    - "RAG Query Planning": 'examples/planning-tasks.md'
+    - "PII Data Sanitization": 'examples/pii.md'
+    - "Integrating Open Source Models": 'examples/open_source.md'
+    - "Image to Ad Copy Generation": 'examples/image_to_ad_copy.md'
+    - "SQLModel Integration": 'examples/sqlmodel.md'
+    - "Examples in Pydantic Models": 'examples/examples.md'
+    - "Intelligent Document Segmentation": 'examples/document_segmentation.md'
+    - "Structured Output with watsonx.ai": 'examples/watsonx.md'
+    - "Structured Outputs with Groq": 'examples/groq.md'
+    - "Structured Outputs with Mistral": 'examples/mistral.md'
+    - "Action Items Extraction": 'examples/action_items.md'
+    - "Contact Information Extraction": 'examples/extract_contact_info.md'
+    - "Knowledge Graph Building": 'examples/building_knowledge_graphs.md'
+    - "Tracing with Langfuse": 'examples/tracing_with_langfuse.md'
+    - "Tracing with Arize": 'examples/tracing_with_arize.md'
+    - "Multiple Classification Tasks": 'examples/multiple_classification.md'
+    - "Pandas DataFrame Integration": 'examples/pandas_df.md'
+    - "Partial Response Streaming": 'examples/partial_streaming.md'
+    - "Single Classification Tasks": 'examples/single_classification.md'
+    - "Table Extraction from Images": 'examples/tables_from_vision.md'
+    - "Using Decimals": 'examples/using_decimals.md'
+    - "YouTube Clip Analysis": 'examples/youtube_clips.md'
+  - Concepts:
+    - Overview: 'concepts/index.md'
+    - Error Handling: 'concepts/error_handling.md'
+    - Retrying: 'concepts/retrying.md'
+    - Fields: 'concepts/fields.md'
+    - Models: 'concepts/models.md'
+    - Decisions: 'concepts/decisions.md'
+    - Parallel Tools: 'concepts/parallel.md'
+    - Templating: 'concepts/templating.md'
+    - Lists and Arrays: 'concepts/lists.md'
+    - Prompting: 'concepts/prompting.md'
+    - Citations: 'concepts/citation.md'
+    - Multimodal : 'concepts/multimodal.md'
+    - Patching: 'concepts/patching.md'
+    - from_provider: 'concepts/from_provider.md'
+    - Migration Guide: 'concepts/migration.md'
+    - Mode Migration: 'concepts/mode-migration.md'
+    - Hooks: 'concepts/hooks.md'
+    - Types: 'concepts/types.md'
+    - TypedDicts: 'concepts/typeddicts.md'
+    - Validators: "concepts/reask_validation.md"
+    - Usage Tokens: 'concepts/usage.md'
+    - Missing: "concepts/maybe.md"
+    - Stream Iterable: "concepts/iterable.md"
+    - Stream Partial: "concepts/partial.md"
+    - Raw Response: 'concepts/raw_response.md'
+    - FastAPI: 'concepts/fastapi.md'
+    - Caching: 'concepts/caching.md'
+    - Prompt Caching: 'concepts/prompt_caching.md'
+    - Logging: 'concepts/logging.md'
+    - Distillation: "concepts/distillation.md"
+    - Dictionary Operations: 'concepts/dictionary_operations.md'
+    - Union: 'concepts/union.md'
+    - Unions: 'concepts/unions.md'
+    - Validation: 'concepts/validation.md'
+    - Semantic Validation: 'concepts/semantic_validation.md'
+    - Alias: 'concepts/alias.md'
+    - Enums: 'concepts/enums.md'
+    - Type Adapter: 'concepts/typeadapter.md'
+  
+  - Prompt Engineering:
+    - "prompting/index.md"
+    - Zero-Shot:
+      - Use Emotional Language: 'prompting/zero_shot/emotion_prompting.md'
+      - Assign a Role: 'prompting/zero_shot/role_prompting.md'
+      - Define A Style: 'prompting/zero_shot/style_prompting.md'
+      - Auto-Refine The Prompt: 'prompting/zero_shot/s2a.md'
+      - Simulate A Perspective: 'prompting/zero_shot/simtom.md'
+      - Clarify Ambiguous Information: 'prompting/zero_shot/rar.md'
+      - Ask Model To Repeat Query: 'prompting/zero_shot/re2.md'
+      - Generate Follow-Up Questions: 'prompting/zero_shot/self_ask.md'
+    - Few-Shot:
+      - Example Generation:
+        - Generate In-Context Examples: 'prompting/few_shot/example_generation/sg_icl.md'
+      - Example Ordering: 'prompting/few_shot/example_ordering.md'
+      - Exemplar Selection:
+        - Select Effective Examples: 'prompting/few_shot/exemplar_selection/knn.md'
+        - Vote-K: 'prompting/few_shot/exemplar_selection/vote_k.md'
+        - Consistent Based Examples: 'prompting/few_shot/cosp.md'
+    - Thought Generation:
+      - Chain-Of-Thought (Zero-Shot):
+        - Generate Examples First: 'prompting/thought_generation/chain_of_thought_zero_shot/analogical_prompting.md'
+        - Consider Higher-Level Context: 'prompting/thought_generation/chain_of_thought_zero_shot/step_back_prompting.md'
+        - Examine The Context: 'prompting/thought_generation/chain_of_thought_zero_shot/thread_of_thought.md'
+        - Structure The Reasoning: 'prompting/thought_generation/chain_of_thought_zero_shot/tab_cot.md'
+      - Chain-Of-Thought (Few-Shot):
+        - Prioritize Uncertain Examples: 'prompting/thought_generation/chain_of_thought_few_shot/active_prompt.md'
+        - Automate Example Selection: 'prompting/thought_generation/chain_of_thought_few_shot/auto_cot.md'
+        - Prioritize Complex Examples: 'prompting/thought_generation/chain_of_thought_few_shot/complexity_based.md'
+        - Include Incorrect Examples: 'prompting/thought_generation/chain_of_thought_few_shot/contrastive.md'
+        - Memory-of-Thought: 'prompting/thought_generation/chain_of_thought_few_shot/memory_of_thought.md'
+        - Use Majority Voting: 'prompting/thought_generation/chain_of_thought_few_shot/uncertainty_routed_cot.md'
+        - Generate Prompt Variations: 'prompting/thought_generation/chain_of_thought_few_shot/prompt_mining.md'
+    - Ensembling:
+      - Prioritize Consistent Examples: 'prompting/ensembling/cosp.md'
+      - Use Distinct Example Subsets: 'prompting/ensembling/dense.md'
+      - Verify Responses over Majority Voting : 'prompting/ensembling/diverse.md'
+      - Use Ensembles To Test Prompts: 'prompting/ensembling/max_mutual_information.md'
+      - Combine Multiple Reasoning Chains: 'prompting/ensembling/meta_cot.md'
+      - Combine Different Specialized LLMs: 'prompting/ensembling/more.md'
+      - Generate Multiple Candidate Responses: 'prompting/ensembling/self_consistency.md'
+      - Use LLMs to Combine Different Responses: 'prompting/ensembling/universal_self_consistency.md'
+      - Use Task Specific Evaluation Metrics: 'prompting/ensembling/usp.md'
+      - Use Translation for Paraphrasing: 'prompting/ensembling/prompt_paraphrasing.md'
+    - Self-Criticism:
+      - Independently Verify Responses: 'prompting/self_criticism/chain_of_verification.md'
+      - Determine Uncertainty of Reasoning Chain: 'prompting/self_criticism/self_calibration.md'
+      - Improve With Feedback: 'prompting/self_criticism/self_refine.md'
+      - Self-Verify Responses: 'prompting/self_criticism/self_verification.md'
+      - Reconstruct Prompt from Reasoning Steps : 'prompting/self_criticism/reversecot.md'
+      - Break Down Reasoning Into Multiple Steps: 'prompting/self_criticism/cumulative_reason.md'
+    - Decomposition:
+      - Break Down Complex Tasks: 'prompting/decomposition/decomp.md'
+      - Leverage Task Specific Systems: 'prompting/decomposition/faithful_cot.md'
+      - Solve simpler subproblems: 'prompting/decomposition/least_to_most.md'
+      - Ditch Vanilla Chain Of Thought: 'prompting/decomposition/plan_and_solve.md'
+      - Generate Python for Intermediate Steps: 'prompting/decomposition/program_of_thought.md'
+      - Recurs.-of-Thought: 'prompting/decomposition/recurs_of_thought.md'
+      - Generate in Parallel: 'prompting/decomposition/skeleton_of_thought.md'
+      - Tree-of-Thought: 'prompting/decomposition/tree-of-thought.md'
+  - CLI Reference:
+      - "CLI Reference": "cli/index.md"
+      - "Finetuning GPT-3.5": "cli/finetune.md"
+      - "Usage Tracking": "cli/usage.md"
+      - "Batch Jobs": "cli/batch.md"
+  - Find Jobs (External):
+      - Jobs: "jobs.md"
+  - Blog:
+      - "blog/index.md"
+plugins:
+  - llmstxt:
+      markdown_description: >
+        Instructor is a Python library that makes it easy to work with structured outputs 
+        from large language models (LLMs). Built on top of Pydantic, it provides a simple, 
+        type-safe way to extract structured data from LLM responses across multiple providers 
+        including OpenAI, Anthropic, Google, and many others.
+      sections:
+        Getting Started:
+          - index.md: Introduction to structured outputs with LLMs
+          - getting-started.md: Quick start guide
+          - installation.md: Installation instructions
+        Core Concepts:
+          - concepts/*.md
+        Integrations:
+          - integrations/*.md
+  - redirects:
+      redirect_maps:
+         jobs.md: https://jobs.applied-llms.org/
+         # LLM client redirects
+         hub/ollama.md: integrations/ollama.md
+         hub/llama-cpp-python.md: integrations/llama-cpp-python.md
+         hub/anthropic.md: integrations/anthropic.md
+         hub/anyscale.md: integrations/anyscale.md
+         hub/azure.md: integrations/azure.md
+         hub/bedrock.md: integrations/bedrock.md
+         hub/cerebras.md: integrations/cerebras.md
+         hub/cohere.md: integrations/cohere.md
+         hub/databricks.md: integrations/databricks.md
+         hub/fireworks.md: integrations/fireworks.md
+         hub/google.md: integrations/google.md
+         hub/genai.md: integrations/genai.md
+         hub/groq.md: integrations/groq.md
+         hub/litellm.md: integrations/litellm.md
+         hub/mistral.md: integrations/mistral.md
+         hub/openai.md: integrations/openai.md
+         hub/perplexity.md: integrations/perplexity.md
+         hub/together.md: integrations/together.md
+         hub/vertex.md: integrations/vertex.md
+         hub/vertexai.md: integrations/vertex.md  # Handle old vertexai.md references
+         # Legacy hub/clients/ redirects
+         'hub/clients/google.md': 'integrations/google.md'
+         'hub/clients/litellm.md': 'integrations/litellm.md'
+         'hub/clients/ollama.md': 'integrations/ollama.md'
+         'hub/clients/llama-cpp-python.md': 'integrations/llama-cpp-python.md'
+         'hub/clients/anthropic.md': 'integrations/anthropic.md'
+         'hub/clients/anyscale.md': 'integrations/anyscale.md'
+         'hub/clients/azure.md': 'integrations/azure.md'
+         'hub/clients/bedrock.md': 'integrations/bedrock.md'
+         'hub/clients/cerebras.md': 'integrations/cerebras.md'
+         'hub/clients/cohere.md': 'integrations/cohere.md'
+         'hub/clients/databricks.md': 'integrations/databricks.md'
+         'hub/clients/fireworks.md': 'integrations/fireworks.md'
+         'hub/clients/groq.md': 'integrations/groq.md'
+         'hub/clients/mistral.md': 'integrations/mistral.md'
+         'hub/clients/openai.md': 'integrations/openai.md'
+         'hub/clients/perplexity.md': 'integrations/perplexity.md'
+         'hub/clients/together.md': 'integrations/together.md'
+         'hub/clients/vertex.md': 'integrations/vertex.md'
+         'hub/clients/vertexai.md': 'integrations/vertex.md'
+         # Example redirects
+         'hub/action_items.md': 'examples/action_items.md'
+         'hub/batch_classification_langsmith.md': 'examples/batch_classification_langsmith.md'
+         'hub/extract_contact_info.md': 'examples/extract_contact_info.md'
+         'hub/index.md': 'examples/index.md'
+         'hub/knowledge_graph.md': 'examples/building_knowledge_graphs.md'
+         'hub/multiple_classification.md': 'examples/multiple_classification.md'
+         'hub/pandas_df.md': 'examples/pandas_df.md'
+         'hub/partial_streaming.md': 'examples/partial_streaming.md'
+         'hub/single_classification.md': 'examples/single_classification.md'
+         'hub/tables_from_vision.md': 'examples/tables_from_vision.md'
+         'hub/youtube_clips.md': 'examples/youtube_clips.md'
+  - social:
+      enabled: !ENV [ENABLE_MKDOCS_SOCIAL, false]
+  - search:
+      separator: '[\s\u200b\-_,:!=\[\]()"`/]+|\.(?!\b)(?=[A-Z][a-z])'
+  - minify:
+      minify_html: true
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            members_order: alphabetical
+            allow_inspection: true
+            show_bases: true
+  - blog:
+      enabled: !ENV CI
+      blog_dir: "blog"
+      blog_toc: true
+      post_dir: blog/posts
+      post_date_format: yyyy/MM/dd
+      post_url_format: "{date}/{slug}"
+      authors_file: "{blog}/.authors.yml"
+hooks:
+  - docs/hooks/hide_lines.py
+extra:
+  analytics:
+    provider: google
+    property: G-5CR8QXF5CN
+    feedback:
+      title: Was this page helpful?
+      ratings:
+        - icon: material/emoticon-happy-outline
+          name: This page was helpful
+          data: 1
+          note: >-
+            Thanks for your feedback!
+        - icon: material/emoticon-sad-outline
+          name: This page could be improved
+          data: 0
+          note: >-
+            Thanks for your feedback! Help us improve this page by
+            using our <a href="https://forms.gle/ijr9Zrcg2QWgKoWs7" target="_blank" rel="noopener">feedback form</a>.
+  social:
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/jxnlco
+    - icon: fontawesome/brands/github
+      link: https://github.com/jxnl

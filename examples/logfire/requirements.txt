@@ -1,0 +1,2 @@
+-r requirements-base.txt
+pandas>=2.2.0,<3.0.0
