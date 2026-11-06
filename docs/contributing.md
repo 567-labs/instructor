@@ -407,7 +407,7 @@ print(person.age)   # 25
 
 When working on documentation, these resources may be helpful:
 
-- **mkdocs serve**: Preview documentation locally. Install dependencies from `requirements-doc.txt` first.
+- **mkdocs serve**: Preview documentation locally. From the repository root, run `uv sync --extra docs` first.
 
 - **hl_lines in Code Blocks**: Highlight specific lines in a code block to draw attention:
   ````markdown

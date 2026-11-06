@@ -36,7 +36,7 @@ def traverse_docs(
                 with open(file_path, encoding="utf-8") as f:
                     content = f.read()
 
-                content_hash = hashlib.md5(content.encode()).hexdigest()
+                content_hash = hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()
                 yield relative_path, content, content_hash
 
 

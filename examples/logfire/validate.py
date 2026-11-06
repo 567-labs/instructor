@@ -7,7 +7,8 @@ import instructor
 from openai import OpenAI
 
 openai_client = OpenAI()
-logfire.configure(pydantic_plugin=logfire.PydanticPlugin(record="all"))
+logfire.configure()
+logfire.instrument_pydantic(record="all")
 logfire.instrument_openai(openai_client)
 client = instructor.from_openai(openai_client)
 

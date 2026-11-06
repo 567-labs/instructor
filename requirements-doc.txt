@@ -1,9 +1,1 @@
-mkdocs
-cairosvg
-pillow
-mkdocs-minify-plugin
-mkdocstrings 
-mkdocstrings-python 
-mkdocs-jupyter 
-mkdocs-redirects
-mkdocs-llmstxt
+.[docs]

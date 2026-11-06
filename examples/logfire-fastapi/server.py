@@ -23,7 +23,8 @@ class UserDetail(BaseModel):
 
 app = FastAPI()
 openai_client = AsyncOpenAI()
-logfire.configure(pydantic_plugin=logfire.PydanticPlugin(record="all"))
+logfire.configure()
+logfire.instrument_pydantic(record="all")
 logfire.instrument_fastapi(app)
 logfire.instrument_openai(openai_client)
 client = instructor.from_openai(openai_client)
