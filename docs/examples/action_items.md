@@ -79,8 +79,7 @@ def generate(data: str) -> Iterable[Ticket]:
     )
 
 
-prediction = generate(
-    """
+prediction = generate("""
 Alice: Hey team, we have several critical tasks we need to tackle for the upcoming release. First, we need to work on improving the authentication system. It's a top priority.
 Bob: Got it, Alice. I can take the lead on the authentication improvements. Are there any specific areas you want me to focus on?
 Alice: Good question, Bob. We need both a front-end revamp and back-end optimization. So basically, two sub-tasks.
@@ -92,8 +91,7 @@ Alice: No, it's actually another task. So it's a dependency for the integration 
 Bob: Sure, but I'll need to complete the back-end optimization of the authentication system first, so it's dependent on that.
 Alice: Understood. Lastly, we also need to update our user documentation to reflect all these changes. It's a low-priority task but still important.
 Carol: I can take that on once the front-end changes for the authentication system are done. So, it would be dependent on that.
-Alice: Sounds like a plan. Let's get these tasks modeled out and get started."""
-)
+Alice: Sounds like a plan. Let's get these tasks modeled out and get started.""")
 ```
 
 ## Visualizing the tasks

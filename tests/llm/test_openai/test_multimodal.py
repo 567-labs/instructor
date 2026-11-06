@@ -32,11 +32,8 @@ class Receipt(BaseModel):
     items: list[str]
 
 
-@pytest.mark.parametrize(
-    "audio_file, mode",
-    [(Audio.from_url(audio_url), mode) for mode in modes],
-)
-def test_multimodal_audio_description(audio_file, mode, client):
+@pytest.mark.parametrize("mode", modes)
+def test_multimodal_audio_description(mode, client):
     client = instructor.from_openai(client, mode=mode)
 
     if client.mode in {
@@ -57,7 +54,7 @@ def test_multimodal_audio_description(audio_file, mode, client):
                 "role": "user",
                 "content": [
                     "Where's this excerpt from?",
-                    audio_file,
+                    Audio.from_url(audio_url),
                 ],
             },
         ],

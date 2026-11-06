@@ -31,12 +31,22 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 2
           persist-credentials: false
+      - name: Select changed inputs
+        id: scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: >-
+          python -m scripts.ci_test_plan --changed-paths
+          instructor tests/packaging tests/typing scripts pyproject.toml uv.lock README.md LICENSE .github/workflows/package-compatibility.yml
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        if: steps.scope.outputs.changed == 'true'
         with:
           enable-cache: true
           python-version: ${{ matrix.python }}
       - name: Build sdist and exercise installed wheel without checkout imports
+        if: steps.scope.outputs.changed == 'true'
         env:
           PACKAGE_PYTHON: ${{ matrix.python }}
           PACKAGE_SDK: ${{ matrix.sdk }}

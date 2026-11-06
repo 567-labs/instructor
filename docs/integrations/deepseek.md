@@ -176,7 +176,6 @@ from pydantic import BaseModel
 import instructor
 from pydantic import BaseModel
 
-
 # Initialize with API key
 client = instructor.from_provider(
     "deepseek/deepseek-v4-flash",
@@ -217,7 +216,6 @@ for user_partial in user:
 from pydantic import BaseModel
 import instructor
 from pydantic import BaseModel
-
 
 # Initialize with API key
 client = instructor.from_provider(

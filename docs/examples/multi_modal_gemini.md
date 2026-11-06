@@ -36,7 +36,6 @@ import instructor
 import google.generativeai as genai
 from pydantic import BaseModel
 
-
 client = instructor.from_provider(
     "google/gemini-2.5-flash",
     mode=instructor.Mode.JSON,  # (1)!
@@ -157,7 +156,6 @@ Note that the list can contain normal user messages as well as file objects. It'
 import instructor
 import google.generativeai as genai
 from pydantic import BaseModel
-
 
 client = instructor.from_provider(
     "google/gemini-2.5-flash",

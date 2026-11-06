@@ -3,7 +3,7 @@ repos:
     hooks:
       - id: ruff
         name: Run Linter Check (Ruff)
-        entry: uv run --frozen ruff check --force-exclude
+        entry: uv run --frozen --isolated --only-group lint ruff check --force-exclude
         args: [--fix, --unsafe-fixes]
         language: system
         types_or: [python, pyi, jupyter]
@@ -11,7 +11,7 @@ repos:
         files: ^(instructor|tests|examples)/
       - id: ruff-format
         name: Run Formatter (Ruff)
-        entry: uv run --frozen ruff format --force-exclude
+        entry: uv run --frozen --isolated --only-group lint ruff format --force-exclude
         language: system
         types_or: [python, pyi, jupyter]
         require_serial: true

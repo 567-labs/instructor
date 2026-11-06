@@ -1,0 +1,52 @@
+name: Install test dependencies
+description: Install the locked Python environment used by the SDK tests.
+inputs:
+  python-version:
+    description: Python version used for this test job.
+    default: "3.11"
+  baseline-run:
+    description: Verified main run that produced this unchanged unit group's coverage.
+    default: ""
+  coverage-shard:
+    description: Coverage artifact to restore from the verified run.
+    default: ""
+outputs:
+  reused:
+    description: Whether the verified base coverage was restored.
+    value: ${{ steps.verify.outputs.reused }}
+runs:
+  using: composite
+  steps:
+    - id: restore
+      if: inputs.baseline-run != ''
+      continue-on-error: true
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: offline-coverage-${{ inputs.baseline-run }}-${{ inputs.coverage-shard }}
+        run-id: ${{ inputs.baseline-run }}
+        github-token: ${{ github.token }}
+        path: ${{ runner.temp }}
+    - id: verify
+      if: steps.restore.outcome == 'success'
+      shell: bash
+      env:
+        COVERAGE_SHARD: ${{ inputs.coverage-shard }}
+        BASELINE_RUN: ${{ inputs.baseline-run }}
+      run: |
+        if python -m scripts.ci_test_plan --verify-coverage "$RUNNER_TEMP/coverage.$COVERAGE_SHARD"; then
+          echo "reused=true" >> "$GITHUB_OUTPUT"
+          echo "Reused $COVERAGE_SHARD coverage from verified main run $BASELINE_RUN." >> "$GITHUB_STEP_SUMMARY"
+        fi
+    - if: steps.verify.outputs.reused != 'true'
+      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      with:
+        enable-cache: true
+        python-version: ${{ inputs.python-version }}
+        cache-suffix: sdk-tests-py${{ inputs.python-version }}
+    - if: steps.verify.outputs.reused != 'true'
+      shell: bash
+      env:
+        PYTHON_VERSION: ${{ inputs.python-version }}
+      run: |
+        uv python install "$PYTHON_VERSION"
+        uv sync --frozen --all-extras

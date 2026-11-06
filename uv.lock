@@ -2207,6 +2207,14 @@ xai = [
     { name = "xai-sdk" },
 ]
 
+[package.dev-dependencies]
+coverage = [
+    { name = "coverage" },
+]
+lint = [
+    { name = "ruff" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.14.5,<4.0.0" },
@@ -2278,6 +2286,10 @@ requires-dist = [
     { name = "xmltodict", marker = "extra == 'dev'", specifier = ">=0.13,<1.1" },
 ]
 provides-extras = ["dev", "docs", "test-docs", "anthropic", "groq", "cohere", "vertexai", "cerebras-cloud-sdk", "fireworks-ai", "writer", "bedrock", "mistral", "perplexity", "google-genai", "litellm", "xai", "phonenumbers", "graphviz", "sqlmodel", "diskcache", "trafilatura", "pydub", "datasets"]
+
+[package.metadata.requires-dev]
+coverage = [{ name = "coverage" }]
+lint = [{ name = "ruff" }]
 
 [[package]]
 name = "jinja2"

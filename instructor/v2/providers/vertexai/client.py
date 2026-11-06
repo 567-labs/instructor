@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 from typing import Any, Literal, TYPE_CHECKING, overload
 
 from instructor.v2.core.client import AsyncInstructor, Instructor
@@ -22,7 +24,20 @@ else:
 def from_vertexai(
     client: gm.GenerativeModel,
     mode: Mode = Mode.TOOLS,
+    use_async: None = None,
+    *,
+    _async: Literal[True],
+    **kwargs: Any,
+) -> AsyncInstructor: ...
+
+
+@overload
+def from_vertexai(
+    client: gm.GenerativeModel,
+    mode: Mode = Mode.TOOLS,
     use_async: Literal[False] = False,
+    *,
+    _async: Literal[False] = False,
     **kwargs: Any,
 ) -> Instructor: ...
 
@@ -32,6 +47,8 @@ def from_vertexai(
     client: gm.GenerativeModel,
     mode: Mode = Mode.TOOLS,
     use_async: Literal[True] = True,
+    *,
+    _async: Literal[False] = False,
     **kwargs: Any,
 ) -> AsyncInstructor: ...
 
@@ -39,10 +56,24 @@ def from_vertexai(
 def from_vertexai(
     client: gm.GenerativeModel,
     mode: Mode = Mode.TOOLS,
-    use_async: bool = False,
+    use_async: bool | None = None,
     **kwargs: Any,
 ) -> Instructor | AsyncInstructor:
     from instructor.v2.core.registry import mode_registry, normalize_mode
+
+    if kwargs.pop("_async", False):
+        if use_async is not None:
+            from instructor.v2.core.errors import ConfigurationError
+
+            raise ConfigurationError(
+                "Cannot provide both '_async' and 'use_async'. Use 'use_async' instead."
+            )
+        warnings.warn(
+            "'_async' is deprecated. Use 'use_async' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        use_async = True
 
     normalized_mode = normalize_mode(Provider.VERTEXAI, mode)
     if not mode_registry.is_registered(Provider.VERTEXAI, normalized_mode):

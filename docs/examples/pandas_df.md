@@ -100,10 +100,8 @@ def extract_table(data: str) -> Table:
 
 
 if __name__ == "__main__":
-    df = extract_df(
-        """Create a table of the last 5 presidents of the United States,
-        including their party and the years they served."""
-    )
+    df = extract_df("""Create a table of the last 5 presidents of the United States,
+        including their party and the years they served.""")
     assert isinstance(df, pd.DataFrame)
     print(df)
     """
