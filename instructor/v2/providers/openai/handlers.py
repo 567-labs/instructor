@@ -482,10 +482,13 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         response_tool_name: str | None = None,
         *,
         single_model: bool = False,
+        require_complete: bool = False,
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from OpenAI-compatible streaming responses."""
+        incomplete_chunk: Any = None
 
         def _raw_chunks() -> Generator[str, None, None]:
+            nonlocal incomplete_chunk
             result = _ResponsesStreamResult(response_tool_name)
             tool_arguments = _ChatToolArguments(single_model)
             for chunk in completion:
@@ -497,6 +500,12 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
 
                     if not getattr(chunk, "choices", None):
                         continue
+
+                    if (
+                        require_complete
+                        and getattr(chunk.choices[0], "finish_reason", None) == "length"
+                    ):
+                        incomplete_chunk = chunk
 
                     if self.mode == Mode.FUNCTIONS:
                         Mode.warn_mode_functions_deprecation()
@@ -526,8 +535,10 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
             yield from extract_json_from_stream(raw_chunks, single_model=single_model)
-            return
-        yield from raw_chunks
+        else:
+            yield from raw_chunks
+        if incomplete_chunk is not None:
+            raise IncompleteOutputException(last_completion=incomplete_chunk)
 
     async def extract_streaming_json_async(
         self,
@@ -535,10 +546,13 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         response_tool_name: str | None = None,
         *,
         single_model: bool = False,
+        require_complete: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from OpenAI-compatible async streams."""
+        incomplete_chunk: Any = None
 
         async def _raw_chunks() -> AsyncGenerator[str, None]:
+            nonlocal incomplete_chunk
             result = _ResponsesStreamResult(response_tool_name)
             tool_arguments = _ChatToolArguments(single_model)
             async for chunk in completion:
@@ -550,6 +564,12 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
 
                     if not getattr(chunk, "choices", None):
                         continue
+
+                    if (
+                        require_complete
+                        and getattr(chunk.choices[0], "finish_reason", None) == "length"
+                    ):
+                        incomplete_chunk = chunk
 
                     if self.mode == Mode.FUNCTIONS:
                         Mode.warn_mode_functions_deprecation()
@@ -582,9 +602,11 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                 raw_chunks, single_model=single_model
             ):
                 yield chunk
-            return
-        async for chunk in raw_chunks:
-            yield chunk
+        else:
+            async for chunk in raw_chunks:
+                yield chunk
+        if incomplete_chunk is not None:
+            raise IncompleteOutputException(last_completion=incomplete_chunk)
 
     def convert_messages(
         self, messages: list[dict[str, Any]], autodetect_images: bool = False
@@ -619,7 +641,9 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         except (TypeError, ValueError):
             pass
 
-        extractor_options: dict[str, Any] = {}
+        extractor_options: dict[str, Any] = {
+            "require_complete": issubclass(response_model, IterableBase)
+        }
         if self.mode == Mode.RESPONSES_TOOLS:
             extractor_options["response_tool_name"] = response_model.__name__
         elif self.mode in {

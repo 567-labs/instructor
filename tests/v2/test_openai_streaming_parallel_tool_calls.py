@@ -113,3 +113,47 @@ async def test_incomplete_call_cannot_consume_another_calls_arguments(indices):
         _ = [
             item async for item in handler.parse_response(events(), model, stream=True)
         ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_async", [False, True])
+async def test_iterable_reports_length_limit_between_complete_items(
+    is_async: bool,
+) -> None:
+    from openai.types.chat import ChatCompletionChunk
+    from pydantic import BaseModel
+    from instructor.v2.core.errors import IncompleteOutputException
+    from instructor.v2.dsl.iterable import IterableModel
+
+    class Item(BaseModel):
+        name: str
+
+    chunks = [
+        _sdk_event([(0, '{"tasks":[{"name":"Ada"},')]),
+        ChatCompletionChunk.model_validate(
+            {
+                "id": "test",
+                "object": "chat.completion.chunk",
+                "created": 0,
+                "model": "test",
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "length"}],
+            }
+        ),
+    ]
+    handler = OpenAIToolsHandler()
+    model = IterableModel(Item)
+    if is_async:
+
+        async def events():
+            for chunk in chunks:
+                yield chunk
+
+        items = handler.parse_response(events(), model, stream=True)
+        assert await items.__anext__() == Item(name="Ada")
+        with pytest.raises(IncompleteOutputException):
+            _ = [item async for item in items]
+    else:
+        items = handler.parse_response(iter(chunks), model, stream=True)
+        assert next(items) == Item(name="Ada")
+        with pytest.raises(IncompleteOutputException):
+            list(items)
