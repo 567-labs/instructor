@@ -146,16 +146,18 @@ def from_openai(
     model: str | None = None,
     **kwargs: Any,
 ) -> Instructor | AsyncInstructor | DecisionsClient | AsyncDecisionsClient:
-    """Create an Instructor instance from an OpenAI client using v2 registry.
+    """Wrap a synchronous or asynchronous OpenAI SDK client.
 
     Args:
         client: An instance of OpenAI client (sync or async)
         mode: The mode to use (defaults to Mode.TOOLS)
-        model: Optional model to inject if not provided in requests
-        **kwargs: Additional keyword arguments to pass to the Instructor constructor
+        model: Default model for requests. Decisions mode defaults to gpt-6-luna.
+        **kwargs: Client options. Decisions mode accepts a timeout override.
 
     Returns:
-        An Instructor instance (sync or async depending on the client type)
+        A typed Decisions client for Mode.DECISIONS, or an Instructor client for
+        chat and Responses modes. The wrapper follows the supplied client's
+        synchronous or asynchronous interface.
 
     Raises:
         ModeError: If mode is not registered for OpenAI
