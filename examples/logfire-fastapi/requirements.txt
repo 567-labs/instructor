@@ -1,7 +1,5 @@
-pydantic==2.7.1
-openai==1.24.1
-instructor==1.0.3
-logfire==0.28.0
-fastapi==0.110.3
+-r ../logfire/requirements-base.txt
+fastapi==0.162.0
+starlette>=1.7.0,<2
 uvicorn[standard]
 logfire[fastapi]

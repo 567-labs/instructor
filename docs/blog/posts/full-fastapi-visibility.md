@@ -94,7 +94,8 @@ class UserDetail(BaseModel):
 
 app = FastAPI()
 openai_client = AsyncOpenAI()  # (2)!
-logfire.configure(pydantic_plugin=logfire.PydanticPlugin(record="all"))
+logfire.configure()
+logfire.instrument_pydantic(record="all")
 logfire.instrument_openai(openai_client)
 logfire.instrument_fastapi(app)
 client = instructor.from_provider("openai/gpt-4o")
@@ -196,7 +197,8 @@ Sometimes, we might need to run multiple jobs in parallel. Let's see how we can 
 
     app = FastAPI()
     openai_client = AsyncOpenAI()
-    logfire.configure(pydantic_plugin=logfire.PydanticPlugin(record="all"))
+    logfire.configure()
+    logfire.instrument_pydantic(record="all")
     logfire.instrument_openai(openai_client)
     logfire.instrument_fastapi(app)
     client = instructor.from_provider("openai/gpt-4o")
@@ -325,7 +327,8 @@ Let's add a new endpoint to our server to see how this might work
 
     app = FastAPI()
     openai_client = AsyncOpenAI()
-    logfire.configure(pydantic_plugin=logfire.PydanticPlugin(record="all"))
+    logfire.configure()
+    logfire.instrument_pydantic(record="all")
     logfire.instrument_fastapi(app)
     logfire.instrument_openai(openai_client)
     client = instructor.from_provider("openai/gpt-4o")

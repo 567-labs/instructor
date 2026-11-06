@@ -3,6 +3,7 @@ from __future__ import annotations
 from textwrap import dedent
 from logging import Logger
 from typing import Any, NamedTuple
+from typing_extensions import Self
 from jinja2 import Template
 
 
@@ -59,7 +60,7 @@ class InstructorError(Exception):
     @classmethod
     def from_exception(
         cls, exception: Exception, failed_attempts: list[FailedAttempt] | None = None
-    ):
+    ) -> Self:
         """Create an InstructorError from another exception.
 
         Args:
@@ -67,8 +68,7 @@ class InstructorError(Exception):
             failed_attempts: Optional list of failed retry attempts
 
         Returns:
-            A new instance of this exception class with the message from
-            the original exception
+            An instance of this exception class with the original message.
         """
         return cls(str(exception), failed_attempts=failed_attempts)
 

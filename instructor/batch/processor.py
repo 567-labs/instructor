@@ -146,7 +146,7 @@ class BatchProcessor(Generic[T]):
         self,
         file_path_or_buffer: str | io.BytesIO,
         metadata: dict[str, Any] | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> str:
         """Submit batch job to the provider and return job ID
 

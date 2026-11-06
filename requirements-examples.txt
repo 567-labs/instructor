@@ -1,9 +1,1 @@
-openai>=1.1.0
-pydantic
-docstring-parser
-rich
-aiohttp
-typer
-cohere
-datasets
-trafilatura
+.[cohere,datasets,trafilatura]
