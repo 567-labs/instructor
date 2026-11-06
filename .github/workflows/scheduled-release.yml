@@ -5,6 +5,7 @@ on:
     - cron: "0 9 * * 1"
   pull_request:
     paths:
+      - .github/ci/release-build/**
       - .github/workflows/python-publish.yml
       - .github/workflows/scheduled-release.yml
       - CHANGELOG.md
@@ -33,6 +34,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  unit:
+    name: Release unit tests (${{ matrix.shard }})
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [focused, v2, core]
+    uses: ./.github/workflows/unit-tests.yml
+    with:
+      shard: ${{ matrix.shard }}
+
   prepare:
     name: Prepare exact release artifacts
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
@@ -52,12 +67,14 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          version: latest-known
           enable-cache: true
           python-version: "3.11"
       - name: Set up Python
         run: uv python install 3.11
-      - name: Install locked dependencies
-        run: uv sync --frozen --all-extras
+      - name: Install source-check dependencies
+        if: github.event_name != 'pull_request'
+        run: uv sync --locked --all-extras
 
       - name: Validate release metadata
         id: metadata
@@ -68,7 +85,7 @@ jobs:
           if [ -n "$EXPECTED_VERSION" ]; then
             args+=(--expected-version "$EXPECTED_VERSION")
           fi
-          VERSION=$(uv run --frozen python scripts/prepare_release.py "${args[@]}")
+          VERSION=$(uv run --no-project --offline --python 3.11 python scripts/prepare_release.py "${args[@]}")
           TAG="v$VERSION"
 
           if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
@@ -86,24 +103,20 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "release_needed=$RELEASE_NEEDED" >> "$GITHUB_OUTPUT"
 
-      - name: Run release checks
-        env:
-          INSTRUCTOR_ENV: CI
+      - name: Run release source checks
+        if: github.event_name != 'pull_request'
         run: |
-          uv run --frozen ruff check instructor examples tests scripts/prepare_release.py
-          uv run --frozen ruff format --check instructor examples tests scripts/prepare_release.py
-          uv run --frozen ty check --error-on-warning instructor/
-          uv run --frozen ty check --config-file ty-tests.toml --error-on-warning tests
-          uv run --frozen pytest tests/ --asyncio-mode=auto -n auto \
-            --ignore=tests/coverage \
-            --ignore=tests/test_batch_processor_coverage.py \
-            -m 'not llm' \
-            -k 'not test_core_providers and not test_openai and not test_anthropic and not test_gemini and not test_genai and not test_writer and not test_vertexai and not docs'
+          uv run --no-sync ruff check instructor examples tests scripts/prepare_release.py
+          uv run --no-sync ruff format --check instructor examples tests scripts/prepare_release.py
+          uv run --no-sync ty check --error-on-warning instructor/
+          uv run --no-sync ty check --config-file ty-tests.toml --error-on-warning tests
 
       - name: Build and validate distributions
         run: |
-          uv build
-          uvx --from twine==7.0.0 twine check dist/*
+          uv sync --locked --project .github/ci/release-build
+          tools=.github/ci/release-build/.venv/bin
+          uv build --offline --no-build-isolation --python "$tools/python"
+          "$tools/twine" check dist/*
 
       - name: Upload exact release candidate
         id: candidate
@@ -166,6 +179,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          version: latest-known
           enable-cache: true
           python-version: ${{ matrix.python-version }}
       - name: Download exact release candidate
@@ -205,7 +219,7 @@ jobs:
   attest:
     name: Attest tested distributions from main
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.prepare.outputs.release_needed == 'true'
-    needs: [prepare, smoke]
+    needs: [prepare, smoke, unit]
     runs-on: ubuntu-latest
     permissions:
       contents: read

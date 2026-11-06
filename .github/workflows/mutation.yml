@@ -20,15 +20,13 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          version: latest-known
           enable-cache: true
           python-version: "3.11"
           cache-suffix: retry-mutation-py311
 
       - name: Set up Python
         run: uv python install 3.11
-
-      - name: Install dependencies
-        run: uv sync --frozen --all-extras
 
       - name: Run retry mutation tests
         env:
@@ -39,20 +37,18 @@ jobs:
           mkdir -p "${mutation_dir}"
           git archive HEAD | tar -x -C "${mutation_dir}"
           cd "${mutation_dir}"
+          uv sync --locked --extra dev --group mutation
 
           # Keep this manual check focused on the async retry contract.
-          uv run --frozen --all-extras --with 'mutmut==3.6.0' \
+          uv run --no-sync \
             mutmut run 'instructor.v2.core.retry.x_retry_async_v2__mutmut_*' \
             --max-children 4
-          uv run --frozen --all-extras --with 'mutmut==3.6.0' \
+          uv run --no-sync \
             mutmut results --all true \
             | grep -E '^[[:space:]]*instructor\.v2\.core\.retry\.x_retry_async_v2__mutmut_[0-9]+: ' \
             | tee "${RUNNER_TEMP}/mutmut-results.txt"
 
-          # Seven survivors are structural: 42 and 107 are overwritten state;
-          # 161, 168, 174, 178, and 179 are unreachable empty-attempt branches.
-          # One timeout (33) removes Tenacity's stop policy and can loop forever.
-          # Keep those exact budgets explicit while rejecting all new gaps.
+          # Require a 95% kill rate and cap surviving or timed-out mutations.
           awk -F ': ' '
             {
               total++

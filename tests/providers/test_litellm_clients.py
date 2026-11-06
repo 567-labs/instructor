@@ -17,8 +17,7 @@ class ClientCase(NamedTuple):
         pytest.param(ClientCase("acompletion", instructor.AsyncInstructor), id="async"),
     ],
 )
-def test_litellm_client(config: ClientCase, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+def test_litellm_client(config: ClientCase) -> None:
     litellm = pytest.importorskip("litellm")
     client = instructor.from_litellm(getattr(litellm, config.create))
     assert isinstance(client, config.client_type)

@@ -183,59 +183,61 @@ class TestStreamingReaskBug:
         assert "messages" in result
 
 
-@pytest.mark.skipif(
-    not pytest.importorskip("openai", reason="openai not installed"),
-    reason="openai not installed",
-)
-class TestStreamingReaskIntegration:
-    """Integration tests that require OpenAI API key."""
+def test_streaming_retry_exhaustion_preserves_validation_error():
+    import json
 
-    @pytest.fixture
-    def client(self):
-        """Create instructor client if API key available."""
-        import os
+    import httpx
+    import instructor
+    from openai import OpenAI
+    from instructor.core.exceptions import InstructorRetryException
 
-        if not os.getenv("OPENAI_API_KEY"):
-            pytest.skip("OPENAI_API_KEY not set")
+    class ImpossibleModel(BaseModel):
+        value: str
 
-        import instructor
-        from openai import OpenAI
+        @field_validator("value")
+        @classmethod
+        def always_fail(cls, _value: str) -> str:
+            raise ValueError("controlled invalid value")
 
-        return instructor.from_openai(OpenAI())
+    requests = []
 
-    def test_streaming_with_retries_and_failing_validator(self, client):
-        """Test that streaming with retries doesn't crash on validation failure.
+    def respond(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        requests.append(body)
+        call = {
+            "index": 0,
+            "id": "call_1",
+            "type": "function",
+            "function": {
+                "name": body["tools"][0]["function"]["name"],
+                "arguments": '{"value":"test"}',
+            },
+        }
+        chunk = {
+            "id": "chatcmpl-local",
+            "object": "chat.completion.chunk",
+            "created": 1,
+            "model": "local",
+            "choices": [{"index": 0, "delta": {"tool_calls": [call]}}],
+        }
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/event-stream"},
+            content=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n",
+        )
 
-        This test verifies that the reask handler doesn't crash with
-        "'Stream' object has no attribute 'choices'" when validation fails
-        during streaming. The actual validation outcome depends on LLM behavior.
-        """
-
-        class ImpossibleModel(BaseModel):
-            """Model with a validator that always fails."""
-
-            value: str
-
-            @field_validator("value")
-            @classmethod
-            def always_fail(cls, v: str) -> str:  # noqa: ARG003
-                raise ValueError("This validator always fails for testing")
-
-        # This should not crash with AttributeError about Stream.choices
-        # It should raise InstructorRetryException after retries are exhausted
-        from instructor.core.exceptions import InstructorRetryException
-
-        with pytest.raises(InstructorRetryException):
+    transport = httpx.MockTransport(respond)
+    with OpenAI(api_key="local", http_client=httpx.Client(transport=transport)) as sdk:
+        client = instructor.from_openai(sdk)
+        with pytest.raises(InstructorRetryException) as caught:
             list(
                 client.chat.completions.create_partial(
-                    model="gpt-4o-mini",
+                    model="local",
                     max_retries=2,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": "Return value='test'",
-                        }
-                    ],
+                    messages=[{"role": "user", "content": "test"}],
                     response_model=ImpossibleModel,
                 )
             )
+    assert len(requests) == caught.value.n_attempts == 3
+    assert isinstance(caught.value.__cause__, ValidationError)
+    assert "controlled invalid value" in str(caught.value.__cause__)

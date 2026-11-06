@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import builtins
 from collections.abc import Callable
 from types import SimpleNamespace
@@ -90,41 +91,59 @@ def _install_handlers(
     )
 
 
-def test_retry_budget_stops_before_sync_reask_at_exact_boundary(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.fixture(params=("sync", "async"))
+def retry_call(request: pytest.FixtureRequest) -> Callable[..., Answer]:
+    if request.param == "sync":
+        return retry_sync_v2
+
+    def run_async(*, func: Callable[..., Any], **options: Any) -> Answer:
+        async def create(*args: Any, **kwargs: Any) -> Any:
+            return func(*args, **kwargs)
+
+        return asyncio.run(retry_async_v2(func=create, **options))
+
+    return run_async
+
+
+@pytest.mark.parametrize(
+    "with_hooks", [True, False], ids=["with-hooks", "without-hooks"]
+)
+def test_retry_budget_stops_before_reask_at_exact_boundary(
+    monkeypatch: pytest.MonkeyPatch, retry_call: Callable[..., Answer], with_hooks: bool
 ) -> None:
-    provider_calls = 0
-    reask_calls = 0
     response = _response(100, value=None)
+    calls: list[str] = []
+    usage_events: list[tuple[int, int]] = []
     parse_events: list[dict[str, Any]] = []
     last_attempts: list[tuple[Exception, dict[str, Any]]] = []
+    messages = [{"role": "user", "content": "sample"}]
 
-    def create(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
-        nonlocal provider_calls
-        provider_calls += 1
+    def create(**_kwargs: Any) -> SimpleNamespace:
+        calls.append("create")
         return response
 
     def parse(**_kwargs: Any) -> Answer:
         raise _validation_error()
 
     def reask(**call: Any) -> dict[str, Any]:
-        nonlocal reask_calls
-        reask_calls += 1
+        calls.append("reask")
         return cast(dict[str, Any], call["kwargs"])
 
     _install_handlers(monkeypatch, parse, reask)
     hooks = Hooks()
     hooks.on(
-        "parse:error",
-        lambda _error, **metadata: parse_events.append(metadata),
+        "completion:usage",
+        lambda usage, *, attempt_number: usage_events.append(
+            (cast(CompletionUsage, usage).total_tokens, attempt_number)
+        ),
     )
+    hooks.on("parse:error", lambda _error, **metadata: parse_events.append(metadata))
     hooks.on(
         "completion:last_attempt",
         lambda error, **metadata: last_attempts.append((error, metadata)),
     )
-
     with pytest.raises(TokenBudgetExceeded) as exc_info:
-        retry_sync_v2(
+        retry_call(
             func=create,
             response_model=Answer,
             provider=Provider.OPENAI,
@@ -132,9 +151,9 @@ def test_retry_budget_stops_before_sync_reask_at_exact_boundary(
             context=None,
             max_retries=3,
             args=(),
-            kwargs={},
+            kwargs={"messages": messages},
             strict=True,
-            hooks=hooks,
+            hooks=hooks if with_hooks else None,
             token_budget=100,
         )
 
@@ -144,21 +163,19 @@ def test_retry_budget_stops_before_sync_reask_at_exact_boundary(
     assert error.n_attempts == 1
     assert error.last_completion is response
     assert error.total_usage.total_tokens == 100
-    assert len(error.failed_attempts or []) == 1
-    assert provider_calls == 1
-    assert reask_calls == 0
-    assert parse_events == [
-        {"attempt_number": 1, "max_attempts": 4, "is_last_attempt": True}
-    ]
-    assert last_attempts == [
-        (
-            error,
-            {"attempt_number": 1, "max_attempts": 4, "is_last_attempt": True},
-        )
-    ]
+    assert error.messages == messages
+    assert error.create_kwargs == {"messages": messages}
+    assert error.failed_attempts is not None
+    assert [attempt.completion for attempt in error.failed_attempts] == [response]
+    assert calls == ["create"]
+    metadata = {"attempt_number": 1, "max_attempts": 4, "is_last_attempt": True}
+    assert usage_events == ([(100, 1)] if with_hooks else [])
+    assert parse_events == ([metadata] if with_hooks else [])
+    assert last_attempts == ([(error, metadata)] if with_hooks else [])
 
 
 def test_retry_budget_returns_valid_response_that_crosses_budget(
+    retry_call: Callable[..., Answer],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     responses = [_response(60, value=None), _response(60, value=7)]
@@ -188,7 +205,7 @@ def test_retry_budget_returns_valid_response_that_crosses_budget(
 
     hooks.on("completion:usage", record_usage)
 
-    result = retry_sync_v2(
+    result = retry_call(
         func=create,
         response_model=Answer,
         provider=Provider.OPENAI,
@@ -212,6 +229,7 @@ def test_retry_budget_returns_valid_response_that_crosses_budget(
 
 
 def test_retry_budget_fails_closed_when_usage_is_unavailable(
+    retry_call: Callable[..., Answer],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     provider_calls = 0
@@ -233,7 +251,7 @@ def test_retry_budget_fails_closed_when_usage_is_unavailable(
     _install_handlers(monkeypatch, parse, reask)
 
     with pytest.raises(TokenUsageUnavailableError) as exc_info:
-        retry_sync_v2(
+        retry_call(
             func=create,
             response_model=Answer,
             provider=Provider.OPENAI,
@@ -251,84 +269,6 @@ def test_retry_budget_fails_closed_when_usage_is_unavailable(
     assert reask_calls == 0
 
 
-@pytest.mark.asyncio
-async def test_retry_budget_stops_before_async_reask_at_exact_boundary(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider_calls = 0
-    reask_calls = 0
-    usage_events: list[tuple[CompletionUsage, int]] = []
-    last_attempts: list[TokenBudgetExceeded] = []
-
-    async def create(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
-        nonlocal provider_calls
-        provider_calls += 1
-        return _response(75, value=None)
-
-    def parse(**_kwargs: Any) -> Answer:
-        raise _validation_error()
-
-    def reask(**call: Any) -> dict[str, Any]:
-        nonlocal reask_calls
-        reask_calls += 1
-        return cast(dict[str, Any], call["kwargs"])
-
-    _install_handlers(monkeypatch, parse, reask)
-    hooks = Hooks()
-    hooks.on(
-        "completion:usage",
-        lambda usage, *, attempt_number: usage_events.append(
-            (cast(CompletionUsage, usage), attempt_number)
-        ),
-    )
-    hooks.on(
-        "completion:last_attempt",
-        lambda error, **_metadata: last_attempts.append(
-            cast(TokenBudgetExceeded, error)
-        ),
-    )
-
-    with pytest.raises(TokenBudgetExceeded) as exc_info:
-        await retry_async_v2(
-            func=create,
-            response_model=Answer,
-            provider=Provider.OPENAI,
-            mode=Mode.JSON,
-            context=None,
-            max_retries=3,
-            args=(),
-            kwargs={},
-            strict=True,
-            hooks=hooks,
-            token_budget=75,
-        )
-
-    assert exc_info.value.total_usage.total_tokens == 75
-    assert provider_calls == 1
-    assert reask_calls == 0
-    assert [(usage.total_tokens, attempt) for usage, attempt in usage_events] == [
-        (75, 1)
-    ]
-    assert last_attempts == [exc_info.value]
-
-    with pytest.raises(TokenBudgetExceeded):
-        await retry_async_v2(
-            func=create,
-            response_model=Answer,
-            provider=Provider.OPENAI,
-            mode=Mode.JSON,
-            context=None,
-            max_retries=3,
-            args=(),
-            kwargs={},
-            strict=True,
-            token_budget=75,
-        )
-
-    assert provider_calls == 2
-    assert reask_calls == 0
-
-
 @pytest.mark.parametrize(
     ("token_budget", "response_model", "kwargs", "error_type"),
     [
@@ -341,6 +281,7 @@ async def test_retry_budget_stops_before_async_reask_at_exact_boundary(
     ],
 )
 def test_retry_budget_rejects_unenforceable_configuration_before_provider_call(
+    retry_call: Callable[..., Answer],
     token_budget: Any,
     response_model: type[Answer] | None,
     kwargs: dict[str, Any],
@@ -353,7 +294,7 @@ def test_retry_budget_rejects_unenforceable_configuration_before_provider_call(
         provider_calls += 1
 
     with pytest.raises(error_type):
-        retry_sync_v2(
+        retry_call(
             func=create,
             response_model=response_model,
             provider=Provider.OPENAI,

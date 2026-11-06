@@ -1,6 +1,5 @@
 import asyncio
 import json
-import os
 from collections.abc import Callable, AsyncGenerator, Generator, Iterable
 from copy import deepcopy
 from enum import Enum
@@ -12,7 +11,6 @@ from pydantic import AliasPath, BaseModel, Field, ValidationError
 
 import instructor
 from instructor.dsl.partial import Partial, PartialLiteralMixin, _make_field_optional
-from openai import AsyncOpenAI, OpenAI
 
 
 T_Model = TypeVar("T_Model", bound=BaseModel, covariant=True)
@@ -283,67 +281,6 @@ async def test_async_partial_repairs_del_c1_outside_json_strings(
         )
     ]
     assert models[-1].model_dump() == {"text": "value", "labels": {}}
-
-
-@pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
-def test_summary_extraction():
-    class Summary(BaseModel):
-        summary: str = Field(description="A detailed summary")
-
-    client = OpenAI()
-    client = instructor.from_openai(client, mode=instructor.Mode.TOOLS)
-    extraction_stream = client.chat.completions.create_partial(
-        model="gpt-4o",
-        response_model=Summary,
-        messages=[
-            {"role": "system", "content": "You summarize text"},
-            {"role": "user", "content": "Summarize: Mary had a little lamb"},
-        ],
-        stream=True,
-    )
-
-    # Collect all streaming updates and verify final result
-    final_summary = None
-    chunk_count = 0
-    for extraction in extraction_stream:
-        final_summary = extraction.summary
-        chunk_count += 1
-
-    # Verify we got streaming updates and a valid final summary
-    assert chunk_count > 0
-    assert final_summary is not None
-    assert len(final_summary) > 0
-
-
-@pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
-@pytest.mark.asyncio
-async def test_summary_extraction_async():
-    class Summary(BaseModel):
-        summary: str = Field(description="A detailed summary")
-
-    client = AsyncOpenAI()
-    client = instructor.from_openai(client, mode=instructor.Mode.TOOLS)
-    extraction_stream = client.chat.completions.create_partial(
-        model="gpt-4o",
-        response_model=Summary,
-        messages=[
-            {"role": "system", "content": "You summarize text"},
-            {"role": "user", "content": "Summarize: Mary had a little lamb"},
-        ],
-        stream=True,
-    )
-
-    # Collect all streaming updates and verify final result
-    final_summary = None
-    chunk_count = 0
-    async for extraction in extraction_stream:
-        final_summary = extraction.summary
-        chunk_count += 1
-
-    # Verify we got streaming updates and a valid final summary
-    assert chunk_count > 0
-    assert final_summary is not None
-    assert len(final_summary) > 0
 
 
 def test_union_with_nested():

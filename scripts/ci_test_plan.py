@@ -94,6 +94,8 @@ def select_tests(paths: list[str]) -> TestPlan:
             if not re.fullmatch(r"test_.*\.py|.*_test\.py", Path(path).name):
                 return full_plan()
             plan.shards.add(group_for_path(path))
+            if path == "tests/v2/test_provider_modes.py":
+                plan.live_jobs.update(LIVE_JOBS - {"auto-client-test"})
             if path == "tests/providers/test_auto_client.py":
                 plan.live_jobs.add("auto-client-test")
             continue
@@ -149,13 +151,14 @@ def verified_baseline(repository: str, sha: str) -> str:
 
     try:
         runs = read(
-            f"/actions/workflows/test.yml/runs?event=push&branch=main&head_sha={sha}&status=completed&per_page=1"
+            f"/actions/workflows/test.yml/runs?event=push&branch=main&head_sha={sha}&per_page=1"
         )["workflow_runs"]
         if not runs:
             return ""
         run = runs[0]
         if (
-            run["head_sha"] != sha
+            run["status"] != "completed"
+            or run["head_sha"] != sha
             or run["event"] != "push"
             or run["head_branch"] != "main"
             or run["head_repository"]["full_name"] != repository

@@ -233,6 +233,9 @@ def test_from_mistral_warns_for_deprecated_tools_mode(
 ) -> None:
     monkeypatch.setattr(mistral_client, "Mistral", FakeMistral)
 
+    from instructor.v2.core.mode import reset_deprecated_mode_warnings
+
+    reset_deprecated_mode_warnings()
     with pytest.warns(DeprecationWarning, match="Use Mode.TOOLS instead"):
         client = mistral_client.from_mistral(
             cast(Any, FakeMistral()), mode=Mode.MISTRAL_TOOLS

@@ -46,12 +46,17 @@ def test_client_chat_completions_create_with_response():
 def test_client_chat_completions_create_partial():
     client = instructor.from_openai(openai.OpenAI(), model="gpt-4.1-mini")
 
+    last = None
     for user in client.chat.completions.create_partial(
         response_model=User,
         messages=[{"role": "user", "content": "Jason is 10"}],
         temperature=0,
     ):
         assert isinstance(user, User)
+        last = user
+
+    assert last is not None
+    assert (last.name, last.age) == ("Jason", 10)
 
 
 def test_client_chat_completions_create_iterable():
@@ -87,12 +92,17 @@ async def test_async_client_chat_completions_create_partial():
     client = openai.AsyncOpenAI()
     instructor_client = instructor.from_openai(client, model="gpt-4.1-mini")
 
+    last = None
     async for user in instructor_client.chat.completions.create_partial(
         response_model=User,
         messages=[{"role": "user", "content": "Jason is 10"}],
         temperature=0,
     ):
         assert isinstance(user, User)
+        last = user
+
+    assert last is not None
+    assert (last.name, last.age) == ("Jason", 10)
 
 
 @pytest.mark.asyncio

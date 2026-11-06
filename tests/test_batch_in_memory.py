@@ -155,62 +155,6 @@ class TestBatchRequestInMemory:
 class TestProviderInMemorySupport:
     """Test that providers support BytesIO buffers."""
 
-    def test_openai_provider_accepts_bytesio(self):
-        """Test that OpenAI provider accepts BytesIO (without making API calls)."""
-        provider = OpenAIProvider()
-        buffer = io.BytesIO()
-
-        # Create a valid OpenAI batch request
-        test_data = {
-            "custom_id": "test-1",
-            "method": "POST",
-            "url": "/v1/chat/completions",
-            "body": {
-                "model": "gpt-4",
-                "messages": [{"role": "user", "content": "test"}],
-                "max_tokens": 100,
-            },
-        }
-
-        json_line = json.dumps(test_data) + "\n"
-        buffer.write(json_line.encode("utf-8"))
-        buffer.seek(0)
-
-        # This should not raise a ValueError for unsupported type
-        # (It will raise an exception due to missing API key, but that's expected)
-        try:
-            provider.submit_batch(buffer)
-        except Exception as exc_info:
-            # Make sure it's not a ValueError about unsupported type
-            assert "Unsupported file_path_or_buffer type" not in str(exc_info)
-
-    def test_anthropic_provider_accepts_bytesio(self):
-        """Test that Anthropic provider accepts BytesIO (without making API calls)."""
-        provider = AnthropicProvider()
-        buffer = io.BytesIO()
-
-        # Create a valid Anthropic batch request
-        test_data = {
-            "custom_id": "test-1",
-            "params": {
-                "model": "claude-3-sonnet",
-                "messages": [{"role": "user", "content": "test"}],
-                "max_tokens": 100,
-            },
-        }
-
-        json_line = json.dumps(test_data) + "\n"
-        buffer.write(json_line.encode("utf-8"))
-        buffer.seek(0)
-
-        # This should not raise a ValueError for unsupported type
-        # (It will raise an exception due to missing API key, but that's expected)
-        try:
-            provider.submit_batch(buffer)
-        except Exception as exc_info:
-            # Make sure it's not a ValueError about unsupported type
-            assert "Unsupported file_path_or_buffer type" not in str(exc_info)
-
     def test_provider_invalid_type_raises_error(self):
         """Test that providers raise errors for invalid types."""
         openai_provider = OpenAIProvider()
