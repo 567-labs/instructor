@@ -10,6 +10,7 @@ from instructor import (
     AsyncInstructor,
     Instructor,
     Maybe,
+    Mode,
     Partial,
     from_anyscale,
     from_databricks,
@@ -20,6 +21,7 @@ from instructor import (
     from_vertexai,
     response_schema,
 )
+from instructor.decisions.client import AsyncDecisionsClient, DecisionsClient
 from instructor.v2.dsl.maybe import MaybeBase
 
 
@@ -37,6 +39,8 @@ def check_public_factories(
     assert_type(from_vertexai(vertex_model, _async=True), AsyncInstructor)
     assert_type(from_openai(sync_client), Instructor)
     assert_type(from_openai(async_client), AsyncInstructor)
+    assert_type(from_openai(sync_client, mode=Mode.DECISIONS), DecisionsClient)
+    assert_type(from_openai(async_client, mode=Mode.DECISIONS), AsyncDecisionsClient)
     assert_type(from_anyscale("model"), Instructor)
     assert_type(from_anyscale("model", async_client=True), AsyncInstructor)
     assert_type(from_together("model"), Instructor)

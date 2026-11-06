@@ -9,11 +9,11 @@ import json
 import os
 from pathlib import Path
 import sys
-from typing import Any
+from typing import Any, Literal
 
 import instructor
 import openai
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 def main() -> None:
@@ -39,6 +39,11 @@ def main() -> None:
     class Result(BaseModel):
         value: int
 
+    class Route(BaseModel):
+        team: Literal["billing", "support"] = Field(
+            description="Which team handles this request?"
+        )
+
     schema = instructor.generate_openai_schema(Result)
     assert schema["parameters"]["required"] == ["value"]
     assert instructor.response_schema(Result).model_validate({"value": 7}).value == 7
@@ -49,6 +54,22 @@ def main() -> None:
 
     def completion(request: Any) -> Any:
         body = json.loads(request.content)
+        if request.url.path == "/v1/decisions":
+            assert (
+                body["model"] == "gpt-6-luna"
+                and body["input"] == "Refund the duplicate charge."
+            )
+            assert body["questions"][0]["name"] == "team"
+            return http.Response(
+                200,
+                json={
+                    "model": "gpt-6-luna",
+                    "answers": [
+                        {"name": "team", "type": "choice", "choice": "billing"}
+                    ],
+                    "usage": {"input_tokens": 8, "output_tokens": 0, "total_tokens": 8},
+                },
+            )
         assert request.url.path == "/v1/chat/completions"
         assert body["tools"][0]["function"]["name"] == "Result"
         return http.Response(
@@ -96,6 +117,15 @@ def main() -> None:
             max_retries=0,
         )
         assert isinstance(result, Result) and result.value == 7
+        with instructor.from_openai(
+            client, mode=instructor.Mode.DECISIONS
+        ) as decisions:
+            assert (
+                decisions.create(
+                    response_model=Route, input="Refund the duplicate charge."
+                ).team
+                == "billing"
+            )
 
     async def check_async() -> None:
         async with openai.AsyncOpenAI(
@@ -114,6 +144,13 @@ def main() -> None:
                 max_retries=0,
             )
             assert isinstance(result, Result) and result.value == 7
+            async with instructor.from_openai(
+                client, mode=instructor.Mode.DECISIONS
+            ) as decisions:
+                decision = await decisions.create(
+                    response_model=Route, input="Refund the duplicate charge."
+                )
+                assert decision.team == "billing"
 
     asyncio.run(check_async())
     if os.environ.get("PACKAGE_EXTRAS") == "google-genai":
