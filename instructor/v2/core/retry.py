@@ -206,7 +206,6 @@ def retry_sync_v2(
 
     max_attempts = _max_attempts(max_retries)
     failed_attempts: list[FailedAttempt] = []
-    last_exception: Exception | None = None
     last_attempt_number = 0
     total_usage = _initialize_usage(provider)
     usage_complete = True
@@ -295,7 +294,6 @@ def retry_sync_v2(
                             completion=response,
                         )
                     )
-                    last_exception = e
 
                     budget_error = _budget_error(
                         token_budget=token_budget,
@@ -343,16 +341,14 @@ def retry_sync_v2(
         raise
     except Exception as e:
         # Max retries exceeded or non-validation error occurred
-        last_exception = e
-
         logger.error(
             "Max retries exceeded. Total attempts: %d (%s)",
             last_attempt_number,
-            type(last_exception).__name__,
+            type(e).__name__,
         )
         if hooks:
             hooks.emit_completion_last_attempt(
-                last_exception,
+                e,
                 **_attempt_metadata(
                     attempt_number=last_attempt_number or len(failed_attempts),
                     max_attempts=max_attempts,
@@ -361,16 +357,16 @@ def retry_sync_v2(
             )
 
         raise InstructorRetryException(
-            str(last_exception),
+            str(e),
             last_completion=failed_attempts[-1].completion if failed_attempts else None,
             n_attempts=last_attempt_number,
             total_usage=total_usage,
             messages=extract_messages(kwargs),
             create_kwargs=kwargs,
             failed_attempts=failed_attempts,
-        ) from last_exception
+        ) from e
 
-    # Should never reach here
+    # A custom retry policy can finish without re-raising its last error.
     logger.error("Unexpected code path in retry_sync_v2")
     raise InstructorRetryException(
         str(failed_attempts[-1].exception) if failed_attempts else "Unknown error",
@@ -514,7 +510,6 @@ async def retry_async_v2(
 
     max_attempts = _max_attempts(max_retries)
     failed_attempts: list[FailedAttempt] = []
-    last_exception: Exception | None = None
     last_attempt_number = 0
     total_usage = _initialize_usage(provider)
     usage_complete = True
@@ -603,7 +598,6 @@ async def retry_async_v2(
                             completion=response,
                         )
                     )
-                    last_exception = e
 
                     budget_error = _budget_error(
                         token_budget=token_budget,
@@ -651,16 +645,14 @@ async def retry_async_v2(
         raise
     except Exception as e:
         # Max retries exceeded or non-validation error occurred
-        last_exception = e
-
         logger.error(
             "Max retries exceeded. Total attempts: %d (%s)",
             last_attempt_number,
-            type(last_exception).__name__,
+            type(e).__name__,
         )
         if hooks:
             hooks.emit_completion_last_attempt(
-                last_exception,
+                e,
                 **_attempt_metadata(
                     attempt_number=last_attempt_number or len(failed_attempts),
                     max_attempts=max_attempts,
@@ -669,16 +661,16 @@ async def retry_async_v2(
             )
 
         raise InstructorRetryException(
-            str(last_exception),
+            str(e),
             last_completion=failed_attempts[-1].completion if failed_attempts else None,
             n_attempts=last_attempt_number,
             total_usage=total_usage,
             messages=extract_messages(kwargs),
             create_kwargs=kwargs,
             failed_attempts=failed_attempts,
-        ) from last_exception
+        ) from e
 
-    # Should never reach here
+    # A custom retry policy can finish without re-raising its last error.
     logger.error("Unexpected code path in retry_async_v2")
     raise InstructorRetryException(
         str(failed_attempts[-1].exception) if failed_attempts else "Unknown error",

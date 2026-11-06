@@ -118,6 +118,9 @@ source_paths = ["instructor/"]
 only_mutate = ["instructor/v2/core/retry.py"]
 pytest_add_cli_args_test_selection = [
     "tests/v2/test_retry_runtime.py",
+    "tests/v2/test_retry_budget.py",
+    "tests/v2/test_retry_isolation_contract.py",
+    "tests/v2/test_async_validators_execution.py",
     "tests/coverage/test_core_patch_retry_coverage.py",
 ]
 pytest_add_cli_args = ["--asyncio-mode=auto", "--tb=short"]

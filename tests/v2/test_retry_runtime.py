@@ -30,9 +30,9 @@ class Answer(BaseModel):
     value: int
 
 
-def _validation_error() -> ValidationError:
+def _validation_error(value: str = "bad") -> ValidationError:
     try:
-        Answer.model_validate({"value": "bad"})
+        Answer.model_validate({"value": value})
     except ValidationError as exc:
         return exc
     raise AssertionError("Expected a validation error")
@@ -879,6 +879,7 @@ async def test_retry_async_v2_preserves_parser_response_and_usage_contract(
 
     assert result == Answer(value=11)
     assert getattr(result, "_raw_response", None) is response
+    assert getattr(result, "_total_usage", None) is None
     assert seen_responses == [response]
     assert seen_updates == [(response, usage)]
     assert "Successfully parsed response on attempt 1" in caplog.text
@@ -1008,14 +1009,25 @@ async def test_retry_async_v2_reports_each_validation_api_error_and_last_attempt
     ]
     assert exc_info.value.n_attempts == 2
     assert exc_info.value.failed_attempts == []
-    assert "API call failed on attempt 1" in caplog.text
-    assert "API call failed on attempt 2" in caplog.text
-    assert "Max retries exceeded. Total attempts: 2" in caplog.text
+    assert (
+        f"API call failed on attempt 1 ({type(errors[0]).__name__})" in caplog.messages
+    )
+    assert (
+        f"API call failed on attempt 2 ({type(errors[1]).__name__})" in caplog.messages
+    )
+    assert (
+        f"Max retries exceeded. Total attempts: 2 ({type(errors[-1]).__name__})"
+        in caplog.messages
+    )
     assert str(errors[0]) not in caplog.text
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "callback", [False, True], ids=["reraise", "return-from-policy"]
+)
 async def test_retry_async_v2_keeps_every_failed_completion_on_exhaustion(
+    callback: bool,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -1024,7 +1036,7 @@ async def test_retry_async_v2_keeps_every_failed_completion_on_exhaustion(
         {"payload": "second"},
         {"payload": "third"},
     ]
-    errors = [_validation_error(), _validation_error(), _validation_error()]
+    errors = [_validation_error(f"bad-{n}") for n in range(3)]
     parse_errors: list[tuple[Exception, dict[str, Any]]] = []
     completion_responses: list[Any] = []
     updates: list[tuple[Any, Any]] = []
@@ -1087,6 +1099,15 @@ async def test_retry_async_v2_keeps_every_failed_completion_on_exhaustion(
     )
     caplog.set_level(logging.DEBUG, logger="instructor.v2.retry")
 
+    policy = (
+        AsyncRetrying(
+            stop=stop_after_attempt(3),
+            retry=retry_if_exception_type(ValidationError),
+            retry_error_callback=lambda _state: None,
+        )
+        if callback
+        else 2
+    )
     with pytest.raises(InstructorRetryException) as exc_info:
         await retry_async_v2(
             func=create,
@@ -1094,7 +1115,7 @@ async def test_retry_async_v2_keeps_every_failed_completion_on_exhaustion(
             provider=Provider.OPENAI,
             mode=Mode.JSON,
             context=None,
-            max_retries=2,
+            max_retries=policy,
             args=(),
             kwargs={"messages": [{"role": "user", "content": "first"}]},
             strict=True,
@@ -1107,10 +1128,14 @@ async def test_retry_async_v2_keeps_every_failed_completion_on_exhaustion(
     assert updates == [(response, usage) for response in responses]
     assert [caught for caught, _ in parse_errors] == errors
     assert [metadata for _, metadata in parse_errors] == [
-        {"attempt_number": 1, "max_attempts": 3, "is_last_attempt": False},
-        {"attempt_number": 2, "max_attempts": 3, "is_last_attempt": False},
-        {"attempt_number": 3, "max_attempts": 3, "is_last_attempt": True},
+        {
+            "attempt_number": attempt,
+            "max_attempts": None if callback else 3,
+            "is_last_attempt": attempt == 3 and not callback,
+        }
+        for attempt in (1, 2, 3)
     ]
+    assert error.args[0] == str(errors[-1])
     assert error.n_attempts == 3
     assert error.last_completion is responses[-1]
     assert error.total_usage is usage
@@ -1127,10 +1152,20 @@ async def test_retry_async_v2_keeps_every_failed_completion_on_exhaustion(
     assert [attempt.attempt_number for attempt in error.failed_attempts] == [1, 2, 3]
     assert [attempt.exception for attempt in error.failed_attempts] == errors
     assert [attempt.completion for attempt in error.failed_attempts] == responses
-    assert "Validation error on attempt 1" in caplog.text
-    assert "Validation error on attempt 2" in caplog.text
-    assert "Validation error on attempt 3" in caplog.text
-    assert "Max retries exceeded. Total attempts: 3" in caplog.text
+    assert (
+        f"Validation error on attempt 1 ({type(errors[0]).__name__})" in caplog.messages
+    )
+    assert (
+        f"Validation error on attempt 2 ({type(errors[1]).__name__})" in caplog.messages
+    )
+    assert (
+        f"Validation error on attempt 3 ({type(errors[2]).__name__})" in caplog.messages
+    )
+    if not callback:
+        assert (
+            f"Max retries exceeded. Total attempts: 3 ({type(errors[-1]).__name__})"
+            in caplog.messages
+        )
 
 
 class NoAttemptsAsyncRetrying(AsyncRetrying):
