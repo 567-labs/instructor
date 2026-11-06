@@ -8,36 +8,53 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  # Core tests without LLM providers
   core-tests:
-    name: Core Tests
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Core Tests
+            shard: core
+            path: tests
+            pytest-options: >-
+              --ignore=tests/v2 --ignore=tests/coverage
+              --ignore=tests/test_batch_processor_coverage.py
+          - name: V2 Tests
+            shard: v2
+            path: tests/v2
+            pytest-options: --ignore=tests/v2/decisions
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          enable-cache: true
-          python-version: "3.11"
-      - name: Set up Python
-        run: uv python install 3.11
-      - name: Install the project
-        run: uv sync --frozen --all-extras
-      - name: Run core tests
-        run: >-
-          uv run --frozen pytest tests/ --asyncio-mode=auto -n auto
-          --ignore=tests/coverage
-          --ignore=tests/test_batch_processor_coverage.py
-          -m 'not llm'
-          -k 'not test_core_providers and not test_openai and not test_anthropic
-          and not test_gemini and not test_genai and not test_writer and not
-          test_vertexai and not docs'
+      - name: Install test dependencies
+        uses: ./.github/actions/setup-test-environment
+      - name: Run offline tests with branch coverage
         env:
           INSTRUCTOR_ENV: CI
+          TEST_PATH: ${{ matrix.path }}
+          PYTEST_ADDOPTS: ${{ matrix.pytest-options }}
+          COVERAGE_FILE: ${{ runner.temp }}/coverage.${{ matrix.shard }}
+        run: >-
+          uv run --frozen coverage run --branch -m pytest "$TEST_PATH"
+          --asyncio-mode=auto --strict-config --strict-markers
+          -m 'not llm' -k 'not docs'
+      - name: Upload shard coverage
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: offline-coverage-${{ github.run_id }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/coverage.${{ matrix.shard }}
+          if-no-files-found: error
+          overwrite: true
 
   # Offline coverage tests must not be filtered by provider names.
   offline-coverage-tests:
@@ -56,29 +73,42 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Install test dependencies
+        uses: ./.github/actions/setup-test-environment
         with:
-          enable-cache: true
           python-version: ${{ matrix.python-version }}
           cache-suffix: offline-py${{ matrix.python-version }}
-      - name: Set up Python
-        run: uv python install ${{ matrix.python-version }}
-      - name: Install the project
-        run: uv sync --frozen --all-extras
-      - name: Run offline coverage tests
+      - name: Run focused coverage tests
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          COVERAGE_FILE: ${{ runner.temp }}/coverage.focused
         run: |
-          uv run --frozen coverage erase
-          uv run --frozen coverage run -m pytest \
+          coverage_args=()
+          if [[ "$PYTHON_VERSION" == "3.11" ]]; then
+            coverage_args+=(--branch)
+          fi
+          uv run --frozen coverage run "${coverage_args[@]}" -m pytest \
             tests/coverage tests/test_batch_processor_coverage.py tests/v2/decisions \
             --asyncio-mode=auto --strict-config --strict-markers \
             -W error::pytest.PytestUnraisableExceptionWarning \
             -W error::pytest.PytestUnhandledThreadExceptionWarning
-          uv run --frozen coverage report --show-missing --fail-under=90
+          uv run --frozen coverage report --show-missing
+          uv run --frozen coverage json -o "$RUNNER_TEMP/focused-coverage.json"
+          uv run --frozen python scripts/check_statement_coverage.py "$RUNNER_TEMP/focused-coverage.json" 90
+      - name: Upload Python 3.11 focused coverage
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: offline-coverage-${{ github.run_id }}-focused
+          path: ${{ runner.temp }}/coverage.focused
+          if-no-files-found: error
+          overwrite: true
 
   # Enforce repository-wide statement and branch coverage without provider secrets.
   full-coverage:
     name: Full Coverage (Python 3.11)
+    needs: [core-tests, offline-coverage-tests]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -93,20 +123,22 @@ jobs:
           python-version: "3.11"
       - name: Set up Python
         run: uv python install 3.11
-      - name: Install the project
-        run: uv sync --frozen --all-extras
-      - name: Run full offline coverage
+      - name: Download coverage from this run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: offline-coverage-${{ github.run_id }}-*
+          path: ${{ runner.temp }}/coverage-parts
+      - name: Verify full offline coverage
         run: |
-          uv run --frozen coverage erase
-          uv run --frozen coverage run --branch -m pytest tests/ \
-            --asyncio-mode=auto --strict-config --strict-markers \
-            -m 'not llm' \
-            -k 'not docs'
-          uv run --frozen coverage report --show-missing --fail-under=99
-          uv run --frozen coverage json -o "${RUNNER_TEMP}/coverage.json"
-          uv run --frozen python -c 'import json, os; totals = json.load(open(os.path.join(os.environ["RUNNER_TEMP"], "coverage.json")))["totals"]; missing = totals["missing_lines"]; print(f"Missing statements: {missing}"); raise SystemExit(1 if missing else 0)'
-        env:
-          INSTRUCTOR_ENV: CI
+          parts="$RUNNER_TEMP/coverage-parts"
+          prefix="offline-coverage-$GITHUB_RUN_ID"
+          uv run --frozen --only-group coverage coverage combine \
+            "$parts/$prefix-core/coverage.core" \
+            "$parts/$prefix-v2/coverage.v2" \
+            "$parts/$prefix-focused/coverage.focused"
+          uv run --frozen --only-group coverage coverage report --show-missing --fail-under=99
+          uv run --frozen --only-group coverage coverage json -o "$RUNNER_TEMP/coverage.json"
+          uv run --frozen --only-group coverage python scripts/check_statement_coverage.py "$RUNNER_TEMP/coverage.json" 100
 
   # Core provider tests for OpenAI
   core-openai:
@@ -121,30 +153,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          enable-cache: true
-          python-version: "3.11"
-      - name: Set up Python
-        run: uv python install 3.11
-      - name: Install the project
-        run: uv sync --frozen --all-extras
+      - name: Install test dependencies
+        if: ${{ env.HAS_OPENAI_API_KEY == 'true' }}
+        uses: ./.github/actions/setup-test-environment
       - name: Skip core provider tests (OpenAI)
         if: ${{ env.HAS_OPENAI_API_KEY != 'true' }}
         run: echo "Skipping OpenAI core provider tests (missing OPENAI_API_KEY)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run core provider tests (OpenAI)
         if: ${{ env.HAS_OPENAI_API_KEY == 'true' }}
-        run: |
-          set +e
-          uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto -k "openai" -rs --junitxml="${RUNNER_TEMP}/provider-evidence-initial.xml"
-          status=$?
-          set -e
-          if [ $status -eq 5 ]; then
-            echo "::warning::No tests collected; provider is untested."
-            exit 0
-          fi
-          exit $status
+        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers -v -k "openai"
         env:
           INSTRUCTOR_ENV: CI
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -166,30 +183,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          enable-cache: true
-          python-version: "3.11"
-      - name: Set up Python
-        run: uv python install 3.11
-      - name: Install the project
-        run: uv sync --frozen --all-extras
+      - name: Install test dependencies
+        if: ${{ env.HAS_ANTHROPIC_API_KEY == 'true' }}
+        uses: ./.github/actions/setup-test-environment
       - name: Skip core provider tests (Anthropic)
         if: ${{ env.HAS_ANTHROPIC_API_KEY != 'true' }}
         run: echo "Skipping Anthropic core provider tests (missing ANTHROPIC_API_KEY)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run core provider tests (Anthropic)
         if: ${{ env.HAS_ANTHROPIC_API_KEY == 'true' }}
-        run: |
-          set +e
-          uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto -k "anthropic" -rs --junitxml="${RUNNER_TEMP}/provider-evidence-initial.xml"
-          status=$?
-          set -e
-          if [ $status -eq 5 ]; then
-            echo "::warning::No tests collected; provider is untested."
-            exit 0
-          fi
-          exit $status
+        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers -v -k "anthropic"
         env:
           INSTRUCTOR_ENV: CI
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -212,30 +214,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          enable-cache: true
-          python-version: "3.11"
-      - name: Set up Python
-        run: uv python install 3.11
-      - name: Install the project
-        run: uv sync --frozen --all-extras
+      - name: Install test dependencies
+        if: ${{ env.HAS_GOOGLE_API_KEY == 'true' && env.HAS_GOOGLE_GENAI_MODEL == 'true' }}
+        uses: ./.github/actions/setup-test-environment
       - name: Skip core provider tests (Google)
         if: ${{ env.HAS_GOOGLE_API_KEY != 'true' || env.HAS_GOOGLE_GENAI_MODEL != 'true' }}
         run: echo "Skipping Google core provider tests (missing GOOGLE_API_KEY or GOOGLE_GENAI_MODEL)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run core provider tests (Google)
         if: ${{ env.HAS_GOOGLE_API_KEY == 'true' && env.HAS_GOOGLE_GENAI_MODEL == 'true' }}
-        run: |
-          set +e
-          uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto -k "google" -rs --junitxml="${RUNNER_TEMP}/provider-evidence-initial.xml"
-          status=$?
-          set -e
-          if [ $status -eq 5 ]; then
-            echo "::warning::No tests collected; provider is untested."
-            exit 0
-          fi
-          exit $status
+        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers -v -k "google"
         env:
           INSTRUCTOR_ENV: CI
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
@@ -264,15 +251,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          enable-cache: true
-          python-version: "3.11"
-      - name: Set up Python
-        run: uv python install 3.11
-      - name: Install the project
-        run: uv sync --frozen --all-extras
+      - name: Install test dependencies
+        uses: ./.github/actions/setup-test-environment
       - name: Skip core provider tests (Other)
         if: >-
           ${{ env.HAS_COHERE_API_KEY != 'true' && env.HAS_XAI_API_KEY != 'true'
@@ -286,21 +266,7 @@ jobs:
           || env.HAS_MISTRAL_API_KEY == 'true' || env.HAS_CEREBRAS_API_KEY == 'true'
           || env.HAS_FIREWORKS_API_KEY == 'true' || env.HAS_WRITER_API_KEY == 'true'
           || env.HAS_PERPLEXITY_API_KEY == 'true' }}
-        run: |
-          set +e
-          uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto -k "cohere or xai or mistral or cerebras or fireworks or writer or perplexity" -rs --junitxml="${RUNNER_TEMP}/provider-evidence-initial.xml"
-          status=$?
-          if [ $status -eq 5 ]; then
-            echo "::warning::No tests collected; provider is untested."
-            exit 0
-          fi
-          if [ $status -eq 1 ]; then
-            echo "Retrying only failed live-provider tests once."
-            uv run --frozen pytest tests/llm/test_core_providers -v --asyncio-mode=auto -n auto --last-failed -k "cohere or xai or mistral or cerebras or fireworks or writer or perplexity" -rs --junitxml="${RUNNER_TEMP}/provider-evidence-retry.xml"
-            status=$?
-          fi
-          set -e
-          exit $status
+        run: bash scripts/run_provider_tests.sh --retry-failures tests/llm/test_core_providers -v -k "cohere or xai or mistral or cerebras or fireworks or writer or perplexity"
         env:
           INSTRUCTOR_ENV: CI
           COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
@@ -370,16 +336,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Install test dependencies
+        if: ${{ env.HAS_PROVIDER_API_KEY == 'true' && ((matrix.provider.name != 'Gemini' && matrix.provider.name != 'Google GenAI' && matrix.provider.name != 'Vertex AI') || env.HAS_GOOGLE_GENAI_MODEL == 'true') }}
+        uses: ./.github/actions/setup-test-environment
         with:
-          enable-cache: true
-          python-version: "3.11"
           cache-suffix: provider-${{ matrix.provider.name }}-py311
-      - name: Set up Python
-        run: uv python install 3.11
-      - name: Install the project
-        run: uv sync --frozen --all-extras
       - name: Skip ${{ matrix.provider.name }} tests
         if: >-
           ${{ env.HAS_PROVIDER_API_KEY != 'true' ||
@@ -393,16 +354,7 @@ jobs:
           ${{ env.HAS_PROVIDER_API_KEY == 'true' &&
           ((matrix.provider.name != 'Gemini' && matrix.provider.name != 'Google GenAI'
           && matrix.provider.name != 'Vertex AI') || env.HAS_GOOGLE_GENAI_MODEL == 'true') }}
-        run: |
-          set +e
-          uv run --frozen pytest "$PROVIDER_TEST_PATH" --asyncio-mode=auto -n auto -rs --junitxml="${RUNNER_TEMP}/provider-evidence-initial.xml"
-          status=$?
-          set -e
-          if [ $status -eq 5 ]; then
-            echo "::warning::No tests collected; provider is untested."
-            exit 0
-          fi
-          exit $status
+        run: bash scripts/run_provider_tests.sh "$PROVIDER_TEST_PATH"
         env:
           INSTRUCTOR_ENV: CI
           OPENAI_API_KEY: ${{ matrix.provider.env_key == 'OPENAI_API_KEY' && secrets.OPENAI_API_KEY || '' }}
@@ -432,15 +384,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          enable-cache: true
-          python-version: "3.11"
-      - name: Set up Python
-        run: uv python install 3.11
-      - name: Install the project
-        run: uv sync --frozen --all-extras
+      - name: Install test dependencies
+        if: ${{ env.HAS_OPENAI_API_KEY == 'true' && env.HAS_GOOGLE_API_KEY == 'true' && env.HAS_COHERE_API_KEY == 'true' && env.HAS_ANTHROPIC_API_KEY == 'true' && env.HAS_XAI_API_KEY == 'true' }}
+        uses: ./.github/actions/setup-test-environment
       - name: Skip Auto Client tests
         if: >-
           ${{ env.HAS_OPENAI_API_KEY != 'true' || env.HAS_GOOGLE_API_KEY != 'true'
@@ -452,21 +398,7 @@ jobs:
           ${{ env.HAS_OPENAI_API_KEY == 'true' && env.HAS_GOOGLE_API_KEY == 'true'
           && env.HAS_COHERE_API_KEY == 'true' && env.HAS_ANTHROPIC_API_KEY == 'true'
           && env.HAS_XAI_API_KEY == 'true' }}
-        run: |
-          set +e
-          uv run --frozen pytest tests/providers/test_auto_client.py --asyncio-mode=auto -n auto -rs --junitxml="${RUNNER_TEMP}/provider-evidence-initial.xml"
-          status=$?
-          if [ $status -eq 5 ]; then
-            echo "::warning::No tests collected; provider is untested."
-            exit 0
-          fi
-          if [ $status -eq 1 ]; then
-            echo "Retrying only failed live-provider tests once."
-            uv run --frozen pytest tests/providers/test_auto_client.py --asyncio-mode=auto -n auto --last-failed -rs --junitxml="${RUNNER_TEMP}/provider-evidence-retry.xml"
-            status=$?
-          fi
-          set -e
-          exit $status
+        run: bash scripts/run_provider_tests.sh --retry-failures tests/providers/test_auto_client.py -m llm
         env:
           INSTRUCTOR_ENV: CI
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

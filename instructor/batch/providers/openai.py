@@ -7,6 +7,7 @@ This module contains the OpenAI batch processing provider class.
 from typing import Any, Optional, Union
 import io
 import logging
+import time
 from .base import BatchProvider
 from ..models import BatchJobInfo
 
@@ -91,7 +92,6 @@ class OpenAIProvider(BatchProvider):
         """Return success and error records for a completed or expired OpenAI batch."""
         from openai import OpenAI
         from openai.types import Batch
-        import time
 
         client = OpenAI()
         batch = client.batches.retrieve(batch_id)

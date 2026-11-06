@@ -48,7 +48,6 @@ To set the mode for your mistral client, simply use the code snippet below
 ```python
 import instructor
 
-
 # Initialize with API key
 instructor_client = instructor.from_provider(
     "mistral/mistral-large-latest",

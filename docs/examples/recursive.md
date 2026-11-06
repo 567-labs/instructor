@@ -76,8 +76,7 @@ def parse_hierarchy(text: str) -> RecursiveNode:
 
 
 # Example usage
-hierarchy = parse_hierarchy(
-    """
+hierarchy = parse_hierarchy("""
 Company: Acme Corp
 - Department: Engineering
   - Team: Frontend
@@ -91,8 +90,7 @@ Company: Acme Corp
     - Project: Social Media Campaign
   - Team: Brand
     - Project: Logo Refresh
-"""
-)
+""")
 ```
 
 ## Validation and Best Practices

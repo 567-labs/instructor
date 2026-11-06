@@ -258,7 +258,6 @@ Instructor has two main ways that you can use to stream responses out
 import instructor
 from pydantic import BaseModel
 
-
 client = instructor.from_provider(
     "google/gemini-3.8-flash",
 )
@@ -292,7 +291,6 @@ for user_partial in user:
 ```python
 import instructor
 from pydantic import BaseModel
-
 
 client = instructor.from_provider(
     "google/gemini-3.8-flash",

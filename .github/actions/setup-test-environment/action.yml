@@ -1,0 +1,23 @@
+name: Install test dependencies
+description: Install the locked Python environment used by the SDK tests.
+inputs:
+  python-version:
+    description: Python version used for this test job.
+    default: "3.11"
+  cache-suffix:
+    description: Additional uv cache key used by this job.
+    default: ""
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      with:
+        enable-cache: true
+        python-version: ${{ inputs.python-version }}
+        cache-suffix: ${{ inputs.cache-suffix }}
+    - shell: bash
+      env:
+        PYTHON_VERSION: ${{ inputs.python-version }}
+      run: |
+        uv python install "$PYTHON_VERSION"
+        uv sync --frozen --all-extras

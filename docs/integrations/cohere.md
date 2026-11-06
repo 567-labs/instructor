@@ -52,7 +52,6 @@ from pydantic import BaseModel, Field
 from typing import List
 import instructor
 
-
 # Using from_provider automatically uses Cohere V2 API
 client = instructor.from_provider(
     "cohere/command-a-03-2025",

@@ -1,39 +1,37 @@
 name: Test Docs
 on:
+  pull_request:
+    paths:
+      - "docs/**/*.md"
+      - "tests/docs/**"
+      - "tests/conftest.py"
+      - "mkdocs.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/test_docs.yml"
   schedule:
-    - cron: '0 0 1 * *'  # Runs at 00:00 on the 1st of every month
+    - cron: "0 0 1 * *"
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  release:
+  documentation-examples:
+    name: Documentation examples
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        python-version: ["3.11"]
-
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y graphviz libcairo2-dev xdg-utils
-
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
-          python-version: ${{ matrix.python-version }}
-      - name: Set up Python
-        run: uv python install ${{ matrix.python-version }}
-      - name: Install the project
-        run: uv sync --frozen --all-extras
-      - name: Run tests
-        run: uv run --frozen pytest tests/docs --asyncio-mode=auto
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          python-version: "3.11"
+          cache-suffix: docs-examples-py311
+      - name: Run documentation examples
+        run: uv run --frozen --extra dev pytest tests/docs --asyncio-mode=auto

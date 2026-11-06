@@ -90,6 +90,7 @@ A valid format does not guarantee that a model is available from the provider.
 ```python
 # Correct formats
 "openai/gpt-4o"
+
 "anthropic/claude-3-5-sonnet-20241022"
 "google/gemini-2.5-flash"
 "together/meta-llama/Llama-3-70b"

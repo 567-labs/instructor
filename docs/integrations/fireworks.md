@@ -91,7 +91,6 @@ print(user)  # User(name='Jason', age=25)
 import instructor
 from pydantic import BaseModel
 
-
 # Enable instructor patches
 client = instructor.from_provider("fireworks/accounts/fireworks/models/kimi-k2p5")
 
@@ -155,7 +154,6 @@ Instructor has two main ways that you can use to stream responses out
 import instructor
 from pydantic import BaseModel
 
-
 # Enable instructor patches
 client = instructor.from_provider("fireworks/accounts/fireworks/models/kimi-k2p5")
 
@@ -189,7 +187,6 @@ for user_partial in user:
 ```python
 import instructor
 from pydantic import BaseModel
-
 
 # Enable instructor patches
 client = instructor.from_provider("fireworks/accounts/fireworks/models/kimi-k2p5")

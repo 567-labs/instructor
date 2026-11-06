@@ -7,6 +7,7 @@ import threading
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -72,6 +73,11 @@ def endpoint(monkeypatch: pytest.MonkeyPatch) -> Iterator[BatchEndpoint]:
         monkeypatch.delenv(variable, raising=False)
         monkeypatch.delenv(variable.lower(), raising=False)
     monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
+    # The local endpoint advances its scripted batch state on each request.
+    monkeypatch.setattr(
+        "instructor.batch.providers.openai.time",
+        SimpleNamespace(sleep=lambda _seconds: None),
+    )
     thread = threading.Thread(
         target=server.serve_forever, kwargs={"poll_interval": 0.01}
     )
