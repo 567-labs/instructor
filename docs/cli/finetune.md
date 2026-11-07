@@ -148,6 +148,17 @@ OpenAI Files
 └───────────────────────────────┴──────────────┴─────────────────────┴──────────┴───────────┘
 ```
 
+#### Downloading Files
+
+Download an existing OpenAI file by its ID:
+
+```sh
+instructor files download file-abc123 downloaded.jsonl
+```
+
+The command writes the original bytes to the output path, including non-ASCII
+text and binary content. It replaces an existing file at that path.
+
 # Contributions
 
 We aim to provide a light wrapper around the API rather than offering a complete CLI. Contributions are welcome! Please feel free to make an issue at [jxnl/instructor/issues](https://github.com/jxnl/instructor/issues) or submit a pull request.
