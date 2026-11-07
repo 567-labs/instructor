@@ -898,7 +898,7 @@ class AsyncInstructor(Instructor[AsyncResponse]):
         if hooks is not None:
             combined_hooks = self.hooks + hooks
 
-        async for item in await self.create_fn(
+        response = await self.create_fn(
             response_model=Partial[response_model],  # type: ignore
             context=context,
             max_retries=max_retries,
@@ -906,8 +906,14 @@ class AsyncInstructor(Instructor[AsyncResponse]):
             **_strict_kwargs(strict, self.create_fn),
             hooks=combined_hooks,
             **kwargs,
-        ):
-            yield item
+        )
+        try:
+            async for item in response:
+                yield item
+        finally:
+            close = getattr(response, "aclose", None)
+            if callable(close):
+                await close()
 
     async def create_iterable(  # type: ignore[override]  # ty: ignore[invalid-method-override]
         self,

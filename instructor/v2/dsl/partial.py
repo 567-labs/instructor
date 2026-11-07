@@ -16,7 +16,7 @@ from contextvars import ContextVar
 from copy import deepcopy
 from functools import cache
 from functools import reduce
-from inspect import Parameter, signature
+from inspect import Parameter, isawaitable, signature
 from operator import or_
 from typing import (  # noqa: UP035
     Any,
@@ -480,9 +480,14 @@ class PartialBase(Generic[T_Model]):
     ) -> Generator[T_Model, None, None]:
         if stream_extractor is None:
             raise ValueError("stream_extractor is required for streaming responses")
-        json_chunks = stream_extractor(completion)
-        parser = chunk_parser or cls.model_from_chunks
-        yield from parser(json_chunks, **kwargs)
+        try:
+            json_chunks = stream_extractor(completion)
+            parser = chunk_parser or cls.model_from_chunks
+            yield from parser(json_chunks, **kwargs)
+        finally:
+            close = getattr(completion, "close", None)
+            if callable(close):
+                close()
 
     @classmethod
     async def from_streaming_response_async(
@@ -496,10 +501,19 @@ class PartialBase(Generic[T_Model]):
     ) -> AsyncGenerator[T_Model, None]:
         if stream_extractor is None:
             raise ValueError("stream_extractor is required for streaming responses")
-        json_chunks = stream_extractor(completion)
-        parser = chunk_parser or cls.model_from_chunks_async
-        async for item in parser(json_chunks, **kwargs):
-            yield item
+        try:
+            json_chunks = stream_extractor(completion)
+            parser = chunk_parser or cls.model_from_chunks_async
+            async for item in parser(json_chunks, **kwargs):
+                yield item
+        finally:
+            close = getattr(completion, "aclose", None) or getattr(
+                completion, "close", None
+            )
+            if callable(close):
+                result = close()
+                if isawaitable(result):
+                    await result
 
     @classmethod
     def model_from_chunks(

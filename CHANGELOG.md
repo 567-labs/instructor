@@ -10,6 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- **Partial streaming**: Release the provider response on explicit closure, validation errors, and cancellation, including closure through the async client wrapper.
 - Gemini and Vertex AI reject completions stopped at the token limit. Google and Mistral streaming handlers skip empty metadata chunks, and GenAI JSON mode aliases are classified consistently.
 - Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
 - Mistral batch jobs support structured requests, lifecycle operations, result parsing, and provider-specific errors through the batch processor and CLI.

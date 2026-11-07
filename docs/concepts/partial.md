@@ -228,10 +228,16 @@ also retires a pending legacy marker; do not mix explicit and implicit parsing
 for overlapping calls with the same model.
 
 Sync partial parsing still materializes its results and may raise validation errors
-inside `parse_response`; async partial validation occurs during iteration. Closing
-a parsed generator early is not a promise that it closes the underlying SDK stream.
-Retain and close the source stream according to its SDK's ownership contract.
-Cancellation while awaiting a source propagates to that source.
+inside `parse_response`; async partial validation occurs during iteration. Once
+iteration starts, shared Partial parsers close a closable source when parsing ends,
+raises, is cancelled, or is explicitly closed. `AsyncInstructor.create_partial()`
+forwards `aclose()` to that parser, releasing the response without closing the
+reusable SDK client.
+
+When stopping an async partial stream early, use `contextlib.aclosing(stream)` in
+an `async with` block, or call `await stream.aclose()` in a `finally` block.
+Breaking out of `async for` alone does not close an async generator. A source
+whose parser has never started remains the caller's responsibility.
 
 The native xAI client has a separate SDK streaming path; the shared routing rule
 here concerns its registry mode handlers. Providers without class-keyed stream
