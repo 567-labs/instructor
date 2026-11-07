@@ -90,9 +90,9 @@ def download(
     output: str = typer.Argument(help="Output path for the downloaded file"),
 ) -> None:
     with console.status(f"[bold green]Downloading file {file_id}...", spinner="dots"):
-        content = _get_client().files.download(file_id)
+        content = _get_client().files.content(file_id)
         with open(output, "wb") as file:
-            file.write(content)
+            file.write(content.content)
         console.log(f"[bold green]File {file_id} downloaded successfully!")
 
 
