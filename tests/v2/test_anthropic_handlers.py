@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from instructor import Mode, Provider
 from instructor.v2.core.registry import mode_registry
@@ -59,6 +59,26 @@ class TestAnthropicToolsHandlerToolChoice:
         _, result_kwargs = handler.request_handler(Iterable[Answer], kwargs)
 
         assert result_kwargs["tool_choice"] == {"type": "auto"}
+
+    def test_forced_tool_choice_uses_schema_title_tool_name(self, handler):
+        class TitledAnswer(BaseModel):
+            model_config = ConfigDict(title="answer_record")
+
+            answer: float
+
+        kwargs = {
+            "messages": [{"role": "user", "content": "What is 2+2?"}],
+            "max_tokens": 100,
+        }
+
+        _, result_kwargs = handler.request_handler(TitledAnswer, kwargs)
+
+        assert [tool["name"] for tool in result_kwargs["tools"]] == ["answer_record"]
+        assert result_kwargs["tool_choice"] == {
+            "type": "tool",
+            "name": "answer_record",
+            "disable_parallel_tool_use": True,
+        }
 
     def test_explicit_tool_choice_is_not_overridden(self, handler):
         kwargs = {

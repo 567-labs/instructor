@@ -368,7 +368,9 @@ class AnthropicToolsHandler(AnthropicHandlerBase):
             else:
                 new_kwargs["tool_choice"] = {
                     "type": "tool",
-                    "name": getattr(response_model, "__name__", "response"),
+                    # Match the declared tool, which is named by the schema
+                    # title rather than the class name.
+                    "name": new_kwargs["tools"][0]["name"],
                     # Without this, Anthropic may still emit multiple tool_use
                     # blocks for the same forced tool, which the single-model
                     # parser then rejects even though the model's response was
