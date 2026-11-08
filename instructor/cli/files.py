@@ -90,7 +90,17 @@ def download(
     output: str = typer.Argument(help="Output path for the downloaded file"),
 ) -> None:
     with console.status(f"[bold green]Downloading file {file_id}...", spinner="dots"):
-        content = _get_client().files.download(file_id)
+        response = _get_client().files.content(file_id)
+        if hasattr(response, "content"):
+            content = response.content
+        elif hasattr(response, "read"):
+            content = response.read()
+        else:
+            content = response
+        if callable(content):
+            content = content()
+        if isinstance(content, str):
+            content = content.encode("utf-8")
         with open(output, "wb") as file:
             file.write(content)
         console.log(f"[bold green]File {file_id} downloaded successfully!")

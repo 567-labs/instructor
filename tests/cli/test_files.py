@@ -1,5 +1,8 @@
 """Tests for instructor.cli.files."""
 
+import http.server
+import threading
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
@@ -96,3 +99,55 @@ def test_failed_file_prevents_fine_tuning_job(monkeypatch, tmp_path, failed):
             str(train), "test-model", 0, None, None, None, str(validation), None
         )
     assert exc.value.exit_code == 1
+
+
+@contextmanager
+def _loopback_file_server(payload: bytes):
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/v1/files/file-repro/content":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/octet-stream")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}/v1"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+@pytest.mark.parametrize(
+    ("payload", "filename"),
+    [
+        (b"", "empty.bin"),
+        (b'{"messages": [{"role": "user", "content": "hi"}]}\n', "data.jsonl"),
+        (b"\x00\x01\x02\xff\xfe\xaa\x55", "binary.bin"),
+    ],
+)
+def test_download_file_with_real_sdk_loopback(
+    monkeypatch, tmp_path, payload: bytes, filename: str
+) -> None:
+    import openai
+
+    from instructor.cli import files
+
+    output_path = tmp_path / filename
+    with _loopback_file_server(payload) as base_url:
+        real_client = openai.OpenAI(base_url=base_url, api_key="local-repro-only")
+        monkeypatch.setattr(files, "client", real_client)
+        files.download("file-repro", str(output_path))
+        assert output_path.exists()
+        assert output_path.read_bytes() == payload
