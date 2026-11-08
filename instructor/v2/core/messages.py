@@ -82,6 +82,25 @@ def dump_message(message: ChatCompletionMessage) -> ChatCompletionMessageParam:
     return ret
 
 
+def append_system_instruction(message: dict[str, Any], instruction: str) -> None:
+    """Append *instruction* to a system message's text content.
+
+    String content is extended directly. A content-part list receives the
+    instruction in its first text part, keeping image or audio parts that
+    come before it intact; a list without any text part gains one.
+    """
+    content = message.get("content")
+    if isinstance(content, str):
+        message["content"] = f"{content}\n\n{instruction}"
+        return
+    if isinstance(content, list):
+        for part in content:
+            if isinstance(part, dict) and isinstance(part.get("text"), str):
+                part["text"] = f"{part['text']}\n\n{instruction}"
+                return
+        content.append({"type": "text", "text": instruction})
+
+
 def merge_consecutive_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Merge adjacent plain messages without crossing protocol boundaries."""
     if not messages:

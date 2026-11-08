@@ -47,6 +47,7 @@ from instructor.v2.core.json import (
     extract_json_from_stream_async,
 )
 from instructor.v2.core.messages import (
+    append_system_instruction,
     copy_messages_for_mutation,
     dump_message,
     merge_consecutive_messages,
@@ -938,10 +939,8 @@ class OpenAIJSONHandler(OpenAIHandlerBase):
                     "content": message,
                 },
             )
-        elif messages and isinstance(messages[0]["content"], str):
-            messages[0]["content"] += f"\n\n{message}"
-        elif messages and isinstance(messages[0]["content"], list):
-            messages[0]["content"][0]["text"] += f"\n\n{message}"
+        elif messages and isinstance(messages[0]["content"], (str, list)):
+            append_system_instruction(messages[0], message)
         else:
             messages.insert(0, {"role": "system", "content": message})
         new_kwargs["messages"] = merge_consecutive_messages(messages)
@@ -1012,10 +1011,8 @@ class OpenAIMDJSONHandler(OpenAIHandlerBase):
                     "content": message,
                 },
             )
-        elif messages and isinstance(messages[0]["content"], str):
-            messages[0]["content"] += f"\n\n{message}"
-        elif messages and isinstance(messages[0]["content"], list):
-            messages[0]["content"][0]["text"] += f"\n\n{message}"
+        elif messages and isinstance(messages[0]["content"], (str, list)):
+            append_system_instruction(messages[0], message)
         else:
             messages.insert(0, {"role": "system", "content": message})
 
