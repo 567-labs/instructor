@@ -52,7 +52,10 @@ from instructor.v2.core.json import (
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
 from instructor.v2.core.streaming import StreamingModelState
-from instructor.v2.core.messages import copy_messages_for_mutation
+from instructor.v2.core.messages import (
+    append_system_instruction,
+    copy_messages_for_mutation,
+)
 
 
 def _convert_messages_with_chat(messages: list[dict[str, Any]], chat: Any) -> list[Any]:
@@ -656,14 +659,8 @@ class XAIMDJSONHandler(XAIHandlerBase):
                     "content": message,
                 },
             )
-        elif messages and isinstance(messages[0]["content"], str):
-            messages[0]["content"] += f"\n\n{message}"
-        elif (
-            messages
-            and isinstance(messages[0]["content"], list)
-            and messages[0]["content"]
-        ):
-            messages[0]["content"][0]["text"] += f"\n\n{message}"
+        elif messages and isinstance(messages[0]["content"], (str, list)):
+            append_system_instruction(messages[0], message)
         else:
             messages.insert(0, {"role": "system", "content": message})
 

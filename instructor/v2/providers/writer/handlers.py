@@ -21,6 +21,7 @@ from instructor.v2.core.errors import IncompleteOutputException, ResponseParsing
 from instructor.v2.core.json import extract_json_from_codeblock
 from instructor.v2.providers.openai.schema import generate_openai_schema
 from instructor.v2.core.messages import (
+    append_system_instruction,
     copy_messages_for_mutation,
     dump_message,
     merge_consecutive_messages,
@@ -255,10 +256,8 @@ class WriterMDJSONHandler(WriterHandlerBase):
                     "content": message,
                 },
             )
-        elif messages and isinstance(messages[0]["content"], str):
-            messages[0]["content"] += f"\n\n{message}"
-        elif messages and isinstance(messages[0]["content"], list):
-            messages[0]["content"][0]["text"] += f"\n\n{message}"
+        elif messages and isinstance(messages[0]["content"], (str, list)):
+            append_system_instruction(messages[0], message)
         else:
             messages.insert(0, {"role": "system", "content": message})
 
