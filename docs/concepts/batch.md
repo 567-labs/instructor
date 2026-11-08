@@ -194,9 +194,14 @@ value types.
 
 Results use a Maybe/Result pattern for type-safe handling:
 
-For completed or expired OpenAI batches, retrieval reads both the output and error
-files. Expiration does not discard responses that finished within the time window;
-unfinished requests are recorded in the error file.
+For completed, expired or cancelled OpenAI batches, retrieval reads the available
+output and error files. Expiration does not discard responses that finished within
+the time window; unfinished requests are recorded in the error file. Cancellation
+also preserves requests that already finished. Requests stopped by cancellation
+may have no result record; match returned records by `custom_id` rather than
+assuming one result per submitted request. If a cancelled batch reports zero
+completed and zero failed requests and has no files, retrieval returns an empty
+list. A batch still in `cancelling` cannot be retrieved.
 For ended Anthropic batches, it reads every result, including errors. A batch
 where every request failed returns `BatchError` records rather than raising
 because no requests succeeded. Errors retain the request's `custom_id`, provider

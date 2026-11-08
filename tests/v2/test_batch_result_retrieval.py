@@ -216,16 +216,19 @@ def test_list_openai_batches_keeps_jobs_with_nullable_optional_fields(
 
 
 @pytest.mark.parametrize("shape", ["top-level", "body-type", "body-code"])
-def test_completed_openai_batch_combines_output_and_error_files(
-    endpoint: BatchEndpoint, tmp_path: Path, shape: str
+@pytest.mark.parametrize("status", ["completed", "cancelled"])
+def test_terminal_openai_batch_combines_output_and_error_files(
+    endpoint: BatchEndpoint, tmp_path: Path, shape: str, status: str
 ) -> None:
     record, error_type, message = openai_error("failed-request", shape)
-    endpoint.json_states(
-        "/batches/batch-local",
-        openai_batch(
-            completed=1, failed=1, output_file="file-output", error_file="file-errors"
-        ),
+    batch = openai_batch(
+        completed=1, failed=1, output_file="file-output", error_file="file-errors"
     )
+    batch["status"] = status
+    if status == "cancelled":
+        # The remaining request was cancelled without a result record.
+        batch["request_counts"]["total"] = 3
+    endpoint.json_states("/batches/batch-local", batch)
     endpoint.jsonl("/files/file-output/content", [openai_success()])
     endpoint.jsonl("/files/file-errors/content", [record])
     processor = BatchProcessor("openai/local", Person)
@@ -243,6 +246,69 @@ def test_completed_openai_batch_combines_output_and_error_files(
     ]
     assert endpoint.requests.count("/files/file-output/content") == 2
     assert endpoint.requests.count("/files/file-errors/content") == 2
+
+
+def test_openai_batch_cancelled_before_any_request_finished_has_no_results(
+    endpoint: BatchEndpoint, tmp_path: Path
+) -> None:
+    batch = openai_batch(completed=0, failed=0, output_file=None, error_file=None)
+    batch["status"] = "cancelled"
+    batch["request_counts"]["total"] = 5
+    endpoint.json_states("/batches/batch-local", batch)
+
+    assert (
+        assert_retrieve_download_parity(
+            BatchProcessor("openai/local", Person), tmp_path
+        )
+        == []
+    )
+    assert endpoint.requests == ["/batches/batch-local", "/batches/batch-local"]
+    assert (tmp_path / "results.jsonl").read_bytes() == b""
+
+
+@pytest.mark.parametrize("counts", ["missing", "null", "completed", "failed"])
+def test_cancelled_openai_batch_does_not_treat_unavailable_files_as_empty(
+    endpoint: BatchEndpoint, tmp_path: Path, counts: str
+) -> None:
+    batch = openai_batch(
+        completed=int(counts == "completed"),
+        failed=int(counts == "failed"),
+        output_file=None,
+        error_file=None,
+    )
+    batch["status"] = "cancelled"
+    if counts == "missing":
+        batch.pop("request_counts")
+    elif counts == "null":
+        batch["request_counts"] = None
+    endpoint.json_states("/batches/batch-local", batch)
+    destination = tmp_path / "results.jsonl"
+    destination.write_text("previous results", encoding="utf-8")
+
+    with pytest.raises(Exception, match="No result files available after 10 retries"):
+        BatchProcessor("openai/local", Person).get_results(
+            "batch-local", file_path=str(destination)
+        )
+
+    assert destination.read_text(encoding="utf-8") == "previous results"
+    assert endpoint.requests == ["/batches/batch-local"] * 11
+
+
+@pytest.mark.parametrize("status", ["cancelling", "in_progress", "failed"])
+def test_unfinished_or_failed_openai_batch_does_not_return_partial_results(
+    endpoint: BatchEndpoint, status: str
+) -> None:
+    batch = openai_batch(
+        completed=1, failed=0, output_file="file-output", error_file=None
+    )
+    batch["status"] = status
+    endpoint.json_states("/batches/batch-local", batch)
+    endpoint.jsonl("/files/file-output/content", [openai_success()])
+
+    with pytest.raises(Exception, match=f"Batch not completed, status: {status}"):
+        BatchProcessor("openai/local", Person).retrieve_results("batch-local")
+
+    assert endpoint.requests == ["/batches/batch-local"]
 
 
 @pytest.mark.parametrize("provider", ["openai", "anthropic"])
@@ -328,8 +394,9 @@ class BatchFileCase(NamedTuple):
         pytest.param(BatchFileCase(None, None, False), id="unknown-counts"),
     ],
 )
+@pytest.mark.parametrize("status", ["completed", "expired", "cancelled"])
 def test_openai_waits_for_expected_result_files(
-    endpoint: BatchEndpoint, tmp_path: Path, config: BatchFileCase
+    endpoint: BatchEndpoint, tmp_path: Path, config: BatchFileCase, status: str
 ) -> None:
     record, error_type, message = openai_error("delayed-failure", "top-level")
     first = openai_batch(
@@ -338,6 +405,7 @@ def test_openai_waits_for_expected_result_files(
     ready = openai_batch(
         completed=1, failed=1, output_file="file-output", error_file="file-errors"
     )
+    first["status"] = ready["status"] = status
     if not config.counts_known:
         first["request_counts"] = ready["request_counts"] = None
     endpoint.json_states("/batches/batch-local", first, ready)
@@ -363,8 +431,9 @@ def test_openai_waits_for_expected_result_files(
 
 @pytest.mark.parametrize("counts", ["missing", "null"])
 @pytest.mark.parametrize("files", ["output", "error", "both"])
+@pytest.mark.parametrize("status", ["completed", "cancelled"])
 def test_openai_reads_available_files_when_request_counts_are_unknown(
-    endpoint: BatchEndpoint, tmp_path: Path, counts: str, files: str
+    endpoint: BatchEndpoint, tmp_path: Path, counts: str, files: str, status: str
 ) -> None:
     has_output = files in {"output", "both"}
     has_error = files in {"error", "both"}
@@ -375,6 +444,7 @@ def test_openai_reads_available_files_when_request_counts_are_unknown(
         output_file="file-output" if has_output else None,
         error_file="file-errors" if has_error else None,
     )
+    state["status"] = status
     if counts == "missing":
         state.pop("request_counts")
     else:
