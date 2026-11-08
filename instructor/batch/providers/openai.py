@@ -89,19 +89,26 @@ class OpenAIProvider(BatchProvider):
             raise Exception(f"Failed to get OpenAI batch status: {e}") from e
 
     def _get_results_text(self, batch_id: str) -> str:
-        """Return success and error records for a completed or expired OpenAI batch."""
+        """Return available records for a completed, expired or cancelled batch."""
         from openai import OpenAI
         from openai.types import Batch
 
         client = OpenAI()
         batch = client.batches.retrieve(batch_id)
 
-        result_statuses = {"completed", "expired"}
+        result_statuses = {"completed", "expired", "cancelled"}
         if batch.status not in result_statuses:
             raise Exception(f"Batch not completed, status: {batch.status}")
 
         def files_ready(batch: Batch) -> bool:
             counts = batch.request_counts
+            # Cancellation can stop every request before a result file exists.
+            if (
+                batch.status == "cancelled"
+                and counts is not None
+                and counts.completed == counts.failed == 0
+            ):
+                return True
             return bool(batch.output_file_id or batch.error_file_id) and (
                 counts is None
                 or (
