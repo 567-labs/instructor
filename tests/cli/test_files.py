@@ -29,6 +29,53 @@ def test_generate_file_table_uses_attribute_access() -> None:
     assert list(rendered_first_column) == ["file-abc123"]
 
 
+def test_list_displays_files_from_all_pages(monkeypatch) -> None:
+    from openai import OpenAI
+    from typer.testing import CliRunner
+
+    from instructor.cli import files
+    from tests.openai_http import Client, MockTransport, Request, Response
+
+    cursors = []
+
+    def respond(request: Request) -> Response:
+        assert request.url.path == "/v1/files"
+        cursor = request.url.params.get("after")
+        cursors.append(cursor)
+        first_page = cursor is None
+        return Response(
+            200,
+            json={
+                "object": "list",
+                "has_more": first_page,
+                "data": [
+                    {
+                        "id": "file-new" if first_page else "file-old",
+                        "bytes": 1,
+                        "created_at": 1700000001 if first_page else 1700000000,
+                        "filename": "training.jsonl",
+                        "object": "file",
+                        "purpose": "fine-tune",
+                        "status": "processed",
+                    }
+                ],
+            },
+        )
+
+    with OpenAI(
+        api_key="test-cli-pagination",
+        base_url="https://example.test/v1",
+        http_client=Client(transport=MockTransport(respond)),
+    ) as client:
+        monkeypatch.setattr(files, "client", client)
+        result = CliRunner().invoke(files.app, ["list"])
+
+    assert result.exit_code == 0, result.output
+    assert cursors == [None, "file-new"]
+    assert "file-new" in result.output
+    assert "file-old" in result.output
+
+
 def test_upload_stops_when_file_processing_fails(monkeypatch, tmp_path) -> None:
     import typer
 

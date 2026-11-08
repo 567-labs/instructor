@@ -47,7 +47,6 @@ def generate_file_table(files: list[openai.types.FileObject]) -> Table:
 
 def get_files() -> list[openai.types.FileObject]:
     files = _get_client().files.list()
-    files = files.data
     return sorted(files, key=lambda x: x.created_at, reverse=True)
 
 

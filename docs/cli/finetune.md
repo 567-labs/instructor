@@ -133,6 +133,8 @@ OpenAI Fine Tuning Job Monitoring
 
 #### Viewing Files
 
+`instructor files list` follows all pages of results and shows the newest files first.
+
 ```sh
 $ instructor files list
 
