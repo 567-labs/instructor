@@ -24,6 +24,8 @@ Our solution offers:
 
 The `context` parameter is a dictionary that is passed to the templating engine. It is used to pass in the relevant variables to the templating engine. This single `context` parameter will be passed to jinja to render out the final prompt.
 
+Passing `context={}` also enables templating: constant expressions and raw blocks are rendered, and missing variables raise `jinja2.UndefinedError`. Omit `context` or pass `None` to leave template syntax unchanged.
+
 ```python hl_lines="14-15 19-22"
 import instructor
 from pydantic import BaseModel
