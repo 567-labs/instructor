@@ -252,6 +252,7 @@ def cancel(
             console.log(f"[bold red]Job {id} cancelled successfully!")
         except Exception as e:
             console.log(f"[bold red]Error cancelling job {id}: {e}")
+            raise typer.Exit(1) from e
 
 
 if __name__ == "__main__":

@@ -107,7 +107,7 @@ def delete(file_id: str = typer.Argument(help="ID of the file to delete")) -> No
             console.log(f"[bold red]File {file_id} deleted successfully!")
         except Exception as e:
             console.log(f"[bold red]Error deleting file {file_id}: {e}")
-            return
+            raise typer.Exit(1) from e
 
 
 @app.command(
