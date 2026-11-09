@@ -10,7 +10,7 @@ annotated-doc==0.0.5
     # via typer
 annotated-types==0.8.0
     # via pydantic
-anyio==4.15.1
+anyio==4.16.0
     # via
     #   httpx
     #   httpx2
@@ -82,7 +82,7 @@ multidict==7.1.0
     # via
     #   aiohttp
     #   yarl
-openai==3.41.0
+openai==3.42.1
     # via instructor (pyproject.toml)
 propcache==0.5.4
     # via

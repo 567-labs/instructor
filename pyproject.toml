@@ -60,7 +60,7 @@ dev = [
     "python-dotenv>=1.0.1",
     "pytest-xdist>=3.8.0",
     "ty==0.0.95",
-    "anthropic==2.3.0",
+    "anthropic==2.4.0",
     "xmltodict>=0.13,<1.1",
 ]
 docs = [
@@ -84,7 +84,7 @@ test-docs = [
     "litellm>=1.102.4,<=1.106.6",
     "mistralai>=1.5.1,<4.0.0",
 ]
-anthropic = ["anthropic==2.3.0", "xmltodict>=0.13,<1.1"]
+anthropic = ["anthropic==2.4.0", "xmltodict>=0.13,<1.1"]
 groq = ["groq>=0.4.2,<1.8.0"]
 cohere = ["cohere>=5.1.8,<8.0.0"]
 vertexai = ["google-cloud-aiplatform>=1.53.0,<3.0.0", "jsonref<2.0.0,>=1.1.0"]
