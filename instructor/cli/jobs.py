@@ -8,6 +8,7 @@ from rich.live import Live
 from rich.table import Table
 from rich.console import Console
 from datetime import datetime
+from itertools import islice
 from openai.types.fine_tuning import FineTuningJob
 
 client: Optional[OpenAI] = None
@@ -79,7 +80,8 @@ def status_color(status: str) -> str:
 
 
 def get_jobs(limit: int = 5) -> list[FineTuningJob]:
-    return _get_client().fine_tuning.jobs.list(limit=limit).data
+    jobs = _get_client().fine_tuning.jobs.list(limit=limit)
+    return list(islice(jobs, limit))
 
 
 def get_file_status(file_id: str) -> str:
