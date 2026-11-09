@@ -146,7 +146,7 @@ def handle_templating(
         context = provider
         provider = None
 
-    if not context:
+    if context is None:
         return kwargs
 
     if not isinstance(provider, Provider):
