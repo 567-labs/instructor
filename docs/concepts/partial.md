@@ -166,6 +166,16 @@ can compute its defaults before the outer object finishes. An explicitly supplie
 `username` is kept. Ordinary defaults and zero-argument factories, such as
 `Field(default_factory=list)`, remain available in partial snapshots.
 
+## Root models
+
+Partial snapshots keep the Pydantic `RootModel` wrapper, including when the root
+value is a mapping, list, or string. Read the streamed value through `snapshot.root`.
+Nested model values are also model instances; their missing fields may be `None`
+until more JSON arrives. The completed result still uses the original model's
+validation rules. This does not change which root JSON shapes a provider accepts.
+For a field declared as a nullable `RootModel`, JSON `null` becomes a model with
+`root=None`. If the field itself is optional, JSON `null` remains `None`.
+
 ## Asynchronous Streaming
 
 I also just want to call out in this example that `instructor` also supports asynchronous streaming. This is useful when you want to stream a response model and process the results as they come in, but you'll need to use the `async for` syntax to iterate over the results.
