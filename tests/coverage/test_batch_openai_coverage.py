@@ -18,6 +18,7 @@ import instructor.batch.providers as providers
 from instructor.batch.models import BatchJobInfo, BatchStatus
 from instructor.batch.providers.base import BatchProvider
 from instructor.batch.providers.openai import OpenAIProvider
+from tests.openai_http import Client, MockTransport, Request, Response
 
 pytestmark = pytest.mark.unit
 
@@ -63,6 +64,7 @@ class FilesAPI:
     def __init__(self, text: str = '{"ok": true}\n') -> None:
         self.text = text
         self.uploads: list[tuple[bytes, str]] = []
+        self.upload_filenames: list[str | None] = []
         self.content_ids: list[str] = []
         self.create_error: Exception | None = None
         self.content_error: Exception | None = None
@@ -70,7 +72,12 @@ class FilesAPI:
     def create(self, *, file: Any, purpose: str) -> SimpleNamespace:
         if self.create_error:
             raise self.create_error
-        self.uploads.append((file.read(), purpose))
+        if isinstance(file, tuple):
+            filename, stream = file[0], file[1]
+        else:
+            filename, stream = getattr(file, "name", None), file
+        self.uploads.append((stream.read(), purpose))
+        self.upload_filenames.append(filename)
         return SimpleNamespace(id="file_input")
 
     def content(self, file_id: str) -> SimpleNamespace:
@@ -205,6 +212,7 @@ def test_submit_batch_rewinds_buffer_and_passes_custom_options(
 
     assert batch_id == "batch_created"
     assert client.files.uploads == [(b'{"custom_id": "two"}\n', "batch")]
+    assert client.files.upload_filenames == ["batch.jsonl"]
     assert client.batches.created == [
         {
             "input_file_id": "file_input",
@@ -213,6 +221,83 @@ def test_submit_batch_rewinds_buffer_and_passes_custom_options(
             "metadata": {"source": "daily-import"},
         }
     ]
+
+
+@pytest.mark.parametrize("custom_name", [None, "caller.txt"])
+def test_submit_batch_bytesio_multipart_filename_is_jsonl(
+    monkeypatch: pytest.MonkeyPatch, custom_name: str | None
+) -> None:
+    payload = (
+        b'{"custom_id": "req-1", "method": "POST", "url": "/v1/chat/completions"}\n'
+    )
+    buffer = io.BytesIO(payload)
+    if custom_name is not None:
+        buffer.name = custom_name  # type: ignore[attr-defined]
+    buffer.seek(7)
+
+    file_requests: list[bytes] = []
+
+    def handler(request: Request) -> Response:
+        if request.url.path.endswith("/files"):
+            file_requests.append(request.read())
+            return Response(
+                200,
+                json={
+                    "id": "file_123",
+                    "object": "file",
+                    "bytes": len(payload),
+                    "created_at": 1_700_000_000,
+                    "filename": "batch.jsonl",
+                    "purpose": "batch",
+                },
+            )
+        if request.url.path.endswith("/batches"):
+            return Response(
+                200,
+                json={
+                    "id": "batch_123",
+                    "object": "batch",
+                    "endpoint": "/v1/chat/completions",
+                    "errors": None,
+                    "input_file_id": "file_123",
+                    "completion_window": "24h",
+                    "status": "validating",
+                    "output_file_id": None,
+                    "error_file_id": None,
+                    "created_at": 1_700_000_000,
+                    "in_progress_at": None,
+                    "expires_at": None,
+                    "finalizing_at": None,
+                    "completed_at": None,
+                    "failed_at": None,
+                    "expired_at": None,
+                    "cancelling_at": None,
+                    "cancelled_at": None,
+                    "request_counts": {"total": 1, "completed": 0, "failed": 0},
+                    "metadata": {"description": "Instructor batch job"},
+                },
+            )
+        raise AssertionError(f"Unexpected request path: {request.url.path}")
+
+    with Client(transport=MockTransport(handler)) as http_client:
+        real_client = openai.OpenAI(
+            api_key="test-key",
+            base_url="https://api.openai.test/v1",
+            http_client=http_client,
+            max_retries=0,
+        )
+        monkeypatch.setattr(openai, "OpenAI", lambda: real_client)
+        batch_id = OpenAIProvider().submit_batch(buffer)
+
+    assert batch_id == "batch_123"
+    assert len(file_requests) == 1
+    assert (
+        b'Content-Disposition: form-data; name="file"; filename="batch.jsonl"'
+        in file_requests[0]
+    )
+    assert payload in file_requests[0]
+    assert not buffer.closed
+    assert getattr(buffer, "name", None) == custom_name
 
 
 def test_submit_batch_rejects_invalid_input_without_credentials(
@@ -571,9 +656,9 @@ def test_provider_module_handles_missing_optional_sdks(
     monkeypatch.setattr(
         importlib.util,
         "find_spec",
-        lambda name: None
-        if name in {"openai", "anthropic"}
-        else original_find_spec(name),
+        lambda name: (
+            None if name in {"openai", "anthropic"} else original_find_spec(name)
+        ),
     )
 
     namespace = runpy.run_path(
