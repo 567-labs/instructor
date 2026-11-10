@@ -10,6 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- OpenAI batch submissions from `io.BytesIO` buffers now upload with a `batch.jsonl` filename so the OpenAI Files API receives a `.jsonl` extension. ([#2998](https://github.com/567-labs/instructor/pull/2998))
 - Gemini and Vertex AI reject completions stopped at the token limit. Google and Mistral streaming handlers skip empty metadata chunks, and GenAI JSON mode aliases are classified consistently.
 - Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
 - Mistral batch jobs support structured requests, lifecycle operations, result parsing, and provider-specific errors through the batch processor and CLI.
