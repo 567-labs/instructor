@@ -166,6 +166,12 @@ We also support more complex extraction patterns such as Unions as you'll see be
 
 ## Stopping Iteration Early
 
+Responses API Iterable streams raise `IncompleteOutputException` when the provider
+ends with `response.incomplete`, including token-limit and content-filter stops.
+Items already yielded remain available, and the exception retains the terminal
+response in `last_completion`. Consume the stream to its end to observe its final
+status. `Partial` streams continue to support incomplete output.
+
 Once iteration has started, close the iterable if you stop before consuming all
 results. Put synchronous iteration in a `try`/`finally` block and call
 `resp.close()` in `finally`. For asynchronous iteration, use

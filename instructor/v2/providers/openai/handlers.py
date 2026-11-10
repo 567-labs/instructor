@@ -414,7 +414,10 @@ def _apply_tool_strictness(kwargs: dict[str, Any]) -> None:
 class _ResponsesStreamResult:
     """Select one structured result while skipping calls to the caller's tools."""
 
-    def __init__(self, tool_name: str | None) -> None:
+    def __init__(
+        self, tool_name: str | None, *, reject_incomplete: bool = False
+    ) -> None:
+        self.reject_incomplete = reject_incomplete
         self.tool_name = tool_name
         self.foreign_calls: set[int] = set()
         self.output_index: int | None = None
@@ -422,9 +425,18 @@ class _ResponsesStreamResult:
     def delta(self, event: Any) -> str | None:
         from openai.types.responses import (
             ResponseFunctionCallArgumentsDeltaEvent,
+            ResponseIncompleteEvent,
             ResponseOutputItemAddedEvent,
             ResponseTextDeltaEvent,
         )
+
+        if self.reject_incomplete and isinstance(event, ResponseIncompleteEvent):
+            response = event.response
+            reason = getattr(response.incomplete_details, "reason", None)
+            message = "The Responses API output is incomplete."
+            if reason is not None:
+                message = f"The Responses API output is incomplete due to {reason}."
+            raise IncompleteOutputException(last_completion=response, message=message)
 
         if isinstance(event, ResponseOutputItemAddedEvent):
             if (
@@ -482,11 +494,14 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         response_tool_name: str | None = None,
         *,
         single_model: bool = False,
+        reject_incomplete: bool = False,
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from OpenAI-compatible streaming responses."""
 
         def _raw_chunks() -> Generator[str, None, None]:
-            result = _ResponsesStreamResult(response_tool_name)
+            result = _ResponsesStreamResult(
+                response_tool_name, reject_incomplete=reject_incomplete
+            )
             tool_arguments = _ChatToolArguments(single_model)
             for chunk in completion:
                 try:
@@ -535,11 +550,14 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         response_tool_name: str | None = None,
         *,
         single_model: bool = False,
+        reject_incomplete: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from OpenAI-compatible async streams."""
 
         async def _raw_chunks() -> AsyncGenerator[str, None]:
-            result = _ResponsesStreamResult(response_tool_name)
+            result = _ResponsesStreamResult(
+                response_tool_name, reject_incomplete=reject_incomplete
+            )
             tool_arguments = _ChatToolArguments(single_model)
             async for chunk in completion:
                 try:
@@ -622,6 +640,11 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         extractor_options: dict[str, Any] = {}
         if self.mode == Mode.RESPONSES_TOOLS:
             extractor_options["response_tool_name"] = response_model.__name__
+            # Partial models intentionally allow incomplete output; a collection
+            # must distinguish completed extraction from a provider cutoff.
+            extractor_options["reject_incomplete"] = issubclass(
+                response_model, IterableBase
+            )
         elif self.mode in {
             Mode.MD_JSON,
             Mode.TOOLS,
