@@ -35,7 +35,11 @@ from pydantic import AliasChoices, AliasPath, BaseModel, create_model
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
-from instructor.v2.dsl.json_tracker import JsonCompleteness, is_json_complete
+from instructor.v2.dsl.json_tracker import (
+    _JsonPath,
+    JsonCompleteness,
+    is_json_complete,
+)
 
 T_Model = TypeVar("T_Model", bound=BaseModel)
 
@@ -176,19 +180,19 @@ def process_potential_object(potential_object, partial_mode, partial_model, **kw
         original_model if original_model is not None else partial_model
     )
     return _build_partial_object(
-        parsed, model_for_construct, tracker, "", **validation_kwargs
+        parsed, model_for_construct, tracker, (), **validation_kwargs
     )
 
 
 def _streamed_field(
-    data: dict[str, Any], name: str, info: FieldInfo, parent: str
-) -> tuple[Any, str, str] | None:
+    data: dict[str, Any], name: str, info: FieldInfo, parent: _JsonPath
+) -> tuple[Any, _JsonPath, str] | None:
     """Find the first available input alias and its path in the raw JSON."""
     alias = info.validation_alias
     candidates = alias.choices if isinstance(alias, AliasChoices) else [alias]
     for candidate in (*candidates, name):
         if isinstance(candidate, str) and candidate in data:
-            path = f"{parent}.{candidate}" if parent else candidate
+            path = (*parent, candidate)
             return data[candidate], path, candidate
         if isinstance(candidate, AliasPath):
             value = candidate.search_dict_for_path(data)
@@ -199,9 +203,9 @@ def _streamed_field(
             for part in candidate.path:
                 if isinstance(part, int):
                     index = part if part >= 0 else len(container) + part
-                    path += f"[{index}]"
+                    path = (*path, index)
                 else:
-                    path = f"{path}.{part}" if path else part
+                    path = (*path, part)
                 container = container[part]
             return value, path, str(candidate.path[0])
     return None
@@ -235,7 +239,7 @@ def _build_partial_object(
     data: Any,
     model: type[BaseModel],
     tracker: JsonCompleteness,
-    path: str,
+    path: _JsonPath,
     **kwargs: Any,
 ) -> Any:
     """Build a partial object using model_construct() to skip validation.
@@ -270,7 +274,7 @@ def _build_partial_object(
             field_type = field_info.annotation
             if isinstance(field_type, type) and issubclass(field_type, BaseModel):
                 result[field_name] = _build_partial_object(
-                    {}, field_type, tracker, "", **kwargs
+                    {}, field_type, tracker, (), **kwargs
                 )
             elif field_info.is_required():
                 result[field_name] = None
@@ -290,13 +294,17 @@ def _build_partial_object(
 
 
 def _build_partial_value(
-    value: Any, annotation: Any, tracker: JsonCompleteness, path: str, **kwargs: Any
+    value: Any,
+    annotation: Any,
+    tracker: JsonCompleteness,
+    path: _JsonPath,
+    **kwargs: Any,
 ) -> Any:
     if value is None:
         return None
     model = _unwrap_optional_base_model(annotation)
     if model is not None:
-        if tracker.is_path_complete(path):
+        if tracker._is_path_complete(path):
             return model.model_validate(value, **kwargs)
         return _build_partial_object(value, model, tracker, path, **kwargs)
 
@@ -309,7 +317,7 @@ def _build_partial_value(
             origin, args = get_origin(annotation), get_args(annotation)
     if origin is list and args and isinstance(value, list):
         return [
-            _build_partial_value(item, args[0], tracker, f"{path}[{index}]", **kwargs)
+            _build_partial_value(item, args[0], tracker, (*path, index), **kwargs)
             for index, item in enumerate(value)
         ]
     if (
@@ -319,7 +327,7 @@ def _build_partial_value(
         and isinstance(value, dict)
     ):
         return {
-            key: _build_partial_value(item, args[1], tracker, f"{path}.{key}", **kwargs)
+            key: _build_partial_value(item, args[1], tracker, (*path, key), **kwargs)
             for key, item in value.items()
         }
     return value

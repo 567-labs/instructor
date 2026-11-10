@@ -67,7 +67,7 @@ class EnvelopeStream(Protocol):
 
 
 _build_partial_object = cast(
-    Callable[[Any, type[BaseModel], JsonCompleteness, str], Any],
+    Callable[[Any, type[BaseModel], JsonCompleteness, tuple[str | int, ...]], Any],
     vars(partial_module)["_build_partial_object"],
 )
 _unwrap_optional_base_model = cast(
@@ -116,7 +116,7 @@ def test_partial_builder_validates_complete_nested_values_and_keeps_open_values(
         },
         Envelope,
         tracker,
-        "",
+        (),
     )
 
     assert result.optional_note is None
@@ -138,7 +138,7 @@ def test_partial_builder_recurses_into_open_nested_model_and_handles_scalars() -
     tracker.analyze('{"featured":{"number":"12","state":"pen')
 
     result = _build_partial_object(
-        {"featured": {"number": "12", "state": "pen"}}, Envelope, tracker, ""
+        {"featured": {"number": "12", "state": "pen"}}, Envelope, tracker, ()
     )
 
     assert result.featured.number == "12"
@@ -146,8 +146,8 @@ def test_partial_builder_recurses_into_open_nested_model_and_handles_scalars() -
     assert result.optional_note is None
     assert result.metadata is None
     assert result.items is None
-    assert _build_partial_object(None, Envelope, tracker, "") is None
-    assert _build_partial_object("still streaming", Envelope, tracker, "") == (
+    assert _build_partial_object(None, Envelope, tracker, ()) is None
+    assert _build_partial_object("still streaming", Envelope, tracker, ()) == (
         "still streaming"
     )
 
@@ -160,7 +160,7 @@ def test_partial_builder_preserves_bare_containers_and_complete_scalar_items() -
         {"metadata": {"source": "stream"}, "values": ["raw"], "counts": [1]},
         LooseEnvelope,
         tracker,
-        "",
+        (),
     )
 
     assert result.metadata == {"source": "stream"}

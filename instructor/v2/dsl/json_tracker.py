@@ -12,6 +12,8 @@ from typing import Any
 
 from jiter import from_json
 
+_JsonPath = tuple[str | int, ...]
+
 
 def is_json_complete(json_str: str) -> bool:
     """
@@ -53,10 +55,12 @@ class JsonCompleteness:
 
     def __init__(self) -> None:
         self._complete_paths: set[str] = set()
+        self._complete_components: set[_JsonPath] = set()
 
     def analyze(self, json_str: str) -> None:
         """Analyze a JSON string and determine completeness of each path."""
         self._complete_paths = set()
+        self._complete_components = set()
 
         if not json_str or not json_str.strip():
             return
@@ -64,7 +68,7 @@ class JsonCompleteness:
         # Try strict parsing first - if it succeeds, JSON is complete
         try:
             parsed = from_json(json_str.encode())
-            self._mark_all(parsed, "")
+            self._mark_all(parsed, ())
             return
         except ValueError:
             pass  # JSON is incomplete, continue with partial parsing
@@ -75,20 +79,31 @@ class JsonCompleteness:
         except ValueError:
             return
 
-        self._check_siblings(parsed, "")
+        self._check_siblings(parsed, ())
 
-    def _mark_all(self, data: Any, path: str) -> None:
+    def _record_complete(self, path: _JsonPath) -> None:
+        self._complete_components.add(path)
+        display = ""
+        for part in path:
+            if isinstance(part, int):
+                display += f"[{part}]"
+            else:
+                display = f"{display}.{part}" if display else part
+        # The legacy display is lossy; its empty string is reserved for the root.
+        if display or not path:
+            self._complete_paths.add(display)
+
+    def _mark_all(self, data: Any, path: _JsonPath) -> None:
         """Recursively mark path and all children as complete."""
-        self._complete_paths.add(path)
+        self._record_complete(path)
         if isinstance(data, dict):
             for key, value in data.items():
-                child_path = f"{path}.{key}" if path else str(key)
-                self._mark_all(value, child_path)
+                self._mark_all(value, (*path, key))
         elif isinstance(data, list):
             for i, item in enumerate(data):
-                self._mark_all(item, f"{path}[{i}]")
+                self._mark_all(item, (*path, i))
 
-    def _check_siblings(self, data: Any, path: str) -> None:
+    def _check_siblings(self, data: Any, path: _JsonPath) -> None:
         """
         Check completeness using sibling heuristic.
 
@@ -98,7 +113,7 @@ class JsonCompleteness:
         if isinstance(data, dict):
             keys = list(data.keys())
             for i, key in enumerate(keys):
-                child_path = f"{path}.{key}" if path else str(key)
+                child_path = (*path, key)
                 if i < len(keys) - 1:
                     # Has next sibling → complete
                     self._mark_all(data[key], child_path)
@@ -108,13 +123,16 @@ class JsonCompleteness:
 
         elif isinstance(data, list):
             for i, item in enumerate(data):
-                child_path = f"{path}[{i}]"
+                child_path = (*path, i)
                 if i < len(data) - 1:
                     # Has next sibling → complete
                     self._mark_all(item, child_path)
                 else:
                     # Last sibling → recurse
                     self._check_siblings(item, child_path)
+
+    def _is_path_complete(self, path: _JsonPath) -> bool:
+        return path in self._complete_components
 
     def is_path_complete(self, path: str) -> bool:
         """
@@ -135,4 +153,4 @@ class JsonCompleteness:
 
     def is_root_complete(self) -> bool:
         """Check if the root JSON structure is complete."""
-        return "" in self._complete_paths
+        return self._is_path_complete(())
