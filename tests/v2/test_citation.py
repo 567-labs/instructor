@@ -197,3 +197,22 @@ def test_short_quote_edit_budget(quote: str, source: str, expected: list[str]) -
         {"substring_quotes": [quote]}, context={"context": source}
     )
     assert answer.substring_quotes == expected
+
+
+@pytest.mark.parametrize(
+    ("quotes", "chunks", "expected"),
+    [
+        (["alpha", "alpha"], ["alpha"], ["alpha"]),
+        (["alpha"], ["alpha", "alpha"], ["alpha"]),
+        (["cat", "cut"], ["The cat sleeps."], ["cat"]),
+        (["alpha", "beta"], ["alpha beta", "alpha"], ["alpha", "beta"]),
+    ],
+)
+def test_normalized_quotes_are_unique(
+    quotes: list[str], chunks: list[str], expected: list[str]
+) -> None:
+    answer = Answer.model_validate(
+        {"substring_quotes": quotes}, context={"context": chunks}
+    )
+
+    assert answer.substring_quotes == expected
