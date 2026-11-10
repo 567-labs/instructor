@@ -173,6 +173,8 @@ value is a mapping, list, or string. Read the streamed value through `snapshot.r
 Nested model values are also model instances; their missing fields may be `None`
 until more JSON arrives. The completed result still uses the original model's
 validation rules. This does not change which root JSON shapes a provider accepts.
+For a field declared as a nullable `RootModel`, JSON `null` becomes a model with
+`root=None`. If the field itself is optional, JSON `null` remains `None`.
 
 ## Asynchronous Streaming
 

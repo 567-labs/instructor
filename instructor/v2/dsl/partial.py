@@ -299,7 +299,11 @@ def _build_partial_object(
 def _build_partial_value(
     value: Any, annotation: Any, tracker: JsonCompleteness, path: str, **kwargs: Any
 ) -> Any:
-    if value is None:
+    if value is None and not (
+        isinstance(annotation, type)
+        and issubclass(annotation, BaseModel)
+        and annotation.__pydantic_root_model__
+    ):
         return None
     model = _unwrap_optional_base_model(annotation)
     if model is not None:

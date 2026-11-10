@@ -117,3 +117,30 @@ async def test_partial_root_string_keeps_wrapper(asynchronous: bool) -> None:
 
     assert all(isinstance(result, Title) for result in results)
     assert [result.root for result in results] == ["Al", "Alice"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("asynchronous", [False, True])
+async def test_nested_nullable_root_distinguishes_optional_field(
+    asynchronous: bool,
+) -> None:
+    class NullableRoot(RootModel[str | None]):
+        pass
+
+    class Direct(BaseModel):
+        value: NullableRoot
+        tail: str
+
+    class OptionalField(BaseModel):
+        value: NullableRoot | None
+        tail: str
+
+    chunks = ['{"value":null,', '"tail":"done"}']
+    direct = await snapshots(Direct, chunks, asynchronous)
+
+    assert all(isinstance(item.value, NullableRoot) for item in direct)
+    assert [item.value.root for item in direct] == [None, None]
+    optional = await snapshots(OptionalField, chunks, asynchronous)
+    assert [item.value for item in optional] == [None, None]
+    root = await snapshots(NullableRoot, ["null"], asynchronous)
+    assert root == [NullableRoot(root=None)]
