@@ -91,6 +91,18 @@ def _ensure_registry_loaded() -> None:
         return
 
 
+def _has_custom_response_parser(response_model: Any) -> bool:
+    """Keep legacy parser hooks without redispatching generated schemas."""
+    from instructor.v2.core.function_calls import ResponseSchema
+
+    parser = getattr(response_model, "from_response", None)
+    return (
+        parser is not None
+        and getattr(parser, "__func__", parser)
+        is not ResponseSchema.from_response.__func__
+    )
+
+
 def _finalize_response(model: Any, response_model: Any, response: Any) -> Any:
     if isinstance(model, IterableBase):
         logger.debug(f"Returning takes from IterableBase")
@@ -182,7 +194,7 @@ async def process_response_async(
         and issubclass(response_model, IterableBase)
         and not stream
         and not hasattr(response, "choices")
-        and hasattr(response_model, "from_response")
+        and _has_custom_response_parser(response_model)
     ):
         dynamic_response_model = cast(Any, response_model)
         model = dynamic_response_model.from_response(
@@ -299,7 +311,7 @@ def process_response(
         and issubclass(response_model, IterableBase)
         and not stream
         and not hasattr(response, "choices")
-        and hasattr(response_model, "from_response")
+        and _has_custom_response_parser(response_model)
     ):
         dynamic_response_model = cast(Any, response_model)
         model = dynamic_response_model.from_response(
