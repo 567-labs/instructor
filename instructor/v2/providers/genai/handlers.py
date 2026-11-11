@@ -18,7 +18,10 @@ from instructor.v2.dsl.parallel import ParallelBase
 from instructor.v2.dsl.partial import Partial, PartialBase
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.providers.gemini import utils as gemini_utils
-from instructor.v2.providers.genai.request import update_genai_kwargs
+from instructor.v2.providers.genai.request import (
+    update_genai_generation_config,
+    update_genai_kwargs,
+)
 
 
 def reask_genai_tools(
@@ -276,6 +279,7 @@ class GenAIHandlerBase(ModeHandler):
             config = user_config.model_dump(exclude_none=True)
         else:
             config = {}
+        update_genai_generation_config(kwargs, config)
         cached_content = kwargs.pop("cached_content", None)
         if config.get("cached_content") is None and cached_content is not None:
             config["cached_content"] = cached_content
