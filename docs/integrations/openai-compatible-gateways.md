@@ -59,15 +59,16 @@ Z.ai and ZhipuAI have separate regional endpoints. Use the key for the selected 
 
 ## Configure a gateway with the OpenAI SDK
 
-Runcrate, AI Stupid Level, and Tsubasa accept Chat Completions through the OpenAI Python SDK. Pass the gateway’s own key when you construct the SDK client. Each request sends its messages and response schema to the selected gateway.
+Runcrate, AI Stupid Level, Tsubasa, and Wiro AI accept Chat Completions through the OpenAI Python SDK. Pass the gateway’s own key when you construct the SDK client. Each request sends its messages and response schema to the selected gateway.
 
 | Gateway | Base URL | Credential | Model selection |
 | --- | --- | --- | --- |
 | Runcrate | `https://api.runcrate.ai/v1` | `RUNCRATE_API_KEY` | Use an enabled model ID, including its organization prefix. [Chat API](https://www.runcrate.ai/chat-api) |
 | AI Stupid Level | `https://aistupidlevel.info/v1` | `ASL_ROUTER_KEY` | Use a routing mode such as `auto-coding` or `auto-reasoning`. [Router API](https://aistupidlevel.info/router/docs) |
 | Tsubasa | `https://api.tsubasa.sh/v1` | `TSUBASA_API_KEY` | Use a model from the gateway’s catalog, such as `tsubasa-fast`. [OpenAI SDK integration](https://tsubasa.sh/integrations/openai-sdk) |
+| Wiro AI | `https://llm.wiro.ai/v1` | `WIRO_API_KEY` | Use a model ID in the `owner/model` format, such as `openai/gpt-5-4-mini`. [Chat Completions API](https://wiro.ai/docs/completions-api) |
 
-Install `instructor` and set the credential for your gateway. The following example pairs each base URL with its own credential variable. Set `INSTRUCTOR_GATEWAY` to `runcrate`, `asl`, or `tsubasa`, and `GATEWAY_MODEL` to the model or routing mode you want to call.
+Install `instructor` and set the credential for your gateway. The following example pairs each base URL with its own credential variable. Set `INSTRUCTOR_GATEWAY` to `runcrate`, `asl`, `tsubasa`, or `wiro`, and `GATEWAY_MODEL` to the model or routing mode you want to call.
 
 ```python
 import os
@@ -86,6 +87,7 @@ gateways = {
     "runcrate": ("https://api.runcrate.ai/v1", "RUNCRATE_API_KEY"),
     "asl": ("https://aistupidlevel.info/v1", "ASL_ROUTER_KEY"),
     "tsubasa": ("https://api.tsubasa.sh/v1", "TSUBASA_API_KEY"),
+    "wiro": ("https://llm.wiro.ai/v1", "WIRO_API_KEY"),
 }
 base_url, key_variable = gateways[os.environ["INSTRUCTOR_GATEWAY"]]
 sdk_options = {"base_url": base_url, "api_key": os.environ[key_variable]}
