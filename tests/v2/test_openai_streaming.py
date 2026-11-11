@@ -2,9 +2,16 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 import pytest
+from openai.types.responses import (
+    ResponseFunctionCallArgumentsDeltaEvent,
+    ResponseFunctionToolCall,
+    ResponseOutputItemAddedEvent,
+    ResponseOutputMessage,
+    ResponseTextDeltaEvent,
+)
 from pydantic import BaseModel, ValidationError, field_validator
 
 from instructor.v2.dsl.partial import Partial
@@ -14,11 +21,168 @@ from instructor.v2.providers.openai.handlers import (
     OpenAIJSONSchemaHandler,
     OpenAIMDJSONHandler,
     OpenAIToolsHandler,
+    OpenAIResponsesToolsHandler,
 )
 
 
 class User(BaseModel):
     name: str
+
+
+def _responses_events(
+    tool_name: str,
+    payload: str,
+    *,
+    text_answer: bool,
+    commentary: bool,
+    final_phase: Literal["final_answer"] | None,
+) -> list[Any]:
+    events: list[Any] = (
+        [
+            ResponseOutputItemAddedEvent(
+                type="response.output_item.added",
+                output_index=0,
+                sequence_number=0,
+                item=ResponseOutputMessage(
+                    id="msg_commentary",
+                    type="message",
+                    role="assistant",
+                    status="in_progress",
+                    content=[],
+                    phase="commentary",
+                ),
+            ),
+            ResponseTextDeltaEvent(
+                type="response.output_text.delta",
+                item_id="msg_commentary",
+                output_index=0,
+                content_index=0,
+                sequence_number=1,
+                delta='{"name":"Commentary","tasks":[{"name":"Commentary"}]}',
+                logprobs=[],
+            ),
+        ]
+        if commentary
+        else []
+    )
+    item = (
+        ResponseOutputMessage(
+            id="result",
+            type="message",
+            role="assistant",
+            status="in_progress",
+            content=[],
+            phase=final_phase,
+        )
+        if text_answer
+        else ResponseFunctionToolCall(
+            id="result",
+            type="function_call",
+            call_id="call_user",
+            name=tool_name,
+            arguments="",
+        )
+    )
+    events.append(
+        ResponseOutputItemAddedEvent(
+            type="response.output_item.added",
+            output_index=1,
+            sequence_number=2,
+            item=item,
+        )
+    )
+    for index, delta in enumerate([payload[:8], payload[8:]]):
+        events.append(
+            ResponseTextDeltaEvent(
+                type="response.output_text.delta",
+                content_index=0,
+                logprobs=[],
+                item_id="result",
+                output_index=1,
+                sequence_number=index + 3,
+                delta=delta,
+            )
+            if text_answer
+            else ResponseFunctionCallArgumentsDeltaEvent(
+                type="response.function_call_arguments.delta",
+                item_id="result",
+                output_index=1,
+                sequence_number=index + 3,
+                delta=delta,
+            )
+        )
+    return events
+
+
+@pytest.mark.parametrize("iterable", [False, True], ids=["partial", "iterable"])
+@pytest.mark.parametrize("text_answer", [False, True], ids=["tool", "text"])
+@pytest.mark.parametrize(
+    ("commentary", "final_phase"),
+    [(True, "final_answer"), (True, None), (False, None)],
+)
+def test_responses_stream_ignores_commentary(
+    iterable: bool,
+    text_answer: bool,
+    commentary: bool,
+    final_phase: Literal["final_answer"] | None,
+) -> None:
+    handler = OpenAIResponsesToolsHandler()
+    response_model: Any = Iterable[User] if iterable else Partial[User]
+    model, _ = handler.prepare_request(response_model, {"stream": True})
+    assert model is not None
+    payload = '{"tasks":[{"name":"Ada"}]}' if iterable else '{"name":"Ada"}'
+    events = _responses_events(
+        model.__name__,
+        payload,
+        text_answer=text_answer,
+        commentary=commentary,
+        final_phase=final_phase,
+    )
+
+    result = list(handler.parse_response(iter(events), model, stream=True))
+
+    assert result[-1].name == "Ada"
+    if iterable:
+        assert result == [User(name="Ada")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("iterable", [False, True], ids=["partial", "iterable"])
+@pytest.mark.parametrize("text_answer", [False, True], ids=["tool", "text"])
+@pytest.mark.parametrize(
+    ("commentary", "final_phase"),
+    [(True, "final_answer"), (True, None), (False, None)],
+)
+async def test_async_responses_stream_ignores_commentary(
+    iterable: bool,
+    text_answer: bool,
+    commentary: bool,
+    final_phase: Literal["final_answer"] | None,
+) -> None:
+    handler = OpenAIResponsesToolsHandler()
+    response_model: Any = Iterable[User] if iterable else Partial[User]
+    model, _ = handler.prepare_request(response_model, {"stream": True})
+    assert model is not None
+    payload = '{"tasks":[{"name":"Ada"}]}' if iterable else '{"name":"Ada"}'
+    events = _responses_events(
+        model.__name__,
+        payload,
+        text_answer=text_answer,
+        commentary=commentary,
+        final_phase=final_phase,
+    )
+
+    async def source():
+        for event in events:
+            yield event
+
+    result = [
+        item async for item in handler.parse_response(source(), model, stream=True)
+    ]
+
+    assert result[-1].name == "Ada"
+    if iterable:
+        assert result == [User(name="Ada")]
 
 
 def test_openai_tools_streaming_iterable_not_parallel():
