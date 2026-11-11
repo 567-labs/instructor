@@ -2,8 +2,17 @@
 
 from __future__ import annotations
 
+from dataclasses import InitVar
 from inspect import signature
-from typing import Any, Callable, TypeVar, get_args, get_origin
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    TypeVar,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from pydantic import BaseModel, ValidationInfo
 from typing_extensions import TypeAliasType
@@ -230,6 +239,11 @@ def reject_async_validators(response_model: Any) -> None:
         if id(model) in seen:
             return
         seen.add(id(model))
+        if get_origin(model) is ClassVar:
+            return
+        if isinstance(model, InitVar):
+            visit(model.type)
+            return
         if isinstance(model, TypeAliasType):
             visit(model.__value__)
         origin = get_origin(model)
@@ -263,7 +277,12 @@ def reject_async_validators(response_model: Any) -> None:
             for field in model.model_fields.values():
                 visit(field.annotation)
         else:
-            for annotation in getattr(model, "__annotations__", {}).values():
+            try:
+                annotations = get_type_hints(model, include_extras=True)
+            except (NameError, TypeError):
+                # Leave unresolved annotations to Pydantic's normal schema handling.
+                annotations = getattr(model, "__annotations__", {})
+            for annotation in annotations.values():
                 visit(annotation)
 
     visit(response_model)
