@@ -30,19 +30,45 @@ MODES = [
 ]
 
 
-def stream_body(mode: Mode, invalid: bool) -> bytes:
+def stream_body(mode: Mode, invalid: bool, commentary: bool = False) -> bytes:
     first = -1 if invalid else 1
     fragments = [f'{{"tasks":[{{"value":{first}}}', ',{"value":2}]}']
     if mode == Mode.MD_JSON:
         fragments = ["```json\n" + fragments[0], fragments[1] + "\n```"]
     events = []
+    if commentary:
+        for event in [
+            {
+                "type": "response.output_item.added",
+                "output_index": 0,
+                "sequence_number": 0,
+                "item": {
+                    "id": "commentary",
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "in_progress",
+                    "content": [],
+                    "phase": "commentary",
+                },
+            },
+            {
+                "type": "response.output_text.delta",
+                "item_id": "commentary",
+                "output_index": 0,
+                "content_index": 0,
+                "sequence_number": 1,
+                "delta": "Let me extract those items.",
+                "logprobs": [],
+            },
+        ]:
+            events.append("data: " + json.dumps(event) + "\n\n")
     for index, fragment in enumerate(fragments):
         if mode == Mode.RESPONSES_TOOLS:
             event = {
                 "type": "response.function_call_arguments.delta",
                 "item_id": "item_local",
-                "output_index": 0,
-                "sequence_number": index,
+                "output_index": 1 if commentary else 0,
+                "sequence_number": index + 2 if commentary else index,
                 "delta": fragment,
             }
         else:
@@ -79,7 +105,7 @@ def stream_endpoint(
     mode: Mode, outcome: str
 ) -> Iterator[tuple[str, list[dict[str, Any]]]]:
     calls: list[dict[str, Any]] = []
-    body = stream_body(mode, outcome == "validation-error")
+    body = stream_body(mode, outcome == "validation-error", outcome == "commentary")
     release = threading.Event()
 
     class Handler(BaseHTTPRequestHandler):
@@ -125,8 +151,15 @@ def assert_request(calls: list[dict[str, Any]], mode: Mode) -> None:
     assert calls[0]["body"]["stream"] is True
 
 
-@pytest.mark.parametrize("mode", MODES)
-@pytest.mark.parametrize("outcome", ["close", "validation-error", "exhausted"])
+@pytest.mark.parametrize(
+    ("mode", "outcome"),
+    [
+        (mode, outcome)
+        for mode in MODES
+        for outcome in ["close", "validation-error", "exhausted"]
+    ]
+    + [(Mode.RESPONSES_TOOLS, "commentary")],
+)
 def test_sync_iterable_closes_sdk_response(
     stream_endpoint: tuple[str, list[dict[str, Any]]], mode: Mode, outcome: str
 ) -> None:
@@ -162,9 +195,14 @@ def test_sync_iterable_closes_sdk_response(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mode", MODES)
 @pytest.mark.parametrize(
-    "outcome", ["close", "validation-error", "exhausted", "cancel"]
+    ("mode", "outcome"),
+    [
+        (mode, outcome)
+        for mode in MODES
+        for outcome in ["close", "validation-error", "exhausted", "cancel"]
+    ]
+    + [(Mode.RESPONSES_TOOLS, "commentary")],
 )
 async def test_async_iterable_closes_sdk_response(
     stream_endpoint: tuple[str, list[dict[str, Any]]], mode: Mode, outcome: str

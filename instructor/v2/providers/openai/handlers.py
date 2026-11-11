@@ -416,7 +416,7 @@ class _ResponsesStreamResult:
 
     def __init__(self, tool_name: str | None) -> None:
         self.tool_name = tool_name
-        self.foreign_calls: set[int] = set()
+        self.ignored_outputs: set[int] = set()
         self.output_index: int | None = None
 
     def delta(self, event: Any) -> str | None:
@@ -428,17 +428,20 @@ class _ResponsesStreamResult:
 
         if isinstance(event, ResponseOutputItemAddedEvent):
             if (
+                event.item.type == "message"
+                and getattr(event.item, "phase", None) == "commentary"
+            ) or (
                 self.tool_name is not None
                 and event.item.type == "function_call"
                 and event.item.name != self.tool_name
             ):
-                self.foreign_calls.add(event.output_index)
+                self.ignored_outputs.add(event.output_index)
             return None
         if not isinstance(
             event, (ResponseFunctionCallArgumentsDeltaEvent, ResponseTextDeltaEvent)
         ):
             return None
-        if event.output_index in self.foreign_calls or not event.delta:
+        if event.output_index in self.ignored_outputs or not event.delta:
             return None
         if self.output_index is None:
             self.output_index = event.output_index
