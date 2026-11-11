@@ -102,6 +102,8 @@ print(user)  # User(name='Jason', age=25)
 
 You can customize the model's behavior using generation configuration parameters. These parameters control aspects like temperature, token limits, and sampling methods. Pass these parameters as a dictionary to the `generation_config` parameter when creating the response.
 
+OpenAI-style options such as `temperature`, `max_tokens`, and `top_p` also apply when `response_model=None` returns the raw provider response. You can pass these options as top-level arguments; those values take precedence over `generation_config` without changing the dictionary you supplied.
+
 The most common parameters include:
 - `temperature`: Controls randomness in the output (0.0 to 1.0)
 - `max_tokens`: Maximum number of tokens to generate
