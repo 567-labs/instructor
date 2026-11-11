@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 import pytest
 from openai.types.responses import (
@@ -35,7 +35,7 @@ def _responses_events(
     *,
     text_answer: bool,
     commentary: bool,
-    final_phase: str | None,
+    final_phase: Literal["final_answer"] | None,
 ) -> list[Any]:
     events: list[Any] = (
         [
@@ -92,19 +92,23 @@ def _responses_events(
         )
     )
     for index, delta in enumerate([payload[:8], payload[8:]]):
-        values = dict(
-            item_id="result", output_index=1, sequence_number=index + 3, delta=delta
-        )
         events.append(
             ResponseTextDeltaEvent(
                 type="response.output_text.delta",
                 content_index=0,
                 logprobs=[],
-                **values,
+                item_id="result",
+                output_index=1,
+                sequence_number=index + 3,
+                delta=delta,
             )
             if text_answer
             else ResponseFunctionCallArgumentsDeltaEvent(
-                type="response.function_call_arguments.delta", **values
+                type="response.function_call_arguments.delta",
+                item_id="result",
+                output_index=1,
+                sequence_number=index + 3,
+                delta=delta,
             )
         )
     return events
@@ -117,12 +121,15 @@ def _responses_events(
     [(True, "final_answer"), (True, None), (False, None)],
 )
 def test_responses_stream_ignores_commentary(
-    iterable: bool, text_answer: bool, commentary: bool, final_phase: str | None
+    iterable: bool,
+    text_answer: bool,
+    commentary: bool,
+    final_phase: Literal["final_answer"] | None,
 ) -> None:
     handler = OpenAIResponsesToolsHandler()
-    model, _ = handler.prepare_request(
-        Iterable[User] if iterable else Partial[User], {"stream": True}
-    )
+    response_model: Any = Iterable[User] if iterable else Partial[User]
+    model, _ = handler.prepare_request(response_model, {"stream": True})
+    assert model is not None
     payload = '{"tasks":[{"name":"Ada"}]}' if iterable else '{"name":"Ada"}'
     events = _responses_events(
         model.__name__,
@@ -147,12 +154,15 @@ def test_responses_stream_ignores_commentary(
     [(True, "final_answer"), (True, None), (False, None)],
 )
 async def test_async_responses_stream_ignores_commentary(
-    iterable: bool, text_answer: bool, commentary: bool, final_phase: str | None
+    iterable: bool,
+    text_answer: bool,
+    commentary: bool,
+    final_phase: Literal["final_answer"] | None,
 ) -> None:
     handler = OpenAIResponsesToolsHandler()
-    model, _ = handler.prepare_request(
-        Iterable[User] if iterable else Partial[User], {"stream": True}
-    )
+    response_model: Any = Iterable[User] if iterable else Partial[User]
+    model, _ = handler.prepare_request(response_model, {"stream": True})
+    assert model is not None
     payload = '{"tasks":[{"name":"Ada"}]}' if iterable else '{"name":"Ada"}'
     events = _responses_events(
         model.__name__,
