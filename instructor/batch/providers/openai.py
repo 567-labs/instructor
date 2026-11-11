@@ -8,7 +8,7 @@ from typing import Any, Optional, Union
 import io
 import logging
 import time
-from .base import BatchProvider
+from .base import BatchProvider, _atomic_result_file
 from ..models import BatchJobInfo
 
 logger = logging.getLogger(__name__)
@@ -154,8 +154,8 @@ class OpenAIProvider(BatchProvider):
         """Download OpenAI batch results to a file"""
         try:
             results_text = self._get_results_text(batch_id)
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(results_text)
+            with _atomic_result_file(file_path) as output:
+                output.write(results_text.encode("utf-8"))
         except Exception as e:
             raise Exception(f"Failed to download OpenAI results: {e}") from e
 

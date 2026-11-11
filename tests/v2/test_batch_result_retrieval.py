@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import builtins
+import io
 import threading
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -213,6 +215,60 @@ def test_list_openai_batches_keeps_jobs_with_nullable_optional_fields(
     assert jobs[1].request_counts.total == 1
     assert jobs[1].metadata == {"source": "example"}
     assert endpoint.requests == ["/batches?limit=10"]
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_openai_download_does_not_publish_partial_files(
+    endpoint: BatchEndpoint,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    existing: bool,
+) -> None:
+    from instructor.batch.providers.openai import OpenAIProvider
+
+    endpoint.json_states(
+        "/batches/batch-local",
+        openai_batch(completed=1, failed=0, output_file="file-output", error_file=None),
+    )
+    endpoint.jsonl("/files/file-output/content", [openai_success()])
+    destination = tmp_path / "results.jsonl"
+    if existing:
+        destination.write_bytes(b"previous results\n")
+    original_open = builtins.open
+
+    class FailingWriter:
+        def __init__(self, handle: Any) -> None:
+            self.handle = handle
+
+        def __getattr__(self, name: str) -> Any:
+            return getattr(self.handle, name)
+
+        def __enter__(self) -> FailingWriter:
+            return self
+
+        def __exit__(self, *args: Any) -> Any:
+            return self.handle.__exit__(*args)
+
+        def write(self, data: Any) -> None:
+            self.handle.write(data[:10])
+            raise OSError("simulated disk full")
+
+    def failing_open(*args: Any, **kwargs: Any) -> Any:
+        handle = original_open(*args, **kwargs)
+        mode = kwargs.get("mode", args[1] if len(args) > 1 else "r")
+        return FailingWriter(handle) if "w" in mode else handle
+
+    with monkeypatch.context() as patch:
+        patch.setattr(builtins, "open", failing_open)
+        patch.setattr(io, "open", failing_open)
+        with pytest.raises(Exception, match="simulated disk full"):
+            OpenAIProvider().download_results("batch-local", str(destination))
+
+    if existing:
+        assert destination.read_bytes() == b"previous results\n"
+    else:
+        assert not destination.exists()
+    assert list(tmp_path.iterdir()) == ([destination] if existing else [])
 
 
 @pytest.mark.parametrize("shape", ["top-level", "body-type", "body-code"])
