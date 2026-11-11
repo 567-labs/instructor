@@ -50,6 +50,7 @@ from instructor.v2.core.messages import (
     copy_messages_for_mutation,
     dump_message,
     merge_consecutive_messages,
+    text_from_content_blocks,
 )
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
@@ -104,7 +105,11 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
                             chunk.data.choices[0].delta.tool_calls[0].function.arguments
                         )
                     else:
-                        yield chunk.data.choices[0].delta.content
+                        content = chunk.data.choices[0].delta.content
+                        if isinstance(content, list):
+                            content = text_from_content_blocks(content)
+                        if content:
+                            yield content
                 except (AttributeError, IndexError):
                     continue
 
@@ -129,7 +134,11 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
                             chunk.data.choices[0].delta.tool_calls[0].function.arguments
                         )
                     else:
-                        yield chunk.data.choices[0].delta.content
+                        content = chunk.data.choices[0].delta.content
+                        if isinstance(content, list):
+                            content = text_from_content_blocks(content)
+                        if content:
+                            yield content
                 except (AttributeError, IndexError):
                     continue
 
@@ -234,7 +243,10 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
     def _extract_text_content(self, response: Any) -> str:
         """Extract text content from response."""
         message = self._require_choice_message(response)
-        return message.content or ""
+        content = message.content
+        if isinstance(content, list):
+            return text_from_content_blocks(content) or ""
+        return content or ""
 
 
 @register_mode_handler(Provider.MISTRAL, Mode.TOOLS)

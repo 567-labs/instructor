@@ -18,6 +18,7 @@ from .models import BatchResult, BatchSuccess, BatchError, BatchJobInfo, T
 from .request import BatchRequest
 from .providers import get_provider
 from instructor.v2.core.errors import IncompleteOutputException
+from instructor.v2.core.messages import text_from_content_blocks
 
 _ANTHROPIC_CUSTOM_ID = re.compile(r"[a-zA-Z0-9_-]{1,64}")
 
@@ -363,6 +364,8 @@ class BatchProcessor(Generic[T]):
                 if choice.get("finish_reason") == "length":
                     raise IncompleteOutputException(last_completion=data)
                 content = choice["message"]["content"]
+                if self.provider_name == "mistral" and isinstance(content, list):
+                    content = text_from_content_blocks(content) or ""
                 return json.loads(content)
 
             if self.provider_name == "anthropic":
