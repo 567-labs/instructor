@@ -709,6 +709,7 @@ def test_structured_prepare_falls_back_for_old_sdk_and_requires_a_model(
     with pytest.raises(ConfigurationError, match="requires a `response_model`"):
         handler.prepare_request(None, {"messages": []})
 
+    monkeypatch.setattr(handlers, "_anthropic_supports_parameter", lambda _: False)
     monkeypatch.setattr(handlers, "_anthropic_supports_output_format", lambda: False)
     with pytest.warns(UserWarning, match="falling back to JSON mode instructions"):
         returned, request = handler.prepare_request(
@@ -734,6 +735,7 @@ def test_structured_prepare_falls_back_for_old_sdk_and_requires_a_model(
 def test_structured_prepare_builds_schema_normalizes_betas_and_clears_tools(
     monkeypatch: pytest.MonkeyPatch, betas: Any, expected: list[str]
 ) -> None:
+    monkeypatch.setattr(handlers, "_anthropic_supports_parameter", lambda _: False)
     monkeypatch.setattr(handlers, "_anthropic_supports_output_format", lambda: True)
     monkeypatch.setattr(
         anthropic,
@@ -779,6 +781,7 @@ def test_structured_prepare_builds_schema_normalizes_betas_and_clears_tools(
 def test_structured_prepare_uses_pydantic_schema_when_transform_is_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(handlers, "_anthropic_supports_parameter", lambda _: False)
     monkeypatch.setattr(handlers, "_anthropic_supports_output_format", lambda: True)
     monkeypatch.delattr(anthropic, "transform_schema", raising=False)
 

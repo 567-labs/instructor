@@ -150,8 +150,8 @@ def serialize_message_content(content: Any) -> Any:
     return content
 
 
-def _anthropic_supports_output_format() -> bool:
-    """Detect if the installed anthropic SDK supports output_format parameter."""
+def _anthropic_supports_parameter(parameter: str) -> bool:
+    """Detect a parameter on the installed stable Anthropic Messages API."""
 
     try:
         from anthropic.resources.messages import Messages
@@ -163,7 +163,11 @@ def _anthropic_supports_output_format() -> bool:
     except (ValueError, TypeError):
         return False
 
-    return "output_format" in signature.parameters
+    return parameter in signature.parameters
+
+
+def _anthropic_supports_output_format() -> bool:
+    return _anthropic_supports_parameter("output_format")
 
 
 def process_messages_for_anthropic(
@@ -708,8 +712,8 @@ class AnthropicJSONHandler(AnthropicHandlerBase):
 class AnthropicStructuredOutputsHandler(AnthropicHandlerBase):
     """Handler for Anthropic structured outputs mode.
 
-    Uses Claude's native structured output enforcement via the output_format parameter.
-    Requires Anthropic SDK >=0.71.0 and the structured-outputs-2025-11-13 beta.
+    Uses native output_config.format on current stable SDKs, with the legacy
+    output_format path retained for older SDKs that expose it.
     """
 
     mode = Mode.JSON_SCHEMA
@@ -728,9 +732,10 @@ class AnthropicStructuredOutputsHandler(AnthropicHandlerBase):
                 "Mode.JSON_SCHEMA (Anthropic structured outputs) requires a `response_model`."
             )
 
-        if not _anthropic_supports_output_format():
+        supports_output_config = _anthropic_supports_parameter("output_config")
+        if not supports_output_config and not _anthropic_supports_output_format():
             warnings.warn(
-                "Anthropic client does not support `output_format`; falling back to JSON mode instructions.",
+                "Anthropic client does not support native structured output parameters; falling back to JSON mode instructions.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -762,10 +767,23 @@ class AnthropicStructuredOutputsHandler(AnthropicHandlerBase):
             def transform_schema(model: type[BaseModel]) -> dict[str, Any]:
                 return model.model_json_schema()
 
-        new_kwargs["output_format"] = {
+        output_format = {
             "type": "json_schema",
             "schema": transform_schema(response_model),
         }
+        if supports_output_config:
+            output_config = new_kwargs.get("output_config", {})
+            if isinstance(output_config, anthropic.Omit):
+                output_config = {}
+            new_kwargs["output_config"] = {
+                **output_config,
+                "format": output_format,
+            }
+            new_kwargs.pop("tools", None)
+            new_kwargs.pop("tool_choice", None)
+            return response_model, new_kwargs
+
+        new_kwargs["output_format"] = output_format
 
         required_beta = "structured-outputs-2025-11-13"
         betas = new_kwargs.get("betas")
