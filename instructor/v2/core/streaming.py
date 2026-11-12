@@ -42,10 +42,10 @@ class StreamingModelState:
     def _consume_streaming_flag(
         self, response_model: type[BaseModel] | ParallelBase | None
     ) -> bool:
-        if inspect.isclass(response_model) and response_model in self._streaming_models:
-            del self._streaming_models[response_model]
-            return True
-        return False
+        if not inspect.isclass(response_model):
+            return False
+        missing = object()
+        return self._streaming_models.pop(response_model, missing) is not missing
 
     def _should_parse_streaming(
         self,
