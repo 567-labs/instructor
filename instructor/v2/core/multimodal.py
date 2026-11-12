@@ -868,7 +868,7 @@ def convert_messages(
         }
         if (
             role == "assistant"
-            and message.get("tool_calls")
+            and (message.get("tool_calls") or message.get("function_call"))
             and message.get("content") is None
         ):
             converted_messages.append(dict(message))
