@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+
+- **Writer**: Reject token-limited responses in JSON and Markdown JSON modes instead of accepting incomplete results.
 - Gemini and Vertex AI reject completions stopped at the token limit. Google and Mistral streaming handlers skip empty metadata chunks, and GenAI JSON mode aliases are classified consistently.
 - Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
 - Mistral batch jobs support structured requests, lifecycle operations, result parsing, and provider-specific errors through the batch processor and CLI.

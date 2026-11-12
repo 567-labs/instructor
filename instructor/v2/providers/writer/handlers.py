@@ -301,6 +301,8 @@ class WriterMDJSONHandler(WriterHandlerBase):
                 validation_context,
                 strict,
             )
+        if response.choices[0].finish_reason == "length":
+            raise IncompleteOutputException(last_completion=response)
         text = response.choices[0].message.content or ""
         json_str = extract_json_from_codeblock(text)
 
@@ -359,6 +361,8 @@ class WriterJSONSchemaHandler(WriterHandlerBase):
                 validation_context,
                 strict,
             )
+        if response.choices[0].finish_reason == "length":
+            raise IncompleteOutputException(last_completion=response)
         text = response.choices[0].message.content or ""
         return response_model.model_validate_json(
             text,
