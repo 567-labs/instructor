@@ -154,6 +154,15 @@ def parse_genai_tools(
     )
 
 
+def _extract_genai_streaming_tool_args(chunk: Any) -> Any:
+    """Select the first non-thought part, as in non-streaming tool parsing."""
+    parts = chunk.candidates[0].content.parts or []
+    part = next((part for part in parts if not getattr(part, "thought", False)), None)
+    if part is None:
+        raise AttributeError("No non-thought part in GenAI chunk")
+    return part.function_call.args
+
+
 class GenAIHandlerBase(ModeHandler):
     """Common utilities shared across GenAI mode handlers."""
 
@@ -188,9 +197,7 @@ class GenAIHandlerBase(ModeHandler):
                 # which raises IndexError rather than AttributeError — skip
                 # the chunk either way.
                 if self.mode == Mode.TOOLS:
-                    yield json.dumps(
-                        chunk.candidates[0].content.parts[0].function_call.args
-                    )
+                    yield json.dumps(_extract_genai_streaming_tool_args(chunk))
                 else:
                     yield gemini_utils.extract_gemini_chunk_text(chunk)
             except (AttributeError, IndexError):
@@ -203,9 +210,7 @@ class GenAIHandlerBase(ModeHandler):
         async for chunk in completion:
             try:
                 if self.mode == Mode.TOOLS:
-                    yield json.dumps(
-                        chunk.candidates[0].content.parts[0].function_call.args
-                    )
+                    yield json.dumps(_extract_genai_streaming_tool_args(chunk))
                 else:
                     yield gemini_utils.extract_gemini_chunk_text(chunk)
             except (AttributeError, IndexError):
