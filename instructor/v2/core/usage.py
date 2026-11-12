@@ -24,6 +24,12 @@ def _usage_snapshot(total_usage: Any) -> Any:
 
 
 def _usage_total_tokens(total_usage: Any) -> int | None:
+    if type(total_usage).__module__.startswith("cohere."):
+        from instructor.v2.providers.cohere.usage import token_counts
+
+        counts = token_counts(total_usage)
+        return sum(counts) if counts is not None else None
+
     direct_total = getattr(total_usage, "total_tokens", None)
     if isinstance(direct_total, Real) and not isinstance(direct_total, bool):
         return int(direct_total)

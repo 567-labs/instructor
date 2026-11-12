@@ -126,3 +126,35 @@ This example applies to non-streaming responses with a `usage` attribute;
 Google responses use `usage_metadata`, and native xAI follows a separate path.
 A local response-cache hit can restore historical completion usage without a
 new provider request. It is different from provider prompt caching.
+
+
+### Native Cohere V2 model-token budgets
+
+The public `from_provider("cohere/...")` non-streaming structured-response path
+accumulates `usage.tokens.input_tokens` and `usage.tokens.output_tokens` across
+validation retries. `_total_usage` and `completion:usage` snapshots are native
+Cohere `Usage` objects containing only that cumulative `tokens` projection.
+`billed_units`, `cached_tokens`, and unknown metadata are not copied into it;
+optional defaults such as `None` do not represent zero billing.
+
+Unlike the cumulative response counters described above for other providers,
+Cohere's raw `response.usage` stays completely per-call and unchanged. It retains
+its original billing, cache and provider metadata. Total model tokens can exceed
+billed tokens; `token_budget` is not a financial spending limit. Cached tokens
+are a subset, not additional tokens to add to this budget.
+
+Both token counters must be explicitly present, finite, nonnegative whole
+numbers. Integral SDK floats are accepted. These checks apply to native SDK values;
+values coerced during SDK parsing cannot be reconstructed from the wire.
+Missing or invalid values are
+unavailable, not zero; billed units are never a fallback. A cumulative value
+that cannot be represented exactly by the SDK's float fields is unavailable.
+Once any attempt has unavailable usage, subsequent responses do not restore
+complete accounting for the sequence. Budgeted failed validation stops with
+`TokenUsageUnavailableError`; a successful response still returns without a
+complete `_total_usage`. Existing successful-response budget semantics remain.
+
+This covers the V2 native endpoint, including the immutable native models in
+SDK 5.8.0 and current models. It does not add V1, streaming, batch, or general
+billing support. The lower declared package minimum predates `ClientV2` and
+is not a promise that that older SDK supports this factory endpoint.
