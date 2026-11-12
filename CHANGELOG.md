@@ -10,7 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
-- Anthropic beta JSON responses accept native `BetaMessage` objects, and beta tool responses retain token-limit detection without discarding response metadata.
+- Anthropic beta JSON responses accept native `BetaMessage` objects, beta tool responses retain token-limit detection, and parallel tool responses reject token-limited completions without discarding response metadata.
 - Gemini and Vertex AI reject completions stopped at the token limit. Google and Mistral streaming handlers skip empty metadata chunks, and GenAI JSON mode aliases are classified consistently.
 - Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
 - Mistral batch jobs support structured requests, lifecycle operations, result parsing, and provider-specific errors through the batch processor and CLI.

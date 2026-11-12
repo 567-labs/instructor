@@ -12,7 +12,10 @@ from typing import Any, cast
 import pytest
 from pydantic import BaseModel
 import instructor
-from instructor.v2.core.errors import IncompleteOutputException
+from instructor.v2.core.errors import (
+    IncompleteOutputException,
+    InstructorRetryException,
+)
 from instructor.v2.core.hooks import Hooks
 
 anthropic = pytest.importorskip("anthropic")
@@ -23,12 +26,15 @@ class Result(BaseModel):
 
 
 @pytest.mark.parametrize(
-    "mode",
+    "mode, payload",
     [
-        instructor.Mode.TOOLS,
-        instructor.Mode.JSON,
-        instructor.Mode.JSON_SCHEMA,
-        instructor.Mode.PARALLEL_TOOLS,
+        (instructor.Mode.TOOLS, "normal"),
+        (instructor.Mode.JSON, "normal"),
+        (instructor.Mode.JSON_SCHEMA, "normal"),
+        (instructor.Mode.PARALLEL_TOOLS, "normal"),
+        (instructor.Mode.PARALLEL_TOOLS, "empty"),
+        (instructor.Mode.PARALLEL_TOOLS, "invalid"),
+        (instructor.Mode.PARALLEL_TOOLS, "raw"),
     ],
 )
 @pytest.mark.parametrize("beta", [False, True])
@@ -36,6 +42,7 @@ class Result(BaseModel):
 @pytest.mark.parametrize("truncated", [False, True])
 def test_native_beta_response(
     mode: instructor.Mode,
+    payload: str,
     beta: bool,
     asynchronous: bool,
     truncated: bool,
@@ -51,7 +58,7 @@ def test_native_beta_response(
         def do_POST(self) -> None:
             req = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             requests.append(req)
-            content = [{"type": "text", "text": '{"count":3}'}]
+            content: list[dict[str, Any]] = [{"type": "text", "text": '{"count":3}'}]
             stop = "end_turn"
             if mode in (instructor.Mode.TOOLS, instructor.Mode.PARALLEL_TOOLS):
                 content = [
@@ -63,6 +70,18 @@ def test_native_beta_response(
                     }
                 ]
                 stop = "tool_use"
+            if payload == "empty":
+                content = []
+            elif payload == "invalid":
+                # A valid first item must not escape before the second fails.
+                content.append(
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_invalid",
+                        "name": "Result",
+                        "input": {"count": "bad"},
+                    }
+                )
             body = json.dumps(
                 {
                     "id": "msg_local",
@@ -103,30 +122,57 @@ def test_native_beta_response(
 
         async def invoke() -> Any:
             value = client.create(
-                response_model=Iterable[Result]
-                if mode == instructor.Mode.PARALLEL_TOOLS
-                else Result,
-                max_retries=1,
+                response_model=None
+                if payload == "raw"
+                else (
+                    Iterable[Result]
+                    if mode == instructor.Mode.PARALLEL_TOOLS
+                    else Result
+                ),
+                max_retries=2,
                 messages=[{"role": "user", "content": "Extract count3"}],
                 hooks=hooks,
             )
             if asynchronous:
                 value = await value
-            return list(value) if mode == instructor.Mode.PARALLEL_TOOLS else value
+            return (
+                list(value)
+                if mode == instructor.Mode.PARALLEL_TOOLS and payload != "raw"
+                else value
+            )
 
-        if truncated and mode != instructor.Mode.PARALLEL_TOOLS:
+        if payload == "raw":
+            value = asyncio.run(invoke())
+            assert value.stop_reason == ("max_tokens" if truncated else "tool_use")
+            assert responses == []
+            responses.append(value)
+        elif truncated:
             with pytest.raises(IncompleteOutputException) as error:
                 asyncio.run(invoke())
             assert error.value.last_completion is responses[0]
+        elif payload == "invalid":
+            with pytest.raises(InstructorRetryException):
+                asyncio.run(invoke())
         else:
             value = asyncio.run(invoke())
-            if mode == instructor.Mode.PARALLEL_TOOLS:
-                # Parallel terminal handling is unchanged and outside this fix.
+            if payload == "empty":
+                assert value == []
+            elif mode == instructor.Mode.PARALLEL_TOOLS:
                 assert value[0].count == 3
             else:
                 assert value.count == 3
                 assert value._raw_response is responses[0]
-        assert len(requests) == len(responses) == 1
+        assert (
+            len(requests)
+            == len(responses)
+            == (3 if payload == "invalid" and not truncated else 1)
+        )
+        if mode == instructor.Mode.PARALLEL_TOOLS:
+            if payload == "raw":
+                assert "tools" not in requests[0]
+            else:
+                assert [tool["name"] for tool in requests[0]["tools"]] == ["Result"]
+                assert requests[0]["tool_choice"] == {"type": "auto"}
         expected = anthropic.types.beta.BetaMessage if beta else anthropic.types.Message
         assert isinstance(responses[0], expected)
         if beta:

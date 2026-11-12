@@ -573,6 +573,9 @@ class AnthropicParallelToolsHandler(AnthropicHandlerBase):
         strict: bool | None,
     ) -> Any:
         """Validate every parallel tool call before returning an iterator."""
+        if _is_anthropic_message(response) and response.stop_reason == "max_tokens":
+            raise IncompleteOutputException(last_completion=response)
+
         return AnthropicParallelModel(response_model).from_response(
             response, self.mode, validation_context, strict
         )
