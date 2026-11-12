@@ -20,7 +20,7 @@ def _install_fake_genai(
     install_fake_genai(
         monkeypatch,
         extra_types={
-            "FileState": SimpleNamespace(ACTIVE="ACTIVE"),
+            "FileState": SimpleNamespace(ACTIVE="ACTIVE", FAILED="FAILED"),
             "FileSource": SimpleNamespace(UPLOADED="UPLOADED"),
         },
         client_factory=client_factory,

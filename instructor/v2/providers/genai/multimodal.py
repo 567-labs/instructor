@@ -88,6 +88,8 @@ def upload_new_pdf_file(
     client = Client()
     file = client.files.upload(file=file_path)
     while file.state != FileState.ACTIVE:
+        if file.state == FileState.FAILED:
+            raise ValueError("GenAI file processing failed")
         file_name = file.name
         if file_name is None:
             raise ValueError("Cannot poll a pending GenAI file without a file name")
