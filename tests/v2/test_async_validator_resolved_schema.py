@@ -6,11 +6,11 @@ import json
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, NamedTuple, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar
 
 import pytest
 from pydantic import BaseModel, ConfigDict
-from typing_extensions import TypeAliasType, TypedDict
+from typing_extensions import NamedTuple, TypeAliasType, TypedDict
 
 import instructor
 from instructor.v2.validation import async_field_validator
