@@ -126,3 +126,20 @@ This example applies to non-streaming responses with a `usage` attribute;
 Google responses use `usage_metadata`, and native xAI follows a separate path.
 A local response-cache hit can restore historical completion usage without a
 new provider request. It is different from provider prompt caching.
+
+### Native Groq non-streaming completions
+
+Native Groq completions accumulate `prompt_tokens`, `completion_tokens` and
+`total_tokens` across validation retries. These three SDK values must be
+nonnegative integers (not booleans), with total equal to prompt plus completion.
+Missing, null or inconsistent counters are unavailable, not zero. A supplied
+`usage_breakdown` is unsupported because compound-model totals may overlap.
+If any attempt has unavailable usage, no complete `_total_usage` is attached;
+a validation retry requiring `token_budget` raises `TokenUsageUnavailableError`.
+
+Only the three top-level token counters accumulate. Timing values, cached and
+reasoning token details (subsets, not additional budget tokens), and opaque
+usage metadata describe the latest eligible response and are deep-copied.
+They are not billing totals. Native response/usage object identity and `x_groq`
+metadata are preserved. As with other providers, returned usage counters are
+mutated to cumulative values; do not sum retained retry completions.

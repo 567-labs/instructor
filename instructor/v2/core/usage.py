@@ -5,13 +5,9 @@ from __future__ import annotations
 import copy
 import logging
 from numbers import Real
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel
-
-if TYPE_CHECKING:
-    from anthropic.types import Usage as AnthropicUsage
-    from openai.types import CompletionUsage as OpenAIUsage
 
 logger = logging.getLogger("instructor")
 T_Response = TypeVar("T_Response")
@@ -126,6 +122,10 @@ def _response_usage_as_completion(response_usage: Any) -> Any:
 def has_compatible_usage(response: object, total_usage: object) -> bool:
     """Return whether a response exposes usage supported by the accumulator."""
     response_usage = getattr(response, "usage", None)
+    if type(total_usage).__module__.startswith("groq."):
+        from instructor.v2.providers.groq import usage as groq_usage
+
+        return groq_usage.has_compatible_usage(response, total_usage)
 
     from openai.types import CompletionUsage as _OpenAIUsage
 
@@ -158,10 +158,16 @@ def has_compatible_usage(response: object, total_usage: object) -> bool:
 
 def update_total_usage(
     response: T_Response | None,
-    total_usage: OpenAIUsage | AnthropicUsage,
+    total_usage: BaseModel,
 ) -> T_Response | None:
     if response is None:
         return None
+
+    if type(total_usage).__module__.startswith("groq."):
+        from instructor.v2.providers.groq import usage as groq_usage
+
+        groq_usage.update_total_usage(response, total_usage)
+        return response
 
     from openai.types import CompletionUsage as _OpenAIUsage
 
