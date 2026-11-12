@@ -107,6 +107,11 @@ def _finalize_parsed_response(
 
 
 def _initialize_usage(provider: Provider | Mode) -> Any:
+    if provider is Provider.GROQ:
+        from instructor.v2.providers.groq.usage import initialize_usage
+
+        return initialize_usage()
+
     from openai.types.completion_usage import (
         CompletionTokensDetails,
         CompletionUsage,

@@ -73,26 +73,6 @@ def test_known_limitation_nested_dictionary_cost_is_last_attempt_only() -> None:
     assert total.model_extra["cost_details"]["upstream_inference_cost"] == 0.75
 
 
-def test_known_limitation_groq_sdk_usage_is_not_recognized() -> None:
-    groq = pytest.importorskip("groq.types.chat")
-    response = groq.ChatCompletion.model_validate(
-        {
-            "id": "audit",
-            "created": 0,
-            "object": "chat.completion",
-            "model": "audit",
-            "choices": [],
-            "usage": {
-                "prompt_tokens": 10,
-                "completion_tokens": 5,
-                "total_tokens": 15,
-                "queue_time": 0.1,
-            },
-        }
-    )
-    assert not has_compatible_usage(response, _initialize_usage(Provider.GROQ))
-
-
 def usage_chunk() -> ChatCompletionChunk:
     return ChatCompletionChunk(
         id="audit",
