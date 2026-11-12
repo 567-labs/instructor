@@ -306,6 +306,16 @@ def test_parse_genai_tools_ignores_thought_parts_and_validates_function_call() -
     assert cast(Any, handled)._raw_response is completion
 
 
+def text_response(text: str) -> types.GenerateContentResponse:
+    return types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(parts=[types.Part(text=text)], role="model"),
+            )
+        ]
+    )
+
+
 class MissingTextChunk:
     def __init__(
         self,
@@ -351,7 +361,7 @@ def test_streaming_extractors_handle_tools_text_fallback_and_bad_chunks() -> Non
             [
                 object(),
                 SimpleNamespace(candidates=[]),
-                SimpleNamespace(text='{"answer": 9}'),
+                text_response('{"answer": 9}'),
                 MissingTextChunk("tail"),
             ]
         )
@@ -399,7 +409,7 @@ async def test_async_streaming_extractors_handle_tools_text_fallback_and_bad_chu
                 [
                     object(),
                     SimpleNamespace(candidates=[]),
-                    SimpleNamespace(text='{"answer": 11}'),
+                    text_response('{"answer": 11}'),
                     MissingTextChunk("tail"),
                 ]
             )
@@ -448,8 +458,8 @@ def test_handler_base_request_and_response_paths(
     with pytest.raises(NotImplementedError):
         base.prepare_request(Answer, {})
 
-    iterable_stream = [SimpleNamespace(text='[{"answer": 1}, {"answer": 2}]')]
-    partial_stream = [SimpleNamespace(text='{"answer":'), SimpleNamespace(text=" 3}")]
+    iterable_stream = [text_response('[{"answer": 1}, {"answer": 2}]')]
+    partial_stream = [text_response('{"answer":'), text_response(" 3}")]
     iterable = base.parse_response(iterable_stream, StreamIterable, stream=True)
     partial = base.parse_response(partial_stream, Partial[Answer], stream=True)
     assert list(iterable) == [Answer(answer=1), Answer(answer=2)]
@@ -490,7 +500,7 @@ def test_handler_base_request_and_response_paths(
 @pytest.mark.asyncio
 async def test_handler_base_async_streaming_response_path() -> None:
     handler = handlers.GenAIStructuredOutputsHandler(mode=Mode.JSON)
-    stream = async_items([SimpleNamespace(text='[{"answer": 1}, {"answer": 2}]')])
+    stream = async_items([text_response('[{"answer": 1}, {"answer": 2}]')])
 
     result = cast(
         AsyncGenerator[BaseModel, None],
