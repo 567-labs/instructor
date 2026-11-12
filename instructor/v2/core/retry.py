@@ -107,6 +107,11 @@ def _finalize_parsed_response(
 
 
 def _initialize_usage(provider: Provider | Mode) -> Any:
+    if provider is Provider.COHERE:
+        from instructor.v2.providers.cohere.usage import initialize_usage
+
+        return initialize_usage()
+
     from openai.types.completion_usage import (
         CompletionTokensDetails,
         CompletionUsage,
@@ -249,9 +254,17 @@ def retry_sync_v2(
                 if hooks:
                     hooks.emit_completion_response(response)
 
-                usage_available = has_compatible_usage(response, total_usage)
+                if provider is Provider.COHERE:
+                    from instructor.v2.providers.cohere.usage import accumulate_usage
+
+                    updated_usage = accumulate_usage(response, total_usage)
+                    usage_available = updated_usage is not None
+                    if updated_usage is not None:
+                        total_usage = updated_usage
+                else:
+                    usage_available = has_compatible_usage(response, total_usage)
+                    update_total_usage(response=response, total_usage=total_usage)
                 usage_complete = usage_complete and usage_available
-                update_total_usage(response=response, total_usage=total_usage)
                 if hooks and usage_complete:
                     hooks.emit_completion_usage(
                         _usage_snapshot(total_usage),
@@ -553,9 +566,17 @@ async def retry_async_v2(
                 if hooks:
                     hooks.emit_completion_response(response)
 
-                usage_available = has_compatible_usage(response, total_usage)
+                if provider is Provider.COHERE:
+                    from instructor.v2.providers.cohere.usage import accumulate_usage
+
+                    updated_usage = accumulate_usage(response, total_usage)
+                    usage_available = updated_usage is not None
+                    if updated_usage is not None:
+                        total_usage = updated_usage
+                else:
+                    usage_available = has_compatible_usage(response, total_usage)
+                    update_total_usage(response=response, total_usage=total_usage)
                 usage_complete = usage_complete and usage_available
-                update_total_usage(response=response, total_usage=total_usage)
                 if hooks and usage_complete:
                     hooks.emit_completion_usage(
                         _usage_snapshot(total_usage),
