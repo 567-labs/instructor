@@ -85,7 +85,9 @@ async def test_genai_stream_completion_metadata(
             self.wfile.write(body)
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Endpoint)
-    thread = Thread(target=server.serve_forever, daemon=True)
+    thread = Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     client: Any = None
     actual: list[Any] = []
