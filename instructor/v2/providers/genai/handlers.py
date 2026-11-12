@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator, Generator
+from functools import partial
 from typing import Any, cast
 
 from pydantic import BaseModel
@@ -19,6 +20,16 @@ from instructor.v2.dsl.partial import Partial, PartialBase
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.providers.gemini import utils as gemini_utils
 from instructor.v2.providers.genai.request import update_genai_kwargs
+
+
+def _is_truncated_at_max_tokens(response: Any) -> bool:
+    from google.genai import types as genai_types
+
+    candidates = getattr(response, "candidates", None)
+    return bool(
+        candidates
+        and candidates[0].finish_reason == genai_types.FinishReason.MAX_TOKENS
+    )
 
 
 def reask_genai_tools(
@@ -180,36 +191,55 @@ class GenAIHandlerBase(ModeHandler):
             )
         return None
 
-    def extract_streaming_json(self, completion: Any) -> Generator[str, None, None]:
+    def extract_streaming_json(
+        self, completion: Any, *, require_complete: bool = False
+    ) -> Generator[str, None, None]:
         """Extract JSON chunks from GenAI streaming responses."""
+        truncated_completion = None
         for chunk in completion:
+            if not getattr(chunk, "candidates", None):
+                continue
+            if require_complete and _is_truncated_at_max_tokens(chunk):
+                truncated_completion = chunk
             try:
-                # `candidates` can be empty (e.g. a safety-blocked chunk),
-                # which raises IndexError rather than AttributeError — skip
-                # the chunk either way.
                 if self.mode == Mode.TOOLS:
+                    if not chunk.candidates[0].content.parts:
+                        continue
                     yield json.dumps(
                         chunk.candidates[0].content.parts[0].function_call.args
                     )
                 else:
-                    yield gemini_utils.extract_gemini_chunk_text(chunk)
+                    if text := gemini_utils.extract_gemini_chunk_text(chunk):
+                        yield text
             except (AttributeError, IndexError):
                 continue
+        if truncated_completion is not None:
+            raise IncompleteOutputException(last_completion=truncated_completion)
 
     async def extract_streaming_json_async(
-        self, completion: AsyncGenerator[Any, None]
+        self, completion: AsyncGenerator[Any, None], *, require_complete: bool = False
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from GenAI async streams."""
+        truncated_completion = None
         async for chunk in completion:
+            if not getattr(chunk, "candidates", None):
+                continue
+            if require_complete and _is_truncated_at_max_tokens(chunk):
+                truncated_completion = chunk
             try:
                 if self.mode == Mode.TOOLS:
+                    if not chunk.candidates[0].content.parts:
+                        continue
                     yield json.dumps(
                         chunk.candidates[0].content.parts[0].function_call.args
                     )
                 else:
-                    yield gemini_utils.extract_gemini_chunk_text(chunk)
+                    if text := gemini_utils.extract_gemini_chunk_text(chunk):
+                        yield text
             except (AttributeError, IndexError):
                 continue
+        if truncated_completion is not None:
+            raise IncompleteOutputException(last_completion=truncated_completion)
 
     def _wrap_streaming_model(
         self,
@@ -312,14 +342,20 @@ class GenAIHandlerBase(ModeHandler):
             and isinstance(response_model, type)
             and issubclass(response_model, (IterableBase, PartialBase))
         ):
+            require_complete = issubclass(response_model, IterableBase)
             if is_async:
                 return response_model.from_streaming_response_async(  # type: ignore
                     response,
-                    stream_extractor=self.extract_streaming_json_async,
+                    stream_extractor=partial(
+                        self.extract_streaming_json_async,
+                        require_complete=require_complete,
+                    ),
                 )
             generator = response_model.from_streaming_response(  # type: ignore
                 response,
-                stream_extractor=self.extract_streaming_json,
+                stream_extractor=partial(
+                    self.extract_streaming_json, require_complete=require_complete
+                ),
             )
             if issubclass(response_model, IterableBase):
                 return generator
@@ -329,13 +365,7 @@ class GenAIHandlerBase(ModeHandler):
         # emitted the remaining fields, so parsing it yields schema defaults that
         # are indistinguishable from values the model actually chose.
         # Restores the check shipped in v1.15.0 (#2232), dropped by 60cc815.
-        from google.genai import types as genai_types
-
-        candidates = getattr(response, "candidates", None)
-        if (
-            candidates
-            and candidates[0].finish_reason == genai_types.FinishReason.MAX_TOKENS
-        ):
+        if _is_truncated_at_max_tokens(response):
             raise IncompleteOutputException(last_completion=response)
 
         if self.mode == Mode.TOOLS:
