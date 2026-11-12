@@ -121,6 +121,8 @@ class BatchJob:
             if "response" in data and "body" in data["response"]:
                 choices = data["response"]["body"].get("choices", [])
                 if choices:
+                    if choices[0].get("finish_reason") == "length":
+                        return None
                     message = choices[0].get("message", {})
 
                     # JSON schema response
@@ -136,6 +138,8 @@ class BatchJob:
 
             # Try Anthropic format
             if "result" in data and "message" in data["result"]:
+                if data["result"]["message"].get("stop_reason") == "max_tokens":
+                    return None
                 content = data["result"]["message"]["content"]
                 if isinstance(content, list) and len(content) > 0:
                     # Tool use response
