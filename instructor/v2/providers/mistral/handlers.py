@@ -46,6 +46,10 @@ from instructor.v2.core.json import (
     extract_json_from_stream_async,
 )
 from instructor.v2.providers.openai.schema import generate_openai_schema
+from instructor.v2.providers.mistral._streaming import (
+    tasks_from_mistral_chunks,
+    tasks_from_mistral_chunks_async,
+)
 from instructor.v2.core.messages import (
     copy_messages_for_mutation,
     dump_message,
@@ -178,12 +182,12 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
             and inspect.isclass(response_model)
             and issubclass(response_model, IterableBase)
         ):
-            task_parser = streaming_model.tasks_from_task_list_chunks
+            task_parser = partial(tasks_from_mistral_chunks, streaming_model)
 
         if inspect.isasyncgen(response) or isinstance(response, AsyncIterator):
             if task_parser is not None:
-                parse_kwargs["task_parser"] = (
-                    streaming_model.tasks_from_task_list_chunks_async
+                parse_kwargs["task_parser"] = partial(
+                    tasks_from_mistral_chunks_async, streaming_model
                 )
             return streaming_model.from_streaming_response_async(
                 response,
