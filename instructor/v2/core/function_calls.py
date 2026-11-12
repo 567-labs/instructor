@@ -90,6 +90,20 @@ def _extract_text_content(completion: Any) -> str:
     return ""
 
 
+def _is_json_markdown_fence(opening: str) -> bool:
+    """Return True for a Markdown fence that is bare or marked as JSON.
+
+    Models often emit an info string after the language tag (`` ```json copy ``)
+    or a space after the backticks (`` ``` JSON ``). Those are still JSON fences.
+    """
+    fence = opening.strip().lower()
+    if not fence.startswith("```"):
+        return False
+    rest = fence[3:].strip()
+    lang = rest.split(None, 1)[0] if rest else ""
+    return lang in {"", "json"}
+
+
 def _validate_model_from_json(
     cls: type[Any],
     json_str: str,
@@ -100,11 +114,7 @@ def _validate_model_from_json(
     stripped = json_str.strip()
     if stripped.startswith("```"):
         opening, newline, body = stripped.partition("\n")
-        if (
-            newline
-            and opening.strip().lower() in {"```", "```json"}
-            and body.endswith("```")
-        ):
+        if newline and _is_json_markdown_fence(opening) and body.endswith("```"):
             from instructor.v2.core.json import extract_json_from_codeblock
 
             json_str = extract_json_from_codeblock(body[:-3].strip())
