@@ -89,49 +89,68 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
         self, completion: TypingIterable[Any], *, single_model: bool = False
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from Mistral streaming responses."""
+        incomplete = None
 
         def _raw_chunks() -> Generator[str, None, None]:
+            nonlocal incomplete
             for chunk in completion:
                 try:
-                    # `choices` can be empty (e.g. a trailing usage-only
-                    # chunk), which raises IndexError rather than
-                    # AttributeError — skip the chunk either way, same as
-                    # the OpenAI handler's `if not chunk.choices` guard.
-                    if self.mode == Mode.TOOLS:
-                        if not chunk.data.choices[0].delta.tool_calls:
-                            continue
-                        yield (
-                            chunk.data.choices[0].delta.tool_calls[0].function.arguments
-                        )
-                    else:
-                        yield chunk.data.choices[0].delta.content
+                    choice = chunk.data.choices[0]
                 except (AttributeError, IndexError):
+                    # Usage-only chunks have no completion choice.
                     continue
+                try:
+                    if self.mode == Mode.TOOLS:
+                        if choice.delta.tool_calls:
+                            yield choice.delta.tool_calls[0].function.arguments
+                    elif choice.delta.content:
+                        yield choice.delta.content
+                except (AttributeError, IndexError):
+                    pass
+                if (
+                    not single_model
+                    and getattr(choice, "finish_reason", None) == "length"
+                ):
+                    incomplete = chunk
+                    return
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
             yield from extract_json_from_stream(raw_chunks, single_model=single_model)
-            return
-        yield from raw_chunks
+        else:
+            yield from raw_chunks
+        # Flush the Markdown extractor before raising so buffered complete items,
+        # including items in the final chunk, remain available to the caller.
+        if incomplete is not None:
+            raise IncompleteOutputException(last_completion=incomplete)
 
     async def extract_streaming_json_async(
         self, completion: AsyncGenerator[Any, None], *, single_model: bool = False
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from Mistral async streams."""
+        incomplete = None
 
         async def _raw_chunks() -> AsyncGenerator[str, None]:
+            nonlocal incomplete
             async for chunk in completion:
                 try:
-                    if self.mode == Mode.TOOLS:
-                        if not chunk.data.choices[0].delta.tool_calls:
-                            continue
-                        yield (
-                            chunk.data.choices[0].delta.tool_calls[0].function.arguments
-                        )
-                    else:
-                        yield chunk.data.choices[0].delta.content
+                    choice = chunk.data.choices[0]
                 except (AttributeError, IndexError):
                     continue
+                try:
+                    if self.mode == Mode.TOOLS:
+                        if choice.delta.tool_calls:
+                            yield choice.delta.tool_calls[0].function.arguments
+                    elif choice.delta.content:
+                        yield choice.delta.content
+                except (AttributeError, IndexError):
+                    pass
+                if (
+                    not single_model
+                    and getattr(choice, "finish_reason", None) == "length"
+                ):
+                    incomplete = chunk
+                    return
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
@@ -139,9 +158,11 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
                 raw_chunks, single_model=single_model
             ):
                 yield chunk
-            return
-        async for chunk in raw_chunks:
-            yield chunk
+        else:
+            async for chunk in raw_chunks:
+                yield chunk
+        if incomplete is not None:
+            raise IncompleteOutputException(last_completion=incomplete)
 
     def convert_messages(
         self, messages: list[dict[str, Any]], autodetect_images: bool = False
