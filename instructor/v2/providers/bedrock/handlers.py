@@ -14,7 +14,11 @@ from pydantic import BaseModel
 from instructor.v2.providers.claude import requires_auto_tool_choice
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
-from instructor.v2.core.errors import ConfigurationError, ResponseParsingError
+from instructor.v2.core.errors import (
+    ConfigurationError,
+    IncompleteOutputException,
+    ResponseParsingError,
+)
 from instructor.v2.core.remote import MAX_IMAGE_BYTES, fetch_remote_content
 from instructor.v2.core.response_model import prepare_response_model
 from instructor.v2.core.decorators import register_mode_handler
@@ -627,6 +631,8 @@ class BedrockToolsHandler(ModeHandler):
             raise ConfigurationError(
                 "Streaming is not supported for Bedrock in TOOLS mode."
             )
+        if response.get("stopReason") == "max_tokens":
+            raise IncompleteOutputException(last_completion=response)
         tool_input = _extract_bedrock_tool_input(response, response_model)
         return response_model.model_validate(
             tool_input,
@@ -693,6 +699,8 @@ class BedrockMDJSONHandler(ModeHandler):
             raise ConfigurationError(
                 "Streaming is not supported for Bedrock in MD_JSON mode."
             )
+        if response.get("stopReason") == "max_tokens":
+            raise IncompleteOutputException(last_completion=response)
         text = _extract_bedrock_text(response)
         text = extract_json_from_codeblock(text)
         return response_model.model_validate_json(
@@ -741,6 +749,8 @@ class BedrockJSONSchemaHandler(ModeHandler):
             raise ConfigurationError(
                 "Streaming is not supported for Bedrock in JSON_SCHEMA mode."
             )
+        if response.get("stopReason") == "max_tokens":
+            raise IncompleteOutputException(last_completion=response)
         return response_model.model_validate_json(
             _extract_bedrock_text(response),
             context=validation_context,
