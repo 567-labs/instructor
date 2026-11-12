@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import builtins
 import importlib
 import json
@@ -15,6 +16,7 @@ from pydantic import BaseModel
 
 from instructor.v2.core.errors import ClientError, ModeError
 from instructor.v2.core.mode import Mode
+from instructor.v2.core.multimodal import Image
 from instructor.v2.core.providers import Provider
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import ParallelBase
@@ -597,8 +599,10 @@ def test_multimodal_types_reports_missing_optional_dependency(
 
 
 def test_multimodal_encodes_gcs_image_and_audio() -> None:
-    image = SimpleNamespace(
-        source="gs://bucket/image.png", media_type="image/png", data=b"png-bytes"
+    image = Image(
+        source="gs://bucket/image.png",
+        media_type="image/png",
+        data=base64.b64encode(b"png-bytes").decode("ascii"),
     )
     audio = SimpleNamespace(
         source="recording.wav", media_type="audio/wav", data="d2F2LWJ5dGVz"
