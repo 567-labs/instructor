@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import inspect
+import importlib
 import os
 import shutil
 import subprocess
@@ -32,7 +33,21 @@ def _channel(client: Any) -> Any:
     call = native.chat._stub.GetCompletion
     if hasattr(call, "_thunk"):
         return inspect.getclosurevars(call._thunk).nonlocals["self"]
-    return call._python_channel
+    if hasattr(call, "_python_channel"):
+        return call._python_channel
+    # Older grpcio aio callables retain their owning Python channel here.
+    # Match the actual native channel rather than selecting an unrelated reference.
+    import grpc
+
+    channels = [
+        reference
+        for reference in getattr(call, "_references", ())
+        if isinstance(reference, grpc.aio.Channel)
+        and cast(Any, reference)._channel is call._channel
+    ]
+    if len(channels) != 1:
+        raise RuntimeError("Cannot identify the native xAI channel safely")
+    return channels[0]
 
 
 def _target(client: Any) -> str:
@@ -41,7 +56,20 @@ def _target(client: Any) -> str:
     if hasattr(inner, "target"):
         value = inner.target
         return (value() if callable(value) else value).decode()
-    return inner._channel.target().decode()
+    if hasattr(inner, "_channel"):
+        return inner._channel.target().decode()
+    # grpcio 1.74 aio channels have no target accessor. Each test uses a fresh
+    # process and one native client channel, so Channelz can identify it safely.
+    cygrpc = importlib.import_module("grpc._cython.cygrpc")
+
+    snapshot = json.loads(cygrpc.channelz_get_top_channels(0))
+    channels = snapshot.get("channel", [])
+    if snapshot.get("end") is not True or len(channels) != 1:
+        raise RuntimeError("Cannot identify a unique native channel target safely")
+    target = channels[0].get("data", {}).get("target")
+    if not isinstance(target, str) or not target:
+        raise RuntimeError("Cannot read a native channel target safely")
+    return target
 
 
 def _run(cert: Path, key: Path, asynchronous: bool, explicit: bool) -> dict[str, Any]:
