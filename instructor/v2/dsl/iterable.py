@@ -31,11 +31,13 @@ class _TaskObjects:
         self.escaped = False
         self.in_array = False
         self.may_unwrap = False
+        self.wrapper_array_depth = 0
+        self.wrapper_tail_depth = 0
         self.buffer: list[str] = []
 
     def feed(self, chunk: str) -> Generator[tuple[str, int], None, None]:
         for index, char in enumerate(chunk):
-            if self.depth:
+            if self.depth and not self.wrapper_tail_depth:
                 self.buffer.append(char)
             if self.escaped:
                 self.escaped = False
@@ -44,6 +46,22 @@ class _TaskObjects:
             elif char == '"':
                 self.quoted = not self.quoted
             elif not self.quoted:
+                # An unwrapped tasks array still belongs to its outer object.
+                # Ignore its remaining fields until that wrapper closes, rather
+                # than interpreting metadata objects as additional tasks.
+                if self.wrapper_tail_depth:
+                    if char == "{":
+                        self.wrapper_tail_depth += 1
+                    elif char == "}":
+                        self.wrapper_tail_depth -= 1
+                    continue
+                if self.wrapper_array_depth:
+                    if char == "[":
+                        self.wrapper_array_depth += 1
+                    elif char == "]":
+                        self.wrapper_array_depth -= 1
+                        if not self.wrapper_array_depth:
+                            self.wrapper_tail_depth = 1
                 if char == "{":
                     if self.depth == 0:
                         self.buffer = [char]
@@ -65,11 +83,12 @@ class _TaskObjects:
                             self.buffer.clear()
                             self.depth = 0
                             self.in_array = True
+                            self.wrapper_array_depth = 1
                 elif char == "]" and not self.depth:
                     self.in_array = False
 
     def finish(self) -> None:
-        if self.depth:
+        if self.depth or self.wrapper_tail_depth > 1:
             from instructor.v2.core.errors import IncompleteOutputException
 
             raise IncompleteOutputException(
