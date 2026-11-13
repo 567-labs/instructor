@@ -36,4 +36,5 @@ jobs:
       - name: Run all tests
         run: uv run --frozen pytest tests/ --asyncio-mode=auto
         env:
+          INSTRUCTOR_ENV: CI
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

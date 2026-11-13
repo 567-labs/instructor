@@ -13,7 +13,7 @@ file_path = os.path.join(curr_file, "./test_files/sample.mp3")
 MODEL = os.getenv("GOOGLE_GENAI_MODEL", "google/gemini-pro")
 
 
-def test_audio_compatability_list():
+def test_audio_compatibility_list():
     client = instructor.from_provider(
         model=MODEL, mode=instructor.Mode.GENAI_STRUCTURED_OUTPUTS
     )
@@ -34,7 +34,7 @@ def test_audio_compatability_list():
     )
 
 
-def test_audio_compatability_multiple_messages():
+def test_audio_compatibility_multiple_messages():
     client = instructor.from_provider(
         model=MODEL, mode=instructor.Mode.GENAI_STRUCTURED_OUTPUTS
     )
