@@ -10,6 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- **Partial streaming**: Keep dotted, indexed-looking, and empty JSON keys from marking another path complete. Completeness helpers reserve the empty string path for the root. ([#2997](https://github.com/567-labs/instructor/pull/2997))
 - Anthropic Iterable streams report a `max_tokens` stop between complete items as `IncompleteOutputException` instead of returning a silently truncated list.
 - Gemini and Vertex AI reject completions stopped at the token limit. Google and Mistral streaming handlers skip empty metadata chunks, and GenAI JSON mode aliases are classified consistently.
 - Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
