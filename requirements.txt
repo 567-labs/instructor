@@ -10,7 +10,7 @@ annotated-doc==0.0.5
     # via typer
 annotated-types==0.8.0
     # via pydantic
-anyio==4.15.1
+anyio==4.16.0
     # via
     #   httpx
     #   httpx2
@@ -26,7 +26,7 @@ certifi==2026.10.23
     #   requests
 charset-normalizer==3.5.2
     # via requests
-click==8.5.0
+click==8.5.1
     # via instructor (pyproject.toml)
 colorama==0.4.6 ; sys_platform == 'win32'
     # via
@@ -82,17 +82,17 @@ multidict==7.1.0
     # via
     #   aiohttp
     #   yarl
-openai==3.41.0
+openai==3.46.0
     # via instructor (pyproject.toml)
 propcache==0.5.4
     # via
     #   aiohttp
     #   yarl
-pydantic==2.14.2
+pydantic==2.14.3
     # via
     #   instructor (pyproject.toml)
     #   openai
-pydantic-core==2.50.2
+pydantic-core==2.50.4
     # via
     #   instructor (pyproject.toml)
     #   pydantic
@@ -118,7 +118,7 @@ truststore==0.10.5 ; sys_platform != 'emscripten'
     # via
     #   httpcore2
     #   httpx2
-typer==0.27.3
+typer==0.28.0
     # via instructor (pyproject.toml)
 typing-extensions==4.16.0
     # via
@@ -132,7 +132,7 @@ typing-extensions==4.16.0
     #   pydantic
     #   pydantic-core
     #   typing-inspection
-typing-inspection==0.4.4
+typing-inspection==0.4.5
     # via pydantic
 urllib3==2.8.0
     # via
