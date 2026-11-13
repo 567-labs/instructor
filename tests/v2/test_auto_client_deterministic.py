@@ -264,3 +264,39 @@ def test_build_ollama_uses_tool_mode_only_for_tool_capable_models(
 
     assert calls[0]["mode"] == Mode.TOOLS
     assert calls[1]["mode"] == Mode.JSON
+
+
+def test_build_ollama_forwards_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    openai_module = ModuleType("openai")
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+    setattr(openai_module, "OpenAI", FakeOpenAI)  # noqa: B010
+    setattr(openai_module, "AsyncOpenAI", FakeOpenAI)  # noqa: B010
+    monkeypatch.setitem(__import__("sys").modules, "openai", openai_module)
+
+    import instructor.v2.providers.openai.client as openai_client_module
+
+    clients: list[Any] = []
+
+    def fake_from_openai(client: Any, **kwargs: Any) -> dict[str, Any]:
+        clients.append(client)
+        return kwargs
+
+    monkeypatch.setattr(openai_client_module, "from_openai", fake_from_openai)
+
+    for api_key in ("ollama-secret", None):
+        auto_client._build_ollama(
+            provider="ollama",
+            model_name="llama3.2",
+            async_client=False,
+            mode=None,
+            api_key=api_key,
+            kwargs={},
+            provider_info={"provider": "ollama", "operation": "initialize"},
+        )
+
+    assert clients[0].kwargs["api_key"] == "ollama-secret"
+    assert clients[1].kwargs["api_key"] == "ollama"
