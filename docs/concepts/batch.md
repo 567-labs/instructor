@@ -13,8 +13,11 @@ Batch processing lets you send multiple requests in a single operation, saving u
 |----------|--------|--------------|
 | OpenAI | gpt-4o, gpt-4.1-mini, gpt-5.4-mini | 50% |
 | Anthropic | claude-3-5-sonnet, claude-3-opus, claude-3-haiku | 50% |
-| Google GenAI | gemini-2.5-flash, gemini-2.0-flash, gemini-pro | 50% |
 | Mistral | mistral-small-latest, mistral-medium-latest, mistral-large-latest | 50% |
+
+`BatchProcessor` supports OpenAI, Anthropic, and Mistral. Other providers supported
+by `instructor.from_provider`, including Google GenAI, are not available through
+`BatchProcessor`.
 
 ## Basic Usage
 
@@ -55,7 +58,7 @@ print(f"Batch job submitted: {batch_id}")
 
 # Check status and retrieve results
 status = processor.get_batch_status(batch_id)
-if status["status"] in ["completed", "ended", "JOB_STATE_SUCCEEDED"]:
+if status["status"] == "completed":
     from instructor.batch import extract_results
 
     all_results = processor.retrieve_results(batch_id)
@@ -138,20 +141,6 @@ export ANTHROPIC_API_KEY="your-anthropic-key"
 ```python
 processor = BatchProcessor("anthropic/claude-3-5-sonnet-20241022", User)
 ```
-
-### Google GenAI
-
-```bash
-export GOOGLE_CLOUD_PROJECT="your-project-id"
-export GCS_BUCKET="your-gcs-bucket-name"
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
-```
-
-```python
-processor = BatchProcessor("google/gemini-2.5-flash", User)
-```
-
-Required permissions: `roles/aiplatform.user` and `roles/storage.objectUser`.
 
 ### Mistral
 
@@ -274,8 +263,8 @@ instructor batch results --batch-id "batch_abc123" --output-file results.jsonl
 1. **Batch size**: Include at least 25,000 requests per job for optimal efficiency
 2. **Cost optimization**: Use batch processing for non-urgent workloads
 3. **Error handling**: Always check both successful and error results
-4. **Timeouts**: Batch jobs have execution limits (24 hours for Google)
-5. **Storage**: For Google, ensure GCS bucket is in the same region as your batch job
+4. **Timeouts**: Check the provider's batch completion window. OpenAI submissions
+   use a 24-hour window by default.
 
 ## Troubleshooting
 
@@ -283,8 +272,7 @@ For OpenAI request failures, `BatchError.error_type` contains the provider type 
 
 | Issue | Solution |
 |-------|----------|
-| Missing GCS_BUCKET (Google) | Set the `GCS_BUCKET` environment variable |
-| Permission Denied (Google) | Add `aiplatform.user` and `storage.objectUser` roles |
+| Unsupported provider: google | `BatchProcessor` supports only OpenAI, Anthropic, and Mistral |
 | Invalid Model Name | Use format `provider/model-name` |
 | Authentication Error | Verify API keys are set correctly |
 | Delete not supported (Mistral) | Upgrade to `mistralai>=2.0.0` |
