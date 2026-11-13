@@ -274,7 +274,9 @@ except Exception as e:
 
 ## Provider Support
 
-All providers support in-memory batch processing:
+The three `BatchProcessor` providers support in-memory batch processing: OpenAI,
+Anthropic, and Mistral. Google GenAI is supported by `instructor.from_provider`,
+but not by `BatchProcessor`.
 
 ### OpenAI
 ```python
@@ -290,9 +292,22 @@ buffer = processor.create_batch_from_messages(messages_list, file_path=None)
 batch_id = processor.submit_batch(buffer)
 ```
 
-### Google GenAI
+### Mistral
+
+Install `instructor[mistral]` and set `MISTRAL_API_KEY` before submitting a job.
+
 ```python
-processor = BatchProcessor("google/gemini-2.5-flash", User)
+from instructor.batch import BatchProcessor
+from pydantic import BaseModel
+
+
+class User(BaseModel):
+    name: str
+    age: int
+
+
+messages_list = [[{"role": "user", "content": "Extract: Alice is 28 years old."}]]
+processor = BatchProcessor("mistral/mistral-small-latest", User)
 buffer = processor.create_batch_from_messages(messages_list, file_path=None)
 batch_id = processor.submit_batch(buffer)
 ```
