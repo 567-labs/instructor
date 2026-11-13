@@ -312,6 +312,18 @@ def _build_partial_value(
             _build_partial_value(item, args[0], tracker, f"{path}[{index}]", **kwargs)
             for index, item in enumerate(value)
         ]
+    if origin is tuple and isinstance(value, list):
+        variadic = len(args) == 2 and args[1] is Ellipsis
+        return tuple(
+            _build_partial_value(
+                item,
+                args[0] if variadic else args[index] if index < len(args) else Any,
+                tracker,
+                f"{path}[{index}]",
+                **kwargs,
+            )
+            for index, item in enumerate(value)
+        )
     if (
         isinstance(origin, type)
         and issubclass(origin, Mapping)
