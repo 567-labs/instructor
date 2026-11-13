@@ -17,29 +17,39 @@ def generate_openai_schema(model: type[BaseModel]) -> dict[str, Any]:
     docstring = parse(model.__doc__ or "")
     parameters = {k: v for k, v in schema.items() if k not in ("title", "description")}
 
-    for param in docstring.params:
-        if (name := param.arg_name) in parameters["properties"] and (
-            description := param.description
-        ):
-            if "description" not in parameters["properties"][name]:
-                parameters["properties"][name]["description"] = description
+    properties = parameters.get("properties")
+    if isinstance(properties, dict):
+        for param in docstring.params:
+            if (name := param.arg_name) in properties and (
+                description := param.description
+            ):
+                field_spec = properties[name]
+                if isinstance(field_spec, dict) and "description" not in field_spec:
+                    field_spec["description"] = description
 
     # Reuse Pydantic's own required set, which excludes any field that has a
     # default -- whether that default is a plain value (``default=``) or a
     # ``default_factory=``. Deriving it from the presence of a ``"default"``
     # key in each property missed default_factory fields (whose defaults are
     # never emitted into the JSON schema) and wrongly marked them required.
-    parameters["required"] = sorted(schema.get("required", []))
+    if parameters.get("type") == "object" or isinstance(properties, dict):
+        parameters["required"] = sorted(schema.get("required", []))
+    elif "required" in schema:
+        parameters["required"] = sorted(schema.get("required", []))
+
+    model_name = getattr(model, "__name__", None) or type(model).__name__
 
     if "description" not in schema:
         schema["description"] = (
             docstring.short_description
-            or f"Correctly extracted `{model.__name__}` with all "
+            or f"Correctly extracted `{model_name}` with all "
             "the required parameters with correct types"
         )
 
+    title = schema.get("title") or model_name
+
     return {
-        "name": schema["title"],
+        "name": title,
         "description": schema["description"],
         "parameters": parameters,
     }
