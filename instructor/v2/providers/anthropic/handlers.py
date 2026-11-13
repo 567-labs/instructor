@@ -192,11 +192,20 @@ class AnthropicHandlerBase(StreamingModelState, ModeHandler):
     mode: Mode
 
     def extract_streaming_json(
-        self, completion: TypingIterable[Any]
+        self,
+        completion: TypingIterable[Any],
+        *,
+        require_complete: bool = False,
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from Anthropic streaming responses."""
+        incomplete_chunk: Any = None
         for chunk in completion:
             try:
+                if (
+                    require_complete
+                    and getattr(chunk.delta, "stop_reason", None) == "max_tokens"
+                ):
+                    incomplete_chunk = chunk
                 if self.mode in {Mode.TOOLS, Mode.PARALLEL_TOOLS}:
                     yield chunk.delta.partial_json
                 elif self.mode in {Mode.JSON, Mode.JSON_SCHEMA}:
@@ -204,13 +213,24 @@ class AnthropicHandlerBase(StreamingModelState, ModeHandler):
                         yield json_chunk
             except AttributeError:
                 continue
+        if incomplete_chunk is not None:
+            raise IncompleteOutputException(last_completion=incomplete_chunk)
 
     async def extract_streaming_json_async(
-        self, completion: AsyncGenerator[Any, None]
+        self,
+        completion: AsyncGenerator[Any, None],
+        *,
+        require_complete: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from Anthropic async streams."""
+        incomplete_chunk: Any = None
         async for chunk in completion:
             try:
+                if (
+                    require_complete
+                    and getattr(chunk.delta, "stop_reason", None) == "max_tokens"
+                ):
+                    incomplete_chunk = chunk
                 if self.mode in {Mode.TOOLS, Mode.PARALLEL_TOOLS}:
                     yield chunk.delta.partial_json
                 elif self.mode in {Mode.JSON, Mode.JSON_SCHEMA}:
@@ -218,6 +238,8 @@ class AnthropicHandlerBase(StreamingModelState, ModeHandler):
                         yield json_chunk
             except AttributeError:
                 continue
+        if incomplete_chunk is not None:
+            raise IncompleteOutputException(last_completion=incomplete_chunk)
 
     def convert_messages(
         self, messages: list[dict[str, Any]], autodetect_images: bool = False
@@ -248,6 +270,7 @@ class AnthropicHandlerBase(StreamingModelState, ModeHandler):
         single_json = self.mode == Mode.JSON and not issubclass(
             response_model, IterableBase
         )
+        require_complete = issubclass(response_model, IterableBase)
         if inspect.isasyncgen(response) or isinstance(response, AsyncIterator):
             return streaming_model.from_streaming_response_async(
                 response,
@@ -257,7 +280,9 @@ class AnthropicHandlerBase(StreamingModelState, ModeHandler):
                     )
                 )
                 if single_json
-                else self.extract_streaming_json_async,
+                else lambda events: self.extract_streaming_json_async(
+                    events, require_complete=require_complete
+                ),
                 **parse_kwargs,
             )
 
@@ -269,7 +294,9 @@ class AnthropicHandlerBase(StreamingModelState, ModeHandler):
                 )
             )
             if single_json
-            else self.extract_streaming_json,
+            else lambda events: self.extract_streaming_json(
+                events, require_complete=require_complete
+            ),
             **parse_kwargs,
         )
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):
