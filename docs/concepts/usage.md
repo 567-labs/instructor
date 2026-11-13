@@ -90,8 +90,19 @@ This accounting is not available for every SDK or API. OpenAI Responses uses a
 different usage type. For the non-streaming Responses API, Instructor now
 projects `ResponseUsage` onto the shared Chat Completions shape so that input,
 output, and total tokens accumulate across retries, with `cached_tokens` and
-`reasoning_tokens` echoed back when present. Anthropic beta Messages and other
-native provider SDKs still vary: their raw usage may be available without a
+`reasoning_tokens` echoed back when present. Ordinary Anthropic beta Messages without iteration metadata also accumulate in
+native `BetaUsage` totals, preserving beta-only nested counter fields. Beta top-level opaque
+metadata (including fallback-credit status and unknown root fields) reflects a deep
+copy of the latest response, not an arithmetic merge or complete attempt history. Inside the known counter-detail
+models, existing generic accumulation rules still apply, including to SDK extras;
+this is not a general semantic or billing guarantee for unknown nested fields.
+Budget totals use only the four documented Anthropic top-level token counters.
+Any nonempty beta `iterations` remains unsupported for cumulative retry accounting:
+compaction can report billable tokens outside the top-level counters. Such failed
+responses still raise `TokenUsageUnavailableError` when a token budget is set;
+successful responses return without `_total_usage`. Iteration payloads remain
+untouched. Mixed stable/beta usage within one retry sequence is also unsupported.
+Other native provider SDKs still vary: raw usage may be available without a
 cumulative `_total_usage`.
 Missing optional usage fields are not evidence of zero consumption; current
 accumulation can fill some absent fields with zero or carry forward a known

@@ -150,6 +150,14 @@ def serialize_message_content(content: Any) -> Any:
     return content
 
 
+def _is_anthropic_message(response: Any) -> bool:
+    """Accept both native message classes without discarding beta-only data."""
+    from anthropic.types import Message
+    from anthropic.types.beta import BetaMessage
+
+    return isinstance(response, (Message, BetaMessage))
+
+
 def _anthropic_supports_output_format() -> bool:
     """Detect if the installed anthropic SDK supports output_format parameter."""
 
@@ -497,9 +505,7 @@ class AnthropicToolsHandler(AnthropicHandlerBase):
         validation_context: dict[str, Any] | None,
         strict: bool | None,
     ) -> Any:
-        from anthropic.types import Message
-
-        if isinstance(response, Message) and response.stop_reason == "max_tokens":
+        if _is_anthropic_message(response) and response.stop_reason == "max_tokens":
             raise IncompleteOutputException(last_completion=response)
 
         origin = get_origin(response_model)
@@ -594,6 +600,9 @@ class AnthropicParallelToolsHandler(AnthropicHandlerBase):
         strict: bool | None,
     ) -> Any:
         """Validate every parallel tool call before returning an iterator."""
+        if _is_anthropic_message(response) and response.stop_reason == "max_tokens":
+            raise IncompleteOutputException(last_completion=response)
+
         return AnthropicParallelModel(response_model).from_response(
             response, self.mode, validation_context, strict
         )
@@ -688,7 +697,6 @@ class AnthropicJSONHandler(AnthropicHandlerBase):
         validation_context: dict[str, Any] | None,
         strict: bool | None,
     ) -> BaseModel:
-        from anthropic.types import Message
         from instructor.v2.core.errors import ResponseParsingError
 
         if hasattr(response, "choices"):
@@ -697,7 +705,7 @@ class AnthropicJSONHandler(AnthropicHandlerBase):
                 raise IncompleteOutputException(last_completion=completion)
             text = completion.message.content
         else:
-            if not isinstance(response, Message):
+            if not _is_anthropic_message(response):
                 raise ResponseParsingError(
                     "Response must be an Anthropic Message",
                     mode="JSON",
@@ -861,10 +869,9 @@ class AnthropicStructuredOutputsHandler(AnthropicHandlerBase):
         validation_context: dict[str, Any] | None,
         strict: bool | None,
     ) -> BaseModel:
-        from anthropic.types import Message
         from instructor.v2.core.errors import ResponseParsingError
 
-        if not isinstance(response, Message):
+        if not _is_anthropic_message(response):
             raise ResponseParsingError(
                 "Response must be an Anthropic Message",
                 mode="JSON_SCHEMA",

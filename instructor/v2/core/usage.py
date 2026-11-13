@@ -25,6 +25,23 @@ def _usage_snapshot(total_usage: Any) -> Any:
 
 def _usage_total_tokens(total_usage: Any) -> int | None:
     direct_total = getattr(total_usage, "total_tokens", None)
+    from openai.types import CompletionUsage as _OpenAIUsage
+
+    if (
+        isinstance(total_usage, _OpenAIUsage)
+        and isinstance(direct_total, Real)
+        and not isinstance(direct_total, bool)
+    ):
+        return int(direct_total)
+    try:
+        from anthropic.types.beta import BetaUsage
+
+        if isinstance(total_usage, BetaUsage):
+            # BetaUsage has no documented total_tokens field. Preserve an extra
+            # with that name as metadata, not as an authoritative retry budget.
+            direct_total = None
+    except ImportError:
+        pass
     if isinstance(direct_total, Real) and not isinstance(direct_total, bool):
         return int(direct_total)
 
@@ -66,8 +83,15 @@ def _zero_numeric_fields(model: BaseModel) -> BaseModel:
     return model
 
 
-def _accumulate_models(response: BaseModel, total: BaseModel) -> None:
+def _accumulate_models(
+    response: BaseModel,
+    total: BaseModel,
+    *,
+    exclude_fields: frozenset[str] = frozenset(),
+) -> None:
     for field_name in _all_field_names(response, total):
+        if field_name in exclude_fields:
+            continue
         response_value = getattr(response, field_name, None)
         total_value = getattr(total, field_name, None)
         if isinstance(response_value, BaseModel):
@@ -123,6 +147,16 @@ def _response_usage_as_completion(response_usage: Any) -> Any:
     )
 
 
+def _prepare_usage_accumulator(response: object, total_usage: Any) -> Any:
+    """Preserve native beta usage fields before accounting for a retry response."""
+    try:
+        from instructor.v2.providers.anthropic.usage import prepare_usage_accumulator
+
+        return prepare_usage_accumulator(getattr(response, "usage", None), total_usage)
+    except ImportError:
+        return total_usage
+
+
 def has_compatible_usage(response: object, total_usage: object) -> bool:
     """Return whether a response exposes usage supported by the accumulator."""
     response_usage = getattr(response, "usage", None)
@@ -147,11 +181,11 @@ def has_compatible_usage(response: object, total_usage: object) -> bool:
         pass
 
     try:
-        from anthropic.types import Usage as _AnthropicUsage
-
-        return isinstance(response_usage, _AnthropicUsage) and isinstance(
-            total_usage, _AnthropicUsage
+        from instructor.v2.providers.anthropic.usage import (
+            has_compatible_usage as anthropic_compatible,
         )
+
+        return anthropic_compatible(response_usage, total_usage)
     except ImportError:
         return False
 

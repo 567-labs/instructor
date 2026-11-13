@@ -38,6 +38,7 @@ from instructor.v2.dsl.response_list import ListResponse
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.core.messages import extract_messages, isolate_retry_kwargs
 from instructor.v2.core.usage import (
+    _prepare_usage_accumulator,
     _usage_snapshot as _usage_snapshot,
     _usage_total_tokens as _usage_total_tokens,
     has_compatible_usage,
@@ -249,6 +250,8 @@ def retry_sync_v2(
                 if hooks:
                     hooks.emit_completion_response(response)
 
+                if provider == Provider.ANTHROPIC:
+                    total_usage = _prepare_usage_accumulator(response, total_usage)
                 usage_available = has_compatible_usage(response, total_usage)
                 usage_complete = usage_complete and usage_available
                 update_total_usage(response=response, total_usage=total_usage)
@@ -553,6 +556,8 @@ async def retry_async_v2(
                 if hooks:
                     hooks.emit_completion_response(response)
 
+                if provider == Provider.ANTHROPIC:
+                    total_usage = _prepare_usage_accumulator(response, total_usage)
                 usage_available = has_compatible_usage(response, total_usage)
                 usage_complete = usage_complete and usage_available
                 update_total_usage(response=response, total_usage=total_usage)

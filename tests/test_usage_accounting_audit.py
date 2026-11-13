@@ -147,23 +147,6 @@ def test_known_limitation_batch_success_drops_per_item_usage() -> None:
     assert not hasattr(result.result, "_raw_response")
 
 
-def test_known_limitation_anthropic_beta_usage_is_not_recognized() -> None:
-    beta = pytest.importorskip("anthropic.types.beta")
-    response = beta.BetaMessage.model_validate(
-        {
-            "id": "audit",
-            "type": "message",
-            "role": "assistant",
-            "content": [],
-            "model": "audit",
-            "stop_reason": "end_turn",
-            "stop_sequence": None,
-            "usage": {"input_tokens": 10, "output_tokens": 5},
-        }
-    )
-    assert not has_compatible_usage(response, _initialize_usage(Provider.ANTHROPIC))
-
-
 def test_known_limitation_local_cache_replays_historical_raw_usage_without_total() -> (
     None
 ):

@@ -266,3 +266,207 @@ def test_absent_responses_sdk_leaves_unknown_usage_unchanged(monkeypatch):
     assert not has_compatible_usage(response, total)
     assert update_total_usage(response, total) is response
     assert total.total_tokens == 3
+
+
+def _beta_message(**extra: Any) -> Any:
+    beta = pytest.importorskip("anthropic.types.beta")
+    return beta.BetaMessage.model_validate(
+        {
+            "id": "beta-usage",
+            "type": "message",
+            "role": "assistant",
+            "model": "audit",
+            "content": [],
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "cache_creation_input_tokens": 2,
+                "cache_read_input_tokens": 3,
+                "cache_creation": {
+                    "ephemeral_1h_input_tokens": 0,
+                    "ephemeral_5m_input_tokens": 2,
+                },
+                "server_tool_use": {"web_search_requests": 1, "web_fetch_requests": 2},
+                "output_tokens_details": {"thinking_tokens": 2},
+                **extra,
+            },
+        }
+    )
+
+
+def test_native_beta_usage_accumulates_without_losing_serialized_details() -> None:
+    from instructor.v2.core.usage import _prepare_usage_accumulator
+
+    first = _beta_message(
+        audit_metadata={"keep": "first"}, audit_number=7, total_tokens=999
+    )
+    second = _beta_message(
+        audit_metadata={"keep": "last"}, audit_number=9, total_tokens=1000
+    )
+    original = _initialize_usage(Provider.ANTHROPIC)
+    total = _prepare_usage_accumulator(first, original)
+    assert type(total) is type(first.usage)
+    assert original.input_tokens == 0
+    assert has_compatible_usage(first, total)
+    update_total_usage(first, total)
+    snapshot = _usage_snapshot(total)
+    update_total_usage(second, total)
+    assert total.input_tokens == 20
+    assert total.output_tokens == 10
+    assert _usage_total_tokens(total) == 40
+    dumped = total.model_dump()
+    assert dumped["server_tool_use"] == {
+        "web_search_requests": 2,
+        "web_fetch_requests": 4,
+    }
+    assert dumped["cache_creation"]["ephemeral_5m_input_tokens"] == 4
+    assert dumped["output_tokens_details"]["thinking_tokens"] == 4
+    assert dumped["audit_metadata"] == {"keep": "last"}
+    assert dumped["audit_number"] == 9
+    assert dumped["total_tokens"] == 1000
+    assert second.usage.model_dump() == dumped
+    type(total).model_validate(dumped)
+    second.usage.audit_metadata["keep"] = "changed"
+    assert total.audit_metadata == {"keep": "last"}
+    assert snapshot.input_tokens == 10
+    assert snapshot.audit_metadata == {"keep": "first"}
+
+
+@pytest.mark.parametrize("last", ["redeemed", "not_applied", None])
+def test_beta_fallback_credit_keeps_latest_native_variant(last: str | None) -> None:
+    from instructor.v2.core.usage import _prepare_usage_accumulator
+
+    beta = pytest.importorskip("anthropic.types.beta")
+    if "fallback_credit" not in beta.BetaUsage.model_fields:
+        pytest.skip("SDK predates native fallback credit metadata")
+    first_status = (
+        {"type": "redeemed"}
+        if last == "not_applied"
+        else {"type": "not_applied", "reason": "expired"}
+    )
+    first = _beta_message(fallback_credit={"status": first_status})
+    value = (
+        None
+        if last is None
+        else {
+            "status": {
+                "type": last,
+                **({"reason": "expired"} if last == "not_applied" else {}),
+            }
+        }
+    )
+    second = _beta_message(fallback_credit=value)
+    expected = second.usage.model_dump()["fallback_credit"]
+    total = _prepare_usage_accumulator(first, _initialize_usage(Provider.ANTHROPIC))
+    update_total_usage(first, total)
+    update_total_usage(second, total)
+    assert total.model_dump()["fallback_credit"] == expected
+    assert second.usage.model_dump()["fallback_credit"] == expected
+    beta.BetaUsage.model_validate(total.model_dump())
+    if last is not None:
+        assert total.fallback_credit is not second.usage.fallback_credit
+        status = second.usage.fallback_credit.status
+        type(status).model_validate(status.model_dump())
+
+
+def test_iterative_beta_usage_remains_unavailable_and_unmodified() -> None:
+    from instructor.v2.core.usage import _prepare_usage_accumulator
+
+    response = _beta_message(
+        iterations=[
+            {
+                "type": "compaction",
+                "input_tokens": 40,
+                "output_tokens": 5,
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+            }
+        ],
+        input_tokens=0,
+        output_tokens=0,
+    )
+    before = response.usage.model_dump()
+    total = _prepare_usage_accumulator(response, _initialize_usage(Provider.ANTHROPIC))
+    assert not has_compatible_usage(response, total)
+    update_total_usage(response, total)
+    assert response.usage.model_dump() == before
+    assert total.input_tokens == 0
+    assert total.output_tokens == 0
+
+
+def test_mixed_nonzero_stable_to_beta_usage_is_not_silently_promoted() -> None:
+    from instructor.v2.core.usage import _prepare_usage_accumulator
+
+    total = _initialize_usage(Provider.ANTHROPIC)
+    total.input_tokens = 10
+    response = _beta_message()
+    assert _prepare_usage_accumulator(response, total) is total
+    assert not has_compatible_usage(response, total)
+    update_total_usage(response, total)
+    assert total.input_tokens == 10
+
+
+def test_beta_first_response_details_and_unknown_metadata_are_isolated() -> None:
+    from instructor.v2.core.usage import _prepare_usage_accumulator
+
+    response = _beta_message(
+        audit_list=[{"counter": 7}],
+        audit_number=8,
+        server_tool_use={
+            "web_search_requests": 1,
+            "web_fetch_requests": 2,
+            "audit_details": {"counter": 7},
+        },
+    )
+    total = _prepare_usage_accumulator(response, _initialize_usage(Provider.ANTHROPIC))
+    update_total_usage(response, total)
+    expected = total.model_dump()
+    response.usage.audit_list[0]["counter"] = 99
+    response.usage.server_tool_use.audit_details["counter"] = 99
+    details = response.usage.output_tokens_details
+    if isinstance(details, dict):
+        details["thinking_tokens"] = 99
+    else:
+        details.thinking_tokens = 99
+    assert total.model_dump() == expected
+    next_response = _beta_message(
+        audit_list=[{"counter": 1}],
+        audit_number=3,
+        server_tool_use={
+            "web_search_requests": 1,
+            "web_fetch_requests": 2,
+            "audit_details": {"counter": 1},
+        },
+    )
+    update_total_usage(next_response, total)
+    assert total.audit_number == 3
+    assert total.audit_list == [{"counter": 1}]
+    next_response.usage.audit_list[0]["counter"] = 22
+    next_response.usage.server_tool_use.audit_details["counter"] = 22
+    assert total.server_tool_use.audit_details == {"counter": 1}
+    assert total.audit_list == [{"counter": 1}]
+
+
+@pytest.mark.parametrize("key", ["_trace", "schema", "note"])
+def test_beta_opaque_extras_preserve_mapping_names_and_absence(key: str) -> None:
+    from instructor.v2.core.usage import _prepare_usage_accumulator
+
+    first = _beta_message(**{key: {"value": 7}})
+    total = _prepare_usage_accumulator(first, _initialize_usage(Provider.ANTHROPIC))
+    update_total_usage(first, total)
+    assert total.model_extra[key] == {"value": 7}
+    assert total.model_dump()[key] == {"value": 7}
+    first.usage.model_extra[key]["value"] = 99
+    assert total.model_extra[key] == {"value": 7}
+    second = _beta_message(**{key: {"value": 9}})
+    update_total_usage(second, total)
+    assert total.model_dump()[key] == {"value": 9}
+    second.usage.model_extra[key]["value"] = 100
+    assert total.model_extra[key] == {"value": 9}
+    snapshot = _usage_snapshot(total)
+    update_total_usage(_beta_message(), total)
+    assert key not in total.model_extra
+    assert key not in total.model_dump()
+    assert snapshot.model_extra[key] == {"value": 9}
