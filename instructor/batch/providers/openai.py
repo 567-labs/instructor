@@ -47,7 +47,7 @@ class OpenAIProvider(BatchProvider):
                 logger.debug("Creating batch file from BytesIO buffer")
                 file_path_or_buffer.seek(0)
                 batch_file = client.files.create(
-                    file=file_path_or_buffer, purpose="batch"
+                    file=("batch.jsonl", file_path_or_buffer), purpose="batch"
                 )
 
             batch_job = client.batches.create(

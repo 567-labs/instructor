@@ -10,6 +10,7 @@ from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import Mock
 
 import openai
 import pytest
@@ -70,6 +71,8 @@ class FilesAPI:
     def create(self, *, file: Any, purpose: str) -> SimpleNamespace:
         if self.create_error:
             raise self.create_error
+        if isinstance(file, tuple):
+            _, file = file
         self.uploads.append((file.read(), purpose))
         return SimpleNamespace(id="file_input")
 
@@ -213,6 +216,28 @@ def test_submit_batch_rewinds_buffer_and_passes_custom_options(
             "metadata": {"source": "daily-import"},
         }
     ]
+
+
+@pytest.mark.parametrize("buffer_name", [None, "caller-data.txt"])
+def test_submit_batch_uploads_buffer_with_jsonl_filename(
+    monkeypatch: pytest.MonkeyPatch, buffer_name: str | None
+) -> None:
+    payload = b'{"custom_id": "three"}\n'
+    buffer = io.BytesIO(payload)
+    if buffer_name is not None:
+        setattr(buffer, "name", buffer_name)  # noqa: B010
+    buffer.seek(5)
+    client = OpenAIClient()
+    upload = Mock(wraps=client.files.create)
+    monkeypatch.setattr(client.files, "create", upload)
+    provider = install_client(monkeypatch, client)
+
+    assert provider.submit_batch(buffer) == "batch_created"
+
+    upload.assert_called_once_with(file=("batch.jsonl", buffer), purpose="batch")
+    assert client.files.uploads == [(payload, "batch")]
+    assert not buffer.closed
+    assert getattr(buffer, "name", None) == buffer_name
 
 
 def test_submit_batch_rejects_invalid_input_without_credentials(
