@@ -538,3 +538,70 @@ def test_interrupted_download_preserves_existing_file(monkeypatch, tmp_path):
         AnthropicProvider().download_results("batch_123", str(path))
     assert path.read_text(encoding="utf-8") == "previous result"
     assert list(tmp_path.iterdir()) == [path]
+
+
+class FailingResults(RecordingBatches):
+    """Yield one record, then fail like a dropped results stream."""
+
+    def results(self, batch_id):
+        self.result_ids.append(batch_id)
+
+        def stream():
+            yield make_result("one", '{"name": "Ada"}')
+            raise ConnectionError("stream dropped")
+
+        return stream()
+
+
+@pytest.mark.parametrize("command", ["download_file", "results"])
+def test_cli_anthropic_export_keeps_existing_file_on_stream_failure(
+    monkeypatch, tmp_path, command
+):
+    from instructor.cli import batch as batch_cli
+
+    install_client(monkeypatch, FailingResults())
+    destination = tmp_path / "results.jsonl"
+    destination.write_text("previous\n", encoding="utf-8")
+
+    if command == "download_file":
+        batch_cli.download_file(
+            batch_id="batch_123",
+            download_file_path=str(destination),
+            provider="anthropic",
+        )
+    else:
+        batch_cli.results(
+            batch_id="batch_123",
+            output_file=str(destination),
+            model="anthropic/claude-sonnet-4-5",
+        )
+
+    assert destination.read_text(encoding="utf-8") == "previous\n"
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+@pytest.mark.parametrize("command", ["download_file", "results"])
+def test_cli_anthropic_export_writes_every_result(monkeypatch, tmp_path, command):
+    from instructor.cli import batch as batch_cli
+
+    install_client(
+        monkeypatch,
+        RecordingBatches(results=[make_result("one", "a"), make_result("two", "b")]),
+    )
+    destination = tmp_path / "results.jsonl"
+
+    if command == "download_file":
+        batch_cli.download_file(
+            batch_id="batch_123",
+            download_file_path=str(destination),
+            provider="anthropic",
+        )
+    else:
+        batch_cli.results(
+            batch_id="batch_123",
+            output_file=str(destination),
+            model="anthropic/claude-sonnet-4-5",
+        )
+
+    lines = destination.read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line)["custom_id"] for line in lines] == ["one", "two"]
