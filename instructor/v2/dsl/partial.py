@@ -277,14 +277,14 @@ def _build_partial_object(
     # Set missing fields to None or empty nested models
     for field_name, field_info in missing:
         field_type = field_info.annotation
-        if isinstance(field_type, type) and issubclass(field_type, BaseModel):
+        if not field_info.is_required():
+            result[field_name] = _get_partial_default(field_info)
+        elif isinstance(field_type, type) and issubclass(field_type, BaseModel):
             result[field_name] = _build_partial_object(
                 {}, field_type, tracker, "", **kwargs
             )
-        elif field_info.is_required():
-            result[field_name] = None
         else:
-            result[field_name] = _get_partial_default(field_info)
+            result[field_name] = None
 
     instance = model.model_construct(**result)
     # model_construct also considers aliases. Keep the values already resolved

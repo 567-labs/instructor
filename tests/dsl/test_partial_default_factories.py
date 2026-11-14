@@ -224,3 +224,91 @@ async def test_aliased_mapping_children_wait_for_validated_data(
     assert values[1].entries["b"][0].label is None
     assert [values[-1].entries[k][0].label for k in ("a", "b")] == ["AB", "CD"]
     assert set(calls) == {"ab", "cd"}
+
+
+@pytest.mark.parametrize(
+    "kind", ["value", "factory", pytest.param("dependent", marks=requires_data_factory)]
+)
+async def test_missing_nested_model_preserves_default(
+    asynchronous: bool, kind: str
+) -> None:
+    class Child(BaseModel):
+        value: int
+
+    if kind == "value":
+        default = Field(default=Child(value=7))
+    elif kind == "factory":
+        default = Field(default_factory=lambda: Child(value=7))
+    else:
+        default = Field(default_factory=lambda data: Child(value=data["number"]))
+
+    class Parent(BaseModel):
+        number: int
+        child: Child = default
+        note: str
+
+    chunks = ['{"number":7,"note":"par', 'tial"}']
+    outputs = [obj async for obj in stream(Parent, chunks, asynchronous)]
+    if kind == "dependent":
+        assert outputs[0].child is None
+    else:
+        assert outputs[0].child == Child(value=7)
+    assert outputs[-1] == Parent.model_validate_json("".join(chunks))
+
+
+async def test_nested_default_is_copied_between_snapshots(asynchronous: bool) -> None:
+    class Child(BaseModel):
+        values: list[int]
+
+    class Parent(BaseModel):
+        child: Child = Child(values=[7])
+        note: str
+
+    outputs = [
+        obj async for obj in stream(Parent, ['{"note":"a', "b", 'c"}'], asynchronous)
+    ]
+    assert outputs[0].child.values == [7]
+    outputs[0].child.values.append(9)
+    assert outputs[1].child.values == [7]
+    assert Parent.model_fields["child"].default.values == [7]
+
+
+async def test_streamed_nested_value_overrides_default(asynchronous: bool) -> None:
+    class Child(BaseModel):
+        value: int
+
+    class Parent(BaseModel):
+        child: Child = Child(value=7)
+        required_child: Child
+        note: str
+
+    chunks = ['{"child":{"value":3},"note":"a', '","required_child":{"value":4}}']
+    outputs = [obj async for obj in stream(Parent, chunks, asynchronous)]
+    assert outputs[0].child == Child(value=3)
+    assert outputs[0].required_child.value is None
+    assert outputs[-1] == Parent.model_validate_json("".join(chunks))
+
+
+async def test_explicit_null_overrides_nested_default(asynchronous: bool) -> None:
+    class Child(BaseModel):
+        value: int
+
+    class Parent(BaseModel):
+        child: Child | None = Child(value=7)
+        note: str
+
+    chunks = ['{"child":null,"note":"a', 'b"}']
+    outputs = [obj async for obj in stream(Parent, chunks, asynchronous)]
+    assert all(obj.child is None for obj in outputs)
+    assert outputs[-1] == Parent.model_validate_json("".join(chunks))
+
+
+async def test_recursive_optional_default_remains_none(asynchronous: bool) -> None:
+    class Node(BaseModel):
+        name: str
+        child: Node | None = None
+
+    chunks = ['{"name":"a', 'b"}']
+    outputs = [obj async for obj in stream(Node, chunks, asynchronous)]
+    assert all(obj.child is None for obj in outputs)
+    assert outputs[-1] == Node.model_validate_json("".join(chunks))
