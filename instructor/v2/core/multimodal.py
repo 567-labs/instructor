@@ -31,6 +31,9 @@ from instructor.v2.core.remote import (
 )
 
 mimetypes.add_type("image/webp", ".webp")
+mimetypes.add_type("audio/flac", ".flac")
+mimetypes.add_type("audio/m4a", ".m4a")
+mimetypes.add_type("audio/aac", ".aac")
 
 F = TypeVar("F", bound=Callable[..., Any])
 K = TypeVar("K", bound=Hashable)
@@ -83,6 +86,10 @@ def _normalize_audio_media_type(media_type: str | None) -> str | None:
     return {
         "audio/x-wav": "audio/wav",
         "audio/vnd.dlna.adts": "audio/aac",
+        "audio/x-flac": "audio/flac",
+        "audio/x-aac": "audio/aac",
+        "audio/mp4a-latm": "audio/m4a",
+        "audio/x-m4a": "audio/m4a",
     }.get(media_type, media_type)
 
 
