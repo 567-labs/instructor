@@ -81,6 +81,11 @@ class InstructorError(Exception):
         self.failed_attempts = failed_attempts
         super().__init__(*args, **kwargs)
 
+    def __reduce__(self) -> tuple[Any, ...]:
+        # Subclasses take required keyword-only arguments, so the default
+        # ``cls(*self.args)`` reconstruction used by pickle would fail.
+        return _restore_instructor_error, (type(self), self.args, self.__dict__)
+
     def __str__(self) -> str:
         # If no failed attempts, use the standard exception string representation
         if not self.failed_attempts:
@@ -111,6 +116,15 @@ class InstructorError(Exception):
         return template.render(
             last_exception=super().__str__(), failed_attempts=self.failed_attempts
         )
+
+
+def _restore_instructor_error(
+    cls: type[InstructorError], args: tuple[Any, ...], state: dict[str, Any]
+) -> InstructorError:
+    error = cls.__new__(cls, *args)
+    error.args = args
+    error.__dict__.update(state)
+    return error
 
 
 class FailedAttempt(NamedTuple):
