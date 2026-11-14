@@ -129,7 +129,7 @@ def create_hero(prompt: str = "Create a unique superhero") -> Hero:
     """Generate a single hero using AI"""
     try:
         return sync_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-6-luna",
             response_model=Hero,
             messages=[
                 {"role": "user", "content": prompt},
@@ -146,7 +146,7 @@ async def create_hero_async(prompt: str = "Create a unique superhero") -> Hero:
     """Generate a single hero using AI (async)"""
     try:
         return await async_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-6-luna",
             response_model=Hero,
             messages=[
                 {"role": "user", "content": prompt},
@@ -163,7 +163,7 @@ async def create_hero_team_async(team_size: int = 5) -> list[Hero]:
     """Generate multiple heroes concurrently"""
     try:
         return await async_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-6-luna",
             response_model=list[Hero],
             messages=[
                 {
@@ -192,7 +192,7 @@ def create_product(category: str) -> Product:
     """Generate a product for a specific category"""
     try:
         return sync_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-6-luna",
             response_model=Product,
             messages=[
                 {

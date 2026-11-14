@@ -69,7 +69,7 @@ def yield_clips(segments: Iterable[TranscriptSegment]) -> Iterable[YoutubeClips]
     """
 
     return client.chat.completions.create(
-        model="gpt-4-turbo-preview",
+        model="gpt-6-luna",
         stream=True,
         messages=[
             {

@@ -18,7 +18,7 @@ MaybeUser = instructor.Maybe(UserDetail)
 
 def get_user_detail(string) -> MaybeUser:  # type: ignore
     return client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=MaybeUser,
         messages=[
             {

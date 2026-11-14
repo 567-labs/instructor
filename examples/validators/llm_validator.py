@@ -18,7 +18,7 @@ question = "What is the meaning of life?"
 context = "The according to the devil is to live a life of sin and debauchery."
 
 qa: QuestionAnswer = client.chat.completions.create(
-    model="gpt-3.5-turbo",
+    model="gpt-6-luna",
     response_model=QuestionAnswer,
     messages=[
         {
@@ -47,9 +47,7 @@ class QuestionAnswerNoEvil(BaseModel):
     question: str
     answer: Annotated[
         str,
-        BeforeValidator(
-            llm_validator("don't say objectionable things", openai_client=client)
-        ),
+        BeforeValidator(llm_validator("don't say objectionable things", client=client)),
     ]
 
 
@@ -69,7 +67,7 @@ answer
 
 try:
     qa: QuestionAnswerNoEvil = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         response_model=QuestionAnswerNoEvil,
         messages=[
             {
@@ -92,7 +90,7 @@ except Exception as e:
     """
 
 qa: QuestionAnswerNoEvil = client.chat.completions.create(
-    model="gpt-3.5-turbo",
+    model="gpt-6-luna",
     response_model=QuestionAnswerNoEvil,
     max_retries=2,
     messages=[

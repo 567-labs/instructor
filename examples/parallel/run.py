@@ -22,7 +22,7 @@ client = openai.OpenAI()
 client = instructor.from_openai(client, mode=instructor.Mode.PARALLEL_TOOLS)
 
 resp = client.chat.completions.create(
-    model="gpt-4-turbo-preview",
+    model="gpt-6-luna",
     messages=[
         {"role": "system", "content": "You must always use tools"},
         {

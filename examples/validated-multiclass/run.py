@@ -44,7 +44,7 @@ async def tag_single_request(text: str, tags: list[Tag]) -> Tag:
     allowed_tags = [(tag.id, tag.name) for tag in tags]
     allowed_tags_str = ", ".join([f"`{tag}`" for tag in allowed_tags])
     return await client.chat.completions.create(
-        model="gpt-4-turbo-preview",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",

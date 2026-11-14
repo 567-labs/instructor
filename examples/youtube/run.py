@@ -43,7 +43,7 @@ def extract_chapters(transcript: str):
         chapters: list[Chapter]
 
     return client.chat.completions.create_partial(
-        model="gpt-4o",  # You can experiment with different models
+        model="gpt-6-luna",  # You can experiment with different models
         response_model=Chapters,
         messages=[
             {

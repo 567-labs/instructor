@@ -31,7 +31,7 @@ try:
     """
 
     resp = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         response_model=AnswerWithCitation,
         messages=[
             {

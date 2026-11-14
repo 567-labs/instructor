@@ -62,7 +62,7 @@ def generate_question_and_answers(state: State) -> State:
         " based on their difficulty."
     )
     response = instructor_client.chat.completions.create_iterable(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=QuestionAnswer,
         messages=[
             {"role": "system", "content": system_prompt},
