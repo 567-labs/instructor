@@ -944,7 +944,14 @@ class OpenAIJSONHandler(OpenAIHandlerBase):
         elif messages and isinstance(messages[0]["content"], str):
             messages[0]["content"] += f"\n\n{message}"
         elif messages and isinstance(messages[0]["content"], list):
-            messages[0]["content"][0]["text"] += f"\n\n{message}"
+            if (
+                messages[0]["content"]
+                and isinstance(messages[0]["content"][0], dict)
+                and "text" in messages[0]["content"][0]
+            ):
+                messages[0]["content"][0]["text"] += f"\n\n{message}"
+            else:
+                messages[0]["content"].append({"type": "text", "text": message})
         else:
             messages.insert(0, {"role": "system", "content": message})
         new_kwargs["messages"] = merge_consecutive_messages(messages)
@@ -1018,7 +1025,14 @@ class OpenAIMDJSONHandler(OpenAIHandlerBase):
         elif messages and isinstance(messages[0]["content"], str):
             messages[0]["content"] += f"\n\n{message}"
         elif messages and isinstance(messages[0]["content"], list):
-            messages[0]["content"][0]["text"] += f"\n\n{message}"
+            if (
+                messages[0]["content"]
+                and isinstance(messages[0]["content"][0], dict)
+                and "text" in messages[0]["content"][0]
+            ):
+                messages[0]["content"][0]["text"] += f"\n\n{message}"
+            else:
+                messages[0]["content"].append({"type": "text", "text": message})
         else:
             messages.insert(0, {"role": "system", "content": message})
 
