@@ -46,8 +46,8 @@ def generate_file_table(files: list[openai.types.FileObject]) -> Table:
 
 
 def get_files() -> list[openai.types.FileObject]:
-    files = _get_client().files.list()
-    files = files.data
+    # Iterating the page follows the cursor across every page.
+    files = [file for file in _get_client().files.list()]
     return sorted(files, key=lambda x: x.created_at, reverse=True)
 
 
@@ -90,9 +90,8 @@ def download(
     output: str = typer.Argument(help="Output path for the downloaded file"),
 ) -> None:
     with console.status(f"[bold green]Downloading file {file_id}...", spinner="dots"):
-        content = _get_client().files.download(file_id)
-        with open(output, "wb") as file:
-            file.write(content)
+        response = _get_client().files.content(file_id)
+        response.write_to_file(output)
         console.log(f"[bold green]File {file_id} downloaded successfully!")
 
 
@@ -107,7 +106,7 @@ def delete(file_id: str = typer.Argument(help="ID of the file to delete")) -> No
             console.log(f"[bold red]File {file_id} deleted successfully!")
         except Exception as e:
             console.log(f"[bold red]Error deleting file {file_id}: {e}")
-            return
+            raise typer.Exit(1) from e
 
 
 @app.command(

@@ -96,3 +96,115 @@ def test_failed_file_prevents_fine_tuning_job(monkeypatch, tmp_path, failed):
             str(train), "test-model", 0, None, None, None, str(validation), None
         )
     assert exc.value.exit_code == 1
+
+
+def _openai_client(handler):
+    from openai import OpenAI
+
+    from tests.openai_http import Client, MockTransport
+
+    return OpenAI(api_key="test", http_client=Client(transport=MockTransport(handler)))
+
+
+def _file_json(file_id: str, created_at: int) -> dict:
+    return {
+        "id": file_id,
+        "bytes": 1,
+        "created_at": created_at,
+        "filename": f"{file_id}.jsonl",
+        "object": "file",
+        "purpose": "fine-tune",
+        "status": "processed",
+    }
+
+
+def test_download_writes_raw_file_bytes(monkeypatch, tmp_path) -> None:
+    from instructor.cli import files
+    from tests.openai_http import Response
+
+    payload = b'{"a": 1}\n\xff\xfe binary'
+    paths = []
+
+    def handler(request):
+        paths.append(request.url.path)
+        return Response(200, content=payload)
+
+    monkeypatch.setattr(files, "client", _openai_client(handler))
+    output = tmp_path / "out.jsonl"
+
+    files.download("file-1", str(output))
+
+    assert output.read_bytes() == payload
+    assert paths == ["/v1/files/file-1/content"]
+
+
+def test_get_files_reads_every_page(monkeypatch) -> None:
+    from instructor.cli import files
+    from tests.openai_http import Response
+
+    def handler(request):
+        if request.url.params.get("after") == "file-old":
+            body = {
+                "object": "list",
+                "data": [_file_json("file-new", 3)],
+                "has_more": False,
+            }
+        else:
+            body = {
+                "object": "list",
+                "data": [_file_json("file-mid", 2), _file_json("file-old", 1)],
+                "has_more": True,
+            }
+        return Response(200, json=body)
+
+    monkeypatch.setattr(files, "client", _openai_client(handler))
+
+    assert [f.id for f in files.get_files()] == ["file-new", "file-mid", "file-old"]
+
+
+def test_delete_exits_nonzero_on_failure(monkeypatch) -> None:
+    import typer
+
+    from instructor.cli import files
+
+    def fail(_file_id):
+        raise RuntimeError("not found")
+
+    monkeypatch.setattr(
+        files, "client", SimpleNamespace(files=SimpleNamespace(delete=fail))
+    )
+
+    with pytest.raises(typer.Exit) as exc:
+        files.delete("file-1")
+    assert exc.value.exit_code == 1
+
+
+def test_delete_succeeds_without_exit(monkeypatch) -> None:
+    from instructor.cli import files
+
+    deleted = []
+    monkeypatch.setattr(
+        files, "client", SimpleNamespace(files=SimpleNamespace(delete=deleted.append))
+    )
+
+    files.delete("file-1")
+
+    assert deleted == ["file-1"]
+
+
+def test_cancel_job_exits_nonzero_on_failure(monkeypatch) -> None:
+    import typer
+
+    from instructor.cli import jobs
+
+    def fail(_job_id):
+        raise RuntimeError("already finished")
+
+    fake = SimpleNamespace(
+        fine_tuning=SimpleNamespace(jobs=SimpleNamespace(cancel=fail))
+    )
+    monkeypatch.setattr(jobs, "client", fake)
+
+    with pytest.raises(typer.Exit) as exc:
+        jobs.cancel("ftjob-1")
+    assert exc.value.exit_code == 1
