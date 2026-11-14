@@ -233,6 +233,9 @@ async def _run_on_model(
 
 def reject_async_validators(response_model: Any) -> None:
     """Fail closed: the runtime does not execute marked asynchronous validators."""
+    if response_model is None:
+        return
+
     seen: set[int] = set()
     seen_schemas: set[int] = set()
     schema_definitions: dict[str, Any] = {}
