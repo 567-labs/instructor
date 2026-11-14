@@ -41,7 +41,7 @@ class User(BaseModel):
     name: str
     age: int
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 user = client.create(
     response_model=User,
     messages=[{"role": "user", "content": "John is 25 years old"}],
@@ -85,11 +85,14 @@ Every LLM provider has its own API. Your code becomes a mess of conditionals.
 # Without Instructor: Provider-specific spaghetti
 if provider == "openai":
     response = openai.chat.completions.create(
+        model="gpt-6-luna",
+        reasoning_effort="none",
         tools=[{"type": "function", "function": {...}}]
     )
     data = json.loads(response.choices[0].message.tool_calls[0].function.arguments)
 elif provider == "anthropic":
     response = anthropic.messages.create(
+        model="claude-haiku-5-5",
         tools=[{"name": "extract", "input_schema": {...}}]
     )
     data = response.content[0].input
@@ -97,9 +100,9 @@ elif provider == "google":
     # ... different API again
 
 # With Instructor: One API for all providers
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 # or
-client = instructor.from_provider("anthropic/claude-3")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 # or
 client = instructor.from_provider("google/gemini-pro")
 
@@ -210,7 +213,7 @@ Try it in 30 seconds:
 import instructor
 from pydantic import BaseModel
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class User(BaseModel):
     name: str
