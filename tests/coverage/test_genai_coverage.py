@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import builtins
 import importlib
 import json
@@ -325,15 +326,18 @@ class MissingTextChunk:
 
 
 def test_streaming_extractors_handle_tools_text_fallback_and_bad_chunks() -> None:
-    tool_chunk = SimpleNamespace(
+    tool_chunk = types.GenerateContentResponse(
         candidates=[
-            SimpleNamespace(
-                content=SimpleNamespace(
+            types.Candidate(
+                content=types.Content(
+                    role="model",
                     parts=[
-                        SimpleNamespace(
-                            function_call=SimpleNamespace(args={"answer": 8})
+                        types.Part(
+                            function_call=types.FunctionCall(
+                                name="Answer", args={"answer": 8}
+                            )
                         )
-                    ]
+                    ],
                 )
             )
         ]
@@ -370,15 +374,18 @@ def test_streaming_extractors_handle_tools_text_fallback_and_bad_chunks() -> Non
 async def test_async_streaming_extractors_handle_tools_text_fallback_and_bad_chunks() -> (
     None
 ):
-    tool_chunk = SimpleNamespace(
+    tool_chunk = types.GenerateContentResponse(
         candidates=[
-            SimpleNamespace(
-                content=SimpleNamespace(
+            types.Candidate(
+                content=types.Content(
+                    role="model",
                     parts=[
-                        SimpleNamespace(
-                            function_call=SimpleNamespace(args={"answer": 10})
+                        types.Part(
+                            function_call=types.FunctionCall(
+                                name="Answer", args={"answer": 10}
+                            )
                         )
-                    ]
+                    ],
                 )
             )
         ]
@@ -598,7 +605,9 @@ def test_multimodal_types_reports_missing_optional_dependency(
 
 def test_multimodal_encodes_gcs_image_and_audio() -> None:
     image = SimpleNamespace(
-        source="gs://bucket/image.png", media_type="image/png", data=b"png-bytes"
+        source="gs://bucket/image.png",
+        media_type="image/png",
+        data=base64.b64encode(b"png-bytes").decode(),
     )
     audio = SimpleNamespace(
         source="recording.wav", media_type="audio/wav", data="d2F2LWJ5dGVz"
@@ -618,9 +627,10 @@ def _install_pdf_upload_client(
     *,
     active_after_poll: bool,
     pending_name: str | None = "files/pending",
+    pending_state: Any = types.FileState.PROCESSING,
 ) -> tuple[list[tuple[str, str]], list[int]]:
     pending = SimpleNamespace(
-        state=types.FileState.PROCESSING,
+        state=pending_state,
         name=pending_name,
         uri="gs://bucket/pending.pdf",
         mime_type="application/pdf",
@@ -683,6 +693,22 @@ def test_upload_new_pdf_file_stops_at_the_retry_limit(
 
     assert calls == expected_calls
     assert sleeps == expected_sleeps
+
+
+def test_upload_new_pdf_file_fails_fast_when_processing_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls, sleeps = _install_pdf_upload_client(
+        monkeypatch, active_after_poll=True, pending_state=types.FileState.FAILED
+    )
+
+    with pytest.raises(ValueError, match="processing failed"):
+        multimodal.upload_new_pdf_file(
+            SimpleNamespace, "/tmp/pending.pdf", retry_delay=3, max_retries=5
+        )
+
+    assert calls == [("upload", "/tmp/pending.pdf")]
+    assert sleeps == []
 
 
 def test_upload_new_pdf_file_recovers_on_the_last_allowed_retry(
