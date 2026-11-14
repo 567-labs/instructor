@@ -190,11 +190,10 @@ async def process_response_async(
             validation_context=validation_context,
             strict=strict,
             mode=mode,
+            provider=provider,
         )
-        return ListResponse.from_list(
-            list(model.tasks),
-            raw_response=response,
-        )
+        # Provider parsers may return the IterableBase or its finalized task list.
+        return _finalize_response(model, response_model, response)
 
     _ensure_registry_loaded()
     handlers = mode_registry.get_handlers(provider, mode)
@@ -307,11 +306,10 @@ def process_response(
             validation_context=validation_context,
             strict=strict,
             mode=mode,
+            provider=provider,
         )
-        return ListResponse.from_list(
-            list(model.tasks),
-            raw_response=response,
-        )
+        # Provider parsers may return the IterableBase or its finalized task list.
+        return _finalize_response(model, response_model, response)
 
     _ensure_registry_loaded()
     handlers = mode_registry.get_handlers(provider, mode)
