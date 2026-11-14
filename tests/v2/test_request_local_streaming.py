@@ -340,10 +340,12 @@ async def test_validation_timing_and_retry_remain_provider_owned(
     handler = handler_type()
     model = Partial[Person]
     _, chunk = payloads(handler)
-    # Partial sync parsing materializes a list and raises during parse_response.
+    # Sync and async partial validation both run during iteration.
     with pytest.raises(ValidationError):
-        handler.parse_response(
-            iter([chunk]), model, stream=True, validation_context={"reject": True}
+        list(
+            handler.parse_response(
+                iter([chunk]), model, stream=True, validation_context={"reject": True}
+            )
         )
 
     async def source():
