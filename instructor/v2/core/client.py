@@ -26,7 +26,7 @@ from tenacity import (
 from collections.abc import Generator, Iterable, Awaitable, AsyncGenerator, Coroutine
 from typing_extensions import Self, TypeVar, overload
 from pydantic_core import PydanticUndefined, PydanticUndefinedType
-from pydantic import BaseModel, create_model
+from pydantic import create_model
 from instructor.v2.dsl.partial import Partial
 from instructor.v2.core.hooks import Hooks, HookName
 
@@ -43,13 +43,15 @@ def _completion_model(
 
     if get_origin(response_model) is list or not is_simple_type(response_model):
         return response_model, False
+    from instructor.v2.core.function_calls import ResponseSchema
+
     # Keep the adapter's wire schema, but defer unwrapping until its raw
     # completion has been collected. Native values cannot carry attributes.
     return create_model(
         "Response",
         content=(response_model, ...),
         __doc__="Correctly Formatted and Extracted Response.",
-        __base__=BaseModel,
+        __base__=ResponseSchema,
     ), True
 
 
