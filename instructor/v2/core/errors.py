@@ -7,6 +7,16 @@ from typing_extensions import Self
 from jinja2 import Template
 
 
+def _restore_instructor_error(
+    cls: type[InstructorError], args: tuple[Any, ...], state: dict[str, Any]
+) -> InstructorError:
+    # Use the class's allocator to support multiple inheritance with ValueError.
+    exception = cls.__new__(cls, *args)
+    exception.args = args
+    exception.__dict__.update(state)
+    return exception
+
+
 def log_provider_initialization_error(
     logger: Logger, provider: str, error: Exception, provider_info: dict[str, Any]
 ) -> None:
@@ -80,6 +90,10 @@ class InstructorError(Exception):
     ):
         self.failed_attempts = failed_attempts
         super().__init__(*args, **kwargs)
+
+    def __reduce__(self) -> tuple[Any, tuple[Any, ...]]:
+        # Constructors may require extra arguments or reformat the message.
+        return _restore_instructor_error, (type(self), self.args, self.__dict__)
 
     def __str__(self) -> str:
         # If no failed attempts, use the standard exception string representation
