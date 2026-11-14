@@ -151,10 +151,14 @@ def process_potential_object(potential_object, partial_mode, partial_model, **kw
     json_str = potential_object.strip()
     has_json = bool(json_str)
     json_str = json_str or "{}"
-    parsed = from_json(json_str.encode(), partial_mode=partial_mode)
+    raw = json_str.encode()
+    parsed = from_json(raw, partial_mode=partial_mode)
 
     tracker = JsonCompleteness()
-    tracker.analyze(json_str)
+    if partial_mode == "trailing-strings":
+        tracker.analyze_partial(raw, parsed)
+    else:
+        tracker.analyze(json_str)
 
     # Get original model for validation
     original_model = getattr(partial_model, "_original_model", None)
@@ -185,6 +189,10 @@ def _streamed_field(
 ) -> tuple[Any, str, str] | None:
     """Find the first available input alias and its path in the raw JSON."""
     alias = info.validation_alias
+    if alias is None:
+        if name in data:
+            return data[name], f"{parent}.{name}" if parent else name, name
+        return None
     candidates = alias.choices if isinstance(alias, AliasChoices) else [alias]
     for candidate in (*candidates, name):
         if isinstance(candidate, str) and candidate in data:
@@ -253,9 +261,11 @@ def _build_partial_object(
     result: dict[str, Any] = {}
 
     consumed: set[str] = set()
+    missing = []
     for field_name, field_info in model.model_fields.items():
         match = _streamed_field(data, field_name, field_info, path)
         if match is None:
+            missing.append((field_name, field_info))
             continue
         field_value, field_path, source_key = match
         consumed.add(source_key)
@@ -265,17 +275,16 @@ def _build_partial_object(
         )
 
     # Set missing fields to None or empty nested models
-    for field_name, field_info in model.model_fields.items():
-        if field_name not in result:
-            field_type = field_info.annotation
-            if isinstance(field_type, type) and issubclass(field_type, BaseModel):
-                result[field_name] = _build_partial_object(
-                    {}, field_type, tracker, "", **kwargs
-                )
-            elif field_info.is_required():
-                result[field_name] = None
-            else:
-                result[field_name] = _get_partial_default(field_info)
+    for field_name, field_info in missing:
+        field_type = field_info.annotation
+        if isinstance(field_type, type) and issubclass(field_type, BaseModel):
+            result[field_name] = _build_partial_object(
+                {}, field_type, tracker, "", **kwargs
+            )
+        elif field_info.is_required():
+            result[field_name] = None
+        else:
+            result[field_name] = _get_partial_default(field_info)
 
     instance = model.model_construct(**result)
     # model_construct also considers aliases. Keep the values already resolved
@@ -480,9 +489,14 @@ class PartialBase(Generic[T_Model]):
     ) -> Generator[T_Model, None, None]:
         if stream_extractor is None:
             raise ValueError("stream_extractor is required for streaming responses")
-        json_chunks = stream_extractor(completion)
-        parser = chunk_parser or cls.model_from_chunks
-        yield from parser(json_chunks, **kwargs)
+        try:
+            json_chunks = stream_extractor(completion)
+            parser = chunk_parser or cls.model_from_chunks
+            yield from parser(json_chunks, **kwargs)
+        finally:
+            close = getattr(completion, "close", None)
+            if callable(close):
+                close()
 
     @classmethod
     async def from_streaming_response_async(

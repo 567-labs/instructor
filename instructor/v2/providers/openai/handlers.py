@@ -34,6 +34,7 @@ from instructor.v2.core.errors import (
     ResponseParsingError,
 )
 from instructor.v2.dsl.iterable import IterableBase, _ToolCallStart
+from instructor.v2.dsl.partial import PartialBase
 from instructor.v2.dsl.parallel import (
     ParallelBase as ParallelBase,
     ParallelModel,
@@ -647,7 +648,9 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
             stream_extractor=partial(self.extract_streaming_json, **extractor_options),
             **streaming_kwargs,
         )
-        if inspect.isclass(response_model) and issubclass(response_model, IterableBase):
+        if inspect.isclass(response_model) and issubclass(
+            response_model, (IterableBase, PartialBase)
+        ):
             return generator
         return list(generator)
 

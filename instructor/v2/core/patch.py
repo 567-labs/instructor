@@ -238,7 +238,6 @@ def _create_sync_wrapper(
         **kwargs: Any,
     ) -> T_Model:
         """Patched synchronous create function."""
-        reject_async_validators(response_model)
         _validate_token_budget(
             token_budget,
             response_model=response_model,
@@ -270,6 +269,8 @@ def _create_sync_wrapper(
         requested_model = response_model
         if response_model is not None and mode not in Mode.parallel_modes():
             response_model = prepare_response_model(response_model)
+        else:
+            reject_async_validators(response_model)
 
         # Prepare request kwargs using registry handler
         prepared_model, new_kwargs = handlers.request_handler(
@@ -366,7 +367,6 @@ def _create_async_wrapper(
         **kwargs: Any,
     ) -> T_Model:
         """Patched asynchronous create function."""
-        reject_async_validators(response_model)
         _validate_token_budget(
             token_budget,
             response_model=response_model,
@@ -398,6 +398,8 @@ def _create_async_wrapper(
         requested_model = response_model
         if response_model is not None and mode not in Mode.parallel_modes():
             response_model = prepare_response_model(response_model)
+        else:
+            reject_async_validators(response_model)
 
         # Prepare request kwargs using registry handler
         prepared_model, new_kwargs = handlers.request_handler(
