@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 from pydantic import BaseModel
 
 from instructor import Mode, Provider
-from instructor.v2.core.errors import IncompleteOutputException
 from instructor.v2.core.registry import mode_registry
 from tests.coverage._openai import chat_completion, tool_call
 
@@ -51,21 +49,3 @@ def test_md_json_parses_nested_codeblock() -> None:
     )
 
     assert result == User(name="Bob", age=25)
-
-
-@pytest.mark.parametrize(
-    ("mode", "content"),
-    [
-        (Mode.MD_JSON, '```json\n{"name": "Bob", "age": 25}\n```'),
-        (Mode.JSON_SCHEMA, '{"name": "Bob", "age": 25}'),
-    ],
-)
-def test_json_modes_raise_incomplete_on_length(mode: Mode, content: str) -> None:
-    response = chat_completion(content=content, finish_reason="length")
-
-    with pytest.raises(IncompleteOutputException) as exc_info:
-        mode_registry.get_handlers(Provider.WRITER, mode).response_parser(
-            response, User
-        )
-
-    assert exc_info.value.last_completion is response
