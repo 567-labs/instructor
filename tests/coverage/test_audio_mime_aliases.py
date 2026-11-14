@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import io
+import mimetypes
 import wave
 from pathlib import Path
 
@@ -93,3 +94,74 @@ def test_audio_path_with_unknown_media_type(tmp_path: Path, wav_bytes: bytes) ->
     path.write_bytes(wav_bytes)
     with pytest.raises(ValueError, match="Unsupported audio format"):
         Audio.from_path(path)
+
+
+@pytest.mark.parametrize(
+    "filename, media_type",
+    [
+        ("song.flac", "audio/flac"),
+        ("clip.m4a", "audio/m4a"),
+        ("clip.aac", "audio/aac"),
+    ],
+)
+def test_audio_path_uses_canonical_media_type(
+    filename: str, media_type: str, tmp_path: Path
+) -> None:
+    path = tmp_path / filename
+    path.write_bytes(b"\x00")
+
+    assert mimetypes.guess_type(str(path))[0] == media_type
+    audio = Audio.from_path(path)
+    assert audio.media_type == media_type
+    assert audio.data == "AA=="
+    assert Audio.autodetect(path) == audio
+    assert autodetect_media(str(path)) == audio
+
+
+@pytest.mark.parametrize(
+    "alias, media_type",
+    [
+        ("audio/x-flac", "audio/flac"),
+        ("audio/mp4a-latm", "audio/m4a"),
+        ("audio/x-aac", "audio/aac"),
+        ("audio/x-m4a", "audio/m4a"),
+    ],
+)
+def test_audio_alias_data_uri_is_detected_and_normalized(
+    alias: str, media_type: str
+) -> None:
+    source = f"data:{alias};base64,AA=="
+
+    assert Audio.is_base64(source)
+    audio = Audio.from_base64(source)
+    assert audio.media_type == media_type
+    assert audio.data == "AA=="
+    assert audio.source == source
+    assert Audio.autodetect(source) == audio
+    assert autodetect_media(source) == audio
+
+
+@pytest.mark.parametrize(
+    "filename, alias, media_type",
+    [
+        ("song.flac", "audio/x-flac", "audio/flac"),
+        ("clip.m4a", "audio/mp4a-latm", "audio/m4a"),
+        ("clip.aac", "audio/x-aac", "audio/aac"),
+    ],
+)
+def test_audio_path_normalizes_platform_aliases(
+    filename: str,
+    alias: str,
+    media_type: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / filename
+    path.write_bytes(b"\x00")
+    monkeypatch.setattr(
+        mimetypes, "guess_type", lambda *_args, **_kwargs: (alias, None)
+    )
+
+    audio = Audio.from_path(path)
+    assert audio.media_type == media_type
+    assert audio.data == "AA=="
