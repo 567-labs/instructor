@@ -401,26 +401,31 @@ def test_unknown_call_retries_inside_sdk_http_boundary(
 
 def xai_response(calls: list[tuple[str, Any]]) -> Any:
     pb = pytest.importorskip("xai_sdk.proto").chat_pb2
+    fields = pb.GetChatCompletionResponse.DESCRIPTOR.fields_by_name
+    if "outputs" in fields:
+        field, output_type = "outputs", pb.CompletionOutput
+    else:
+        field, output_type = "choices", pb.Choice
+    outputs = [
+        output_type(
+            index=0,
+            message=pb.CompletionMessage(
+                role=pb.ROLE_ASSISTANT,
+                tool_calls=[
+                    pb.ToolCall(
+                        id=f"call_{i}",
+                        function={
+                            "name": name,
+                            "arguments": json.dumps({"value": value}),
+                        },
+                    )
+                    for i, (name, value) in enumerate(calls)
+                ],
+            ),
+        )
+    ]
     return pb.GetChatCompletionResponse(
-        id="local_parallel",
-        model="local-model",
-        choices=[
-            pb.Choice(
-                index=0,
-                message=pb.CompletionMessage(
-                    tool_calls=[
-                        pb.ToolCall(
-                            id=f"call_{i}",
-                            function={
-                                "name": name,
-                                "arguments": json.dumps({"value": value}),
-                            },
-                        )
-                        for i, (name, value) in enumerate(calls)
-                    ]
-                ),
-            )
-        ],
+        id="local_parallel", model="local-model", **{field: outputs}
     )
 
 
