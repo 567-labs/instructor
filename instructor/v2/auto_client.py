@@ -1180,7 +1180,8 @@ def _build_ollama(
 
         # Get base_url from kwargs or use default
         base_url = kwargs.pop("base_url", "http://localhost:11434/v1")
-        api_key = kwargs.pop("api_key", "ollama")  # required but unused
+        # The OpenAI SDK requires a key; local Ollama ignores it.
+        api_key = api_key or "ollama"
 
         client = (
             openai.AsyncOpenAI(base_url=base_url, api_key=api_key)
