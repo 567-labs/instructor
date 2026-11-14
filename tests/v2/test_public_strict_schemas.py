@@ -8,6 +8,7 @@ from typing import Any
 from tests import openai_http as httpx
 import pytest
 from openai import OpenAI, AsyncOpenAI
+from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
 
 import instructor
@@ -46,6 +47,29 @@ def capture(requests: list[dict[str, Any]]):
         )
 
     return transport
+
+
+@pytest.mark.parametrize("mode", [Mode.JSON, Mode.MD_JSON])
+def test_json_modes_fill_empty_system_content(mode: Mode) -> None:
+    requests: list[dict[str, Any]] = []
+    messages: list[ChatCompletionMessageParam] = [
+        {"role": "system", "content": []},
+        {"role": "user", "content": "Return Ada's contact."},
+    ]
+    with OpenAI(
+        api_key="test",
+        http_client=httpx.Client(transport=httpx.MockTransport(capture(requests))),
+    ) as sdk:
+        client = instructor.from_openai(sdk, mode=mode)
+        result = client.create(response_model=Contact, model="test", messages=messages)
+
+    assert result.name == "Ada"
+    assert len(requests) == 1
+    system = requests[0]["messages"][0]
+    assert system["role"] == "system"
+    assert system["content"][0]["type"] == "text"
+    assert "json_schema" in system["content"][0]["text"]
+    assert messages[0]["content"] == []
 
 
 @pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.JSON_SCHEMA])
