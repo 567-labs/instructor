@@ -36,6 +36,7 @@ def is_typed_dict(cls: Any) -> bool:
 # Cache encoding explicitly requests Python field names, including synthesized
 # TypedDict fields. The empty mapping also works with ordinary serializer contexts.
 _CACHE_FIELD_NAMES_CONTEXT = MappingProxyType({})
+_PLAIN_TYPED_DICT_TYPES = (str, int, float, bool, bytes, type(None))
 
 
 class _TypedDictModel(BaseModel):
@@ -60,7 +61,9 @@ class _TypedDictModel(BaseModel):
         }
 
 
-def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
+def _typed_dict_to_model(
+    typed_dict: type[Any], *, with_response_schema: bool = False
+) -> type[BaseModel]:
     """Convert a TypedDict while preserving key requiredness and field metadata."""
     from instructor.v2.core.function_calls import ResponseSchema
 
@@ -104,9 +107,20 @@ def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
             default = Field(default=default, alias=name)
         fields[field_name] = (annotation, default)
 
+    # Only combine the class builds for plain scalars. Custom annotations can
+    # observe both schema builds, so keep the existing wrapper for those.
+    bases = (
+        (_TypedDictModel, ResponseSchema)
+        if with_response_schema
+        and all(
+            type(annotation) is type and annotation in _PLAIN_TYPED_DICT_TYPES
+            for annotation in annotations.values()
+        )
+        else _TypedDictModel
+    )
     return _create_dynamic_model(
         getattr(typed_dict, "__name__", "TypedDictModel"),
-        __base__=_TypedDictModel,
+        __base__=bases,
         **fields,
     )
 
@@ -169,7 +183,7 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
             origin = get_origin(working_model)
 
     if is_typed_dict(working_model):
-        working_model = _typed_dict_to_model(working_model)
+        working_model = _typed_dict_to_model(working_model, with_response_schema=True)
 
     origin = get_origin(working_model)
     if origin in {Iterable, list}:
