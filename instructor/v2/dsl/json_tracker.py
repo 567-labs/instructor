@@ -53,10 +53,12 @@ class JsonCompleteness:
 
     def __init__(self) -> None:
         self._complete_paths: set[str] = set()
+        self._complete_subtrees: dict[str, list[Any]] = {}
 
     def analyze(self, json_str: str) -> None:
         """Analyze a JSON string and determine completeness of each path."""
-        self._complete_paths = set()
+        self._complete_paths.clear()
+        self._complete_subtrees.clear()
 
         if not json_str or not json_str.strip():
             return
@@ -64,7 +66,7 @@ class JsonCompleteness:
         # Try strict parsing first - if it succeeds, JSON is complete
         try:
             parsed = from_json(json_str.encode())
-            self._mark_all(parsed, "")
+            self._mark_complete(parsed, "")
             return
         except ValueError:
             pass  # JSON is incomplete, continue with partial parsing
@@ -77,15 +79,16 @@ class JsonCompleteness:
 
         self._check_siblings(parsed, "")
 
-    def analyze_partial(self, raw: bytes, parsed: Any) -> None:
-        """Track a value already parsed in trailing-strings mode."""
-        self._complete_paths.clear()
-        try:
-            complete = from_json(raw)
-        except ValueError:
-            self._check_siblings(parsed, "")
-        else:
-            self._mark_all(complete, "")
+    def _mark_complete(self, data: Any, path: str) -> None:
+        self._complete_paths.add(path)
+        if isinstance(data, (dict, list)) and data:
+            # Store roots first. Most callers validate the entire completed
+            # model, so they never ask about its descendant paths.
+            self._complete_subtrees.setdefault(path, []).append(data)
+
+    def _expand(self, path: str) -> None:
+        for data in self._complete_subtrees.pop(path, ()):
+            self._mark_all(data, path)
 
     def _mark_all(self, data: Any, path: str) -> None:
         """Recursively mark path and all children as complete."""
@@ -111,7 +114,7 @@ class JsonCompleteness:
                 child_path = f"{path}.{key}" if path else str(key)
                 if i < len(keys) - 1:
                     # Has next sibling → complete
-                    self._mark_all(data[key], child_path)
+                    self._mark_complete(data[key], child_path)
                 else:
                     # Last sibling → recurse to check children
                     self._check_siblings(data[key], child_path)
@@ -121,7 +124,7 @@ class JsonCompleteness:
                 child_path = f"{path}[{i}]"
                 if i < len(data) - 1:
                     # Has next sibling → complete
-                    self._mark_all(item, child_path)
+                    self._mark_complete(item, child_path)
                 else:
                     # Last sibling → recurse
                     self._check_siblings(item, child_path)
@@ -137,10 +140,22 @@ class JsonCompleteness:
         Returns:
             True if the structure at path is complete (closed), False otherwise.
         """
+        if path in self._complete_paths:
+            return True
+        # Expand only ancestors that can produce this flattened path. An
+        # empty key shares the root path under the legacy path representation.
+        if "" in self._complete_subtrees:
+            self._expand("")
+        end = len(path)
+        while (end := max(path.rfind(".", 0, end), path.rfind("[", 0, end))) > 0:
+            if path[:end] in self._complete_subtrees:
+                self._expand(path[:end])
         return path in self._complete_paths
 
     def get_complete_paths(self) -> set[str]:
         """Return all paths that are complete."""
+        for path in list(self._complete_subtrees):
+            self._expand(path)
         return self._complete_paths.copy()
 
     def is_root_complete(self) -> bool:
