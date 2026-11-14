@@ -50,7 +50,7 @@ class SOCCode(BaseModel):
 
 def classify_job(description: str) -> SOCCode:
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         response_model=SOCCode,
         max_retries=3,
         messages=[

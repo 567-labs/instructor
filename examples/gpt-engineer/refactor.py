@@ -63,11 +63,10 @@ def refactor(new_requirements: str, program: Program) -> Diff:
     program_description = "\n".join(
         [f"{code.file_name}\n[[[\n{code.body}\n]]]\n" for code in program.files]
     )
-    completion = client.chat.completions.create(
-        model="gpt-4",
+    return client.chat.completions.create(
+        model="gpt-6-luna",
         temperature=0,
-        functions=[Diff.openai_schema],
-        function_call={"name": Diff.openai_schema["name"]},
+        response_model=Diff,
         messages=[
             {
                 "role": "system",
@@ -88,9 +87,8 @@ def refactor(new_requirements: str, program: Program) -> Diff:
                 "content": program_description,
             },
         ],
-        max_tokens=1000,
+        max_completion_tokens=1000,
     )
-    return Diff.from_response(completion)
 
 
 if __name__ == "__main__":

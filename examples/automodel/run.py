@@ -67,13 +67,11 @@ async def main():
     # Test OpenAI clients
     if os.environ.get("OPENAI_API_KEY"):
         # Sync client
-        openai_client = instructor.from_provider("openai/gpt-3.5-turbo")
+        openai_client = instructor.from_provider("openai/gpt-6-luna")
         sync_results.append(test_sync_client("OpenAI", openai_client))
 
         # Async client
-        openai_async = instructor.from_provider(
-            "openai/gpt-3.5-turbo", async_client=True
-        )
+        openai_async = instructor.from_provider("openai/gpt-6-luna", async_client=True)
         async_results.append(
             asyncio.create_task(test_async_client("OpenAI", openai_async))
         )
@@ -84,13 +82,13 @@ async def main():
     if os.environ.get("ANTHROPIC_API_KEY"):
         # Sync client
         anthropic_client = instructor.from_provider(
-            model="anthropic/claude-3-haiku-20240307", max_tokens=400
+            model="anthropic/claude-haiku-5-5", max_tokens=400
         )
         sync_results.append(test_sync_client("Anthropic", anthropic_client))
 
         # Async client
         anthropic_async = instructor.from_provider(
-            model="anthropic/claude-3-haiku-20240307", async_client=True, max_tokens=400
+            model="anthropic/claude-haiku-5-5", async_client=True, max_tokens=400
         )
         async_results.append(
             asyncio.create_task(test_async_client("Anthropic", anthropic_async))

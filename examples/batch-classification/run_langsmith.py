@@ -60,7 +60,7 @@ class QuestionClassification(BaseModel):
 async def classify(data: str):
     async with sem:  # some simple rate limiting
         return data, await client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-6-luna",
             response_model=QuestionClassification,
             max_retries=2,
             messages=[

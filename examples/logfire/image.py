@@ -55,9 +55,10 @@ class Table(BaseModel):
 @logfire.instrument("extract-table", extract_args=True)
 def extract_table_from_image(url: str) -> Iterable[Table]:
     return client.chat.completions.create(
-        model="gpt-4-vision-preview",
+        model="gpt-6-luna",
+        reasoning_effort="none",
         response_model=Iterable[Table],
-        max_tokens=1800,
+        max_completion_tokens=1800,
         messages=[
             {
                 "role": "user",

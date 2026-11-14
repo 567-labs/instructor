@@ -27,7 +27,7 @@ def test_autocache():
     print("First call (hits API)...")
     start = time.time()
     user1 = client.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=messages,
         response_model=User,
     )
@@ -39,7 +39,7 @@ def test_autocache():
     print("\nSecond call (from cache)...")
     start = time.time()
     user2 = client.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=messages,
         response_model=User,
     )
@@ -71,7 +71,7 @@ def test_create_with_completion():
     # First call
     print("First call with completion...")
     weather1, completion1 = client.create_with_completion(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=messages,
         response_model=Weather,
     )
@@ -83,7 +83,7 @@ def test_create_with_completion():
     print("\nSecond call (cached)...")
     start = time.time()
     weather2, completion2 = client.create_with_completion(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=messages,
         response_model=Weather,
     )
@@ -109,7 +109,7 @@ def test_diskcache():
 
     print("First client creates user...")
     user1 = client1.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=messages,
         response_model=User,
     )
@@ -122,7 +122,7 @@ def test_diskcache():
 
     start = time.time()
     user2 = client2.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=messages,
         response_model=User,
     )
@@ -143,7 +143,7 @@ def test_diskcache():
 
     # First call with completion
     weather1, completion1 = client1.create_with_completion(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=weather_messages,
         response_model=Weather,
     )
@@ -151,7 +151,7 @@ def test_diskcache():
 
     # Second call from different client - should get cached completion
     weather2, completion2 = client2.create_with_completion(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=weather_messages,
         response_model=Weather,
     )
@@ -179,7 +179,7 @@ def test_cache_ttl():
     # Set with 2 second TTL
     print("Setting cache with 2s TTL...")
     user1 = client.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=messages,
         response_model=User,
         cache_ttl=2,
@@ -190,7 +190,7 @@ def test_cache_ttl():
     print("\nImmediate call (cached)...")
     start = time.time()
     user2 = client.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=messages,
         response_model=User,
     )
@@ -204,7 +204,7 @@ def test_cache_ttl():
     print("After TTL (hits API)...")
     start = time.time()
     user3 = client.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=messages,
         response_model=User,
     )
@@ -227,14 +227,14 @@ def test_different_inputs():
 
     # Different prompts
     user1 = client.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=[{"role": "user", "content": "Create user David age 40"}],
         response_model=User,
     )
     print(f"User 1: {user1}")
 
     user2 = client.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=[{"role": "user", "content": "Create user Eve age 45"}],
         response_model=User,
     )
@@ -248,7 +248,7 @@ def test_different_inputs():
         name: str
 
     simple = client.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=[{"role": "user", "content": "Create user David age 40"}],
         response_model=SimpleUser,
     )
