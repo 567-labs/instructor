@@ -12,6 +12,8 @@ from typing import Any
 
 from jiter import from_json
 
+_CONTAINER_ENDS = {"{": "}", "[": "]"}
+
 
 def is_json_complete(json_str: str) -> bool:
     """
@@ -60,20 +62,28 @@ class JsonCompleteness:
         self._complete_paths.clear()
         self._complete_subtrees.clear()
 
-        if not json_str or not json_str.strip():
+        if not json_str or not (trimmed := json_str.strip()):
             return
 
-        # Try strict parsing first - if it succeeds, JSON is complete
+        # A complete container must end with its closing delimiter. Strip
+        # only for the check so jiter still decides which whitespace is valid.
         try:
-            parsed = from_json(json_str.encode())
-            self._mark_complete(parsed, "")
+            raw = json_str.encode()
+        except UnicodeEncodeError:
             return
-        except ValueError:
-            pass  # JSON is incomplete, continue with partial parsing
+        closing = _CONTAINER_ENDS.get(trimmed[0])
+        if closing is None or trimmed.endswith(closing):
+            try:
+                parsed = from_json(raw)
+            except ValueError:
+                pass
+            else:
+                self._mark_complete(parsed, "")
+                return
 
         # Root incomplete - use sibling heuristic
         try:
-            parsed = from_json(json_str.encode(), partial_mode="trailing-strings")
+            parsed = from_json(raw, partial_mode="trailing-strings")
         except ValueError:
             return
 
