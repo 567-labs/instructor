@@ -295,3 +295,69 @@ def test_openai_json_schema_mode_allows_explicit_strict_false() -> None:
     assert "strict" not in json_schema
     assert "additionalProperties" not in json_schema["schema"]
     assert json_schema["schema"]["required"] == ["name"]
+
+
+@pytest.mark.parametrize("mode", [Mode.JSON, Mode.MD_JSON])
+def test_prepare_request_handles_empty_system_content_list(mode: Mode) -> None:
+    """JSON and MD_JSON modes populate empty system content list with schema instruction."""
+    handler = _handlers(Provider.OPENAI, mode)
+    kwargs = {
+        "messages": [
+            {"role": "system", "content": []},
+            {"role": "user", "content": "What is 2+2?"},
+        ]
+    }
+    _, result = handler.request_handler(Answer, kwargs)
+    messages = result["messages"]
+    assert messages[0]["role"] == "system"
+    assert isinstance(messages[0]["content"], list)
+    assert len(messages[0]["content"]) == 1
+    assert messages[0]["content"][0]["type"] == "text"
+    assert "json_schema" in messages[0]["content"][0]["text"]
+
+
+@pytest.mark.parametrize("mode", [Mode.JSON, Mode.MD_JSON])
+def test_prepare_request_appends_to_system_content_list_with_text(mode: Mode) -> None:
+    """JSON and MD_JSON modes append to existing text block in system content list."""
+    handler = _handlers(Provider.OPENAI, mode)
+    kwargs = {
+        "messages": [
+            {
+                "role": "system",
+                "content": [{"type": "text", "text": "Base instructions."}],
+            },
+            {"role": "user", "content": "What is 2+2?"},
+        ]
+    }
+    _, result = handler.request_handler(Answer, kwargs)
+    messages = result["messages"]
+    assert messages[0]["role"] == "system"
+    assert isinstance(messages[0]["content"], list)
+    assert "Base instructions." in messages[0]["content"][0]["text"]
+    assert "json_schema" in messages[0]["content"][0]["text"]
+
+
+@pytest.mark.parametrize(
+    ("provider", "mode"),
+    [
+        (Provider.WRITER, Mode.MD_JSON),
+        (Provider.MISTRAL, Mode.MD_JSON),
+        (Provider.XAI, Mode.MD_JSON),
+    ],
+)
+def test_other_providers_handle_empty_system_content_list(
+    provider: Provider, mode: Mode
+) -> None:
+    handler = _handlers(provider, mode)
+    kwargs = {
+        "messages": [
+            {"role": "system", "content": []},
+            {"role": "user", "content": "What is 2+2?"},
+        ]
+    }
+    _, result = handler.request_handler(Answer, kwargs)
+    messages = result["messages"]
+    assert messages[0]["role"] == "system"
+    assert isinstance(messages[0]["content"], list)
+    assert len(messages[0]["content"]) == 1
+    assert "json_schema" in messages[0]["content"][0]["text"]
