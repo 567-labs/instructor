@@ -8,8 +8,6 @@ import json
 import warnings
 from instructor.batch import BatchProcessor, BatchJobInfo
 
-from tqdm import tqdm
-
 app = typer.Typer()
 
 console = Console()
@@ -286,7 +284,7 @@ def create_from_file(
             "description": description,
         }
 
-        with console.status(f"[bold green]Submitting batch job...", spinner="dots"):
+        with console.status("[bold green]Submitting batch job...", spinner="dots"):
             batch_id = processor.submit_batch(
                 file_path, metadata=metadata, completion_window=completion_window
             )
@@ -408,30 +406,10 @@ def download_file(
     ),
 ):
     try:
-        if provider == "anthropic":
-            from anthropic import Anthropic
-
-            client = Anthropic()
-            # TODO: Remove beta fallback when stable API is available
-            try:
-                batches_client = client.messages.batches
-            except AttributeError:
-                batches_client = client.beta.messages.batches
-            batch = batches_client.retrieve(batch_id)
-            if batch.processing_status != "ended":
-                raise ValueError("Only completed Jobs can be downloaded")
-
-            results_url = batch.results_url
-            if not results_url:
-                raise ValueError("Results URL not available")
-
-            with open(download_file_path, "w", encoding="utf-8") as file:
-                for result in tqdm(client.messages.batches.results(batch_id)):
-                    file.write(json.dumps(result.model_dump()) + "\n")
-        elif provider == "mistral":
+        if provider in ("anthropic", "mistral"):
             from instructor.batch.providers import get_provider
 
-            get_provider("mistral").download_results(batch_id, download_file_path)
+            get_provider(provider).download_results(batch_id, download_file_path)
         else:
             from openai import OpenAI
 
@@ -489,30 +467,10 @@ def results(
                 f.write(file_response.text)
             console.print(f"[bold green]Results saved to: {output_file}[/bold green]")
 
-        elif provider == "anthropic":
-            from anthropic import Anthropic
-
-            client = Anthropic()
-            batch = client.beta.messages.batches.retrieve(batch_id)
-
-            if batch.processing_status != "ended":
-                console.print(
-                    f"[yellow]Batch status is '{batch.processing_status}', not ended[/yellow]"
-                )
-                return
-
-            # Get results from Anthropic batch API
-            results_iter = client.beta.messages.batches.results(batch_id)
-
-            with open(output_file, "w", encoding="utf-8") as f:
-                for result in results_iter:
-                    f.write(json.dumps(result.model_dump()) + "\n")
-            console.print(f"[bold green]Results saved to: {output_file}[/bold green]")
-
-        elif provider == "mistral":
+        elif provider in ("anthropic", "mistral"):
             from instructor.batch.providers import get_provider
 
-            get_provider("mistral").download_results(batch_id, output_file)
+            get_provider(provider).download_results(batch_id, output_file)
             console.print(f"[bold green]Results saved to: {output_file}[/bold green]")
 
         else:
