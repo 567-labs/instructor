@@ -544,3 +544,25 @@ class TestBedrockNativeStructuredOutputs:
 
         assert "outputConfig" in input_shape.members
         assert "strict" in tool_spec.members
+
+
+@pytest.mark.parametrize(
+    ("mode", "response"),
+    [
+        (Mode.TOOLS, _bedrock_tool_response({"answer": 4.0})),
+        (Mode.MD_JSON, _bedrock_text_response('```json\n{"answer": 4')),
+        (Mode.JSON_SCHEMA, _bedrock_text_response('{"answer": 4')),
+    ],
+)
+def test_parse_response_raises_incomplete_on_max_tokens(
+    mode: Mode, response: dict[str, Any]
+) -> None:
+    from instructor.v2.core.errors import IncompleteOutputException
+
+    response = {**response, "stopReason": "max_tokens"}
+    handler = mode_registry.get_handlers(Provider.BEDROCK, mode)
+
+    with pytest.raises(IncompleteOutputException) as exc_info:
+        handler.response_parser(response, Answer)
+
+    assert exc_info.value.last_completion is response

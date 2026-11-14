@@ -22,6 +22,28 @@ def text_from_content_blocks(blocks: list[Any]) -> str | None:
     return "".join(parts) if parts else None
 
 
+def append_system_instruction(message: dict[str, Any], instruction: str) -> None:
+    """Append `instruction` to an existing system message in place.
+
+    String content gets the text appended. List content gets it appended to
+    the first dict part with string `text` (images and other parts untouched);
+    if there is no such part, a new text part is added. Callers must pass a
+    message that is already safe to mutate (see `copy_messages_for_mutation`).
+    """
+    content = message.get("content")
+    if isinstance(content, str):
+        message["content"] = f"{content}\n\n{instruction}"
+        return
+    if isinstance(content, list):
+        for part in content:
+            if isinstance(part, dict) and isinstance(part.get("text"), str):
+                part["text"] += f"\n\n{instruction}"
+                return
+        content.append({"type": "text", "text": instruction})
+        return
+    message["content"] = instruction
+
+
 def extract_messages(kwargs: dict[str, Any]) -> Any:
     if "messages" in kwargs:
         return kwargs["messages"]

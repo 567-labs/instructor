@@ -121,3 +121,57 @@ def test_sync_partial_yields_before_reading_next_chunk_and_closes() -> None:
     assert next(result).name == "Jane"
     result.close()
     assert closed
+
+
+def _responses_message_events() -> list[Any]:
+    from openai.types.responses import (
+        ResponseOutputItemAddedEvent,
+        ResponseOutputMessage,
+        ResponseTextDeltaEvent,
+    )
+
+    def added(index: int, phase: Any) -> Any:
+        return ResponseOutputItemAddedEvent(
+            type="response.output_item.added",
+            output_index=index,
+            sequence_number=index * 2,
+            item=ResponseOutputMessage(
+                id=f"msg-{index}",
+                type="message",
+                role="assistant",
+                status="in_progress",
+                content=[],
+                phase=phase,
+            ),
+        )
+
+    def text(index: int, delta: str) -> Any:
+        return ResponseTextDeltaEvent(
+            type="response.output_text.delta",
+            item_id=f"msg-{index}",
+            output_index=index,
+            content_index=0,
+            sequence_number=index * 2 + 1,
+            delta=delta,
+            logprobs=[],
+        )
+
+    return [
+        added(0, "commentary"),
+        text(0, "Checking the input first."),
+        added(1, "final_answer"),
+        text(1, '{"name": "Ada"}'),
+    ]
+
+
+def test_responses_stream_skips_commentary_message() -> None:
+    from instructor.v2.providers.openai.handlers import OpenAIResponsesToolsHandler
+
+    handler = OpenAIResponsesToolsHandler()
+    results = list(
+        handler.parse_response(
+            iter(_responses_message_events()), Partial[User], stream=True
+        )
+    )
+
+    assert results[-1].name == "Ada"

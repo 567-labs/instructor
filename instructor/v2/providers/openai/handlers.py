@@ -48,6 +48,7 @@ from instructor.v2.core.json import (
     extract_json_from_stream_async,
 )
 from instructor.v2.core.messages import (
+    append_system_instruction,
     copy_messages_for_mutation,
     dump_message,
     merge_consecutive_messages,
@@ -412,26 +413,41 @@ def _apply_tool_strictness(kwargs: dict[str, Any]) -> None:
         ]
 
 
+def _responses_incomplete_message(response: Any) -> str:
+    reason = getattr(getattr(response, "incomplete_details", None), "reason", None)
+    if reason is None:
+        return "The Responses API output is incomplete."
+    return f"The Responses API output is incomplete due to {reason}."
+
+
 class _ResponsesStreamResult:
-    """Select one structured result while skipping calls to the caller's tools."""
+    """Select one structured result while skipping caller tools and commentary."""
 
     def __init__(self, tool_name: str | None) -> None:
         self.tool_name = tool_name
         self.foreign_calls: set[int] = set()
         self.output_index: int | None = None
+        self.incomplete_response: Any = None
 
     def delta(self, event: Any) -> str | None:
         from openai.types.responses import (
             ResponseFunctionCallArgumentsDeltaEvent,
+            ResponseIncompleteEvent,
             ResponseOutputItemAddedEvent,
             ResponseTextDeltaEvent,
         )
 
+        if isinstance(event, ResponseIncompleteEvent):
+            self.incomplete_response = event.response
+            return None
         if isinstance(event, ResponseOutputItemAddedEvent):
+            item = event.item
             if (
                 self.tool_name is not None
-                and event.item.type == "function_call"
-                and event.item.name != self.tool_name
+                and item.type == "function_call"
+                and item.name != self.tool_name
+            ) or (
+                item.type == "message" and getattr(item, "phase", None) == "commentary"
             ):
                 self.foreign_calls.add(event.output_index)
             return None
@@ -483,12 +499,16 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         response_tool_name: str | None = None,
         *,
         single_model: bool = False,
+        require_complete: bool = False,
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from OpenAI-compatible streaming responses."""
+        # Raised only after every complete item has been flushed downstream.
+        truncated: list[IncompleteOutputException] = []
 
         def _raw_chunks() -> Generator[str, None, None]:
             result = _ResponsesStreamResult(response_tool_name)
             tool_arguments = _ChatToolArguments(single_model)
+            incomplete_chunk: Any = None
             for chunk in completion:
                 try:
                     if self.mode == Mode.RESPONSES_TOOLS:
@@ -499,6 +519,12 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                     if not getattr(chunk, "choices", None):
                         continue
 
+                    if (
+                        require_complete
+                        and getattr(chunk.choices[0], "finish_reason", None) == "length"
+                    ):
+                        incomplete_chunk = chunk
+
                     if self.mode == Mode.FUNCTIONS:
                         Mode.warn_mode_functions_deprecation()
                         if json_chunk := chunk.choices[0].delta.function_call.arguments:
@@ -523,12 +549,27 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                     continue
             for arguments in tool_arguments.finish():
                 yield arguments
+            if require_complete and result.incomplete_response is not None:
+                truncated.append(
+                    IncompleteOutputException(
+                        last_completion=result.incomplete_response,
+                        message=_responses_incomplete_message(
+                            result.incomplete_response
+                        ),
+                    )
+                )
+            elif incomplete_chunk is not None:
+                truncated.append(
+                    IncompleteOutputException(last_completion=incomplete_chunk)
+                )
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
             yield from extract_json_from_stream(raw_chunks, single_model=single_model)
-            return
-        yield from raw_chunks
+        else:
+            yield from raw_chunks
+        if truncated:
+            raise truncated[0]
 
     async def extract_streaming_json_async(
         self,
@@ -536,12 +577,15 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         response_tool_name: str | None = None,
         *,
         single_model: bool = False,
+        require_complete: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from OpenAI-compatible async streams."""
+        truncated: list[IncompleteOutputException] = []
 
         async def _raw_chunks() -> AsyncGenerator[str, None]:
             result = _ResponsesStreamResult(response_tool_name)
             tool_arguments = _ChatToolArguments(single_model)
+            incomplete_chunk: Any = None
             async for chunk in completion:
                 try:
                     if self.mode == Mode.RESPONSES_TOOLS:
@@ -552,6 +596,12 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                     if not getattr(chunk, "choices", None):
                         continue
 
+                    if (
+                        require_complete
+                        and getattr(chunk.choices[0], "finish_reason", None) == "length"
+                    ):
+                        incomplete_chunk = chunk
+
                     if self.mode == Mode.FUNCTIONS:
                         Mode.warn_mode_functions_deprecation()
                         if json_chunk := chunk.choices[0].delta.function_call.arguments:
@@ -576,6 +626,19 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                     continue
             for arguments in tool_arguments.finish():
                 yield arguments
+            if require_complete and result.incomplete_response is not None:
+                truncated.append(
+                    IncompleteOutputException(
+                        last_completion=result.incomplete_response,
+                        message=_responses_incomplete_message(
+                            result.incomplete_response
+                        ),
+                    )
+                )
+            elif incomplete_chunk is not None:
+                truncated.append(
+                    IncompleteOutputException(last_completion=incomplete_chunk)
+                )
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
@@ -583,9 +646,11 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                 raw_chunks, single_model=single_model
             ):
                 yield chunk
-            return
-        async for chunk in raw_chunks:
-            yield chunk
+        else:
+            async for chunk in raw_chunks:
+                yield chunk
+        if truncated:
+            raise truncated[0]
 
     def convert_messages(
         self, messages: list[dict[str, Any]], autodetect_images: bool = False
@@ -632,6 +697,10 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
             extractor_options["single_model"] = not issubclass(
                 response_model, IterableBase
             )
+        # Partial streams keep their best-effort behavior; Iterable streams
+        # must not end silently when the provider truncates them.
+        if inspect.isclass(response_model) and issubclass(response_model, IterableBase):
+            extractor_options["require_complete"] = True
 
         if inspect.isasyncgen(response) or isinstance(response, AsyncIterator):
             return streaming_model.from_streaming_response_async(
@@ -933,18 +1002,8 @@ class OpenAIJSONHandler(OpenAIHandlerBase):
             """
         )
         messages = copy_messages_for_mutation(new_kwargs.get("messages", []))
-        if messages and messages[0]["role"] != "system":
-            messages.insert(
-                0,
-                {
-                    "role": "system",
-                    "content": message,
-                },
-            )
-        elif messages and isinstance(messages[0]["content"], str):
-            messages[0]["content"] += f"\n\n{message}"
-        elif messages and isinstance(messages[0]["content"], list):
-            messages[0]["content"][0]["text"] += f"\n\n{message}"
+        if messages and messages[0]["role"] == "system":
+            append_system_instruction(messages[0], message)
         else:
             messages.insert(0, {"role": "system", "content": message})
         new_kwargs["messages"] = merge_consecutive_messages(messages)
@@ -1007,18 +1066,8 @@ class OpenAIMDJSONHandler(OpenAIHandlerBase):
 
         # Add system message with schema
         messages = copy_messages_for_mutation(new_kwargs.get("messages", []))
-        if messages and messages[0]["role"] != "system":
-            messages.insert(
-                0,
-                {
-                    "role": "system",
-                    "content": message,
-                },
-            )
-        elif messages and isinstance(messages[0]["content"], str):
-            messages[0]["content"] += f"\n\n{message}"
-        elif messages and isinstance(messages[0]["content"], list):
-            messages[0]["content"][0]["text"] += f"\n\n{message}"
+        if messages and messages[0]["role"] == "system":
+            append_system_instruction(messages[0], message)
         else:
             messages.insert(0, {"role": "system", "content": message})
 
@@ -1266,13 +1315,10 @@ class OpenAIResponsesToolsHandler(OpenAIHandlerBase):
             )
 
         if getattr(response, "status", None) == "incomplete":
-            reason = getattr(
-                getattr(response, "incomplete_details", None), "reason", None
+            raise IncompleteOutputException(
+                last_completion=response,
+                message=_responses_incomplete_message(response),
             )
-            message = "The Responses API output is incomplete."
-            if reason is not None:
-                message = f"The Responses API output is incomplete due to {reason}."
-            raise IncompleteOutputException(last_completion=response, message=message)
 
         # Handle Responses API format - output is a list of items
         if hasattr(response, "output"):
