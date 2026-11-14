@@ -117,3 +117,27 @@ def test_bedrock_templates_render_after_request_preparation() -> None:
         {"cachePoint": {"type": "default"}},
     ]
     assert kwargs == original
+
+
+@pytest.mark.parametrize("provider", [Provider.ANTHROPIC, Provider.BEDROCK])
+@pytest.mark.parametrize(
+    ("system", "expected"),
+    [
+        ("You help {{ name }}.", "You help Ada."),
+        (
+            [{"type": "text", "text": "You help {{ name }}."}],
+            [{"type": "text", "text": "You help Ada."}],
+        ),
+    ],
+    ids=["string", "list"],
+)
+def test_top_level_system_renders_as_string_or_blocks(
+    provider: Provider, system: Any, expected: Any
+) -> None:
+    kwargs = {"system": system, "messages": [{"role": "user", "content": "Hi"}]}
+    original = deepcopy(kwargs)
+
+    result = handle_templating(kwargs, Mode.TOOLS, provider, {"name": "Ada"})
+
+    assert result["system"] == expected
+    assert kwargs == original

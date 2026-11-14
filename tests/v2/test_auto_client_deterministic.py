@@ -264,3 +264,18 @@ def test_build_ollama_uses_tool_mode_only_for_tool_capable_models(
 
     assert calls[0]["mode"] == Mode.TOOLS
     assert calls[1]["mode"] == Mode.JSON
+
+
+@pytest.mark.parametrize("async_client", [False, True])
+@pytest.mark.parametrize(("api_key", "expected"), [("sec", "sec"), (None, "ollama")])
+def test_from_provider_ollama_api_key(
+    async_client: bool, api_key: str | None, expected: str
+) -> None:
+    client = cast(
+        Any,
+        auto_client.from_provider(
+            "ollama/llama3.2", async_client=async_client, api_key=api_key
+        ),
+    )
+
+    assert client.client.api_key == expected

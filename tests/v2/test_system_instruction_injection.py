@@ -1,4 +1,4 @@
-"""JSON / MD_JSON schema injection into list-content system messages (#3049)."""
+"""JSON / MD_JSON schema injection into an existing system message (#3049)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from instructor.v2.core.messages import append_system_instruction
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.registry import mode_registry
@@ -28,8 +27,10 @@ PAIRS = [
     (Provider.MISTRAL, Mode.MD_JSON),
     (Provider.XAI, Mode.MD_JSON),
 ]
-CONTENTS: dict[str, list[dict[str, Any]]] = {
-    "empty": [],
+CONTENTS: dict[str, Any] = {
+    "string": "You are helpful.",
+    "none": None,
+    "empty_list": [],
     "image_then_text": [IMAGE_PART, TEXT_PART],
     "image_only": [IMAGE_PART],
 }
@@ -41,11 +42,12 @@ CONTENTS: dict[str, list[dict[str, Any]]] = {
     ids=[f"{p.value}-{m.value}" for p, m in PAIRS],
 )
 @pytest.mark.parametrize("content_name", list(CONTENTS))
-def test_schema_injected_into_list_system_content(
+def test_schema_injected_into_existing_system_message(
     provider: Provider, mode: Mode, content_name: str
 ) -> None:
+    original = CONTENTS[content_name]
     caller_messages = [
-        {"role": "system", "content": deepcopy(CONTENTS[content_name])},
+        {"role": "system", "content": deepcopy(original)},
         {"role": "user", "content": "hi"},
     ]
     snapshot = deepcopy(caller_messages)
@@ -56,36 +58,18 @@ def test_schema_injected_into_list_system_content(
         kwargs={"model": "test", "messages": caller_messages},
     )
 
-    messages = new_kwargs["messages"]
-    system_messages = [m for m in messages if m["role"] == "system"]
+    system_messages = [m for m in new_kwargs["messages"] if m["role"] == "system"]
     assert len(system_messages) == 1
     content = system_messages[0]["content"]
-    assert isinstance(content, list)
-    text_parts = [p for p in content if p.get("type") == "text"]
-    assert any("favorite_color_name" in p["text"] for p in text_parts)
-    if IMAGE_PART in CONTENTS[content_name]:
-        assert content[0] == IMAGE_PART
+    if isinstance(original, list):
+        assert isinstance(content, list)
+        text = "".join(p["text"] for p in content if p.get("type") == "text")
+        if IMAGE_PART in original:
+            assert content[0] == IMAGE_PART
+    else:
+        assert isinstance(content, str)
+        text = content
+    assert "favorite_color_name" in text
+    if original and original != [IMAGE_PART]:
+        assert "You are helpful." in text
     assert caller_messages == snapshot
-
-
-def test_append_system_instruction_shapes() -> None:
-    message: dict[str, Any] = {"role": "system", "content": "base"}
-    append_system_instruction(message, "extra")
-    assert message["content"] == "base\n\nextra"
-
-    message = {"role": "system", "content": [IMAGE_PART, dict(TEXT_PART)]}
-    append_system_instruction(message, "extra")
-    assert message["content"] == [
-        IMAGE_PART,
-        {"type": "text", "text": "You are helpful.\n\nextra"},
-    ]
-
-    message = {"role": "system", "content": [IMAGE_PART]}
-    append_system_instruction(message, "extra")
-    assert message["content"] == [IMAGE_PART, {"type": "text", "text": "extra"}]
-
-
-def test_append_system_instruction_replaces_missing_content() -> None:
-    message: dict[str, Any] = {"role": "system", "content": None}
-    append_system_instruction(message, "extra")
-    assert message["content"] == "extra"
