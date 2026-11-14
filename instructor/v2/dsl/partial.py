@@ -299,8 +299,14 @@ def _build_partial_object(
 def _build_partial_value(
     value: Any, annotation: Any, tracker: JsonCompleteness, path: str, **kwargs: Any
 ) -> Any:
-    if value is None:
-        return None
+    if (
+        value is None
+        or annotation is int
+        or annotation is str
+        or annotation is float
+        or annotation is bool
+    ):
+        return value
     model = _unwrap_optional_base_model(annotation)
     if model is not None:
         if tracker.is_path_complete(path):
@@ -315,6 +321,24 @@ def _build_partial_value(
             annotation = non_none[0]
             origin, args = get_origin(annotation), get_args(annotation)
     if origin is list and args and isinstance(value, list):
+        item_model = args[0]
+        if type(item_model) is type(BaseModel) and issubclass(item_model, BaseModel):
+            # Resolve the annotation once for the whole list. Each item still
+            # gets its own completeness check and validation.
+            items = []
+            for index, item in enumerate(value):
+                item_path = f"{path}[{index}]"
+                if item is None:
+                    items.append(None)
+                elif tracker.is_path_complete(item_path):
+                    items.append(item_model.model_validate(item, **kwargs))
+                else:
+                    items.append(
+                        _build_partial_object(
+                            item, item_model, tracker, item_path, **kwargs
+                        )
+                    )
+            return items
         return [
             _build_partial_value(item, args[0], tracker, f"{path}[{index}]", **kwargs)
             for index, item in enumerate(value)
