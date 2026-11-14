@@ -77,6 +77,16 @@ class JsonCompleteness:
 
         self._check_siblings(parsed, "")
 
+    def analyze_partial(self, raw: bytes, parsed: Any) -> None:
+        """Track a value already parsed in trailing-strings mode."""
+        self._complete_paths.clear()
+        try:
+            complete = from_json(raw)
+        except ValueError:
+            self._check_siblings(parsed, "")
+        else:
+            self._mark_all(complete, "")
+
     def _mark_all(self, data: Any, path: str) -> None:
         """Recursively mark path and all children as complete."""
         self._complete_paths.add(path)

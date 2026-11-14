@@ -7,6 +7,7 @@ because they expect a ChatCompletion but receive a Stream object.
 GitHub Issue: https://github.com/jxnl/instructor/issues/1991
 """
 
+from collections.abc import Generator
 from typing import Any, Optional
 
 import pytest
@@ -241,3 +242,65 @@ def test_streaming_retry_exhaustion_preserves_validation_error():
     assert len(requests) == caught.value.n_attempts == 3
     assert isinstance(caught.value.__cause__, ValidationError)
     assert "controlled invalid value" in str(caught.value.__cause__)
+
+
+@pytest.mark.parametrize("outcome", ["empty", "close", "complete", "invalid-final"])
+def test_sync_partial_retry_stream_lifecycle(outcome: str) -> None:
+    from types import SimpleNamespace
+
+    import instructor
+    from instructor.v2.core.providers import Provider
+    from instructor.v2.core.retry import retry_sync_v2
+    from instructor.v2.dsl.partial import Partial
+
+    class Result(BaseModel):
+        value: int
+
+    closed = False
+    calls = 0
+
+    def stream():
+        nonlocal closed
+        try:
+            if outcome == "empty":
+                return
+            for content in (
+                '{"value":',
+                '"wrong"}' if outcome == "invalid-final" else "7}",
+            ):
+                yield SimpleNamespace(
+                    choices=[SimpleNamespace(delta=SimpleNamespace(content=content))]
+                )
+        finally:
+            closed = True
+
+    def create(**_kwargs: Any):
+        nonlocal calls
+        calls += 1
+        return stream()
+
+    result = retry_sync_v2(
+        create,
+        Partial[Result],
+        Provider.OPENAI,
+        instructor.Mode.JSON_SCHEMA,
+        None,
+        2,
+        (),
+        {"stream": True},
+        True,
+    )
+    assert isinstance(result, Generator)
+    if outcome == "close":
+        result.close()
+    elif outcome == "invalid-final":
+        assert next(result).value is None
+        with pytest.raises(ValidationError):
+            next(result)
+    else:
+        assert list(result) == (
+            []
+            if outcome == "empty"
+            else [Result.model_construct(value=None), Result(value=7)]
+        )
+    assert closed and calls == 1

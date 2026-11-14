@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Generator, Iterable
 from types import SimpleNamespace
 from typing import Any, Callable
 
@@ -88,13 +88,36 @@ def test_streaming_retry_recovers_after_flag_consumed(
     handler.mark_streaming_model(response_model, True)
 
     with pytest.raises(ValidationError):
-        handler.parse_response(
-            stream_factory('{"name": "Jane"}'), response_model, stream=True
+        list(
+            handler.parse_response(
+                stream_factory('{"name": "Jane"}'), response_model, stream=True
+            )
         )
     assert handler._consume_streaming_flag(response_model) is False
 
     result = handler.parse_response(
         stream_factory('{"name": "Jane Doe"}'), response_model, stream=True
     )
-    assert isinstance(result, list)
-    assert result[-1].name == "Jane Doe"
+    assert isinstance(result, Generator)
+    final = list(result)[-1]
+    assert isinstance(final, _Foo)
+    assert final.name == "Jane Doe"
+
+
+def test_sync_partial_yields_before_reading_next_chunk_and_closes() -> None:
+    closed = False
+
+    def source():
+        nonlocal closed
+        try:
+            yield from _text_stream('{"name":"Jane')
+            pytest.fail("The stream read the next chunk before the first yield")
+        finally:
+            closed = True
+
+    result = OpenAIJSONSchemaHandler().parse_response(
+        source(), Partial[User], stream=True
+    )
+    assert next(result).name == "Jane"
+    result.close()
+    assert closed
