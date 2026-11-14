@@ -1316,10 +1316,13 @@ def _build_xai(
                 "This may be due to a configuration error or missing dependencies."
             )
 
+        sdk_options = {}
+        if "api_host" in kwargs:
+            sdk_options["api_host"] = kwargs.pop("api_host")
         client = (
-            AsyncClient(api_key=api_key)
+            AsyncClient(api_key=api_key, **sdk_options)
             if async_client
-            else SyncClient(api_key=api_key)
+            else SyncClient(api_key=api_key, **sdk_options)
         )
         # Use Mode.TOOLS instead of Mode.XAI_TOOLS (v2 uses generic modes)
         result = from_xai(

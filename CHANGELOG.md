@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- xAI clients created with `from_provider` accept an explicit native SDK `api_host`, including regional endpoints, without changing the default host.
+
 ### Fixed
 - Anthropic Iterable streams report a `max_tokens` stop between complete items as `IncompleteOutputException` instead of returning a silently truncated list.
 - Gemini and Vertex AI reject completions stopped at the token limit. Google and Mistral streaming handlers skip empty metadata chunks, and GenAI JSON mode aliases are classified consistently.

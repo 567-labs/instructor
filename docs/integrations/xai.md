@@ -7,6 +7,28 @@ description: "Learn how to use Instructor with xAI's Grok models for type-safe, 
 
 xAI provides access to Grok models through the `xai-sdk` package, enabling structured outputs with Instructor. This guide covers everything you need to know about using xAI's Grok models with Instructor for type-safe, validated responses.
 
+## Choose an API host
+
+Pass `api_host` to configure the native SDK host for either sync or async clients:
+
+```python
+import instructor
+
+client = instructor.from_provider(
+    "xai/grok-4.7",
+    api_host="us.api.x.ai",
+)
+```
+
+Use a hostname, not an HTTPS URL or a `/v1` path. Omitting this option preserves
+the SDK's default host. The option configures the SDK client and is not forwarded
+to chat requests. TLS behavior is unchanged.
+
+The [official regional endpoint documentation](https://docs.x.ai/developers/advanced-api-usage/regions)
+describes supported models, pricing and the limits of regional processing.
+Choosing a host is not a comprehensive compliance or data-storage guarantee;
+consult the provider's current terms for your requirements.
+
 ## Quick Start
 
 Instructor is distributed without xAI dependencies by default. The `xai` extra
