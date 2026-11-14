@@ -170,6 +170,45 @@ async def test_async_responses_sdk_contract(responses_endpoint, raw: bool) -> No
     assert_response_contract(result, calls, raw)
 
 
+def test_sync_responses_with_completion_without_model(responses_endpoint) -> None:
+    url, calls = responses_endpoint
+    with openai.OpenAI(
+        api_key="local-only",
+        base_url=url,
+        http_client=httpx.Client(trust_env=False),
+    ) as sdk:
+        client = instructor.from_openai(sdk, mode=Mode.RESPONSES_TOOLS)
+        result, completion = client.responses.create_with_completion(
+            model="local-contract", input="answer", response_model=None
+        )
+
+    assert result is completion
+    assert isinstance(completion, Response)
+    assert completion.id == "resp_local"
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_async_responses_with_completion_without_model(
+    responses_endpoint,
+) -> None:
+    url, calls = responses_endpoint
+    async with openai.AsyncOpenAI(
+        api_key="local-only",
+        base_url=url,
+        http_client=httpx.AsyncClient(trust_env=False),
+    ) as sdk:
+        client = instructor.from_openai(sdk, mode=Mode.RESPONSES_TOOLS)
+        result, completion = await client.responses.create_with_completion(
+            model="local-contract", input="answer", response_model=None
+        )
+
+    assert result is completion
+    assert isinstance(completion, Response)
+    assert completion.id == "resp_local"
+    assert len(calls) == 1
+
+
 def assert_sdk_error(error: InstructorRetryException, calls) -> None:
     assert len(calls) == 1
     assert calls[0]["path"] == "/v1/responses"

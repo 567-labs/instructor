@@ -728,7 +728,7 @@ class Instructor(Generic[_ResponseT]):
     def create_with_completion(
         self,
         messages: list[ChatCompletionMessageParam],
-        response_model: type[T],
+        response_model: type[T] | None,
         max_retries: int | Retrying | AsyncRetrying = 3,
         context: dict[str, Any] | None = None,
         strict: bool | PydanticUndefinedType = PydanticUndefined,
@@ -754,6 +754,8 @@ class Instructor(Generic[_ResponseT]):
             hooks=combined_hooks,
             **kwargs,
         )
+        if response_model is None:
+            return model, model
         return model, model._raw_response
 
     def handle_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -951,7 +953,7 @@ class AsyncInstructor(Instructor[AsyncResponse]):
     async def create_with_completion(  # type: ignore[override]  # ty: ignore[invalid-method-override]
         self,
         messages: list[ChatCompletionMessageParam],
-        response_model: type[T],
+        response_model: type[T] | None,
         max_retries: int | AsyncRetrying = 3,
         context: dict[str, Any] | None = None,
         strict: bool | PydanticUndefinedType = PydanticUndefined,
@@ -977,6 +979,8 @@ class AsyncInstructor(Instructor[AsyncResponse]):
             hooks=combined_hooks,
             **kwargs,
         )
+        if response_model is None:
+            return response, response
         return response, response._raw_response
 
 
