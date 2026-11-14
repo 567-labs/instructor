@@ -17,7 +17,7 @@ import instructor
 
 from pydantic import BaseModel
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class UserExtract(BaseModel):
@@ -56,7 +56,7 @@ from instructor.core.exceptions import IncompleteOutputException
 import instructor
 from pydantic import BaseModel
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class UserExtract(BaseModel):

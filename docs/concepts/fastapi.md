@@ -25,7 +25,7 @@ from pydantic import BaseModel
 
 # Enables response_model
 client = instructor.from_provider(
-    "openai/gpt-4.1-mini",
+    "openai/gpt-6-luna",
     async_client=True,
 )
 app = FastAPI()

@@ -40,8 +40,8 @@ from instructor import from_provider
 from instructor.cache import AutoCache, DiskCache
 
 # Works with any provider - cache flows through **kwargs automatically
-client = from_provider("openai/gpt-4.1-mini", cache=AutoCache(maxsize=1000))
-client = from_provider("anthropic/claude-3-haiku", cache=AutoCache(maxsize=1000))
+client = from_provider("openai/gpt-6-luna", cache=AutoCache(maxsize=1000))
+client = from_provider("anthropic/claude-haiku-5-5", cache=AutoCache(maxsize=1000))
 client = from_provider("google/gemini-2.5-flash", cache=DiskCache(directory=".cache"))
 
 # Your normal calls are now cached automatically
@@ -77,7 +77,7 @@ class User(BaseModel):
 
 
 cache = DiskCache(directory=".cache")
-client = from_provider("openai/gpt-4.1-mini")
+client = from_provider("openai/gpt-6-luna")
 
 client.create(
     messages=[{"role": "user", "content": "Hi"}],
@@ -125,7 +125,7 @@ class User(BaseModel):
 
 key = make_cache_key(
     messages=[{"role": "user", "content": "hello"}],
-    model="gpt-4.1-mini",
+    model="gpt-6-luna",
     response_model=User,
     mode="TOOLS",
 )
@@ -174,7 +174,7 @@ import functools
 import instructor
 from pydantic import BaseModel
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class UserDetail(BaseModel):
@@ -258,8 +258,8 @@ from instructor import from_provider
 from instructor.cache import DiskCache
 
 cache = DiskCache("./my_cache_directory")
-client = from_provider("openai/gpt-4.1-mini", cache=cache)
-async_client = from_provider("openai/gpt-4.1-mini", async_client=True, cache=cache)
+client = from_provider("openai/gpt-6-luna", cache=cache)
+async_client = from_provider("openai/gpt-6-luna", async_client=True, cache=cache)
 ```
 
 ## 3. Shared Redis caching
@@ -285,5 +285,5 @@ class RedisCache(BaseCache):
 
 
 store = Redis(host="localhost", decode_responses=True)
-client = from_provider("openai/gpt-4.1-mini", cache=RedisCache(store))
+client = from_provider("openai/gpt-6-luna", cache=RedisCache(store))
 ```

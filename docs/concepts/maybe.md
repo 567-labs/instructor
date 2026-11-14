@@ -45,7 +45,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 # This enables the `response_model` keyword
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class UserDetail(BaseModel):

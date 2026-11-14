@@ -28,7 +28,7 @@ class User(TypedDict):
     age: int
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 response = client.create(

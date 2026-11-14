@@ -46,7 +46,7 @@ from enum import Enum
 client = wrap_openai(AsyncOpenAI())
 
 # Patch the client with instructor
-client = instructor.from_provider("openai/gpt-4o")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Rate limit the number of requests
 sem = asyncio.Semaphore(5)
@@ -105,7 +105,7 @@ async def classify(data: str) -> QuestionClassification:
     """
     async with sem:  # some simple rate limiting
         return data, await client.create(
-            model="gpt-5.4-mini",
+            model="gpt-6-luna",
             response_model=QuestionClassification,
             max_retries=2,
             messages=[

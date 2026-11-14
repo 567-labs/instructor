@@ -49,7 +49,7 @@ If you want to learn more about how to do bad computations, check out our post o
 ```python
 import instructor
 
-client = instructor.from_provider("openai/gpt-4o", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 ```
 
 First, we'll need to import all of our Pydantic and instructor code and use the AsyncOpenAI client. Then, we'll define the tag model along with the tag instructions to provide input and output.
@@ -164,7 +164,7 @@ async def tag_single_request(text: str, tags: List[Tag]) -> Tag:
     allowed_tags_str = ", ".join([f"`{tag}`" for tag in allowed_tags])
 
     return await client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",
@@ -204,7 +204,7 @@ from pydantic import BaseModel, ValidationInfo, model_validator
 import instructor
 import asyncio
 
-client = instructor.from_provider("openai/gpt-4o-mini", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 class Tag(BaseModel):
@@ -244,7 +244,7 @@ async def tag_single_request(text: str, tags: List[Tag]) -> Tag:
     allowed_tags_str = ", ".join([f"`{tag}`" for tag in allowed_tags])
 
     return await client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",
@@ -510,7 +510,7 @@ async def get_tags(text: List[str], tags: List[Tag]) -> List[Tag]:
     allowed_tags_str = ", ".join([f"`{tag}`" for tag in allowed_tags])
 
     return await client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",

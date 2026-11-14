@@ -102,7 +102,7 @@ class YourModel(BaseModel):
     message: str
 
 
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 _response = client.create(
     response_model=YourModel,
     messages=[{"role": "user", "content": "Say hello"}],

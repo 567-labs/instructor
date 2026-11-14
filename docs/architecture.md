@@ -66,10 +66,10 @@ class User(BaseModel):
     name: str
     age: int
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 model = client.create(
-    model="gpt-4o-mini",
+    model="gpt-6-luna",
     messages=[{"role": "user", "content": "{'name': 'Ada', 'age': 37}"}],
     response_model=User,            # triggers schema/tool wiring + parsing
     max_retries=3,                  # tenacity-backed validation retries
@@ -92,9 +92,9 @@ class User(BaseModel):
     age: int
 
 async def main():
-    aclient = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+    aclient = instructor.from_provider("openai/gpt-6-luna", async_client=True)
     model = await aclient.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         messages=[{"role": "user", "content": "{\"name\": \"Ada\", \"age\": 37}"}],
         response_model=User,
         max_retries=3,
@@ -135,7 +135,7 @@ for partial in client.create_partial(messages=..., response_model=MyModel):
 from instructor.mode import Mode
 
 result = client.create(
-    model="gpt-4o",
+    model="gpt-6-luna",
     messages=[{"role": "user", "content": "Extract person and event info."}],
     response_model=[PersonInfo, EventInfo],
     mode=Mode.PARALLEL_TOOLS,

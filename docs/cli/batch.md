@@ -122,10 +122,10 @@ $ instructor batch create-from-file --help
 │                                                       [required]             │
 │    --model                                      TEXT  Model in format        │
 │                                                       'provider/model-name'  │
-│                                                       (e.g., 'openai/gpt-5.4-mini', │
-│                                                       'anthropic/claude-3-s… │
+│                                                       (e.g., 'openai/gpt-6-luna', │
+│                                                       'anthropic/claude-h… │
 │                                                       [default:              │
-│                                                       openai/gpt-4o-mini]    │
+│                                                       openai/gpt-6-luna]    │
 │    --description                                TEXT  Description/metadata   │
 │                                                       for the batch job      │
 │                                                       [default: Instructor   │
@@ -151,14 +151,14 @@ Example usage with metadata:
 # OpenAI batch with custom metadata
 instructor batch create-from-file \
     --file-path batch_requests.jsonl \
-    --model "openai/gpt-5-nano" \
+    --model "openai/gpt-6-luna" \
     --description "Email classification batch - production v2.1" \
     --completion-window "24h"
 
 # Anthropic batch
 instructor batch create-from-file \
     --file-path batch_requests.jsonl \
-    --model "anthropic/claude-3-5-sonnet-20241022" \
+    --model "anthropic/claude-haiku-5-5" \
     --description "Text analysis batch"
 ```
 
@@ -175,7 +175,7 @@ class Classification(BaseModel):
     )
 
 # Create processor
-processor = BatchProcessor("openai/gpt-5-nano", Classification)
+processor = BatchProcessor("openai/gpt-6-luna", Classification)
 
 # Prepare message conversations
 messages_list = [
@@ -287,8 +287,8 @@ $ instructor batch results --help
 │ *  --output-file        TEXT  File to save the results to [default: None]    │
 │                               [required]                                     │
 │    --model              TEXT  Model in format 'provider/model-name' (e.g.,   │
-│                               'openai/gpt-5.4-mini', 'anthropic/claude-3-sonnet')   │
-│                               [default: openai/gpt-4o-mini]                  │
+│                               'openai/gpt-6-luna', 'anthropic/claude-haiku-5-5')   │
+│                               [default: openai/gpt-6-luna]                  │
 │    --help                     Show this message and exit.                    │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
@@ -300,13 +300,13 @@ Examples:
 instructor batch results \
     --batch-id batch_abc123 \
     --output-file openai_results.jsonl \
-    --model "openai/gpt-5-nano"
+    --model "openai/gpt-6-luna"
 
 # Get Anthropic batch results
 instructor batch results \
     --batch-id msgbatch_def456 \
     --output-file anthropic_results.jsonl \
-    --model "anthropic/claude-3-5-sonnet-20241022"
+    --model "anthropic/claude-haiku-5-5"
 ```
 
 ### Downloading Raw Files (Legacy)

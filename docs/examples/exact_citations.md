@@ -113,7 +113,7 @@ import instructor
 
 # Apply the patch to the OpenAI client
 # enables response_model, context keyword
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 # <%hide%>
@@ -154,7 +154,7 @@ class QuestionAnswer(BaseModel):
 # <%hide%>
 def ask_ai(question: str, context: str) -> QuestionAnswer:
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         temperature=0,
         response_model=QuestionAnswer,
         messages=[

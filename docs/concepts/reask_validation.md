@@ -71,7 +71,7 @@ from pydantic import BaseModel, ValidationError, BeforeValidator
 from typing import Annotated
 
 # Apply the patch to the OpenAI client
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class QuestionAnswer(BaseModel):
@@ -125,7 +125,7 @@ import instructor
 from pydantic import BaseModel, field_validator
 
 # Apply the patch to the OpenAI client
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class UserDetails(BaseModel):
@@ -149,7 +149,7 @@ import instructor
 from pydantic import BaseModel
 
 client = instructor.from_provider(
-    "openai/gpt-4.1-mini",
+    "openai/gpt-6-luna",
     mode=instructor.Mode.TOOLS,
 )
 
@@ -207,7 +207,7 @@ Here's a complete example showing context-based validation:
 import instructor
 from pydantic import BaseModel, ValidationInfo, field_validator
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class QuoteExtraction(BaseModel):
