@@ -116,6 +116,20 @@ def _finalize_response(model: Any, response_model: Any, response: Any) -> Any:
     return model
 
 
+def _provider_kwarg(from_response: Any, provider: Any) -> dict[str, Any]:
+    """Pass ``provider`` only to ``from_response`` overrides that accept it."""
+    try:
+        parameters = inspect.signature(from_response).parameters.values()
+    except (TypeError, ValueError):
+        return {"provider": provider}
+    if any(
+        p.name == "provider" or p.kind is inspect.Parameter.VAR_KEYWORD
+        for p in parameters
+    ):
+        return {"provider": provider}
+    return {}
+
+
 async def process_response_async(
     response: ChatCompletion,
     *,
@@ -190,7 +204,7 @@ async def process_response_async(
             validation_context=validation_context,
             strict=strict,
             mode=mode,
-            provider=provider,
+            **_provider_kwarg(dynamic_response_model.from_response, provider),
         )
         # Provider parsers may return the IterableBase or its finalized task list.
         return _finalize_response(model, response_model, response)
@@ -306,7 +320,7 @@ def process_response(
             validation_context=validation_context,
             strict=strict,
             mode=mode,
-            provider=provider,
+            **_provider_kwarg(dynamic_response_model.from_response, provider),
         )
         # Provider parsers may return the IterableBase or its finalized task list.
         return _finalize_response(model, response_model, response)
