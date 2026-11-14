@@ -1,3 +1,4 @@
+import builtins
 import time
 from datetime import datetime
 from typing import Literal, Optional, cast
@@ -21,7 +22,7 @@ def _get_client() -> OpenAI:
 
 
 # Sample response data
-def generate_file_table(files: list[openai.types.FileObject]) -> Table:
+def generate_file_table(files: builtins.list[openai.types.FileObject]) -> Table:
     table = Table(
         title="OpenAI Files",
     )
@@ -43,7 +44,7 @@ def generate_file_table(files: list[openai.types.FileObject]) -> Table:
     return table
 
 
-def get_files() -> list[openai.types.FileObject]:
+def get_files() -> builtins.list[openai.types.FileObject]:
     # Iterating the page follows the cursor across every page.
     files = [file for file in _get_client().files.list()]
     return sorted(files, key=lambda x: x.created_at, reverse=True)

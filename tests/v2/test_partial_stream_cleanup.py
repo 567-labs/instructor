@@ -95,3 +95,56 @@ async def test_async_create_partial_closes_sdk_stream_on_early_exit() -> None:
     assert raw[0].response.is_closed
     assert len(requests) == 1
     await sdk.close()
+
+
+class _SyncClosingSource:
+    """Async iterable whose only close hook is synchronous ``close``."""
+
+    def __init__(self) -> None:
+        self.closed = False
+        self._chunks = iter(['{"name": "a"', ', "value": 1}'])
+
+    def __aiter__(self) -> _SyncClosingSource:
+        return self
+
+    async def __anext__(self) -> str:
+        try:
+            return next(self._chunks)
+        except StopIteration:
+            raise StopAsyncIteration from None
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _UnclosableSource(_SyncClosingSource):
+    close = None  # type: ignore[assignment]
+
+
+async def _passthrough(chunks: Any) -> AsyncGenerator[str, None]:
+    async for chunk in chunks:
+        yield chunk
+
+
+@pytest.mark.asyncio
+async def test_partial_calls_sync_close_and_tolerates_missing_close() -> None:
+    model: Any = Partial[Item]
+
+    closing = _SyncClosingSource()
+    items = [
+        item
+        async for item in model.from_streaming_response_async(
+            closing, stream_extractor=_passthrough
+        )
+    ]
+    assert items[-1].value == 1
+    assert closing.closed
+
+    unclosable = _UnclosableSource()
+    items = [
+        item
+        async for item in model.from_streaming_response_async(
+            unclosable, stream_extractor=_passthrough
+        )
+    ]
+    assert items[-1].value == 1

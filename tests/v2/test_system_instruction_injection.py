@@ -83,3 +83,9 @@ def test_append_system_instruction_shapes() -> None:
     message = {"role": "system", "content": [IMAGE_PART]}
     append_system_instruction(message, "extra")
     assert message["content"] == [IMAGE_PART, {"type": "text", "text": "extra"}]
+
+
+def test_append_system_instruction_replaces_missing_content() -> None:
+    message: dict[str, Any] = {"role": "system", "content": None}
+    append_system_instruction(message, "extra")
+    assert message["content"] == "extra"

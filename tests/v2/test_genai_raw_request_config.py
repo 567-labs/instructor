@@ -97,3 +97,16 @@ def test_raw_request_forwards_thinking_and_safety_settings(handler: Any) -> None
     assert config.safety_settings == safety
     assert "thinking_config" not in request
     assert "safety_settings" not in request
+
+
+@pytest.mark.parametrize("handler", HANDLERS, ids=["tools", "json"])
+def test_raw_request_converts_safety_settings_mapping(handler: Any) -> None:
+    category = types.HarmCategory.HARM_CATEGORY_HARASSMENT
+    threshold = types.HarmBlockThreshold.BLOCK_ONLY_HIGH
+    _, request = handler.prepare_request(
+        None, {"messages": MESSAGES, "safety_settings": {category: threshold}}
+    )
+
+    assert request["config"].safety_settings == [
+        types.SafetySetting(category=category, threshold=threshold)
+    ]

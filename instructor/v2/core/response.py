@@ -118,10 +118,7 @@ def _finalize_response(model: Any, response_model: Any, response: Any) -> Any:
 
 def _provider_kwarg(from_response: Any, provider: Any) -> dict[str, Any]:
     """Pass ``provider`` only to ``from_response`` overrides that accept it."""
-    try:
-        parameters = inspect.signature(from_response).parameters.values()
-    except (TypeError, ValueError):
-        return {"provider": provider}
+    parameters = inspect.signature(from_response).parameters.values()
     if any(
         p.name == "provider" or p.kind is inspect.Parameter.VAR_KEYWORD
         for p in parameters
