@@ -1,16 +1,9 @@
-from instructor import AsyncInstructor, Mode, patch
+import instructor
 from anthropic import AsyncAnthropic
 from pydantic import BaseModel, Field
 
 # Initialize the Instructor client with prompt caching
-client = AsyncInstructor(
-    client=AsyncAnthropic(),
-    create=patch(
-        create=AsyncAnthropic().beta.prompt_caching.messages.create,
-        mode=Mode.TOOLS,
-    ),
-    mode=Mode.TOOLS,
-)
+client = instructor.from_anthropic(AsyncAnthropic())
 
 
 class SituatedContext(BaseModel):
@@ -28,10 +21,9 @@ class SituatedContext(BaseModel):
 
 
 async def situate_context(doc: str, chunk: str) -> SituatedContext:
-    response = await client.chat.completions.create(
-        model="claude-3-haiku-20240307",
+    response = await client.messages.create(
+        model="claude-haiku-5-5",
         max_tokens=1024,
-        temperature=0.0,
         messages=[
             {
                 "role": "user",

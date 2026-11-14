@@ -16,20 +16,7 @@ Prompt Caching is a feature that allows you to cache portions of your prompt, op
 
 ## Prompt Caching in OpenAI
 
-OpenAI implements a prompt caching mechanism to optimize performance for API requests with similar prompts.
-
-> Prompt Caching works automatically on all your API requests (no code changes required) and has no additional fees associated with it.
-
-This optimization is especially useful for applications making multiple API calls with shared context, minimizing redundant processing and improving overall performance.
-
-Prompt Caching is enabled for the following models:
-
-- gpt-4o
-- gpt-4.1-mini
-- o1-preview
-- o1-mini
-
-Caching is based on prefix matching, so if you're using a system prompt that contains a common set of instructions, you're likely to see a cache hit as long as you move all variable parts of the prompt to the end of the message when possible.
+GPT-6 Luna can reuse a prompt prefix with at least 1,024 visible input tokens. Put shared instructions first and request-specific content last to improve cache reuse. See the [OpenAI prompt caching guide](https://developers.openai.com/api/docs/guides/prompt-caching) for retention settings and pricing.
 
 ## Prompt Caching in Anthropic
 
@@ -212,10 +199,10 @@ other of their daughters...
 # with open("./book.txt") as f:
 #     book = f.read()
 
-client = instructor.from_provider("anthropic/claude-3-5-sonnet-20240620")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 
 resp, completion = client.create_with_completion(
-    model="claude-3-5-sonnet-20240620",
+    model="claude-haiku-5-5",
     messages=[
         {
             "role": "user",
@@ -237,6 +224,7 @@ resp, completion = client.create_with_completion(
 )
 
 print(completion)
+# Example response recorded with Claude 3.5 Sonnet:
 # Message(
 #     id='msg_01QcqjktYc1PXL8nk7y5hkMV',
 #     content=[
@@ -265,7 +253,7 @@ print(completion)
 
 !!! Warning "Caching Considerations"
 
-    **Minimum cache size**: For Claude Haiku, your cached content needs to be a minimum of 2048 tokens. For Claude Sonnet, the minimum is 1024 tokens.
+    Claude Haiku 5.5 requires at least 512 tokens in the cacheable prefix. See the [model overview](https://platform.claude.com/docs/en/models/haiku-5-5/overview).
 
 **Benefits**: The cost of reading from the cache is 10x lower than if we were to process the same message again and enables us to execute our queries significantly faster.
 

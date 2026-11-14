@@ -40,7 +40,7 @@ class RerankedResults(BaseModel):
 
 def rerank_results(query: str, chunks: list[dict]) -> RerankedResults:
     return client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=RerankedResults,
         messages=[
             {

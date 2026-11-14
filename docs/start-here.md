@@ -9,7 +9,7 @@ Welcome! This guide will help you understand what Instructor does and how to sta
 
 ## What is Instructor?
 
-Instructor is a Python library that helps you get structured, predictable data from language models like GPT-4 and Claude. It's like giving the LLM a form to fill out instead of letting it respond however it wants.
+Instructor is a Python library that helps you get structured, predictable data from language models like GPT-6 Luna and Claude. It's like giving the LLM a form to fill out instead of letting it respond however it wants.
 
 ### Where Instructor Fits
 
@@ -54,7 +54,7 @@ class Person(BaseModel):
     city: str
 
 # Connect to the LLM with Instructor
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Extract structured data
 person = client.create(
@@ -97,10 +97,10 @@ The `from_provider` function connects Instructor to your LLM provider. It automa
 
 ```python
 # For OpenAI
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # For Anthropic
-client = instructor.from_provider("anthropic/claude-3-5-haiku-latest")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 
 # For Google Gemini
 client = instructor.from_provider("google/gemini-3-flash")

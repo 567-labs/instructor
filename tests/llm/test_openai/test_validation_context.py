@@ -33,6 +33,7 @@ def test_banned_words_validation(model: str, mode: instructor.Mode, client):
     with pytest.raises(Exception):  # noqa: B017
         response = client.chat.completions.create(
             model=model,
+            reasoning_effort="none",
             response_model=Message,
             max_retries=0,
             messages=[
@@ -53,6 +54,7 @@ def test_banned_words_validation_old(model: str, mode: instructor.Mode, client):
     with pytest.raises(Exception):  # noqa: B017
         response = client.chat.completions.create(
             model=model,
+            reasoning_effort="none",
             response_model=Message,
             max_retries=0,
             messages=[
@@ -72,6 +74,7 @@ def test_no_banned_words_validation(model: str, mode: instructor.Mode, client):
     # Test with content containing a banned word
     response = client.chat.completions.create(
         model=model,
+        reasoning_effort="none",
         response_model=Message,
         max_retries=0,
         messages=[
@@ -109,6 +112,7 @@ def test_forced_words_validation(model: str, mode: instructor.Mode, client):
 
     response = client.chat.completions.create(
         model=model,
+        reasoning_effort="none",
         response_model=Response,
         messages=[
             {

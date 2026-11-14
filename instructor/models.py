@@ -6,6 +6,7 @@ KnownModelName = TypeAliasType(
     "KnownModelName",
     Literal[
         # Anthropic Models
+        "anthropic/claude-haiku-5-5",
         "anthropic/claude-opus-4-0-20250514",
         "anthropic/claude-sonnet-4-0-20250514",
         "anthropic/claude-sonnet-4-6",
@@ -67,6 +68,7 @@ KnownModelName = TypeAliasType(
         "openai/gpt-4o-audio-preview-2024-12-17",
         "openai/gpt-4o-mini",
         "openai/gpt-4o-mini-2024-07-18",
+        "openai/gpt-6-luna",
         "openai/o1",
         "openai/o1-2024-12-17",
         "openai/o1-mini",

@@ -33,7 +33,7 @@ client = instructor.from_openai(openai_client)
 @app.post("/user", response_model=UserDetail)
 async def endpoint_function(data: UserData) -> UserDetail:
     user_detail = await client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         response_model=UserDetail,
         messages=[
             {"role": "user", "content": f"Extract: `{data.query}`"},
@@ -47,7 +47,7 @@ async def endpoint_function(data: UserData) -> UserDetail:
 async def extract_many_users(data: MultipleUserData):
     async def extract_user(query: str):
         user_detail = await client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-6-luna",
             response_model=UserDetail,
             messages=[
                 {"role": "user", "content": f"Extract: `{query}`"},
@@ -66,7 +66,7 @@ async def extract(data: UserData):
     logfire.instrument_openai(supressed_client, suppress_other_instrumentation=False)
     client = instructor.from_openai(supressed_client)
     users = await client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         response_model=Iterable[UserDetail],
         stream=True,
         messages=[

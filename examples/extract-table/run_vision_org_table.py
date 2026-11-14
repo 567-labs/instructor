@@ -57,8 +57,8 @@ class Table(BaseModel):
 
 def extract(url: str):
     return client.chat.completions.create(
-        model="gpt-4-turbo",
-        max_tokens=4000,
+        model="gpt-6-luna",
+        max_completion_tokens=4000,
         response_model=Table,
         messages=[
             {

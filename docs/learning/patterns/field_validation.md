@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 import instructor
 from openai import OpenAI
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class User(BaseModel):
     name: str = Field(..., min_length=2, max_length=50)
@@ -31,7 +31,7 @@ class User(BaseModel):
 
 # Extract with validation
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": "I'm John Smith, 35 years old, with email john@example.com"}
     ],
@@ -65,7 +65,7 @@ import instructor
 from openai import OpenAI
 import re
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Product(BaseModel):
     name: str
@@ -97,7 +97,7 @@ class Product(BaseModel):
 
 # Extract validated data
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": "Product: Wireless Headphones, SKU: ABC-1234, Price: $79.99"}
     ],
@@ -123,7 +123,7 @@ import instructor
 from openai import OpenAI
 from datetime import date
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class DateRange(BaseModel):
     start_date: date
@@ -146,7 +146,7 @@ import instructor
 from openai import OpenAI
 from typing import List
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Address(BaseModel):
     street: str
@@ -186,7 +186,7 @@ from pydantic import BaseModel, Field, field_validator
 import instructor
 from openai import OpenAI
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class TagList(BaseModel):
     tags: List[str] = Field(..., min_items=1, max_items=5)
@@ -221,7 +221,7 @@ from pydantic import BaseModel
 import instructor
 from openai import OpenAI
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Status(str, Enum):
     PENDING = "pending"
@@ -241,7 +241,7 @@ class Task(BaseModel):
 
 # Extract with enum validation
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": "Task: Update website, Description: Refresh content on homepage, Status: pending, Priority: high"}
     ],
@@ -260,7 +260,7 @@ from pydantic import BaseModel, Field
 import instructor
 from openai import OpenAI
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class CreditCard(BaseModel):
     number: str = Field(
@@ -299,7 +299,7 @@ To control retry behavior:
 
 ```python
 client = instructor.from_provider(
-    "openai/gpt-4o",
+    "openai/gpt-6-luna",
     max_retries=2,  # Number of retries after the initial attempt
     throw_error=True  # Whether to raise an exception on validation failure
 )
@@ -317,7 +317,7 @@ import instructor
 import re
 from datetime import date, datetime
 from typing import Optional
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class RegistrationForm(BaseModel):
     username: str = Field(..., min_length=3, max_length=20)

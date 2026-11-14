@@ -23,7 +23,7 @@ class User(BaseModel):
 
 
 # What Instructor adds
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 _user = client.create(
     response_model=User,
     messages=[{"role": "user", "content": "Jane is 33"}],
@@ -47,14 +47,14 @@ class User(BaseModel):
 
 
 # With Instructor
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 _result = client.create(
     response_model=User,
     messages=[{"role": "user", "content": "Jane is 33"}],
 )
 
 # Want to go back to raw API? Just remove response_model:
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 _result = client.create(messages=[{"role": "user", "content": "Say hello"}])
 
 # Or use the provider directly:
@@ -82,7 +82,7 @@ class User(BaseModel):
 # See exactly what Instructor sends
 instructor.logfire.configure()  # Full observability
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 result = client.create(
     response_model=User,
     messages=[{"role": "user", "content": "Jane is 33"}],
@@ -102,7 +102,7 @@ No YAML files. No decorators. No magic. Just functions.
 import instructor
 from pydantic import BaseModel
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class User(BaseModel):
@@ -152,7 +152,7 @@ import instructor
 from instructor import Partial
 from pydantic import BaseModel, field_validator
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class User(BaseModel):
@@ -245,7 +245,7 @@ def search_web(query: str) -> str:
     return f"Results for {query}"
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 # You build what makes sense:
@@ -280,7 +280,7 @@ def process_user(user: User) -> dict:
     return {"name": user.name.upper(), "adult": user.age >= 18}
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Instructor just connects them to LLMs
 user = client.create(
@@ -333,7 +333,7 @@ def prioritize_tickets(tickets: List[Ticket]) -> List[Ticket]:
 
 
 # Connect to LLM (one line)
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Extract structured data (simple function call)
 tickets = client.create(

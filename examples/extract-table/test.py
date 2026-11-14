@@ -29,7 +29,7 @@ Meeting Budget: $1000
 Meeting Deadline: 2024-01-31
 """
 stream1 = client.chat.completions.create_partial(
-    model="gpt-4",
+    model="gpt-6-luna",
     response_model=MeetingInfo,
     messages=[
         {

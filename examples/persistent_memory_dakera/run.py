@@ -15,7 +15,7 @@ class Reply(BaseModel):
 def main() -> None:
     from dakera import DakeraClient
 
-    model = instructor.from_provider("openai/gpt-4.1-mini")
+    model = instructor.from_provider("openai/gpt-6-luna")
     with DakeraClient(
         base_url=os.environ.get("DAKERA_BASE_URL", "http://localhost:3300"),
         api_key=os.environ["DAKERA_API_KEY"],

@@ -5,7 +5,7 @@ description: Master extracting multiple structured objects from language models 
 
 # List Extraction Tutorial: Extract Multiple Objects from LLMs
 
-Master the art of extracting lists and arrays from LLMs in this comprehensive tutorial. Learn how to use Instructor to extract multiple structured objects from language models like GPT-4, Claude, and Gemini with type-safe validation.
+Master the art of extracting lists and arrays from LLMs in this comprehensive tutorial. Learn how to use Instructor to extract multiple structured objects from language models like GPT-6 Luna, Claude, and Gemini with type-safe validation.
 
 ## Basic List Extraction
 
@@ -16,7 +16,7 @@ from typing import List
 from pydantic import BaseModel, Field
 import instructor
 # Initialize the client
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Define a single item model
 class Person(BaseModel):
@@ -29,7 +29,7 @@ class PeopleList(BaseModel):
 
 # Extract the list
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": """
         Here's information about some people:
@@ -59,7 +59,7 @@ You can also extract a list directly without a wrapper model:
 from typing import List
 from pydantic import BaseModel, Field
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Book(BaseModel):
     title: str
@@ -68,7 +68,7 @@ class Book(BaseModel):
 
 # Extract a list directly
 books = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": """
         Classic novels:
@@ -93,7 +93,7 @@ You can extract nested lists by combining list types:
 from typing import List
 from pydantic import BaseModel, Field
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Author(BaseModel):
     name: str
@@ -106,7 +106,7 @@ class Book(BaseModel):
 
 # Extract data with nested lists
 books = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": """
         Book 1: "Good Omens" (1990)
@@ -133,7 +133,7 @@ You can stream list extraction results using Instructor's streaming capabilities
 from typing import List
 import instructor
 from pydantic import BaseModel, Field
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Task(BaseModel):
     description: str
@@ -142,7 +142,7 @@ class Task(BaseModel):
 
 # Stream a list of tasks
 for task in client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": "Generate a list of 5 sample tasks for a project manager"}
     ],
@@ -162,7 +162,7 @@ You can add validation for both individual items and the entire list:
 from typing import List
 from pydantic import BaseModel, Field, field_validator, model_validator
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Product(BaseModel):
     name: str
@@ -187,7 +187,7 @@ class ProductList(BaseModel):
 
 # Extract list with validation
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": "List of products: Headphones ($50), Speakers ($80), Earbuds ($30)"}
     ],
@@ -205,7 +205,7 @@ You can add constraints to lists using Pydantic's Field:
 from typing import List
 from pydantic import BaseModel, Field
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Ingredient(BaseModel):
     name: str
@@ -235,7 +235,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 import instructor
 from datetime import date
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Assignee(BaseModel):
     name: str
@@ -249,7 +249,7 @@ class ActionItem(BaseModel):
 
 # Extract action items from meeting notes
 action_items = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": """
         Meeting Notes - Project Kickoff

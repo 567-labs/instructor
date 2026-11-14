@@ -30,7 +30,8 @@ class Person(BaseModel):
 
 async def extract_person(text: str) -> Person:
     return await client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
+        reasoning_effort="none",
         messages=[
             {"role": "user", "content": text},
         ],

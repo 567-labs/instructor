@@ -38,6 +38,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger("instructor.v2")
 
 
+def _apply_openai_model_defaults(
+    provider: Provider, mode: Mode, kwargs: dict[str, Any]
+) -> None:
+    if (
+        provider is Provider.OPENAI
+        and mode is not Mode.RESPONSES_TOOLS
+        and kwargs.get("model") == "gpt-6-luna"
+        and (kwargs.get("tools") or "temperature" in kwargs or "top_p" in kwargs)
+    ):
+        # Chat Completions requires no reasoning for function calling and
+        # sampling options on Luna. Preserve an explicit caller setting.
+        kwargs.setdefault("reasoning_effort", "none")
+
+
 def _store_cached_result(
     cache: Any, key: str, result: Any, requested_model: Any, ttl: int | None
 ) -> None:
@@ -278,6 +292,7 @@ def _create_sync_wrapper(
         )
         if mode not in Mode.parallel_modes():
             response_model = prepared_model
+        _apply_openai_model_defaults(provider, mode, new_kwargs)
         new_kwargs.pop("autodetect_images", None)
         if handlers.message_converter and "messages" in new_kwargs:
             new_kwargs["messages"] = handlers.message_converter(
@@ -407,6 +422,7 @@ def _create_async_wrapper(
         )
         if mode not in Mode.parallel_modes():
             response_model = prepared_model
+        _apply_openai_model_defaults(provider, mode, new_kwargs)
         new_kwargs.pop("autodetect_images", None)
         if handlers.message_converter and "messages" in new_kwargs:
             new_kwargs["messages"] = handlers.message_converter(

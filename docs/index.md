@@ -68,8 +68,8 @@ class Person(BaseModel):
 
 
 # Works with any provider - same interface everywhere
-client = instructor.from_provider("openai/gpt-5-nano")
-# Or: instructor.from_provider("anthropic/claude-3")
+client = instructor.from_provider("openai/gpt-6-luna")
+# Or: instructor.from_provider("anthropic/claude-haiku-5-5")
 # Or: instructor.from_provider("google/gemini-pro")
 # Or: instructor.from_provider("ollama/llama3.2")  # local
 
@@ -121,7 +121,7 @@ class CustomerSupport(BaseModel):
     tickets: List[Ticket] = Field(..., min_items=1)
 
 
-client = instructor.from_provider("openai/gpt-4o")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 support_case = client.create(
     response_model=CustomerSupport,
@@ -167,7 +167,7 @@ All providers use the same simple interface. Here are quick examples for the mos
         age: int
 
 
-    client = instructor.from_provider("openai/gpt-5-nano")
+    client = instructor.from_provider("openai/gpt-6-luna")
     res = client.create(
         response_model=ExtractUser,
         messages=[{"role": "user", "content": "John Doe is 30 years old."}],
@@ -187,7 +187,7 @@ All providers use the same simple interface. Here are quick examples for the mos
         age: int
 
 
-    client = instructor.from_provider("anthropic/claude-3-5-sonnet-20240620")
+    client = instructor.from_provider("anthropic/claude-haiku-5-5")
     resp = client.create(
         response_model=ExtractUser,
         messages=[{"role": "user", "content": "Extract Jason is 25 years old."}],
@@ -309,7 +309,7 @@ class UserInfo(BaseModel):
     age: int
 
 
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Attach hooks for logging and error handling
 client.on("completion:kwargs", lambda **kw: print("Called with:", kw))
@@ -338,13 +338,13 @@ class User(BaseModel):
     age: int
 
 
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 user = client.create(response_model=User, messages=[...])  # Type: User
 ```
 
 **Async support:**
 ```python
-client = instructor.from_provider("openai/gpt-4o-mini", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 user = await client.create(...)  # Type: User
 ```
 
@@ -403,7 +403,7 @@ Instructor supports templating with Jinja, which lets you create dynamic prompts
 import instructor
 from pydantic import BaseModel
 
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class User(BaseModel):
@@ -440,7 +440,7 @@ from typing_extensions import Annotated
 from instructor import llm_validator
 
 # Create instructor client
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class QuestionAnswer(BaseModel):

@@ -1,20 +1,13 @@
 import json
-from collections.abc import Iterable
+from collections.abc import AsyncIterator
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.params import Depends
-from instructor import ResponseSchema
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
 import os
 import instructor
-import logging
-
-from openai import OpenAI
-from instructor.dsl.multitask import MultiTaskBase
-
-client = instructor.from_openai(OpenAI())
-logger = logging.getLogger(__name__)
+from openai import AsyncOpenAI
 
 # FastAPI app
 app = FastAPI(
@@ -41,17 +34,23 @@ class Fact(BaseModel):
     def _get_span(self, quote, context):
         import regex
 
-        minor = quote
-        major = context
+        if not quote.strip():
+            return
 
-        errs_ = 0
-        s = regex.search(f"({minor}){{e<={errs_}}}", major)
-        while s is None and errs_ <= len(context) * 0.05:
-            errs_ += 1
-            s = regex.search(f"({minor}){{e<={errs_}}}", major)
+        start = context.find(quote)
+        if start >= 0:
+            yield start, start + len(quote)
+            return
 
-        if s is not None:
-            yield from s.spans()
+        max_edits = min(3, len(quote) // 20)
+        if max_edits:
+            pattern = f"(?:{regex.escape(quote)}){{e<={max_edits}}}"
+            try:
+                match = regex.search(pattern, context, regex.BESTMATCH, timeout=0.05)
+            except TimeoutError:
+                return
+            if match is not None:
+                yield match.span()
 
     def get_spans(self, context):
         if self.substring_quotes:
@@ -59,34 +58,18 @@ class Fact(BaseModel):
                 yield from self._get_span(quote, context)
 
 
-class QuestionAnswer(ResponseSchema, MultiTaskBase):
-    """
-    Class representing a question and its answer as a list of facts each one should have a source.
-    each sentence contains a body and a list of sources."""
-
-    question: str = Field(..., description="Question that was asked")
-    tasks: list[Fact] = Field(
-        ...,
-        description="Body of the answer, each fact should be its separate object with a body and a list of sources",
-    )
-
-
-QuestionAnswer.task_type = Fact
-
-
 class Question(BaseModel):
     context: str = Field(..., description="Context to extract answers from")
     query: str = Field(..., description="Question to answer")
 
 
-# Function to extract entities from input text using GPT-3.5
-def stream_extract(question: Question) -> Iterable[Fact]:
-    completion = client.chat.completions.create(
-        model="gpt-4o-mini",
+def stream_extract(
+    question: Question, client: instructor.AsyncInstructor
+) -> AsyncIterator[Fact]:
+    return client.create_iterable(
+        model="gpt-6-luna",
         temperature=0,
-        stream=True,
-        functions=[QuestionAnswer.openai_schema],
-        function_call={"name": QuestionAnswer.openai_schema["name"]},
+        response_model=Fact,
         messages=[
             {
                 "role": "system",
@@ -100,9 +83,8 @@ def stream_extract(question: Question) -> Iterable[Fact]:
                 "content": "Tips: Make sure to cite your sources, and use the exact words from the context.",
             },
         ],
-        max_tokens=2000,
+        max_completion_tokens=2000,
     )
-    return QuestionAnswer.from_streaming_response(completion)
 
 
 def get_api_key(request: Request):
@@ -120,28 +102,24 @@ def get_api_key(request: Request):
     if auth.startswith("Bearer "):
         return auth.replace("Bearer ", "")
 
-    return None
+    raise HTTPException(status_code=401, detail="Expected a bearer token")
 
 
 # Route to handle SSE events and return users
 @app.post("/extract", response_class=StreamingResponse)
 async def extract(question: Question, openai_key: str = Depends(get_api_key)):
-    raise Exception(
-        "The 'openai.api_key' option isn't read in the client API. You will need to pass it when you instantiate the client, e.g. 'OpenAI(api_key=openai_key)'"
-    )
-    facts = stream_extract(question)
-
     async def generate():
-        for fact in facts:
-            logger.info(f"Fact: {fact}")
-            spans = list(fact.get_spans(question.context))
-            resp = {
-                "body": fact.fact,
-                "spans": spans,
-                "citation": [question.context[a:b] for (a, b) in spans],
-            }
-            resp_json = json.dumps(resp)
-            yield f"data: {resp_json}"
-        yield "data: [DONE]"
+        async with AsyncOpenAI(api_key=openai_key) as openai_client:
+            client = instructor.from_openai(openai_client)
+            facts = stream_extract(question, client)
+            async for fact in facts:
+                spans = list(fact.get_spans(question.context))
+                resp = {
+                    "body": fact.fact,
+                    "spans": spans,
+                    "citation": [question.context[a:b] for (a, b) in spans],
+                }
+                yield f"data: {json.dumps(resp)}\n\n"
+        yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")

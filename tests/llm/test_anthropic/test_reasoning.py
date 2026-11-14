@@ -9,7 +9,7 @@ class Answer(BaseModel):
 
 def test_reasoning():
     client = instructor.from_provider(
-        "anthropic/claude-sonnet-5",
+        "anthropic/claude-haiku-5-5",
         mode=instructor.Mode.ANTHROPIC_REASONING_TOOLS,
     )
     try:
@@ -28,7 +28,7 @@ def test_reasoning():
         )
     except Exception as e:
         if "404" in str(e) or "not_found_error" in str(e):
-            pytest.skip("Model claude-sonnet-5 not available with current API key")
+            pytest.skip("Model claude-haiku-5-5 not available with current API key")
         raise
 
     # Assertions to validate the response

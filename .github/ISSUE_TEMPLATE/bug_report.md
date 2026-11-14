@@ -10,9 +10,8 @@ about: Create a report to help us improve
 
 **What Model are you using?**
 
-- [ ] gpt-3.5-turbo
-- [ ] gpt-4-turbo
-- [ ] gpt-4
+- [ ] gpt-6-luna
+- [ ] claude-haiku-5-5
 - [ ] Other (please specify)
 
 **Describe the bug**

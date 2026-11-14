@@ -69,7 +69,7 @@ class UserInfo(BaseModel):
     age: int
 
 # Create an instructor client with from_provider
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Extract structured data
 user_info = client.create(
@@ -178,7 +178,7 @@ class UserInfo(BaseModel):
     age: int
 
 # Create an instructor client with from_provider
-client = instructor.from_provider("anthropic/claude-3-opus-20240229")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 
 user_info = client.create(
     response_model=UserInfo,
@@ -207,7 +207,7 @@ Basic knowledge helps, but you can start with simple models. Instructor works wi
 
 ### Can I use Instructor with async code?
 
-Yes! Use `async_client=True` when creating your client: `client = instructor.from_provider("openai/gpt-4o", async_client=True)`, then use `await client.create()`.
+Yes! Use `async_client=True` when creating your client: `client = instructor.from_provider("openai/gpt-6-luna", async_client=True)`, then use `await client.create()`.
 
 ### What if validation fails?
 

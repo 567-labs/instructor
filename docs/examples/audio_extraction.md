@@ -9,7 +9,7 @@ This example demonstrates how to use Instructor with OpenAI's audio capabilities
 
 ## Prerequisites
 
-- OpenAI API key with access to GPT-4 audio models
+- OpenAI API key with access to `gpt-audio-1.5`
 - An audio file in WAV format
 - Instructor library installed with OpenAI support
 
@@ -22,7 +22,7 @@ from instructor.processing.multimodal import Audio
 import base64
 
 # Initialize the OpenAI client with Instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-audio-1.5")
 
 
 # Define the structure for extracted information
@@ -37,7 +37,6 @@ with open("./output.wav", "rb") as f:
 
 # Extract information from the audio
 resp = client.create(
-    model="gpt-4-audio-preview",
     response_model=Person,
     modalities=["text"],
     audio={"voice": "alloy", "format": "wav"},
@@ -67,7 +66,6 @@ print(resp)
 3. The audio file is read and encoded in base64 format.
 
 4. We use OpenAI's audio-capable model to process the audio and extract the specified information:
-   - The `model` parameter specifies the GPT-4 audio model
    - `response_model` tells Instructor to structure the output according to our `Person` model
    - `modalities` specifies that we want text output
    - The `audio` parameter configures audio-specific settings

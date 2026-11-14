@@ -26,7 +26,7 @@ The cost barrier has its own quote, “the refill cost too much”. The follow-u
 
 ## Run the example
 
-From a checkout of Instructor, set `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` for the Claude deployment you want to use. The script prints the structured result for the synthetic call above.
+From a checkout of Instructor, set `ANTHROPIC_API_KEY`. The example uses Claude Haiku 5.5 by default. Set `ANTHROPIC_MODEL` to use a different Claude model. The script prints the structured result for the synthetic call above.
 
 ```shell
 uv run --extra anthropic python -m examples.medication_adherence.run

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterable
-from typing import Literal, Union
+from typing import Any, Literal, Union
 
 import importlib.util
 
@@ -169,16 +169,20 @@ async def test_mode_extraction(provider: Provider, mode: Mode, asynchronous: boo
     messages: list[ChatCompletionMessageParam] = [
         {"role": "user", "content": "What is 2 + 2? Reply with a number."}
     ]
+    token_limit = (
+        "max_completion_tokens" if provider == Provider.OPENAI else "max_tokens"
+    )
+    options: dict[str, Any] = {token_limit: 1000}
     try:
         if asynchronous:
             client = instructor.from_provider(model, mode=mode, async_client=True)
             response = await client.chat.completions.create(
-                response_model=Answer, messages=messages, max_tokens=1000
+                response_model=Answer, messages=messages, **options
             )
         else:
             client = instructor.from_provider(model, mode=mode)
             response = client.chat.completions.create(
-                response_model=Answer, messages=messages, max_tokens=1000
+                response_model=Answer, messages=messages, **options
             )
     except InstructorRetryException as exc:
         _skip_on_provider_quota(provider, exc)
@@ -193,7 +197,7 @@ async def test_mode_extraction(provider: Provider, mode: Mode, asynchronous: boo
 def test_anthropic_parallel_tools_extraction():
     """Test PARALLEL_TOOLS mode extraction (Anthropic-specific)."""
     client = instructor.from_provider(
-        "anthropic/claude-sonnet-4-6",
+        "anthropic/claude-haiku-5-5",
         mode=Mode.PARALLEL_TOOLS,
     )
     response = client.chat.completions.create(

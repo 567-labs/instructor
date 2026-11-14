@@ -17,7 +17,7 @@ import asyncio
 from collections import Counter
 import random
 
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 class ReasoningStep(BaseModel):
@@ -40,7 +40,7 @@ class Response(BaseModel):
 
 async def generate_single_response(query: str, context: str) -> Response:
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Response,
         messages=[
             {

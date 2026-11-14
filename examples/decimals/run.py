@@ -18,7 +18,7 @@ class Receipt(BaseModel):
 
 
 if __name__ == "__main__":
-    client = instructor.from_provider("openai/gpt-4.1-mini")
+    client = instructor.from_provider("openai/gpt-6-luna")
 
     receipt = client.chat.completions.create(
         messages=[{"role": "user", "content": "Coffee costs $4.99"}],

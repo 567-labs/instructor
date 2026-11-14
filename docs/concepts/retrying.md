@@ -83,7 +83,7 @@ async def extract():
         client = instructor.from_openai(sdk)
         return await asyncio.wait_for(
             client.create(
-                model="gpt-4.1-mini",
+                model="gpt-6-luna",
                 response_model=Answer,
                 messages=[{"role": "user", "content": "Extract seven"}],
                 max_retries=1,
@@ -109,7 +109,7 @@ import instructor
 from instructor.core import TokenBudgetExceeded
 from pydantic import BaseModel
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class UserInfo(BaseModel):
@@ -151,7 +151,7 @@ import instructor
 from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class UserInfo(BaseModel):
@@ -202,7 +202,7 @@ class UserInfo(BaseModel):
 
 
 user = client.create(
-    model="gpt-4.1-mini",
+    model="gpt-6-luna",
     response_model=UserInfo,
     messages=[{"role": "user", "content": "John is 30"}],
     max_retries=Retrying(
@@ -230,7 +230,7 @@ import instructor
 from pydantic import BaseModel
 from tenacity import retry, retry_if_result, stop_after_attempt
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class UserInfo(BaseModel):
@@ -266,7 +266,7 @@ from tenacity import (
     wait_exponential,
 )
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Citation(BaseModel):
@@ -323,7 +323,7 @@ import instructor
 from pydantic import BaseModel
 from tenacity import after_log, before_log, retry, stop_after_attempt, wait_exponential
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class UserInfo(BaseModel):
@@ -367,7 +367,7 @@ class UserInfo(BaseModel):
 
 
 user = client.create(
-    model="gpt-4.1-mini",
+    model="gpt-6-luna",
     response_model=UserInfo,
     messages=[{"role": "user", "content": "John is 30"}],
     max_retries=1,  # First extraction plus at most one validation retry.
@@ -383,7 +383,7 @@ import instructor
 from instructor.core.exceptions import InstructorRetryException
 from pydantic import BaseModel, field_validator
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class UserInfo(BaseModel):

@@ -1,9 +1,9 @@
 ---
-title: Extracting Tables from Images Using OpenAI GPT-4
-description: Learn how to convert images into markdown tables using OpenAI's GPT-4 Vision model for data extraction and analysis.
+title: Extracting Tables from Images Using OpenAI GPT-6 Luna
+description: Learn how to convert images into markdown tables using OpenAI's GPT-6 Luna model for data extraction and analysis.
 ---
 
-# Extracting Tables from Images with OpenAI's GPT-4 Vision Model
+# Extracting Tables from Images with OpenAI's GPT-6 Luna Model
 
 First, we define a custom type, `MarkdownDataFrame`, to handle pandas DataFrames formatted in markdown. This type uses Python's `Annotated` and `InstanceOf` types, along with decorators `BeforeValidator` and `PlainSerializer`, to process and serialize the data.
 
@@ -28,7 +28,7 @@ import pandas as pd
 from rich.console import Console
 
 console = Console()
-client = instructor.from_provider("openai/gpt-4o", mode=instructor.Mode.TOOLS)
+client = instructor.from_provider("openai/gpt-6-luna", mode=instructor.Mode.TOOLS)
 
 
 def md_to_df(data: Any) -> Any:
@@ -89,8 +89,8 @@ example = MultipleTables(
 
 def extract(url: str) -> MultipleTables:
     return client.create(
-        model="gpt-5.4-mini",
-        max_tokens=4000,
+        model="gpt-6-luna",
+        max_completion_tokens=4000,
         response_model=MultipleTables,
         messages=[
             {

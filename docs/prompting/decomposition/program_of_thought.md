@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 import instructor
 from textwrap import dedent
 from typing import Literal
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 prefix = """
 # Answer this question by implementing a solver()
@@ -87,7 +87,7 @@ class ProgramExecution(BaseModel):
 
 def generate_intermediate_reasoning(query: str):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",
@@ -121,7 +121,7 @@ def generate_prediction(
 ) -> Prediction:
     formatted_options = ",".join(options)
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Prediction,
         messages=[
             {

@@ -89,7 +89,7 @@ class Response(BaseModel):
         return confidence_scores[self.confidence]
 
 
-client = instructor.from_provider("openai/gpt-4o-mini", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 def prompt_template_1(question: str, options: list[str]):
@@ -168,7 +168,7 @@ async def generate_response(
     question: str, options: list[str], prompt_template: Callable[[str, list[str]], str]
 ):
     return await client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",

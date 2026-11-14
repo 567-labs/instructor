@@ -17,7 +17,7 @@ import openai
 import instructor
 from pydantic import BaseModel, Field
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Step1(BaseModel):
@@ -31,7 +31,7 @@ class Step2(BaseModel):
 
 def rewrite_prompt(query):
     rewritten_prompt = client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Step1,
         messages=[
             {
@@ -53,7 +53,7 @@ def rewrite_prompt(query):
 
 def generate_final_response(rewritten_prompt):
     final_response = client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Step2,
         messages=[
             {

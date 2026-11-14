@@ -11,8 +11,8 @@ Batch processing lets you send multiple requests in a single operation, saving u
 
 | Provider | Models | Cost Savings |
 |----------|--------|--------------|
-| OpenAI | gpt-4o, gpt-4.1-mini, gpt-5.4-mini | 50% |
-| Anthropic | claude-3-5-sonnet, claude-3-opus, claude-3-haiku | 50% |
+| OpenAI | `gpt-6-luna` | 50% |
+| Anthropic | `claude-haiku-5-5` | 50% |
 | Mistral | mistral-small-latest, mistral-medium-latest, mistral-large-latest | 50% |
 
 `BatchProcessor` supports OpenAI, Anthropic, and Mistral. Other providers supported
@@ -31,7 +31,7 @@ class User(BaseModel):
     age: int
 
 
-processor = BatchProcessor("openai/gpt-4.1-mini", User)
+processor = BatchProcessor("openai/gpt-6-luna", User)
 
 messages_list = [
     [
@@ -81,7 +81,7 @@ class User(BaseModel):
     age: int
 
 
-processor = BatchProcessor("openai/gpt-4.1-mini", User)
+processor = BatchProcessor("openai/gpt-6-luna", User)
 
 messages_list = [
     [{"role": "user", "content": "Extract: John is 25 years old"}],
@@ -129,7 +129,7 @@ export OPENAI_API_KEY="your-openai-key"
 ```
 
 ```python
-processor = BatchProcessor("openai/gpt-4.1-mini", User)
+processor = BatchProcessor("openai/gpt-6-luna", User)
 ```
 
 ### Anthropic
@@ -139,7 +139,7 @@ export ANTHROPIC_API_KEY="your-anthropic-key"
 ```
 
 ```python
-processor = BatchProcessor("anthropic/claude-3-5-sonnet-20241022", User)
+processor = BatchProcessor("anthropic/claude-haiku-5-5", User)
 ```
 
 ### Mistral
@@ -249,10 +249,10 @@ IDs must be unique and match the length of `messages_list`. Anthropic also requi
 
 ```bash
 # List batch jobs
-instructor batch list --model "openai/gpt-4.1-mini"
+instructor batch list --model "openai/gpt-6-luna"
 
 # Create batch from file
-instructor batch create-from-file --file-path batch.jsonl --model "openai/gpt-4.1-mini"
+instructor batch create-from-file --file-path batch.jsonl --model "openai/gpt-6-luna"
 
 # Get batch results
 instructor batch results --batch-id "batch_abc123" --output-file results.jsonl

@@ -16,8 +16,8 @@ console = Console()
 
 # Placeholder models used when an operation only needs the provider name
 PROVIDER_MODEL_MAP = {
-    "openai": "openai/gpt-4o-mini",
-    "anthropic": "anthropic/claude-3-sonnet",
+    "openai": "openai/gpt-6-luna",
+    "anthropic": "anthropic/claude-haiku-5-5",
     "mistral": "mistral/mistral-small-latest",
 }
 
@@ -243,8 +243,8 @@ def watch(
 def create_from_file(
     file_path: str = typer.Option(help="File containing the batch job requests"),
     model: str = typer.Option(
-        "openai/gpt-4o-mini",
-        help="Model in format 'provider/model-name' (e.g., 'openai/gpt-4', 'anthropic/claude-3-sonnet', 'mistral/mistral-small-latest')",
+        "openai/gpt-6-luna",
+        help="Model in format 'provider/model-name' (e.g., 'openai/gpt-6-luna', 'anthropic/claude-haiku-5-5', 'mistral/mistral-small-latest')",
     ),
     description: str = typer.Option(
         "Instructor batch job",
@@ -264,12 +264,12 @@ def create_from_file(
     # Handle deprecated flag
     if use_anthropic is not None:
         warnings.warn(
-            "--use-anthropic is deprecated. Use --model 'anthropic/claude-3-sonnet' instead.",
+            "--use-anthropic is deprecated. Use --model 'anthropic/claude-haiku-5-5' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
         if use_anthropic:
-            model = "anthropic/claude-3-sonnet"
+            model = "anthropic/claude-haiku-5-5"
 
     try:
         # Create a dummy response model (not used for direct file submission)
@@ -459,8 +459,8 @@ def results(
     batch_id: str = typer.Option(help="Batch job ID to get results from"),
     output_file: str = typer.Option(help="File to save the results to"),
     model: str = typer.Option(
-        "openai/gpt-4o-mini",
-        help="Model in format 'provider/model-name' (e.g., 'openai/gpt-4', 'anthropic/claude-3-sonnet', 'mistral/mistral-small-latest')",
+        "openai/gpt-6-luna",
+        help="Model in format 'provider/model-name' (e.g., 'openai/gpt-6-luna', 'anthropic/claude-haiku-5-5', 'mistral/mistral-small-latest')",
     ),
 ):
     """Retrieve and save batch job results"""
@@ -526,8 +526,8 @@ def results(
 def create(
     messages_file: str = typer.Option(help="JSONL file with message conversations"),
     model: str = typer.Option(
-        "openai/gpt-4o-mini",
-        help="Model in format 'provider/model-name' (e.g., 'openai/gpt-4', 'anthropic/claude-3-sonnet', 'mistral/mistral-small-latest')",
+        "openai/gpt-6-luna",
+        help="Model in format 'provider/model-name' (e.g., 'openai/gpt-6-luna', 'anthropic/claude-haiku-5-5', 'mistral/mistral-small-latest')",
     ),
     response_model: str = typer.Option(
         help="Python class path for response model (e.g., 'examples.User')"

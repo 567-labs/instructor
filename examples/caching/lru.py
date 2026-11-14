@@ -14,7 +14,7 @@ class UserDetail(BaseModel):
 @functools.lru_cache
 def extract(data):
     return client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         response_model=UserDetail,
         messages=[
             {"role": "user", "content": data},

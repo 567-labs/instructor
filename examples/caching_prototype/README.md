@@ -30,7 +30,7 @@ client = instructor.from_openai(OpenAI(), cache=cache)
 ### 3. Cache TTL (Time-to-Live)
 ```python
 client.create(
-    model="gpt-3.5-turbo",
+    model="gpt-6-luna",
     messages=messages,
     response_model=User,
     cache_ttl=3600,  # 1 hour

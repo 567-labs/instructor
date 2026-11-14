@@ -18,7 +18,7 @@ SOURCE_DOCUMENTS = {
 def extract_product_facts(sources: Mapping[str, str]) -> ProductExtraction:
     """Extract facts and validate their evidence against the supplied documents."""
 
-    client = instructor.from_provider("openai/gpt-5-nano")
+    client = instructor.from_provider("openai/gpt-6-luna")
     return client.create(
         response_model=ProductExtraction,
         messages=[

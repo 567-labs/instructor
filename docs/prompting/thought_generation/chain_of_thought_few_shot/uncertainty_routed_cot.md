@@ -15,7 +15,7 @@ from textwrap import dedent
 from typing import Literal
 import asyncio
 from collections import Counter
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 class ChainOfThoughtResponse(BaseModel):
@@ -28,7 +28,7 @@ async def generate_response(query: str, options: dict[str, str]):
         [f"{key}:{answer}" for key, answer in options.items()]
     )
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=ChainOfThoughtResponse,
         messages=[
             {

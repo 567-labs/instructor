@@ -22,7 +22,7 @@ from typing import List, Generator, Iterable
 import instructor
 import instructor
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def extract_video_id(url: str) -> str | None:
@@ -68,7 +68,7 @@ class YoutubeClips(BaseModel):
 
 def yield_clips(segments: Iterable[TranscriptSegment]) -> Iterable[YoutubeClips]:
     return client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         stream=True,
         messages=[
             {

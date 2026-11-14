@@ -1,6 +1,6 @@
 ---
 title: "Anthropic Claude Tutorial: Structured Outputs with Instructor"
-description: "Use Claude Sonnet 5 with Instructor for structured data extraction and type-safe outputs in Python."
+description: "Use Claude Haiku 5.5 with Instructor for structured data extraction and type-safe outputs in Python."
 ---
 
 ## See Also
@@ -12,7 +12,7 @@ description: "Use Claude Sonnet 5 with Instructor for structured data extraction
 
 # Anthropic Claude Tutorial: Structured Outputs with Instructor
 
-Use Claude Sonnet 5 with Instructor to extract structured, validated data, from basic setup through streaming and adaptive thinking.
+Use [Claude Haiku 5.5](https://platform.claude.com/docs/en/models/haiku-5-5/overview) with Instructor to extract structured data. Omit `temperature`, `top_p`, and `top_k`, and end the conversation with a user message.
 
 ## Quick Start: Install Instructor for Claude
 
@@ -55,7 +55,7 @@ class User(BaseModel):
 
 
 client = instructor.from_provider(
-    "anthropic/claude-sonnet-5", mode=instructor.Mode.TOOLS
+    "anthropic/claude-haiku-5-5", mode=instructor.Mode.TOOLS
 )
 
 try:
@@ -105,7 +105,7 @@ except Exception as e:
 import asyncio
 
 async_client = instructor.from_provider(
-    "anthropic/claude-sonnet-5",
+    "anthropic/claude-haiku-5-5",
     async_client=True,
     mode=instructor.Mode.TOOLS,
 )
@@ -146,7 +146,7 @@ class GoogleSearch(BaseModel):
 
 # No need to specify Mode.PARALLEL_TOOLS - it's auto-detected!
 client = instructor.from_provider(
-    "anthropic/claude-sonnet-5",
+    "anthropic/claude-haiku-5-5",
     mode=instructor.Mode.TOOLS,  # or just omit and use default
 )
 
@@ -188,7 +188,7 @@ Let's see how to use the Image and PDF classes.
 
 > For a more in-depth walkthrough of the Image component, check out the [docs here](../concepts/multimodal.md)
 
-Instructor makes it easy to analyse and extract semantic information from images using Anthropic's claude models. [Click here](https://docs.anthropic.com/en/docs/about-claude/models/all-models) to check if the model you'd like to use has vison capabilities.
+Claude Haiku 5.5 accepts image inputs for structured extraction.
 
 Let's see an example below with the sample image above where we'll load it in using our `from_url` method.
 
@@ -206,7 +206,7 @@ class ImageDescription(BaseModel):
     colors: list[str] = Field(..., description="The colors in the image")
 
 
-client = instructor.from_provider("anthropic/claude-sonnet-5")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/image.jpg"
 # Multiple ways to load an image:
 response = client.create(
@@ -258,7 +258,7 @@ class Receipt(BaseModel):
     items: list[str]
 
 
-client = instructor.from_provider("anthropic/claude-sonnet-5")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/invoice.pdf"
 # Multiple ways to load an PDF:
 response = client.create(
@@ -299,7 +299,7 @@ class Receipt(BaseModel):
     items: list[str]
 
 
-client = instructor.from_provider("anthropic/claude-sonnet-5")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/invoice.pdf"
 # Multiple ways to load an PDF:
 response, completion = client.create_with_completion(
@@ -354,7 +354,7 @@ from pydantic import BaseModel, Field
 
 # Initialize client with explicit mode
 client = instructor.from_provider(
-    "anthropic/claude-sonnet-5",
+    "anthropic/claude-haiku-5-5",
     mode=instructor.Mode.TOOLS,
 )
 
@@ -503,7 +503,7 @@ class Character(BaseModel):
 
 # Initialize client with explicit mode and prompt caching
 client = instructor.from_provider(
-    "anthropic/claude-sonnet-5",
+    "anthropic/claude-haiku-5-5",
     mode=instructor.Mode.TOOLS,
 )
 
@@ -583,7 +583,7 @@ class ImageAnalyzer(BaseModel):
 
 # Initialize client with explicit mode and image caching enabled
 client = instructor.from_provider(
-    "anthropic/claude-sonnet-5",
+    "anthropic/claude-haiku-5-5",
     mode=instructor.Mode.TOOLS,
 )
 
@@ -634,7 +634,7 @@ except Exception as e:
 
 ## Thinking (Extended Thinking)
 
-Anthropic supports extended thinking with their Claude models, enabling the model to think through complex problems before providing structured outputs. In Instructor, use `Mode.TOOLS` with the `thinking` parameter to enable this feature.
+Haiku 5.5 uses adaptive thinking by default. Instructor normally forces the extraction tool, which skips thinking. To let Haiku reason before calling the tool, use `Mode.TOOLS` with adaptive thinking and automatic tool choice.
 
 ### Using Extended Thinking with TOOLS
 
@@ -647,7 +647,7 @@ class Answer(BaseModel):
     answer: float
 
 
-client = instructor.from_provider("anthropic/claude-sonnet-5")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 response = client.create(
     response_model=Answer,
     messages=[
@@ -668,10 +668,10 @@ assert response.answer == 9.8
 
 ### How It Works
 
-When you provide the `thinking` parameter with `type: "adaptive"` for Sonnet 5:
+When you provide the `thinking` parameter with `type: "adaptive"` for Haiku 5.5:
 
-1. **Tool Choice**: Pass `tool_choice={"type": "auto"}` explicitly when using adaptive thinking. Thinking does not support a forced tool choice.
-2. **Model Reasoning**: Claude decides how much reasoning the request needs; adaptive thinking does not use `budget_tokens`.
+1. Pass `tool_choice={"type": "auto"}` to let Claude think before calling a tool.
+2. Set `output_config={"effort": "low"}` to guide how much reasoning Claude does.
 3. **Structured Output**: After reasoning, the model returns a valid tool call with your response model
 4. **Validation**: The response is automatically validated against your Pydantic model
 

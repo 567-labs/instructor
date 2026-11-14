@@ -1,6 +1,6 @@
 # Instructor LLM Tutorial: Complete Guide to Structured Outputs
 
-Learn how to use Instructor for LLM structured outputs with this comprehensive tutorial. Instructor is the leading Python library for extracting structured, validated data from large language models (LLMs) like GPT-4, Claude, and Gemini.
+Learn how to use Instructor for LLM structured outputs with this comprehensive tutorial. Instructor is the leading Python library for extracting structured, validated data from large language models (LLMs) like GPT-6 Luna, Claude, and Gemini.
 
 ## What You'll Learn in This LLM Tutorial
 

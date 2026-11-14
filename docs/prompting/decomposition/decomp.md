@@ -19,7 +19,7 @@ We can implement this using `instructor` as seen below.
 import instructor
 from pydantic import BaseModel, Field
 from typing import Union
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Split(BaseModel):
@@ -77,7 +77,7 @@ def derive_action_plan(task_description: str) -> ActionPlan:
         ],
         response_model=ActionPlan,
         max_retries=3,
-        model="gpt-4o",
+        model="gpt-6-luna",
     )
 
 

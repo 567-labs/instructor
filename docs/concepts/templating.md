@@ -28,7 +28,7 @@ The `context` parameter is a dictionary that is passed to the templating engine.
 import instructor
 from pydantic import BaseModel
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class User(BaseModel):
@@ -64,7 +64,7 @@ import instructor
 from pydantic import BaseModel, ValidationInfo, field_validator
 import re
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Response(BaseModel):
@@ -131,7 +131,7 @@ This makes formatting of prompts and rendering logic extremely easy.
 import instructor
 from pydantic import BaseModel
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Citation(BaseModel):
@@ -213,7 +213,7 @@ class Address(BaseModel):
     zipcode: str
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 context = UserContext(name="scolvin", address="secret address")
 
 address = client.create(

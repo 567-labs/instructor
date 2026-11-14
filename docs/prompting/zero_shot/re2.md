@@ -17,7 +17,7 @@ Re2 (**Re** - **R** eading) is a technique that asks the model to read the quest
 import instructor
 from pydantic import BaseModel
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Response(BaseModel):
@@ -26,7 +26,7 @@ class Response(BaseModel):
 
 def re2(query, thinking_prompt):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Response,
         messages=[
             {

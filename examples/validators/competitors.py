@@ -25,7 +25,7 @@ class Response(BaseModel):
 
 try:
     resp = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         response_model=Response,
         max_retries=2,
         messages=[

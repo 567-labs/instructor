@@ -18,10 +18,11 @@ class MultiSearchQuery(BaseModel):
 
 def extract_table(url: str):
     completion = client.chat.completions.create(
-        model="gpt-4-vision-preview",
-        max_tokens=1800,
+        model="gpt-6-luna",
+        reasoning_effort="none",
+        max_completion_tokens=1800,
         temperature=0,
-        stop=["```"],
+        response_format={"type": "json_object"},
         messages=[
             {
                 "role": "system",
@@ -48,10 +49,6 @@ def extract_table(url: str):
                         "image_url": {"url": url},
                     },
                 ],
-            },
-            {
-                "role": "assistant",
-                "content": "Here is the following search queries for the products in the image\n ```json",
             },
         ],
     )

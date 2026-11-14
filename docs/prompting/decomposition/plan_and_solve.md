@@ -26,7 +26,7 @@ We can implement this using `instructor` as seen below.
 ```python hl_lines="26-34 67"
 import instructor
 from pydantic import BaseModel
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Reasoning(BaseModel):
@@ -60,7 +60,7 @@ def generate_reasoning(query: str):
             },
         ],
         response_model=Reasoning,
-        model="gpt-4o",
+        model="gpt-6-luna",
     )
 
 
@@ -92,7 +92,7 @@ def extract_answer(query: str, reasoning: Reasoning):
                 """,
             }
         ],
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Response,
     )
 

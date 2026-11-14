@@ -1,6 +1,6 @@
 import instructor
 
-models = ["gpt-4.1-mini"]
+models = ["gpt-6-luna"]
 modes = [
     instructor.Mode.TOOLS,
 ]

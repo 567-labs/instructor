@@ -16,7 +16,7 @@ from openai import OpenAI
 
 client = OpenAI()
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {
             "role": "user",
@@ -57,9 +57,9 @@ class Customer(BaseModel):
     age: int = Field(description="Customer's age in years", ge=0, le=120)
     email: EmailStr = Field(description="Customer's email address")
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 customer = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {
             "role": "user",
@@ -88,7 +88,7 @@ Instructor shines with complex data structures:
 from typing import List, Optional
 from pydantic import BaseModel, Field
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Address(BaseModel):
     street: str
@@ -109,7 +109,7 @@ class Person(BaseModel):
     skills: List[str] = Field(description="List of professional skills")
 
 person = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {
             "role": "user",

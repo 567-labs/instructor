@@ -24,7 +24,7 @@ To make a field optional, use Python's `Optional` type and provide a default val
 from typing import Optional
 from pydantic import BaseModel
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Person(BaseModel):
     name: str  # Required field
@@ -42,7 +42,7 @@ You can provide meaningful default values for optional fields:
 from typing import List
 from pydantic import BaseModel
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Product(BaseModel):
     name: str
@@ -60,7 +60,7 @@ You can add the `Field` class for more control and validation:
 from typing import Optional
 from pydantic import BaseModel, Field
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class UserProfile(BaseModel):
     username: str
@@ -80,7 +80,7 @@ Entire nested structures can be optional:
 from typing import Optional
 from pydantic import BaseModel
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Address(BaseModel):
     street: str
@@ -181,7 +181,7 @@ from typing import Optional
 from pydantic import BaseModel, field_validator
 import instructor
 import re
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class ContactInfo(BaseModel):
     email: str

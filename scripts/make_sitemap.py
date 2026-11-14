@@ -123,7 +123,8 @@ async def analyze_content(
     """
     try:
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-6-luna",
+            reasoning_effort="none",
             messages=[
                 {
                     "role": "system",
@@ -143,7 +144,7 @@ If no references are found, write: REFERENCES: none""",
                 },
                 {"role": "user", "content": content},
             ],
-            max_tokens=4000,
+            max_completion_tokens=4000,
         )
 
         result_text = response.choices[0].message.content

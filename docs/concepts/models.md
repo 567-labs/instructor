@@ -32,7 +32,7 @@ class User(BaseModel):
     age: int = Field(description="The age of the user.")
 
 
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 user = client.create(
     response_model=User,
@@ -58,7 +58,7 @@ class User(BaseModel):
     email: Optional[str] = Field(description="The email of the user.", default=None)
 
 
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 user = client.create(
     response_model=User,
@@ -173,7 +173,7 @@ from typing import Literal
 
 import instructor
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class SearchQuery(BaseModel):
@@ -187,7 +187,7 @@ class SearchQuery(BaseModel):
 
 
 query = client.create(
-    model="gpt-4.1-mini",
+    model="gpt-6-luna",
     messages=[{"role": "user", "content": "Search for a picture of a cat"}],
     response_model=SearchQuery,
 )

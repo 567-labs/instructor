@@ -35,7 +35,7 @@ class BatchProcessor(Generic[T]):
         except ValueError as err:
             raise ValueError(
                 'Model string must be in format "provider/model-name" '
-                '(e.g. "openai/gpt-4" or "anthropic/claude-3-sonnet")'
+                '(e.g. "openai/gpt-6-luna" or "anthropic/claude-haiku-5-5")'
             ) from err
 
         # Get the batch provider instance

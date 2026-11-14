@@ -49,7 +49,7 @@ At the moment, John is employed at Company A. He started his role as a Software 
 
 # Define the PII Scrubbing Model
 pii_data: PIIDataExtraction = client.chat.completions.create(
-    model="gpt-3.5-turbo",
+    model="gpt-6-luna",
     response_model=PIIDataExtraction,
     messages=[
         {

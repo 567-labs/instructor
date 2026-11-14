@@ -13,7 +13,7 @@ import instructor
 
 from pydantic import BaseModel
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class UserExtract(BaseModel):
@@ -33,6 +33,7 @@ print(user)
 
 print(completion)
 """
+# Example response recorded with GPT-4.1 mini
 ChatCompletion(
     id='chatcmpl-D1KqvmcGn5zeYfqRdquwERAH0wIVB',
     choices=[
@@ -98,7 +99,7 @@ The returned value behaves exactly like a normal Python list, but you can access
 import instructor
 from pydantic import BaseModel
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class UserExtract(BaseModel):
@@ -143,7 +144,7 @@ You can also access the raw response from Anthropic models. This is useful for d
 ```python
 import instructor
 
-client = instructor.from_provider("anthropic/claude-3-5-sonnet-latest")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 
 
 user, completion = client.create_with_completion(

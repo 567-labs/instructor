@@ -18,7 +18,7 @@ class User(BaseModel):
 
 
 # Extract it from natural language
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 user = client.chat.completions.create(
     response_model=User,
     messages=[{"role": "user", "content": "John is 25 years old"}],
@@ -59,7 +59,8 @@ Getting structured data from LLMs is hard. You need to:
 
 ```python
 response = openai.chat.completions.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
+    reasoning_effort="none",
     messages=[{"role": "user", "content": "..."}],
     tools=[
         {
@@ -92,7 +93,7 @@ if "name" not in user_data:
 <td>
 
 ```python
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 user = client.chat.completions.create(
     response_model=User,
@@ -126,10 +127,10 @@ Use the same code with any LLM provider:
 import os
 
 # OpenAI
-client = instructor.from_provider("openai/gpt-4o")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Anthropic
-client = instructor.from_provider("anthropic/claude-sonnet-5")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 
 # Google
 client = instructor.from_provider("google/gemini-3.8-flash")
@@ -138,9 +139,11 @@ client = instructor.from_provider("google/gemini-3.8-flash")
 client = instructor.from_provider("ollama/llama3.2")
 
 # With API keys directly (no environment variables needed)
-client = instructor.from_provider("openai/gpt-4o", api_key=os.environ["OPENAI_API_KEY"])
 client = instructor.from_provider(
-    "anthropic/claude-sonnet-5", api_key=os.environ["ANTHROPIC_API_KEY"]
+    "openai/gpt-6-luna", api_key=os.environ["OPENAI_API_KEY"]
+)
+client = instructor.from_provider(
+    "anthropic/claude-haiku-5-5", api_key=os.environ["ANTHROPIC_API_KEY"]
 )
 client = instructor.from_provider("groq/llama-3.1-8b-instant", api_key="gsk_...")
 
@@ -245,7 +248,7 @@ Extract structured data from any text:
 from pydantic import BaseModel
 import instructor
 
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Product(BaseModel):

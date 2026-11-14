@@ -18,7 +18,7 @@ class User(BaseModel):
 
 def stream_extract(input: str) -> Iterable[User]:
     return client.chat.completions.create_iterable(
-        model="gpt-4o",
+        model="gpt-6-luna",
         temperature=0.1,
         stream=True,
         response_model=User,
@@ -36,7 +36,7 @@ def stream_extract(input: str) -> Iterable[User]:
                 ),
             },
         ],
-        max_tokens=1000,
+        max_completion_tokens=1000,
     )
 
 

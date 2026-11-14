@@ -31,11 +31,10 @@ class Program(ResponseSchema):
 
 
 def develop(data: str) -> Program:
-    completion = client.chat.completions.create(
-        model="gpt-4o-mini",
+    return client.chat.completions.create(
+        model="gpt-6-luna",
         temperature=0.1,
-        functions=[Program.openai_schema],
-        function_call={"name": Program.openai_schema["name"]},
+        response_model=Program,
         messages=[
             {
                 "role": "system",
@@ -46,9 +45,8 @@ def develop(data: str) -> Program:
                 "content": data,
             },
         ],
-        max_tokens=1000,
+        max_completion_tokens=1000,
     )
-    return Program.from_response(completion)
 
 
 if __name__ == "__main__":

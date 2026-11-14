@@ -60,7 +60,7 @@ import instructor
 from instructor import Mode
 
 client = instructor.from_provider(
-    "openai/gpt-4o-mini",
+    "openai/gpt-6-luna",
     mode=Mode.TOOLS,
 )
 ```
@@ -72,7 +72,7 @@ import instructor
 from instructor import Mode
 
 client = instructor.from_provider(
-    "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
+    "bedrock/global.anthropic.claude-haiku-5-5",
     mode=Mode.MD_JSON,
 )
 ```
@@ -84,7 +84,7 @@ import instructor
 from instructor import Mode
 
 client = instructor.from_provider(
-    "openai/gpt-4o-mini",
+    "openai/gpt-6-luna",
     mode=Mode.JSON_SCHEMA,
 )
 ```

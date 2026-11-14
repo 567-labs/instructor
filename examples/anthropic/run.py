@@ -18,7 +18,7 @@ class User(BaseModel):
 
 
 user = client.messages.create(
-    model="claude-3-haiku-20240307",
+    model="claude-haiku-5-5",
     max_tokens=1024,
     max_retries=0,
     messages=[

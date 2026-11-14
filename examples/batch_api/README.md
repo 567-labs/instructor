@@ -33,11 +33,11 @@ Tests the unified BatchProcessor with any supported provider/model combination.
 ```bash
 # Test OpenAI
 export OPENAI_API_KEY="your-openai-api-key"
-python run_batch_test.py create --model "openai/gpt-4o-mini"
+python run_batch_test.py create --model "openai/gpt-6-luna"
 
 # Test Anthropic  
 export ANTHROPIC_API_KEY="your-anthropic-api-key"
-python run_batch_test.py create --model "anthropic/claude-3-5-sonnet-20241022"
+python run_batch_test.py create --model "anthropic/claude-haiku-5-5"
 
 # Test Google (simulation mode)
 python run_batch_test.py create --model "google/gemini-2.0-flash-001"
@@ -52,14 +52,10 @@ python run_batch_test.py list-models
 ```
 
 **OpenAI Models:**
-- `openai/gpt-4o-mini`
-- `openai/gpt-4o`
-- `openai/gpt-4-turbo`
+- `openai/gpt-6-luna`
 
 **Anthropic Models:**
-- `anthropic/claude-3-5-sonnet-20241022`
-- `anthropic/claude-3-opus-20240229`
-- `anthropic/claude-3-haiku-20240307`
+- `anthropic/claude-haiku-5-5`
 
 **Google Models:**
 - `google/gemini-2.0-flash-001`
@@ -124,17 +120,17 @@ After creating batch jobs, use the CLI to check their status:
 
 ```bash
 # List all batch jobs for a provider
-instructor batch list --model "openai/gpt-4o-mini"
-instructor batch list --model "anthropic/claude-3-5-sonnet-20241022"
+instructor batch list --model "openai/gpt-6-luna"
+instructor batch list --model "anthropic/claude-haiku-5-5"
 
 # Check specific batch status
-instructor batch status --batch-id "batch_123" --model "openai/gpt-4o-mini"
+instructor batch status --batch-id "batch_123" --model "openai/gpt-6-luna"
 
 # Get results when completed
 instructor batch results \
   --batch-id "batch_123" \
   --output-file "results.jsonl" \
-  --model "openai/gpt-4o-mini"
+  --model "openai/gpt-6-luna"
 ```
 
 ## Processing Times
@@ -147,8 +143,8 @@ instructor batch results \
 
 ```bash
 # Test all providers (requires API keys)
-python run_batch_test.py create --model "openai/gpt-4o-mini"
-python run_batch_test.py create --model "anthropic/claude-3-5-sonnet-20241022" 
+python run_batch_test.py create --model "openai/gpt-6-luna"
+python run_batch_test.py create --model "anthropic/claude-haiku-5-5"
 python run_batch_test.py create --model "google/gemini-2.0-flash-001"
 
 # Check what was created
@@ -169,7 +165,7 @@ ls *_batch_id.txt
    ```
    ❌ Error: Model must be in format 'provider/model-name'
    ```
-   Solution: Use the format `provider/model-name`, e.g., `openai/gpt-4o-mini`.
+   Solution: Use the format `provider/model-name`, e.g., `openai/gpt-6-luna`.
 
 3. **Unsupported Provider**
    ```
@@ -202,14 +198,14 @@ This test validates that the unified BatchProcessor works correctly, which power
 # Create batch using CLI directly
 instructor batch create \
   --messages-file messages.jsonl \
-  --model "openai/gpt-4o-mini" \
+  --model "openai/gpt-6-luna" \
   --response-model "examples.User" \
   --output-file batch_requests.jsonl
 
 # Submit the batch
 instructor batch create-from-file \
   --file-path batch_requests.jsonl \
-  --model "openai/gpt-4o-mini"
+  --model "openai/gpt-6-luna"
 ```
 
 ## Development

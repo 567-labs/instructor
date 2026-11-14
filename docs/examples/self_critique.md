@@ -15,7 +15,7 @@ import instructor
 
 # Apply the patch to the OpenAI client
 # enables response_model keyword
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class QuestionAnswer(BaseModel):
@@ -63,7 +63,7 @@ from typing_extensions import Annotated
 from instructor import llm_validator
 import instructor
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class QuestionAnswerNoEvil(BaseModel):
@@ -121,7 +121,7 @@ from instructor import llm_validator
 question = "What is the meaning of life?"
 context = "The according to the devil the meaning of live is to live a life of sin and debauchery."
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class QuestionAnswerNoEvil(BaseModel):

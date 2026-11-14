@@ -55,7 +55,7 @@ class QuestionAnswerPair(BaseModel):
 
 def generate_question(chunk: str) -> QuestionAnswerPair:
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",
@@ -119,7 +119,7 @@ class QuestionAnswerPair(BaseModel):
     answer: str = Field(description="The answer to the generated question.")
 
 
-processor = BatchProcessor("openai/gpt-4o", QuestionAnswerPair)
+processor = BatchProcessor("openai/gpt-6-luna", QuestionAnswerPair)
 processor.create_batch_from_messages(
     messages_list=list(get_messages(dataset)),
     file_path="./test.jsonl",
