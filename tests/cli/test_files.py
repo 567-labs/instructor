@@ -96,3 +96,46 @@ def test_failed_file_prevents_fine_tuning_job(monkeypatch, tmp_path, failed):
             str(train), "test-model", 0, None, None, None, str(validation), None
         )
     assert exc.value.exit_code == 1
+
+
+def test_download_file_with_openai_client(monkeypatch, tmp_path) -> None:
+    import httpx
+    from openai import OpenAI
+
+    from instructor.cli import files
+
+    test_bytes = b'{"prompt": "hello", "completion": "world"}\n'
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/files/file-abc123/content"
+        return httpx.Response(200, content=test_bytes)
+
+    client = OpenAI(
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    monkeypatch.setattr(files, "client", client)
+
+    output_path = tmp_path / "downloaded.jsonl"
+    files.download("file-abc123", str(output_path))
+
+    assert output_path.read_bytes() == test_bytes
+
+
+def test_download_file_with_fake_client(monkeypatch, tmp_path) -> None:
+    from instructor.cli import files
+
+    class FakeFiles:
+        def content(self, _file_id: str):
+            return b"raw bytes content"
+
+    class FakeClient:
+        files = FakeFiles()
+
+    monkeypatch.setattr(files, "client", FakeClient())
+
+    output_path = tmp_path / "fake_downloaded.bin"
+    files.download("file-fake123", str(output_path))
+
+    assert output_path.read_bytes() == b"raw bytes content"
