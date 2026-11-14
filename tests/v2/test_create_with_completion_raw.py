@@ -54,57 +54,43 @@ CASES = [
 ]
 
 
-def _transport(paths: list[str], payload: dict[str, Any]) -> Any:
+@pytest.mark.asyncio
+@pytest.mark.parametrize("use_async", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize(("mode", "path", "payload", "completion_type"), CASES)
+async def test_create_with_completion_without_model_returns_raw_completion(
+    mode: Mode,
+    path: str,
+    payload: dict[str, Any],
+    completion_type: type,
+    use_async: bool,
+) -> None:
+    paths: list[str] = []
+
     def handle(request: httpx.Request) -> httpx.Response:
         paths.append(request.url.path)
         assert "tools" not in json.loads(request.content)
         return httpx.Response(200, json=payload)
 
-    return httpx.MockTransport(handle)
-
-
-@pytest.mark.parametrize(("mode", "path", "payload", "completion_type"), CASES)
-def test_sync_create_with_completion_without_model(
-    mode: Mode, path: str, payload: dict[str, Any], completion_type: type
-) -> None:
-    paths: list[str] = []
-    sdk = OpenAI(
-        api_key="local-only",
-        http_client=httpx.Client(transport=_transport(paths, payload)),
+    transport = httpx.MockTransport(handle)
+    sdk: Any = (
+        AsyncOpenAI(
+            api_key="local-only", http_client=httpx.AsyncClient(transport=transport)
+        )
+        if use_async
+        else OpenAI(api_key="local-only", http_client=httpx.Client(transport=transport))
     )
     client = instructor.from_openai(sdk, mode=mode)
 
-    result, completion = client.create_with_completion(
+    call = client.create_with_completion(
         messages=[{"role": "user", "content": "hi"}],
         response_model=None,
         model="local",
     )
+    result, completion = await call if use_async else call
 
     assert isinstance(completion, completion_type)
     assert result is completion
     assert paths == [path]
-    sdk.close()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(("mode", "path", "payload", "completion_type"), CASES)
-async def test_async_create_with_completion_without_model(
-    mode: Mode, path: str, payload: dict[str, Any], completion_type: type
-) -> None:
-    paths: list[str] = []
-    sdk = AsyncOpenAI(
-        api_key="local-only",
-        http_client=httpx.AsyncClient(transport=_transport(paths, payload)),
-    )
-    client = instructor.from_openai(sdk, mode=mode)
-
-    result, completion = await client.create_with_completion(
-        messages=[{"role": "user", "content": "hi"}],
-        response_model=None,
-        model="local",
-    )
-
-    assert isinstance(completion, completion_type)
-    assert result is completion
-    assert paths == [path]
-    await sdk.close()
+    closed = sdk.close()
+    if use_async:
+        await closed

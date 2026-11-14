@@ -554,12 +554,20 @@ class FailingResults(RecordingBatches):
 
 
 @pytest.mark.parametrize("command", ["download_file", "results"])
-def test_cli_anthropic_export_keeps_existing_file_on_stream_failure(
-    monkeypatch, tmp_path, command
+@pytest.mark.parametrize("stream_fails", [False, True])
+def test_cli_anthropic_export_replaces_file_only_after_every_result(
+    monkeypatch, tmp_path, command, stream_fails
 ):
     from instructor.cli import batch as batch_cli
 
-    install_client(monkeypatch, FailingResults())
+    batches = (
+        FailingResults()
+        if stream_fails
+        else RecordingBatches(
+            results=[make_result("one", "a"), make_result("two", "b")]
+        )
+    )
+    install_client(monkeypatch, batches)
     destination = tmp_path / "results.jsonl"
     destination.write_text("previous\n", encoding="utf-8")
 
@@ -576,32 +584,9 @@ def test_cli_anthropic_export_keeps_existing_file_on_stream_failure(
             model="anthropic/claude-sonnet-4-5",
         )
 
-    assert destination.read_text(encoding="utf-8") == "previous\n"
-    assert list(tmp_path.iterdir()) == [destination]
-
-
-@pytest.mark.parametrize("command", ["download_file", "results"])
-def test_cli_anthropic_export_writes_every_result(monkeypatch, tmp_path, command):
-    from instructor.cli import batch as batch_cli
-
-    install_client(
-        monkeypatch,
-        RecordingBatches(results=[make_result("one", "a"), make_result("two", "b")]),
-    )
-    destination = tmp_path / "results.jsonl"
-
-    if command == "download_file":
-        batch_cli.download_file(
-            batch_id="batch_123",
-            download_file_path=str(destination),
-            provider="anthropic",
-        )
-    else:
-        batch_cli.results(
-            batch_id="batch_123",
-            output_file=str(destination),
-            model="anthropic/claude-sonnet-4-5",
-        )
-
     lines = destination.read_text(encoding="utf-8").splitlines()
-    assert [json.loads(line)["custom_id"] for line in lines] == ["one", "two"]
+    if stream_fails:
+        assert lines == ["previous"]
+    else:
+        assert [json.loads(line)["custom_id"] for line in lines] == ["one", "two"]
+    assert list(tmp_path.iterdir()) == [destination]

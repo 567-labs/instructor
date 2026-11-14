@@ -106,18 +106,6 @@ def _openai_client(handler):
     return OpenAI(api_key="test", http_client=Client(transport=MockTransport(handler)))
 
 
-def _file_json(file_id: str, created_at: int) -> dict:
-    return {
-        "id": file_id,
-        "bytes": 1,
-        "created_at": created_at,
-        "filename": f"{file_id}.jsonl",
-        "object": "file",
-        "purpose": "fine-tune",
-        "status": "processed",
-    }
-
-
 def test_download_writes_raw_file_bytes(monkeypatch, tmp_path) -> None:
     from instructor.cli import files
     from tests.openai_http import Response
@@ -142,69 +130,63 @@ def test_get_files_reads_every_page(monkeypatch) -> None:
     from instructor.cli import files
     from tests.openai_http import Response
 
+    def file_json(file_id: str, created_at: int) -> dict:
+        return FileObject(
+            id=file_id,
+            bytes=1,
+            created_at=created_at,
+            filename=f"{file_id}.jsonl",
+            object="file",
+            purpose="fine-tune",
+            status="processed",
+        ).model_dump()
+
+    pages = {
+        None: ([file_json("file-mid", 2), file_json("file-old", 1)], True),
+        "file-old": ([file_json("file-new", 3)], False),
+    }
+
     def handler(request):
-        if request.url.params.get("after") == "file-old":
-            body = {
-                "object": "list",
-                "data": [_file_json("file-new", 3)],
-                "has_more": False,
-            }
-        else:
-            body = {
-                "object": "list",
-                "data": [_file_json("file-mid", 2), _file_json("file-old", 1)],
-                "has_more": True,
-            }
-        return Response(200, json=body)
+        data, has_more = pages[request.url.params.get("after")]
+        return Response(
+            200, json={"object": "list", "data": data, "has_more": has_more}
+        )
 
     monkeypatch.setattr(files, "client", _openai_client(handler))
 
     assert [f.id for f in files.get_files()] == ["file-new", "file-mid", "file-old"]
 
 
-def test_delete_exits_nonzero_on_failure(monkeypatch) -> None:
+@pytest.mark.parametrize("fails", [False, True])
+@pytest.mark.parametrize("command", ["files.delete", "jobs.cancel"])
+def test_delete_and_cancel_exit_nonzero_only_on_failure(
+    monkeypatch, command, fails
+) -> None:
     import typer
 
-    from instructor.cli import files
+    from instructor.cli import files, jobs
 
-    def fail(_file_id):
-        raise RuntimeError("not found")
+    calls = []
 
-    monkeypatch.setattr(
-        files, "client", SimpleNamespace(files=SimpleNamespace(delete=fail))
-    )
+    def action(resource_id):
+        calls.append(resource_id)
+        if fails:
+            raise RuntimeError("not found")
 
-    with pytest.raises(typer.Exit) as exc:
-        files.delete("file-1")
-    assert exc.value.exit_code == 1
+    if command == "files.delete":
+        module, run = files, files.delete
+        fake = SimpleNamespace(files=SimpleNamespace(delete=action))
+    else:
+        module, run = jobs, jobs.cancel
+        fake = SimpleNamespace(
+            fine_tuning=SimpleNamespace(jobs=SimpleNamespace(cancel=action))
+        )
+    monkeypatch.setattr(module, "client", fake)
 
-
-def test_delete_succeeds_without_exit(monkeypatch) -> None:
-    from instructor.cli import files
-
-    deleted = []
-    monkeypatch.setattr(
-        files, "client", SimpleNamespace(files=SimpleNamespace(delete=deleted.append))
-    )
-
-    files.delete("file-1")
-
-    assert deleted == ["file-1"]
-
-
-def test_cancel_job_exits_nonzero_on_failure(monkeypatch) -> None:
-    import typer
-
-    from instructor.cli import jobs
-
-    def fail(_job_id):
-        raise RuntimeError("already finished")
-
-    fake = SimpleNamespace(
-        fine_tuning=SimpleNamespace(jobs=SimpleNamespace(cancel=fail))
-    )
-    monkeypatch.setattr(jobs, "client", fake)
-
-    with pytest.raises(typer.Exit) as exc:
-        jobs.cancel("ftjob-1")
-    assert exc.value.exit_code == 1
+    if fails:
+        with pytest.raises(typer.Exit) as exc:
+            run("id-1")
+        assert exc.value.exit_code == 1
+    else:
+        run("id-1")
+    assert calls == ["id-1"]
