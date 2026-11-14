@@ -225,7 +225,7 @@ def test_submit_batch_uploads_buffer_with_jsonl_filename(
     payload = b'{"custom_id": "three"}\n'
     buffer = io.BytesIO(payload)
     if buffer_name is not None:
-        setattr(buffer, "name", buffer_name)
+        setattr(buffer, "name", buffer_name)  # noqa: B010
     buffer.seek(5)
     client = OpenAIClient()
     upload = Mock(wraps=client.files.create)
