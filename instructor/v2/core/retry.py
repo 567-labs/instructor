@@ -112,6 +112,7 @@ def _replay_first_partial(
     first: Any, stream: Generator[Any, None, None]
 ) -> Generator[Any, None, None]:
     try:
+        yield None  # The retry loop primes cleanup before returning the stream.
         yield first
         yield from stream
     finally:

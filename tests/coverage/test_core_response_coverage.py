@@ -241,6 +241,28 @@ async def test_partial_sync_stream_is_preserved_by_sync_and_async_conversion() -
     assert list(async_result) == expected
 
 
+def test_partial_sync_accepts_a_materialized_provider_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw = chat_completion(content="{}")
+    snapshots = [User(name="Ada", age=36)]
+
+    def parser(**_kwargs: Any) -> list[User]:
+        return snapshots
+
+    _install_parser(monkeypatch, parser)
+    assert (
+        process_response(
+            raw,
+            response_model=Partial[User],
+            stream=True,
+            mode=Mode.JSON,
+            provider=Provider.UNKNOWN,
+        )
+        is snapshots
+    )
+
+
 @pytest.mark.asyncio
 async def test_async_iterable_stream_remains_an_async_generator() -> None:
     response_model = IterableModel(User)
