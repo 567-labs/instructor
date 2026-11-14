@@ -28,12 +28,12 @@ class Album(BaseModel):
     year: int
 
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def emotion_prompting(query, stimuli):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Iterable[Album],
         messages=[
             {

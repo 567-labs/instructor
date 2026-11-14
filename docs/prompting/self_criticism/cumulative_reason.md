@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from textwrap import dedent
 from typing import Literal
 import asyncio
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 class Proposition(BaseModel):
@@ -91,7 +91,7 @@ async def generate_propositions(premises: list[str], hypothesis: str) -> Propose
             },
         ],
         response_model=ProposerOutput,
-        model="gpt-4o",
+        model="gpt-6-luna",
     )
 
 
@@ -126,7 +126,7 @@ async def verify_propositions(
                 },
             ],
             response_model=VerifiedProposition,
-            model="gpt-4o",
+            model="gpt-6-luna",
         )
 
     tasks = [
@@ -143,7 +143,7 @@ async def final_evaluation(
     formatted_premises = "\n- ".join(premises)
     formatted_propositions = "\n- ".join(verification_result)
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",

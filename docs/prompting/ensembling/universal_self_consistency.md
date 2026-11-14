@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, ValidationInfo, field_validator
 import instructor
 from textwrap import dedent
 import asyncio
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 class Response(BaseModel):
@@ -46,7 +46,7 @@ class SelectedResponse(BaseModel):
 
 async def generate_response(query: str) -> Response:
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Response,
         messages=[{"role": "user", "content": query}],
     )
@@ -66,7 +66,7 @@ async def select_consistent_response(responses: list[Response], query: str):
     )
 
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=SelectedResponse,
         messages=[
             {

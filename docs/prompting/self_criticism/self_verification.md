@@ -53,7 +53,7 @@ The full pipeline with forward reasoning and backward verification can be implem
 import instructor
 from pydantic import BaseModel
 from typing import Literal
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 n = 3  # Number of candidates to generate
 k = 5  # Number of times to verify
@@ -79,7 +79,7 @@ class Verification(BaseModel):
 
 def query_llm(query, model):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=model,
         messages=[
             {
@@ -92,7 +92,7 @@ def query_llm(query, model):
 
 def rewrite(query, candidate):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Rewritten,
         messages=[
             {
@@ -109,7 +109,7 @@ def rewrite(query, candidate):
 
 def verify(question):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Verification,
         messages=[{"role": "user", "content": question}],
     )

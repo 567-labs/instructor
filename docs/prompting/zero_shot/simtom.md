@@ -28,7 +28,7 @@ import instructor
 from pydantic import BaseModel, Field
 from typing import Iterable
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class KnownFact(BaseModel):
@@ -41,7 +41,7 @@ class Response(BaseModel):
 
 def generate_known_facts(entity, context, query) -> Iterable[KnownFact]:
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Iterable[KnownFact],
         messages=[
             {
@@ -62,7 +62,7 @@ def generate_known_facts(entity, context, query) -> Iterable[KnownFact]:
 
 def answer_question_based_on_facts(entity, query, known_facts) -> Response:
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Response,
         messages=[
             {

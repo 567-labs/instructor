@@ -71,7 +71,7 @@ import asyncio
 from textwrap import dedent
 import math
 
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 class Response(BaseModel):
@@ -126,7 +126,7 @@ def score_repetitiveness(prediction: Response):
 async def generate_cot_response(query: str) -> tuple[Response, str]:
     return (
         await client.create(
-            model="gpt-4o",
+            model="gpt-6-luna",
             messages=[{"role": "user", "content": query}],
             response_model=Response,
             temperature=0.4,
@@ -187,7 +187,7 @@ def get_top_k_examples(queries: list[ResponseScore], k: int):
 async def generate_answer_with_examples(query: str, examples: list[ResponseScore]):
     formatted_examples = "\n".join([example.format_response() for example in examples])
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",

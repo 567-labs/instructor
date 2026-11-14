@@ -13,7 +13,7 @@ We can implement this using `instructor` as seen below
 ```python hl_lines="23-27"
 import instructor
 from pydantic import BaseModel, Field
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class SelfCalibration(BaseModel):
@@ -40,7 +40,7 @@ def evaluate_model_output(original_prompt: str, model_response: str):
             }
         ],
         response_model=SelfCalibration,
-        model="gpt-4o",
+        model="gpt-6-luna",
     )
 
 

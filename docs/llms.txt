@@ -76,7 +76,7 @@ class User(BaseModel):
     age: int
 
 # Create client using from_provider
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Extract structured data
 user = client.create(
@@ -97,7 +97,7 @@ print(user.age)   # 30
 ```python
 import instructor
 
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 ```
 
 Available Modes:
@@ -111,7 +111,7 @@ Available Modes:
 ```python
 import instructor
 
-client = instructor.from_provider("anthropic/claude-3-5-sonnet")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 ```
 
 Available Modes:
@@ -197,10 +197,10 @@ class UserWithValidation(BaseModel):
     age: int = Field(gt=0, lt=150)  # Age must be between 0 and 150
     email: str = Field(pattern=r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 user = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=UserWithValidation,
     messages=[
         {"role": "user", "content": "Extract the user: John Doe is 30 years old, email is john@example.com"}
@@ -223,11 +223,11 @@ class Report(BaseModel):
     analysis: str
     recommendations: list[str]
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Enable streaming
 for partial in client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=Report,
     stream=True,
     messages=[
@@ -256,10 +256,10 @@ class LongReport(BaseModel):
     detailed_analysis: str = partial()
     conclusion: str = partial()
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 for chunk in client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=LongReport,
     stream=True,
     messages=[
@@ -292,10 +292,10 @@ class Person(BaseModel):
 class PeopleList(BaseModel):
     people: list[Person] = iterable()
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 for person in client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=PeopleList,
     stream=True,
     messages=[
@@ -324,10 +324,10 @@ class ImageContent(BaseModel):
 with open("image.jpg", "rb") as image_file:
     base64_image = base64.b64encode(image_file.read()).decode('utf-8')
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 content = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=ImageContent,
     messages=[
         {
@@ -363,7 +363,7 @@ cache = diskcache.Cache("./my_cache_directory")
 
 # Create client with caching
 client = instructor.from_provider(
-    "openai/gpt-5.4-mini",
+    "openai/gpt-6-luna",
     cache=cache
 )
 
@@ -372,7 +372,7 @@ class Summary(BaseModel):
 
 # This will use the cache if the same request was made before
 summary = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=Summary,
     messages=[
         {"role": "user", "content": "Summarize the key benefits of renewable energy."}
@@ -409,7 +409,7 @@ def log_parsed(parsed, **kwargs):
 
 # Apply hooks
 client = instructor.from_provider(
-    "openai/gpt-5.4-mini",
+    "openai/gpt-6-luna",
     mode=instructor.Mode.TOOLS,
     hooks={
         "prompt": log_prompt,
@@ -419,7 +419,7 @@ client = instructor.from_provider(
 )
 
 user = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=User,
     messages=[
         {"role": "user", "content": "Extract the user: John Doe is 30 years old."}
@@ -443,13 +443,13 @@ class StrictUser(BaseModel):
 
 # Configure max retries
 client = instructor.from_provider(
-    "openai/gpt-5.4-mini",
+    "openai/gpt-6-luna",
     max_retries=3  # Will retry up to 3 times if validation fails
 )
 
 try:
     user = client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         response_model=StrictUser,
         messages=[
             {"role": "user", "content": "Extract the user: John Doe is 30 years old."}
@@ -476,7 +476,7 @@ class Data(BaseModel):
     entities: list[str]
     sentiment: str
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Create parallel tasks
 tasks = [
@@ -488,7 +488,7 @@ tasks = [
 # Process in parallel
 results = parallel(
     client=client,
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=Data,
     prompts=[
         [{"role": "user", "content": f"Analyze this text: {task['text']}"}]
@@ -517,11 +517,11 @@ class Analysis(BaseModel):
     key_points: list[str]
     summary: str
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Context will be used to render templates in messages
 analysis = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=Analysis,
     messages=[
         {
@@ -566,13 +566,13 @@ class Person(BaseModel):
     age: int
     occupation: str
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Maybe is a factory: Maybe(Person), not Maybe[Person]
 MaybePerson = Maybe(Person)
 
 result = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=MaybePerson,
     messages=[
         {"role": "user", "content": "Extract info about Jane Doe who is 28 years old."}
@@ -602,10 +602,10 @@ class Contact(BaseModel):
     email: str
     phone: str
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 contact = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=Contact,
     messages=[
         {"role": "user", "content": "My name is John Doe, email is john@example.com and phone is 555-123-4567"}
@@ -633,10 +633,10 @@ class SentimentAnalysis(BaseModel):
     confidence: float
     explanation: str
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 analysis = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=SentimentAnalysis,
     messages=[
         {"role": "user", "content": "I absolutely loved the new movie! It was fantastic!"}
@@ -679,10 +679,10 @@ class Person(BaseModel):
     skills: List[str] = Field(min_items=1)
     experience: List[Experience] = Field(min_items=0)
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 person = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=Person,
     messages=[
         {"role": "user", "content": """
@@ -726,14 +726,14 @@ class Receipt(BaseModel):
     tax: float
     total: float
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Load the receipt image
 with open("receipt.jpg", "rb") as image_file:
     base64_image = base64.b64encode(image_file.read()).decode('utf-8')
 
 receipt = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=Receipt,
     messages=[
         {
@@ -777,12 +777,12 @@ class CitationCheck(BaseModel):
             raise ValueError(f"Citation '{citation}' not found in source document")
         return citation
 
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 source_document = "The Earth is the third planet from the Sun and the only astronomical object known to harbor life."
 
 result = client.create(
-    model="gpt-4o",
+    model="gpt-6-luna",
     response_model=CitationCheck,
     messages=[
         {"role": "user", "content": "Make a statement about Earth and provide a citation from the text."}
@@ -819,14 +819,14 @@ class RelevantAnswer(BaseModel):
         return answer
 
 client = instructor.from_provider(
-    "openai/gpt-5.4-mini",
+    "openai/gpt-6-luna",
     max_retries=2  # Will retry up to 2 times if validation fails
 )
 
 question = "What are the major impacts of climate change?"
 
 result = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=RelevantAnswer,
     messages=[
         {"role": "user", "content": """
@@ -866,7 +866,7 @@ class AnswerWithContext(BaseModel):
             raise ValueError("Answer doesn't use key facts from the context document")
         return answer
 
-client = instructor.from_provider("openai/gpt-5.4-mini", max_retries=2)
+client = instructor.from_provider("openai/gpt-6-luna", max_retries=2)
 
 # Document to use in both template and validation
 context_document = """
@@ -880,7 +880,7 @@ named after James E. Webb, who was the administrator of NASA from 1961 to 1968.
 question = "When was the James Webb Space Telescope launched and what can it do?"
 
 result = client.create(
-    model="gpt-4o",
+    model="gpt-6-luna",
     response_model=AnswerWithContext,
     messages=[
         {

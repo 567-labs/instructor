@@ -23,7 +23,7 @@ To help the model better infer human intention from ambiguous prompts, we can as
 ```python hl_lines="19"
 from pydantic import BaseModel
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Response(BaseModel):
@@ -33,7 +33,7 @@ class Response(BaseModel):
 
 def rephrase_and_respond(query):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "user",

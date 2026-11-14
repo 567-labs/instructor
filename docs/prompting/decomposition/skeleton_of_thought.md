@@ -13,7 +13,7 @@ Below is an example of an implementation using parallel API calls with `instruct
 import instructor
 from pydantic import BaseModel
 import asyncio
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 class Point(BaseModel):
@@ -31,7 +31,7 @@ class Response(BaseModel):
 
 async def get_skeleton(question):
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Skeleton,
         messages=[
             {
@@ -57,7 +57,7 @@ async def get_skeleton(question):
 
 async def expand_point(question, skeleton, point_index):
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Response,
         messages=[
             {

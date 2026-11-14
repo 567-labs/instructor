@@ -221,10 +221,10 @@ class ReasonedAnswer(BaseModel):
         description="The final conclusion after reasoning"
     )
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=ReasonedAnswer,
     messages=[
         {"role": "user", "content": "What is the cube root of 27?"}
