@@ -23,7 +23,7 @@ The simplest form of a prompt template is a string with placeholders for variabl
 ```python
 from pydantic import BaseModel, Field
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Person(BaseModel):
     name: str
@@ -50,7 +50,7 @@ prompt = prompt_template.format(
 
 # Extract structured data using the formatted prompt
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": prompt}
     ],
@@ -73,7 +73,7 @@ def extract_person(content, document_type="text"):
     """
 
     return client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         messages=[
             {"role": "user", "content": prompt}
         ],
@@ -95,7 +95,7 @@ For more complex templates, create dedicated template functions:
 from typing import List, Optional
 from pydantic import BaseModel
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class ProductReview(BaseModel):
     product_name: str
@@ -142,7 +142,7 @@ prompt = create_review_extraction_prompt(
 )
 
 review = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": prompt}
     ],

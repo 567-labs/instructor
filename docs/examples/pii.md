@@ -80,7 +80,7 @@ class PIIDataExtraction(BaseModel):
 
 # <%hide%>
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 EXAMPLE_DOCUMENT = """
 # Fake Document with PII for Testing PII Scrubbing Model
@@ -88,7 +88,7 @@ EXAMPLE_DOCUMENT = """
 """
 
 pii_data = client.create(
-    model="gpt-4o-mini",
+    model="gpt-6-luna",
     response_model=PIIDataExtraction,
     messages=[
         {

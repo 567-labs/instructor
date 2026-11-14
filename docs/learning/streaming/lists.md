@@ -16,7 +16,7 @@ from typing import Iterable
 import instructor
 from pydantic import BaseModel, Field
 # Initialize the client
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Book(BaseModel):
     title: str = Field(..., description="Book title")
@@ -25,7 +25,7 @@ class Book(BaseModel):
 
 # Stream a list of books
 for book in client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": "List 5 classic science fiction books"}
     ],
@@ -48,7 +48,7 @@ from typing import Iterable
 import instructor
 from pydantic import BaseModel, Field
 import time
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Task(BaseModel):
@@ -63,7 +63,7 @@ start_time = time.time()
 received_tasks = 0
 
 for task in client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {
             "role": "user",

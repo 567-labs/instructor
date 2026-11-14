@@ -5,7 +5,7 @@ description: Step-by-step tutorial for your first structured data extraction fro
 
 # Your First LLM Extraction: Structured Outputs Tutorial
 
-Learn how to extract structured data from LLMs using Instructor in this hands-on tutorial. We'll build a simple yet powerful example that demonstrates how to transform unstructured text into validated Python objects using GPT-4, Claude, or any supported LLM.
+Learn how to extract structured data from LLMs using Instructor in this hands-on tutorial. We'll build a simple yet powerful example that demonstrates how to transform unstructured text into validated Python objects using GPT-6 Luna, Claude, or any supported LLM.
 
 ## Quick Start: Extract Structured Data from LLMs
 
@@ -20,7 +20,7 @@ class Person(BaseModel):
     age: int
 
 # 2. Initialize Instructor with your LLM provider
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # 3. Extract structured data from LLM
 person = client.create(
@@ -61,7 +61,7 @@ Pydantic models define the structure for LLM outputs:
 ### Step 2: Configure Your LLM Client
 
 ```python
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 ```
 
 Instructor enhances your LLM client with structured output capabilities. Works with OpenAI, Anthropic, Google, and 15+ providers.
@@ -122,7 +122,7 @@ class Person(BaseModel):
 You've successfully extracted structured data from an LLM! Next steps:
 
 1. **[Advanced Response Models](response_models.md)** - Complex schemas for LLM outputs
-2. **[Multi-Provider Setup](../../concepts/from_provider.md)** - Use GPT-4, Claude, Gemini interchangeably
+2. **[Multi-Provider Setup](../../concepts/from_provider.md)** - Use GPT-6 Luna, Claude, Gemini interchangeably
 3. **[Production Patterns](../patterns/simple_object.md)** - Real-world LLM extraction examples
 
 ## Common LLM Extraction Patterns

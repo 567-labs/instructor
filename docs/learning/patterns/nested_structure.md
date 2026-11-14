@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 import instructor
 from typing import List, Optional
 # Initialize the client
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Define nested models
 class Address(BaseModel):
@@ -41,7 +41,7 @@ class Person(BaseModel):
 
 # Extract the nested data
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": """
         John Smith is 35 years old.
@@ -66,7 +66,7 @@ You can use multiple levels of nesting for more complex structures:
 from pydantic import BaseModel, Field
 import instructor
 from typing import List, Optional
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class EmployeeDetails(BaseModel):
     department: str
@@ -92,7 +92,7 @@ class Person(BaseModel):
 
 # Extract deeply nested data
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": """
         Employee Profile:
@@ -118,7 +118,7 @@ You can combine nesting with lists to represent complex collections:
 from pydantic import BaseModel, Field
 import instructor
 from typing import List
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Ingredient(BaseModel):
     name: str
@@ -133,7 +133,7 @@ class Recipe(BaseModel):
 
 # Extract nested list data
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": """
         Recipe: Chocolate Chip Cookies
@@ -176,7 +176,7 @@ Sometimes parts of a nested structure might be missing. Use Optional to handle t
 from pydantic import BaseModel, Field
 import instructor
 from typing import Optional
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class SocialMedia(BaseModel):
     twitter: Optional[str] = None
@@ -203,7 +203,7 @@ You can add validation to nested structures at any level:
 from pydantic import BaseModel, Field, field_validator, model_validator
 import instructor
 import re
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class EmailContact(BaseModel):
     email: str
@@ -238,7 +238,7 @@ For more complex hierarchical data, you can use recursive structures:
 from typing import List, Optional
 from pydantic import BaseModel, Field
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Comment(BaseModel):
     text: str
@@ -256,7 +256,7 @@ class Post(BaseModel):
 
 # Extract recursive nested data
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": """
         Blog Post: "Python Tips and Tricks"
@@ -286,7 +286,7 @@ Here's a more complete example extracting an organization structure:
 from typing import List, Optional
 from pydantic import BaseModel, Field
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Employee(BaseModel):
     name: str
@@ -308,7 +308,7 @@ class Organization(BaseModel):
 
 # Extract organization structure
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": """
         Acme Corporation

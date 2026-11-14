@@ -109,11 +109,11 @@ class QueryPlan(BaseModel):
 
 # Apply the patch to the OpenAI client
 # enables response_model keyword
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def query_planner(question: str) -> QueryPlan:
-    PLANNING_MODEL = "gpt-4o-mini"
+    PLANNING_MODEL = "gpt-6-luna"
 
     messages = [
         {
@@ -131,7 +131,7 @@ def query_planner(question: str) -> QueryPlan:
         temperature=0,
         response_model=QueryPlan,
         messages=messages,
-        max_tokens=1000,
+        max_completion_tokens=1000,
     )
     return root
 ```

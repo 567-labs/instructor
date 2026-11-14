@@ -158,14 +158,14 @@ class Table(BaseModel):
 # <%hide%>
 
 # Use MD_JSON mode since the vision model does not support any special structured output mode
-client = instructor.from_provider("openai/gpt-4o-mini", mode=instructor.Mode.MD_JSON)
+client = instructor.from_provider("openai/gpt-6-luna", mode=instructor.Mode.MD_JSON)
 
 
 def extract_table(url: str) -> Iterable[Table]:
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=Iterable[Table],
-        max_tokens=1800,
+        max_completion_tokens=1800,
         messages=[
             {
                 "role": "user",
@@ -227,14 +227,14 @@ class Table(BaseModel):
     dataframe: MarkdownDataFrame
 
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def extract_table(url: str) -> Iterable[Table]:
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Iterable[Table],
-        max_tokens=1800,
+        max_completion_tokens=1800,
         messages=[
             {
                 "role": "user",

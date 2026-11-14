@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 # Apply the patch to the OpenAI client
 # enables response_model keyword
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 LABELS = Literal["ACCOUNT", "BILLING", "GENERAL_QUERY"]
 
@@ -37,7 +37,7 @@ class MultiClassPrediction(BaseModel):
 
 def multi_classify(data: str) -> MultiClassPrediction:
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=MultiClassPrediction,
         messages=[
             {

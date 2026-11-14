@@ -72,12 +72,12 @@ class KnowledgeGraph(BaseModel):
 
 # Adds response_model to ChatCompletion
 # Allows the return of Pydantic model rather than raw JSON
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def generate_graph(input) -> KnowledgeGraph:
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "user",
@@ -119,12 +119,12 @@ class KnowledgeGraph(BaseModel):
     edges: List[Edge] = Field(..., default_factory=list)
 
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def generate_graph(input) -> KnowledgeGraph:
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "user",
@@ -282,7 +282,7 @@ def generate_graph(input: List[str]) -> KnowledgeGraph:
     num_iterations = len(input)
     for i, inp in enumerate(input):
         new_updates = client.create(
-            model="gpt-5.4-mini",
+            model="gpt-6-luna",
             messages=[
                 {
                     "role": "system",
@@ -365,7 +365,7 @@ class KnowledgeGraph(BaseModel):
         dot.render(prefix, format="png", view=True)
 
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def generate_graph(input: List[str]) -> KnowledgeGraph:
@@ -373,7 +373,7 @@ def generate_graph(input: List[str]) -> KnowledgeGraph:
     num_iterations = len(input)
     for i, inp in enumerate(input):
         new_updates = client.create(
-            model="gpt-4o-mini",
+            model="gpt-6-luna",
             messages=[
                 {
                     "role": "system",

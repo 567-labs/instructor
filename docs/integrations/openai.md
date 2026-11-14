@@ -1,11 +1,11 @@
 ---
 title: "Structured outputs with OpenAI, a complete guide with instructor"
-description: "Learn how to use Instructor with OpenAI's models for type-safe, structured outputs. Complete guide with examples and best practices for GPT-4 and other OpenAI models."
+description: "Learn how to use Instructor with OpenAI's models for type-safe, structured outputs. Complete guide with examples and best practices for GPT-6 Luna."
 ---
 
 # Structured outputs with OpenAI, a complete guide with instructor
 
-These examples use [GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna). Chat Completions tool calls require `reasoning_effort="none"`; use the Responses API when you need reasoning with tools. For Chat Completions output limits, use `max_completion_tokens`, not `max_tokens`.
+These examples use [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna). Chat Completions tool calls require `reasoning_effort="none"`. Use the Responses API when you need reasoning with tools. Set Chat Completions output limits with `max_completion_tokens`.
 
 ## Quick Start
 
@@ -32,7 +32,7 @@ export OPENAI_API_KEY='your-api-key-here'
 import instructor
 
 client = instructor.from_provider(
-    "openai/gpt-5.6-luna",
+    "openai/gpt-6-luna",
     api_key='your-api-key-here',
 )
 ```
@@ -82,7 +82,7 @@ import instructor
 from pydantic import BaseModel
 
 # Initialize client using provider string
-client = instructor.from_provider("openai/gpt-5.6-luna")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class User(BaseModel):
@@ -111,7 +111,7 @@ from pydantic import BaseModel
 import asyncio
 
 # Initialize async client using provider string
-client = instructor.from_provider("openai/gpt-5.6-luna", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 class User(BaseModel):
@@ -152,7 +152,7 @@ class SupportTicket(BaseModel):
 
 
 client = instructor.from_provider(
-    "openai/gpt-5.6-luna",
+    "openai/gpt-6-luna",
     mode=instructor.Mode.RESPONSES_TOOLS,
     async_client=True,
 )
@@ -200,7 +200,7 @@ class User(BaseModel):
 
 # Initialize client
 client = instructor.from_provider(
-    "openai/gpt-5.6-luna",
+    "openai/gpt-6-luna",
     api_key=os.getenv('OPENAI_API_KEY'),
 )
 # Create structured output with nested objects
@@ -256,7 +256,7 @@ Let's see how to use the Image, Audio and PDF classes.
 
 > For a more in-depth walkthrough of the Image component, check out the [docs here](../concepts/multimodal.md)
 
-Instructor makes it easy to analyse and extract semantic information from images using OpenAI's GPT-4o models. [Click here](https://platform.openai.com/docs/models) to check if the model you'd like to use has vision capabilities.
+Use GPT-6 Luna to extract structured data from images.
 
 Let's see an example below with the sample image above where we'll load it in using our `from_url` method.
 
@@ -274,7 +274,7 @@ class ImageDescription(BaseModel):
     colors: list[str] = Field(..., description="The colors in the image")
 
 
-client = instructor.from_provider("openai/gpt-5.6-luna")
+client = instructor.from_provider("openai/gpt-6-luna")
 url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/image.jpg"
 # Multiple ways to load an image:
 response = client.create(
@@ -309,7 +309,7 @@ print(response)
 
 ### PDF
 
-Instructor makes it easy to analyse and extract semantic information from PDFs using OpenAI's GPT-4o models.
+Use GPT-6 Luna to extract structured data from PDFs.
 
 Let's see an example below with the sample PDF above where we'll load it in using our `from_url` method.
 
@@ -326,7 +326,7 @@ class Receipt(BaseModel):
     items: list[str]
 
 
-client = instructor.from_provider("openai/gpt-5.6-luna")
+client = instructor.from_provider("openai/gpt-6-luna")
 url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/invoice.pdf"
 # Multiple ways to load an PDF:
 response = client.create(
@@ -356,7 +356,7 @@ print(response)
 
 ### Audio
 
-Luna does not accept audio input. First transcribe a local recording with [GPT-4o Transcribe](https://developers.openai.com/api/docs/models/gpt-4o-transcribe), then extract structured data from its text.
+Luna does not accept audio input. First transcribe a local recording with [GPT-Transcribe](https://developers.openai.com/api/docs/models/gpt-transcribe), then extract structured data from its text.
 
 ```python
 from pydantic import BaseModel
@@ -374,10 +374,10 @@ class AudioDescription(BaseModel):
 sdk = OpenAI()
 with open("recording.wav", "rb") as audio_file:
     transcription = sdk.audio.transcriptions.create(
-        model="gpt-4o-transcribe", file=audio_file
+        model="gpt-transcribe", file=audio_file
     )
 
-client = instructor.from_provider("openai/gpt-5.6-luna")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 response = client.create(
     response_model=AudioDescription,
@@ -406,7 +406,7 @@ Instructor has two main ways that you can use to stream responses out
 ```python
 from pydantic import BaseModel
 
-client = instructor.from_provider("openai/gpt-5.6-luna")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class User(BaseModel):
@@ -492,7 +492,7 @@ Read more about how to use it [here](../examples/batch_job_oai.md)
 
 ## Best Practices
 
-1. **Model Selection**: These examples use `gpt-5.6-luna`. Evaluate extraction accuracy and latency on your own data before choosing a model for production.
+1. **Model Selection**: These examples use `gpt-6-luna`. Evaluate extraction accuracy and latency on your own data before choosing a model for production.
 
 2. **Performance Optimization** : Streaming a response model is faster and should be done from the get-go. This is especially true if you're using a simple response model.
 

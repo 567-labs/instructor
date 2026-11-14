@@ -5,7 +5,7 @@ description: Implement single-label text classification with Instructor. Classif
 
 # Single-Label Classification
 
-This example demonstrates how to perform single-label classification using the OpenAI API. The example uses the `gpt-5.4-mini` model to classify text as either `SPAM` or `NOT_SPAM`.
+This example demonstrates how to perform single-label classification using the OpenAI API. The example uses the `gpt-6-luna` model to classify text as either `SPAM` or `NOT_SPAM`.
 
 ```python
 from pydantic import BaseModel, Field
@@ -14,7 +14,7 @@ import instructor
 
 # Apply the patch to the OpenAI client
 # enables response_model keyword
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class ClassificationResponse(BaseModel):
@@ -38,7 +38,7 @@ class ClassificationResponse(BaseModel):
 def classify(data: str) -> ClassificationResponse:
     """Perform single-label classification on the input text."""
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=ClassificationResponse,
         messages=[
             {
