@@ -4,7 +4,24 @@ import pytest
 from jinja2 import UndefinedError
 
 from instructor import Mode
-from instructor.v2.core.templating import handle_templating
+from instructor.v2.core.templating import apply_template, handle_templating
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("", ""),
+        ("  Static text {value}", "Static text {value}"),
+        ("  first\r\n  second\r\n", "first\nsecond"),
+        ("  first\r  second\r\r", "first\nsecond\n"),
+        ("a\u2028b\n", "a\u2028b"),
+        ("A{# hidden #}B", "AB"),
+    ],
+)
+def test_apply_template_preserves_literal_text_formatting(
+    text: str, expected: str
+) -> None:
+    assert apply_template(text, {"unused": "value"}) == expected
 
 
 def test_unmatched_template_variable_raises():

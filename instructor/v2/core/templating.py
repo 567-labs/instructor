@@ -17,6 +17,14 @@ _TEXT_BLOCK_TYPES = {
 
 def apply_template(text: str, context: dict[str, Any]) -> str:
     """Apply Jinja2 template to the given text."""
+    if (
+        type(text) is str
+        and type(context) is dict
+        and all(type(key) is str for key in context)
+        and not any(delimiter in text for delimiter in ("{{", "{%", "{#"))
+    ):
+        # Match Jinja's newline handling before applying the usual dedent.
+        return dedent(text.replace("\r\n", "\n").replace("\r", "\n").removesuffix("\n"))
     return dedent(
         SandboxedEnvironment(undefined=StrictUndefined)
         .from_string(text)
