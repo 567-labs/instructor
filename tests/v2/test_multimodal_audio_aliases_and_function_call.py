@@ -11,17 +11,22 @@ from instructor.v2.core.mode import Mode
 
 @pytest.mark.parametrize(
     ("suffix", "media_type"),
-    [(".flac", "audio/flac"), (".m4a", "audio/m4a"), (".aac", "audio/aac")],
+    [
+        (".flac", {"audio/flac"}),
+        # Linux maps .m4a to audio/mp4; macOS reports an alias normalized to m4a.
+        (".m4a", {"audio/m4a", "audio/mp4"}),
+        (".aac", {"audio/aac"}),
+    ],
 )
 def test_audio_from_path_accepts_platform_aliases(
-    tmp_path: Path, suffix: str, media_type: str
+    tmp_path: Path, suffix: str, media_type: set[str]
 ) -> None:
     path = tmp_path / f"clip{suffix}"
     path.write_bytes(b"audio-bytes")
 
     audio = Audio.from_path(path)
 
-    assert audio.media_type == media_type
+    assert audio.media_type in media_type
     assert audio.data == base64.b64encode(b"audio-bytes").decode()
 
 

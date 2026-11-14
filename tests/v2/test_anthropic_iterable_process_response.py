@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from anthropic.types import Message
@@ -61,7 +61,7 @@ def test_process_response_anthropic_iterable() -> None:
 async def test_process_response_async_anthropic_iterable() -> None:
     response = _tool_message()
     result = await process_response_async(
-        response,  # type: ignore[arg-type]
+        cast(Any, response),
         response_model=IterableModel(U),
         stream=False,
         mode=Mode.TOOLS,

@@ -12,7 +12,7 @@ import copy
 from importlib import import_module
 import json
 import warnings
-from typing import Any
+from typing import Any, cast
 
 import anthropic
 import pytest
@@ -38,7 +38,7 @@ class User(BaseModel):
 
 def _handler(mode: Mode) -> Any:
     handlers = mode_registry.get_handlers(Provider.ANTHROPIC, mode)
-    return handlers.request_handler.__self__  # type: ignore[attr-defined]
+    return cast(Any, handlers.request_handler).__self__
 
 
 def _message_payload(

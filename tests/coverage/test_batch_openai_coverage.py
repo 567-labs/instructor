@@ -620,7 +620,9 @@ def test_submit_batch_names_in_memory_upload_as_jsonl(
     assert client.files.upload_names == ["batch.jsonl", None]
 
 
-def test_submit_batch_sends_jsonl_filename_over_http() -> None:
+def test_submit_batch_sends_jsonl_filename_over_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from openai import OpenAI
 
     from tests.openai_http import Client, MockTransport, Response
@@ -658,12 +660,8 @@ def test_submit_batch_sends_jsonl_filename_over_http() -> None:
     client = OpenAI(
         api_key="test", http_client=Client(transport=MockTransport(handler))
     )
-    original = openai.OpenAI
-    try:
-        openai.OpenAI = lambda: client  # type: ignore[assignment]
-        OpenAIProvider().submit_batch(io.BytesIO(b'{"custom_id": "x"}\n'))
-    finally:
-        openai.OpenAI = original  # type: ignore[assignment]
+    monkeypatch.setattr(openai, "OpenAI", lambda: client)
+    OpenAIProvider().submit_batch(io.BytesIO(b'{"custom_id": "x"}\n'))
 
     assert b'filename="batch.jsonl"' in bodies[0]
     assert b'{"custom_id": "x"}' in bodies[0]
