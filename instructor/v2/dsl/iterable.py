@@ -31,6 +31,9 @@ class _TaskObjects:
         self.escaped = False
         self.in_array = False
         self.may_unwrap = False
+        self.unwrapped = False
+        # Open braces/brackets left in a tasks wrapper after its array closed.
+        self.wrapper_depth = 0
         self.buffer: list[str] = []
 
     def feed(self, chunk: str) -> Generator[tuple[str, int], None, None]:
@@ -44,7 +47,12 @@ class _TaskObjects:
             elif char == '"':
                 self.quoted = not self.quoted
             elif not self.quoted:
-                if char == "{":
+                if self.wrapper_depth:
+                    if char in "{[":
+                        self.wrapper_depth += 1
+                    elif char in "}]":
+                        self.wrapper_depth -= 1
+                elif char == "{":
                     if self.depth == 0:
                         self.buffer = [char]
                         self.may_unwrap = self.unwrap_tasks and not self.in_array
@@ -65,8 +73,13 @@ class _TaskObjects:
                             self.buffer.clear()
                             self.depth = 0
                             self.in_array = True
+                            self.unwrapped = True
                 elif char == "]" and not self.depth:
                     self.in_array = False
+                    if self.unwrapped:
+                        # Ignore the rest of the wrapper object, e.g. sibling keys.
+                        self.unwrapped = False
+                        self.wrapper_depth = 1
 
     def finish(self) -> None:
         if self.depth:
