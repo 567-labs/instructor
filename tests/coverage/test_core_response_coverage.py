@@ -236,10 +236,31 @@ async def test_partial_sync_stream_is_preserved_by_sync_and_async_conversion() -
         cast(Any, chunks), response_model=response_model, stream=True, mode=Mode.TOOLS
     )
 
-    assert [item.name for item in sync_result] == ["Ad", "Ada"]
-    assert [item.name for item in async_result] == ["Ad", "Ada"]
-    assert sync_result[-1] == User(name="Ada", age=36)
-    assert async_result[-1] == User(name="Ada", age=36)
+    expected = [User.model_construct(name="Ad", age=None), User(name="Ada", age=36)]
+    assert list(sync_result) == expected
+    assert list(async_result) == expected
+
+
+def test_partial_sync_accepts_a_materialized_provider_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw = chat_completion(content="{}")
+    snapshots = [User(name="Ada", age=36)]
+
+    def parser(**_kwargs: Any) -> list[User]:
+        return snapshots
+
+    _install_parser(monkeypatch, parser)
+    assert (
+        process_response(
+            raw,
+            response_model=Partial[User],
+            stream=True,
+            mode=Mode.JSON,
+            provider=Provider.UNKNOWN,
+        )
+        is snapshots
+    )
 
 
 @pytest.mark.asyncio
