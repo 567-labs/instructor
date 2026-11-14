@@ -2,8 +2,17 @@
 
 from __future__ import annotations
 
+from dataclasses import InitVar
 from inspect import signature
-from typing import Any, Callable, TypeVar, get_args, get_origin
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    TypeVar,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from pydantic import BaseModel, ValidationInfo
 from typing_extensions import TypeAliasType
@@ -228,11 +237,64 @@ def reject_async_validators(response_model: Any) -> None:
         return
 
     seen: set[int] = set()
+    seen_schemas: set[int] = set()
+    schema_definitions: dict[str, Any] = {}
+
+    def visit_schema(node: Any) -> None:
+        if id(node) in seen_schemas:
+            return
+        seen_schemas.add(id(node))
+        if isinstance(node, (list, tuple)):
+            for child in node:
+                visit_schema(child)
+        elif isinstance(node, dict):
+            if node.get("type") == "definitions":
+                for definition in node.get("definitions", ()):
+                    if isinstance(definition, dict) and "ref" in definition:
+                        schema_definitions[definition["ref"]] = definition
+            if node.get("type") == "definition-ref":
+                visit_schema(schema_definitions.get(node.get("schema_ref")))
+                return
+            if node.get("type") == "model":
+                visit(node.get("cls"))
+            # Follow validation edges only: default values, user metadata,
+            # computed fields and serialization schemas are not validated inputs.
+            for key in (
+                "schema",
+                "items_schema",
+                "keys_schema",
+                "values_schema",
+                "extras_schema",
+                "extras_keys_schema",
+                "steps",
+                "lax_schema",
+                "strict_schema",
+                "json_schema",
+                "python_schema",
+                "arguments_schema",
+                "var_args_schema",
+                "var_kwargs_schema",
+                "return_schema",
+            ):
+                if key in node:
+                    visit_schema(node[key])
+            for key in ("fields", "choices"):
+                children = node.get(key)
+                if isinstance(children, dict):
+                    for child in children.values():
+                        visit_schema(child)
+                elif children is not None:
+                    visit_schema(children)
 
     def visit(model: Any) -> None:
         if id(model) in seen:
             return
         seen.add(id(model))
+        if get_origin(model) is ClassVar:
+            return
+        if isinstance(model, InitVar):
+            visit(model.type)
+            return
         if isinstance(model, TypeAliasType):
             visit(model.__value__)
         origin = get_origin(model)
@@ -265,8 +327,18 @@ def reject_async_validators(response_model: Any) -> None:
                     )
             for field in model.model_fields.values():
                 visit(field.annotation)
+            # Pydantic may already have resolved local ForwardRefs that normal
+            # get_type_hints cannot recover after the defining scope has exited.
+            schema = getattr(model, "__pydantic_core_schema__", None)
+            if isinstance(schema, dict):
+                visit_schema(schema)
         else:
-            for annotation in getattr(model, "__annotations__", {}).values():
+            try:
+                annotations = get_type_hints(model, include_extras=True)
+            except (NameError, TypeError):
+                # Leave unresolved annotations to Pydantic's normal schema handling.
+                annotations = getattr(model, "__annotations__", {})
+            for annotation in annotations.values():
                 visit(annotation)
 
     visit(response_model)
