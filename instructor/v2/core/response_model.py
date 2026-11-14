@@ -60,7 +60,9 @@ class _TypedDictModel(BaseModel):
         }
 
 
-def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
+def _typed_dict_to_model(
+    typed_dict: type[Any], *, with_response_schema: bool = False
+) -> type[BaseModel]:
     """Convert a TypedDict while preserving key requiredness and field metadata."""
     from instructor.v2.core.function_calls import ResponseSchema
 
@@ -104,9 +106,16 @@ def _typed_dict_to_model(typed_dict: type[Any]) -> type[BaseModel]:
             default = Field(default=default, alias=name)
         fields[field_name] = (annotation, default)
 
+    # Direct responses can inherit the schema methods during model creation.
+    # Iterable items only need the TypedDict serializer and validation fields.
+    bases = (
+        (_TypedDictModel, ResponseSchema)
+        if with_response_schema
+        else (_TypedDictModel,)
+    )
     return _create_dynamic_model(
         getattr(typed_dict, "__name__", "TypedDictModel"),
-        __base__=_TypedDictModel,
+        __base__=bases,
         **fields,
     )
 
@@ -169,7 +178,7 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
             origin = get_origin(working_model)
 
     if is_typed_dict(working_model):
-        working_model = _typed_dict_to_model(working_model)
+        working_model = _typed_dict_to_model(working_model, with_response_schema=True)
 
     origin = get_origin(working_model)
     if origin in {Iterable, list}:
