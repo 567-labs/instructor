@@ -24,6 +24,11 @@ def test_apply_template_preserves_literal_text_formatting(
     assert apply_template(text, {"unused": "value"}) == expected
 
 
+def test_literal_template_preserves_render_keyword_errors() -> None:
+    with pytest.raises(TypeError, match="multiple values"):
+        apply_template("literal", {"self": "value"})
+
+
 def test_unmatched_template_variable_raises():
     """An unmatched {{ }} in the message should raise, not silently disappear."""
     kwargs = {
