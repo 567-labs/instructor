@@ -30,6 +30,7 @@ def test_typed_dict(model, mode, client):
     client = instructor.patch(client, mode=mode)
     model = client.chat.completions.create(
         model=model,
+        reasoning_effort="none",
         response_model=UserExtractTypedDict,
         max_retries=2,
         messages=[
@@ -55,6 +56,7 @@ def test_runmodel(model, mode, client):
     client = instructor.patch(client, mode=mode)
     model = client.chat.completions.create(
         model=model,
+        reasoning_effort="none",
         response_model=UserExtract,
         max_retries=2,
         messages=[
@@ -83,6 +85,7 @@ async def test_runmodel_async(model, mode, aclient):
     aclient = instructor.patch(aclient, mode=mode)
     model = await aclient.chat.completions.create(
         model=model,
+        reasoning_effort="none",
         response_model=UserExtract,
         max_retries=2,
         messages=[
@@ -123,6 +126,7 @@ def test_runmodel_validator(model, mode, client):
     client = instructor.patch(client, mode=mode)
     model = client.chat.completions.create(
         model=model,
+        reasoning_effort="none",
         response_model=UserExtractValidated,
         max_retries=2,
         messages=[
@@ -149,6 +153,7 @@ async def test_runmodel_async_validator(model, mode, aclient):
     aclient = instructor.patch(aclient, mode=mode)
     model = await aclient.chat.completions.create(
         model=model,
+        reasoning_effort="none",
         response_model=UserExtractValidated,
         max_retries=2,
         messages=[

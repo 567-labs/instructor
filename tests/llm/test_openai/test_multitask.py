@@ -22,6 +22,7 @@ def test_multi_user(model, mode, client):
     def stream_extract(input: str) -> Iterable[User]:
         return client.chat.completions.create(
             model=model,
+            reasoning_effort="none",
             response_model=Users,
             messages=[
                 {
@@ -37,7 +38,7 @@ def test_multi_user(model, mode, client):
                     ),
                 },
             ],
-            max_tokens=1000,
+            max_completion_tokens=1000,
         )
 
     resp = [user for user in stream_extract(input="Jason is 20, Sarah is 30")]
@@ -80,6 +81,7 @@ async def test_multi_user_tools_mode_async(model, mode, aclient):
     async def stream_extract(input: str) -> Iterable[User]:
         return await client.chat.completions.create(
             model=model,
+            reasoning_effort="none",
             response_model=Users,
             messages=[
                 {
@@ -95,7 +97,7 @@ async def test_multi_user_tools_mode_async(model, mode, aclient):
                     ),
                 },
             ],
-            max_tokens=1000,
+            max_completion_tokens=1000,
             temperature=0,
         )
 
@@ -117,6 +119,7 @@ def test_multi_user_stream(model, mode, client):
     def stream_extract(input: str) -> Iterable[User]:
         return client.chat.completions.create(
             model=model,
+            reasoning_effort="none",
             stream=True,
             response_model=Users,
             messages=[
@@ -133,7 +136,7 @@ def test_multi_user_stream(model, mode, client):
                     ),
                 },
             ],
-            max_tokens=1000,
+            max_completion_tokens=1000,
         )
 
     resp = [user for user in stream_extract(input="Jason is 20, Sarah is 30")]
@@ -152,6 +155,7 @@ async def test_multi_user_tools_mode_async_stream(model, mode, aclient):
     async def stream_extract(input: str) -> Iterable[User]:
         return await client.chat.completions.create(
             model=model,
+            reasoning_effort="none",
             stream=True,
             response_model=Users,
             messages=[
@@ -168,7 +172,7 @@ async def test_multi_user_tools_mode_async_stream(model, mode, aclient):
                     ),
                 },
             ],
-            max_tokens=1000,
+            max_completion_tokens=1000,
             temperature=0,
         )
 

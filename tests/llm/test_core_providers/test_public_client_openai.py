@@ -16,7 +16,9 @@ pytestmark = pytest.mark.skipif(
     "config", ["create", "messages.create", "chat.completions.create"]
 )
 def test_public_create_alias(config: str):
-    client = instructor.from_openai(openai.OpenAI(), model="gpt-4.1-mini")
+    client = instructor.from_openai(
+        openai.OpenAI(), model="gpt-6-luna", reasoning_effort="none"
+    )
 
     user = attrgetter(config)(client)(
         response_model=User,
@@ -28,7 +30,9 @@ def test_public_create_alias(config: str):
 
 
 def test_client_chat_completions_create_with_response():
-    client = instructor.from_openai(openai.OpenAI(), model="gpt-4.1-mini")
+    client = instructor.from_openai(
+        openai.OpenAI(), model="gpt-6-luna", reasoning_effort="none"
+    )
 
     user, completion = client.chat.completions.create_with_completion(
         response_model=User,
@@ -44,7 +48,9 @@ def test_client_chat_completions_create_with_response():
 
 
 def test_client_chat_completions_create_partial():
-    client = instructor.from_openai(openai.OpenAI(), model="gpt-4.1-mini")
+    client = instructor.from_openai(
+        openai.OpenAI(), model="gpt-6-luna", reasoning_effort="none"
+    )
 
     last = None
     for user in client.chat.completions.create_partial(
@@ -60,7 +66,9 @@ def test_client_chat_completions_create_partial():
 
 
 def test_client_chat_completions_create_iterable():
-    client = instructor.from_openai(openai.OpenAI(), model="gpt-4.1-mini")
+    client = instructor.from_openai(
+        openai.OpenAI(), model="gpt-6-luna", reasoning_effort="none"
+    )
 
     users = [
         user
@@ -76,7 +84,9 @@ def test_client_chat_completions_create_iterable():
 @pytest.mark.asyncio
 async def test_async_client_chat_completions_create():
     client = openai.AsyncOpenAI()
-    instructor_client = instructor.from_openai(client, model="gpt-4.1-mini")
+    instructor_client = instructor.from_openai(
+        client, model="gpt-6-luna", reasoning_effort="none"
+    )
 
     user = await instructor_client.chat.completions.create(
         response_model=User,
@@ -90,7 +100,9 @@ async def test_async_client_chat_completions_create():
 @pytest.mark.asyncio
 async def test_async_client_chat_completions_create_partial():
     client = openai.AsyncOpenAI()
-    instructor_client = instructor.from_openai(client, model="gpt-4.1-mini")
+    instructor_client = instructor.from_openai(
+        client, model="gpt-6-luna", reasoning_effort="none"
+    )
 
     last = None
     async for user in instructor_client.chat.completions.create_partial(
@@ -108,7 +120,9 @@ async def test_async_client_chat_completions_create_partial():
 @pytest.mark.asyncio
 async def test_async_client_chat_completions_create_iterable():
     client = openai.AsyncOpenAI()
-    instructor_client = instructor.from_openai(client, model="gpt-4.1-mini")
+    instructor_client = instructor.from_openai(
+        client, model="gpt-6-luna", reasoning_effort="none"
+    )
 
     async for user in instructor_client.chat.completions.create_iterable(
         response_model=User,
@@ -121,7 +135,9 @@ async def test_async_client_chat_completions_create_iterable():
 @pytest.mark.asyncio
 async def test_async_client_chat_completions_create_with_response():
     client = openai.AsyncOpenAI()
-    instructor_client = instructor.from_openai(client, model="gpt-4.1-mini")
+    instructor_client = instructor.from_openai(
+        client, model="gpt-6-luna", reasoning_effort="none"
+    )
 
     user, response = await instructor_client.chat.completions.create_with_completion(
         response_model=User,

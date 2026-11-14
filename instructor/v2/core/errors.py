@@ -402,7 +402,7 @@ class ConfigurationError(InstructorError):
         ```python
         try:
             # Missing provider SDK
-            client = instructor.from_provider("anthropic/claude-3")
+            client = instructor.from_provider("anthropic/claude-haiku-5-5")
         except ConfigurationError as e:
             print(f"Configuration issue: {e}")
             # e.g., "The anthropic package is required..."

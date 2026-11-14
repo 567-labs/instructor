@@ -66,6 +66,13 @@ class BatchRequest(BaseModel, Generic[T]):
         if self.strict:
             schema = make_strict_schema(schema)
 
+        if self.model == "gpt-6-luna":
+            options: dict[str, Any] = {
+                "max_completion_tokens": self.max_tokens,
+                "reasoning_effort": "none",
+            }
+        else:
+            options = {"max_tokens": self.max_tokens}
         return {
             "custom_id": self.custom_id,
             "method": "POST",
@@ -73,7 +80,7 @@ class BatchRequest(BaseModel, Generic[T]):
             "body": {
                 "model": self.model,
                 "messages": self.messages,
-                "max_tokens": self.max_tokens,
+                **options,
                 "temperature": self.temperature,
                 "response_format": {
                     "type": "json_schema",
@@ -146,7 +153,7 @@ class BatchRequest(BaseModel, Generic[T]):
             "tool_choice": {"type": "tool", "name": "extract_data"},
         }
 
-        if self.temperature is not None:
+        if self.temperature is not None and self.model != "claude-haiku-5-5":
             params["temperature"] = self.temperature
 
         # Add system parameter if system message exists

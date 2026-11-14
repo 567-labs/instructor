@@ -103,7 +103,7 @@ def from_provider(
 
     Args:
         model: String in format "provider/model-name"
-              (e.g., "openai/gpt-4", "anthropic/claude-3-sonnet", "google/gemini-pro")
+              (e.g., "openai/gpt-6-luna", "anthropic/claude-haiku-5-5", "google/gemini-pro")
         async_client: Whether to return an async client
         cache: Optional cache adapter (e.g., ``AutoCache`` or ``RedisCache``)
                to enable transparent response caching. Automatically flows through
@@ -125,15 +125,15 @@ def from_provider(
         >>> from instructor.cache import AutoCache
         >>>
         >>> # Basic usage
-        >>> client = instructor.from_provider("openai/gpt-4")
-        >>> client = instructor.from_provider("anthropic/claude-3-sonnet")
+        >>> client = instructor.from_provider("openai/gpt-6-luna")
+        >>> client = instructor.from_provider("anthropic/claude-haiku-5-5")
         >>>
         >>> # With caching
         >>> cache = AutoCache(maxsize=1000)
-        >>> client = instructor.from_provider("openai/gpt-4", cache=cache)
+        >>> client = instructor.from_provider("openai/gpt-6-luna", cache=cache)
         >>>
         >>> # Async clients
-        >>> async_client = instructor.from_provider("openai/gpt-4", async_client=True)
+        >>> async_client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
     """
     # Add cache to kwargs if provided so it flows through to provider functions
     if cache is not None:
@@ -146,7 +146,7 @@ def from_provider(
 
         raise ConfigurationError(
             'Model string must be in format "provider/model-name" '
-            '(e.g. "openai/gpt-4" or "anthropic/claude-3-sonnet")'
+            '(e.g. "openai/gpt-6-luna" or "anthropic/claude-haiku-5-5")'
         ) from None
 
     if not provider or not model_name:
@@ -154,7 +154,7 @@ def from_provider(
 
         raise ConfigurationError(
             'Model string must be in format "provider/model-name" '
-            'with both parts non-empty (e.g. "openai/gpt-4")'
+            'with both parts non-empty (e.g. "openai/gpt-6-luna")'
         )
 
     provider_info = {"provider": provider, "operation": "initialize"}

@@ -54,7 +54,8 @@ async def generate_ai_frontmatter(
         ]
 
     response = await client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
+        reasoning_effort="none",
         messages=[
             {
                 "role": "system",
@@ -66,7 +67,7 @@ async def generate_ai_frontmatter(
                 "content": f"Based on the title and content, generate a brief description (max 160 characters) that would be suitable for SEO purposes. Also, select up to 3 relevant categories from the following list: {', '.join(categories)}. Return both the description and the selected categories. The categories should be pretty strict, so only choose one if you're really sure it's the best choice. Also, suggest up to 5 relevant tags.",
             },
         ],
-        max_tokens=150,
+        max_completion_tokens=150,
         response_model=DescriptionAndCategories,
     )
     return response
