@@ -36,6 +36,7 @@ def is_typed_dict(cls: Any) -> bool:
 # Cache encoding explicitly requests Python field names, including synthesized
 # TypedDict fields. The empty mapping also works with ordinary serializer contexts.
 _CACHE_FIELD_NAMES_CONTEXT = MappingProxyType({})
+_PLAIN_TYPED_DICT_TYPES = (str, int, float, bool, bytes, type(None))
 
 
 class _TypedDictModel(BaseModel):
@@ -106,12 +107,16 @@ def _typed_dict_to_model(
             default = Field(default=default, alias=name)
         fields[field_name] = (annotation, default)
 
-    # Direct responses can inherit the schema methods during model creation.
-    # Iterable items only need the TypedDict serializer and validation fields.
+    # Only combine the class builds for plain scalars. Custom annotations can
+    # observe both schema builds, so keep the existing wrapper for those.
     bases = (
         (_TypedDictModel, ResponseSchema)
         if with_response_schema
-        else (_TypedDictModel,)
+        and all(
+            type(annotation) is type and annotation in _PLAIN_TYPED_DICT_TYPES
+            for annotation in annotations.values()
+        )
+        else _TypedDictModel
     )
     return _create_dynamic_model(
         getattr(typed_dict, "__name__", "TypedDictModel"),

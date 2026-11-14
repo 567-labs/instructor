@@ -1,7 +1,9 @@
 import sys
-from typing import cast
+from typing import Any, cast
 
 import pytest
+from pydantic import GetCoreSchemaHandler, ValidationError
+from pydantic_core import CoreSchema, core_schema
 from typing_extensions import TypedDict
 
 from instructor.v2.core.function_calls import ResponseSchema
@@ -40,3 +42,26 @@ def test_typed_dict_preparation_uses_current_annotations_and_fresh_models(
         "name": "Ada",
     }
     assert refreshed.model_validate(payload).model_dump(round_trip=True) == payload
+
+
+def test_custom_annotation_keeps_both_schema_builds() -> None:
+    class StatefulType:
+        builds = 0
+
+        @classmethod
+        def __get_pydantic_core_schema__(
+            cls, _source: Any, _handler: GetCoreSchemaHandler
+        ) -> CoreSchema:
+            cls.builds += 1
+            return core_schema.int_schema(ge=cls.builds)
+
+    class CustomRecord(TypedDict):
+        count: StatefulType
+
+    model = cast(type[ResponseSchema], prepare_response_model(CustomRecord))
+
+    assert StatefulType.builds == 2
+    assert model.model_json_schema()["properties"]["count"]["minimum"] == 2
+    assert model.model_validate({"count": 2}).model_dump() == {"count": 2}
+    with pytest.raises(ValidationError):
+        model.model_validate({"count": 1})
