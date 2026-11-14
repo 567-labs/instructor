@@ -63,6 +63,7 @@ class FilesAPI:
     def __init__(self, text: str = '{"ok": true}\n') -> None:
         self.text = text
         self.uploads: list[tuple[bytes, str]] = []
+        self.upload_names: list[str | None] = []
         self.content_ids: list[str] = []
         self.create_error: Exception | None = None
         self.content_error: Exception | None = None
@@ -70,6 +71,8 @@ class FilesAPI:
     def create(self, *, file: Any, purpose: str) -> SimpleNamespace:
         if self.create_error:
             raise self.create_error
+        name, file = file if isinstance(file, tuple) else (None, file)
+        self.upload_names.append(name)
         self.uploads.append((file.read(), purpose))
         return SimpleNamespace(id="file_input")
 
@@ -601,3 +604,162 @@ def test_batch_provider_contract_requires_and_defines_all_operations() -> None:
     assert BatchProvider.__abstractmethods__ == expected
     with pytest.raises(TypeError, match="abstract methods"):
         BatchProvider()  # ty: ignore[call-non-callable]
+
+
+def test_submit_batch_names_in_memory_upload_as_jsonl(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    client = OpenAIClient()
+    provider = install_client(monkeypatch, client)
+    path = tmp_path / "requests.jsonl"
+    path.write_bytes(b"{}\n")
+
+    provider.submit_batch(io.BytesIO(b"{}\n"))
+    provider.submit_batch(str(path))
+
+    assert client.files.upload_names == ["batch.jsonl", None]
+
+
+def test_submit_batch_sends_jsonl_filename_over_http() -> None:
+    from openai import OpenAI
+
+    from tests.openai_http import Client, MockTransport, Response
+
+    bodies: list[bytes] = []
+
+    def handler(request):
+        if request.url.path.endswith("/files"):
+            bodies.append(request.read())
+            return Response(
+                200,
+                json={
+                    "id": "file_input",
+                    "bytes": 3,
+                    "created_at": 1,
+                    "filename": "batch.jsonl",
+                    "object": "file",
+                    "purpose": "batch",
+                    "status": "uploaded",
+                },
+            )
+        return Response(
+            200,
+            json={
+                "id": "batch_1",
+                "object": "batch",
+                "endpoint": "/v1/chat/completions",
+                "input_file_id": "file_input",
+                "completion_window": "24h",
+                "status": "validating",
+                "created_at": 1,
+            },
+        )
+
+    client = OpenAI(
+        api_key="test", http_client=Client(transport=MockTransport(handler))
+    )
+    original = openai.OpenAI
+    try:
+        openai.OpenAI = lambda: client  # type: ignore[assignment]
+        OpenAIProvider().submit_batch(io.BytesIO(b'{"custom_id": "x"}\n'))
+    finally:
+        openai.OpenAI = original  # type: ignore[assignment]
+
+    assert b'filename="batch.jsonl"' in bodies[0]
+    assert b'{"custom_id": "x"}' in bodies[0]
+
+
+def test_download_results_keeps_existing_file_when_write_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import instructor.batch.providers.base as base
+
+    destination = tmp_path / "results.jsonl"
+    destination.write_text("previous\n")
+    provider = OpenAIProvider()
+    monkeypatch.setattr(provider, "_get_results_text", lambda _id: "new\n")
+
+    real_temp = base.NamedTemporaryFile
+
+    class FailingHandle:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            self._inner = real_temp(*args, **kwargs)
+            self.name = self._inner.name
+
+        def write(self, _data: bytes) -> int:
+            raise OSError("disk full")
+
+        def __enter__(self) -> FailingHandle:
+            return self
+
+        def __exit__(self, *exc: Any) -> None:
+            self._inner.close()
+
+    monkeypatch.setattr(base, "NamedTemporaryFile", FailingHandle)
+
+    with pytest.raises(Exception, match="disk full"):
+        provider.download_results("batch_1", str(destination))
+
+    assert destination.read_text() == "previous\n"
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+def test_download_results_replaces_existing_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    destination = tmp_path / "results.jsonl"
+    destination.write_text("previous\n")
+    provider = OpenAIProvider()
+    monkeypatch.setattr(provider, "_get_results_text", lambda _id: "new\n")
+
+    provider.download_results("batch_1", str(destination))
+
+    assert destination.read_text() == "new\n"
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+def test_cancelled_batch_returns_partial_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    counts = SimpleNamespace(total=5, completed=1, failed=1)
+    client = OpenAIClient(
+        [
+            BatchResponse(
+                status="cancelled", request_counts=counts, error_file_id="file_errors"
+            )
+        ]
+    )
+    provider = install_client(monkeypatch, client)
+
+    assert provider.retrieve_results("batch_cancelled") == (
+        '{"ok": true}\n{"ok": true}'
+    )
+    assert client.files.content_ids == ["file_output", "file_errors"]
+
+
+@pytest.mark.parametrize("status", ["cancelled", "expired"])
+def test_stopped_batch_without_finished_requests_returns_empty(
+    monkeypatch: pytest.MonkeyPatch, status: str
+) -> None:
+    counts = SimpleNamespace(total=5, completed=0, failed=0)
+    client = OpenAIClient(
+        [BatchResponse(status=status, request_counts=counts, output_file_id=None)]
+    )
+    provider = install_client(monkeypatch, client)
+
+    def no_wait(_seconds: float) -> None:
+        raise AssertionError("polled for result files that cannot exist")
+
+    monkeypatch.setattr("time.sleep", no_wait)
+
+    assert provider.retrieve_results("batch_stopped") == ""
+    assert client.files.content_ids == []
+
+
+def test_cancelling_batch_is_not_ready(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = install_client(
+        monkeypatch, OpenAIClient([BatchResponse(status="cancelling")])
+    )
+
+    with pytest.raises(Exception, match="status: cancelling"):
+        provider.retrieve_results("batch_cancelling")
