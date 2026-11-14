@@ -77,7 +77,7 @@ async def test_invalid_final_answer_triggers_validation_and_iterables_keep_all_i
     handler = OpenAIMDJSONHandler()
     events = [event('{"value":1}{"wrong":true}')]
     with pytest.raises(ValidationError):
-        handler.parse_response(iter(events), Partial[Answer], stream=True)
+        list(handler.parse_response(iter(events), Partial[Answer], stream=True))
     with pytest.raises(ValidationError):
         async for _ in handler.parse_response(
             async_items(events), Partial[Answer], stream=True

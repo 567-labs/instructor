@@ -753,7 +753,7 @@ def test_json_schema_stream_parses_iterable_and_partial_models() -> None:
     )
 
     assert list(iterable_result) == [User(name="Ada")]
-    assert partial_result[-1] == User(name="Ada")
+    assert [item for item in partial_result][-1] == User(name="Ada")
 
 
 @pytest.mark.parametrize("handler", [OpenAIJSONHandler(), OpenAIMDJSONHandler()])
@@ -1023,7 +1023,7 @@ def test_responses_tools_streams_iterable_and_partial_models() -> None:
     partial_result = handler.parse_response(partial_events, partial_user, stream=True)
 
     assert list(iterable_result) == [User(name="Ada")]
-    assert partial_result[-1] == User(name="Ada")
+    assert [item for item in partial_result][-1] == User(name="Ada")
 
 
 @pytest.mark.asyncio

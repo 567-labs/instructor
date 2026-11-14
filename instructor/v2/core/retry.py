@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Generator
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -34,6 +35,7 @@ from instructor.v2.core.errors import (
     TokenBudgetError,
 )
 from instructor.v2.dsl.iterable import IterableBase
+from instructor.v2.dsl.partial import PartialBase
 from instructor.v2.dsl.response_list import ListResponse
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.core.messages import extract_messages, isolate_retry_kwargs
@@ -104,6 +106,17 @@ def _finalize_parsed_response(
         if usage is not None:
             parsed._total_usage = usage  # type: ignore[attr-defined]
     return parsed
+
+
+def _replay_first_partial(
+    first: Any, stream: Generator[Any, None, None]
+) -> Generator[Any, None, None]:
+    try:
+        yield None  # The retry loop primes cleanup before returning the stream.
+        yield first
+        yield from stream
+    finally:
+        stream.close()
 
 
 def _initialize_usage(provider: Provider | Mode) -> Any:
@@ -269,6 +282,23 @@ def retry_sync_v2(
                         stream=stream,
                         is_async=False,
                     )
+                    if (
+                        stream
+                        and isinstance(parsed, Generator)
+                        and isinstance(response_model, type)
+                        and issubclass(response_model, PartialBase)
+                    ):
+                        # Retry before exposing a snapshot. Replaying a stream
+                        # after delivery would duplicate the caller's output.
+                        try:
+                            first = next(parsed)
+                        except StopIteration:
+                            pass
+                        else:
+                            replay = _replay_first_partial(first, parsed)
+                            # Enter cleanup even if closed before iteration.
+                            next(replay)
+                            parsed = replay
                     logger.debug(
                         f"Successfully parsed response on attempt "
                         f"{attempt.retry_state.attempt_number}"

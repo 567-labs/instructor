@@ -199,5 +199,6 @@ def prepare_response_model(response_model: type[T] | None) -> type[T] | None:
     elif not inspect.isclass(working_model):
         working_model = openai_schema(working_model)
 
-    reject_async_validators(working_model)
+    if working_model is not response_model:
+        reject_async_validators(working_model)
     return cast(type[T], working_model)

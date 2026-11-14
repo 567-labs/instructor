@@ -36,6 +36,14 @@ class LooseEnvelope(BaseModel):
     counts: list[int]
 
 
+def test_partial_parser_accepts_non_trailing_string_mode() -> None:
+    model = cast(Any, Partial[Item]).get_partial_model()
+    parse = cast(Any, partial_module).process_potential_object
+    item = parse('{"number": 7', True, model)
+    assert item.number == 7
+    assert item.state is None
+
+
 class EnvelopeStream(Protocol):
     @classmethod
     def model_from_chunks(
