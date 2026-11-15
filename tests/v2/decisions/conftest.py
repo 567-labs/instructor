@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-import threading
 from typing import Any
 
 import pytest
+
+from tests._http import JSONHandler, serve
 
 
 @dataclass
@@ -23,7 +23,7 @@ class DecisionEndpoint:
 def decision_endpoint() -> Iterator[DecisionEndpoint]:
     endpoint = DecisionEndpoint()
 
-    class Handler(BaseHTTPRequestHandler):
+    class Handler(JSONHandler):
         def parse_request(self) -> bool:
             if not super().parse_request():
                 return False
@@ -37,32 +37,12 @@ def decision_endpoint() -> Iterator[DecisionEndpoint]:
             return True
 
         def do_POST(self) -> None:
-            self.record["body"] = json.loads(
-                self.rfile.read(int(self.headers["Content-Length"]))
-            )
-            body = (
-                json.dumps(endpoint.response).encode()
-                if endpoint.response_body is None
-                else endpoint.response_body
-            )
-            self.send_response(endpoint.status)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            self.record["body"] = self.read_json()
+            body = endpoint.response_body
+            if body is None:
+                body = json.dumps(endpoint.response).encode()
+            self.send_json(body, endpoint.status)
 
-        def log_message(self, format: str, *args: Any) -> None:  # noqa: A002, ARG002
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(
-        target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
-    )
-    thread.start()
-    endpoint.url = f"http://127.0.0.1:{server.server_port}"
-    try:
+    with serve(Handler) as url:
+        endpoint.url = url
         yield endpoint
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join()

@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import json
-import threading
 from collections.abc import Iterator
 from contextlib import AsyncExitStack
 from copy import deepcopy
 from dataclasses import dataclass, field
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from tests import openai_http as httpx
@@ -27,6 +25,7 @@ from instructor.v2.core.errors import InstructorRetryException
 from instructor.v2.core.messages import isolate_retry_kwargs
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
+from tests._http import JSONHandler, serve
 
 
 class Answer(BaseModel):
@@ -75,39 +74,17 @@ class RetryEndpoint:
 def retry_endpoint() -> Iterator[RetryEndpoint]:
     endpoint = RetryEndpoint()
 
-    class Handler(BaseHTTPRequestHandler):
+    class Handler(JSONHandler):
         def do_POST(self) -> None:
-            endpoint.calls.append(
-                {
-                    "path": self.path,
-                    "body": json.loads(
-                        self.rfile.read(int(self.headers["Content-Length"]))
-                    ),
-                }
-            )
+            endpoint.calls.append({"path": self.path, "body": self.read_json()})
             if not endpoint.responses:
                 self.send_error(500, "No response queued for this request")
                 return
-            body = endpoint.responses.pop(0).model_dump_json().encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            self.send_json(endpoint.responses.pop(0).model_dump_json().encode())
 
-        def log_message(self, format: str, *args: Any) -> None:  # noqa: A002, ARG002
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    endpoint.url = f"http://127.0.0.1:{server.server_port}/v1"
-    try:
+    with serve(Handler) as url:
+        endpoint.url = f"{url}/v1"
         yield endpoint
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join()
 
 
 @pytest.mark.asyncio
@@ -158,53 +135,29 @@ async def test_public_retries_isolate_reused_caller_history_over_http(
                     http_client=httpx.Client(trust_env=False),
                 )
             )
+
+        async def run() -> Any:
+            retry: Any = retry_async if is_async else retry_sync
+            result = retry(
+                client.chat.completions.create,
+                Answer,
+                (),
+                kwargs,
+                mode=Mode.TOOLS,
+                provider=Provider.OPENAI,
+                max_retries=1,
+            )
+            return await result if is_async else result
+
         for _ in range(2):
             if succeeds:
-                if is_async:
-                    result = await retry_async(
-                        client.chat.completions.create,
-                        Answer,
-                        (),
-                        kwargs,
-                        mode=Mode.TOOLS,
-                        provider=Provider.OPENAI,
-                        max_retries=1,
-                    )
-                else:
-                    result = retry_sync(
-                        client.chat.completions.create,
-                        Answer,
-                        (),
-                        kwargs,
-                        mode=Mode.TOOLS,
-                        provider=Provider.OPENAI,
-                        max_retries=1,
-                    )
+                result = await run()
                 assert isinstance(result, Answer)
                 assert result.model_dump() == {"name": "Ada", "age": 37}
                 assert result._total_usage.total_tokens == 30
             else:
                 with pytest.raises(InstructorRetryException) as failure:
-                    if is_async:
-                        await retry_async(
-                            client.chat.completions.create,
-                            Answer,
-                            (),
-                            kwargs,
-                            mode=Mode.TOOLS,
-                            provider=Provider.OPENAI,
-                            max_retries=1,
-                        )
-                    else:
-                        retry_sync(
-                            client.chat.completions.create,
-                            Answer,
-                            (),
-                            kwargs,
-                            mode=Mode.TOOLS,
-                            provider=Provider.OPENAI,
-                            max_retries=1,
-                        )
+                    await run()
                 failures.append(failure.value)
                 assert failure.value.n_attempts == 2
                 assert failure.value.failed_attempts is not None

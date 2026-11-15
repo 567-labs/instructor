@@ -21,7 +21,7 @@ UNIT_GROUPS = {
     "focused": UnitGroup(
         (
             "tests/coverage",
-            "tests/test_batch_processor_coverage.py",
+            "tests/batch",
             "tests/v2/decisions",
         ),
         2,

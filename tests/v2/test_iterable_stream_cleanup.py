@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Iterator
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import threading
 from typing import Any, cast
@@ -15,6 +14,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 import instructor
 from instructor import Mode
+from tests._http import JSONHandler, serve
 
 
 class Item(BaseModel):
@@ -82,39 +82,23 @@ def stream_endpoint(
     body = stream_body(mode, outcome == "validation-error")
     release = threading.Event()
 
-    class Handler(BaseHTTPRequestHandler):
+    class Handler(JSONHandler):
         def do_POST(self) -> None:
-            data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            calls.append({"path": self.path, "body": data})
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            if outcome == "cancel":
-                prefix, suffix = body.split(b"data: [DONE]", 1)
-                self.wfile.write(prefix)
-                self.wfile.flush()
-                release.wait()
-                try:
-                    self.wfile.write(b"data: [DONE]" + suffix)
-                except (BrokenPipeError, ConnectionResetError):
-                    pass
-            else:
-                self.wfile.write(body)
+            calls.append({"path": self.path, "body": self.read_json()})
+            if outcome != "cancel":
+                self.send_body(body, content_type="text/event-stream")
+                return
+            # Send all events except [DONE], then hold the stream open.
+            prefix, suffix = body.split(b"data: [DONE]", 1)
+            self.send_body(prefix, content_type="text/event-stream")
+            self.wfile.flush()
+            release.wait()
 
-        def log_message(self, format: str, *args: Any) -> None:  # noqa: A002, ARG002
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_port}/v1", calls
-    finally:
-        release.set()
-        server.shutdown()
-        server.server_close()
-        thread.join()
+    with serve(Handler) as url:
+        try:
+            yield f"{url}/v1", calls
+        finally:
+            release.set()
 
 
 def assert_request(calls: list[dict[str, Any]], mode: Mode) -> None:
@@ -125,82 +109,61 @@ def assert_request(calls: list[dict[str, Any]], mode: Mode) -> None:
     assert calls[0]["body"]["stream"] is True
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize("mode", MODES)
-@pytest.mark.parametrize("outcome", ["close", "validation-error", "exhausted"])
-def test_sync_iterable_closes_sdk_response(
-    stream_endpoint: tuple[str, list[dict[str, Any]]], mode: Mode, outcome: str
+@pytest.mark.parametrize(
+    "is_async,outcome",
+    [
+        pytest.param(
+            is_async, outcome, id=f"{outcome}-{'async' if is_async else 'sync'}"
+        )
+        for is_async in (False, True)
+        for outcome in ("close", "validation-error", "exhausted", "cancel")
+        if is_async or outcome != "cancel"
+    ],
+)
+async def test_iterable_closes_sdk_response(
+    stream_endpoint: tuple[str, list[dict[str, Any]]],
+    mode: Mode,
+    is_async: bool,
+    outcome: str,
 ) -> None:
     url, calls = stream_endpoint
-    client = instructor.from_provider(
-        "openai/local-contract", mode=mode, base_url=url, api_key="local-only"
+    client: Any = instructor.from_provider(
+        "openai/local-contract",
+        mode=mode,
+        base_url=url,
+        api_key="local-only",
+        async_client=is_async,
     )
     assert client.client is not None
     raw: list[Any] = []
     # A completion observer may keep the SDK response alive after parsing ends.
     client.on("completion:response", raw.append)
-    try:
-        items = client.create_iterable(
-            messages=[{"role": "user", "content": "extract"}],
-            response_model=Item,
-            max_retries=0,
-        )
-        if outcome == "close":
-            assert next(items) == Item(value=1)
-            assert not raw[0].response.is_closed
-            items.close()
-        elif outcome == "validation-error":
-            with pytest.raises(ValidationError):
-                next(items)
-        else:
-            assert list(items) == [Item(value=1), Item(value=2)]
-        assert raw[0].response.is_closed
-        assert_request(calls, mode)
-    finally:
-        for completion in raw:
-            completion.close()
-        client.client.close()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("mode", MODES)
-@pytest.mark.parametrize(
-    "outcome", ["close", "validation-error", "exhausted", "cancel"]
-)
-async def test_async_iterable_closes_sdk_response(
-    stream_endpoint: tuple[str, list[dict[str, Any]]], mode: Mode, outcome: str
-) -> None:
-    url, calls = stream_endpoint
-    client = instructor.from_provider(
-        "openai/local-contract",
-        mode=mode,
-        base_url=url,
-        api_key="local-only",
-        async_client=True,
+    items = client.create_iterable(
+        messages=[{"role": "user", "content": "extract"}],
+        response_model=Item,
+        max_retries=0,
     )
-    assert client.client is not None
-    raw: list[Any] = []
-    client.on("completion:response", raw.append)
+
+    async def step() -> Item:
+        return await items.__anext__() if is_async else next(items)
+
     try:
-        items = client.create_iterable(
-            messages=[{"role": "user", "content": "extract"}],
-            response_model=Item,
-            max_retries=0,
-        )
         if outcome == "close":
-            assert await items.__anext__() == Item(value=1)
+            assert await step() == Item(value=1)
             assert not raw[0].response.is_closed
-            await items.aclose()
+            await items.aclose() if is_async else items.close()
         elif outcome == "validation-error":
             with pytest.raises(ValidationError):
-                await items.__anext__()
+                await step()
         elif outcome == "cancel":
-            assert await items.__anext__() == Item(value=1)
-            assert await items.__anext__() == Item(value=2)
+            assert [await step(), await step()] == [Item(value=1), Item(value=2)]
             started = asyncio.Event()
 
             async def read_next() -> Item:
                 started.set()
-                return await items.__anext__()
+                return await step()
 
             pending = asyncio.create_task(read_next())
             await started.wait()
@@ -208,13 +171,14 @@ async def test_async_iterable_closes_sdk_response(
             with pytest.raises(asyncio.CancelledError):
                 await pending
         else:
-            assert [item async for item in items] == [Item(value=1), Item(value=2)]
+            items_list = [i async for i in items] if is_async else list(items)
+            assert items_list == [Item(value=1), Item(value=2)]
         assert raw[0].response.is_closed
         assert_request(calls, mode)
     finally:
         for completion in raw:
-            await completion.close()
-        await client.client.close()
+            await completion.close() if is_async else completion.close()
+        await client.client.close() if is_async else client.client.close()
 
 
 class _Source:

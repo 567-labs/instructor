@@ -2,7 +2,7 @@ from collections.abc import AsyncGenerator, Callable, Generator, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from threading import Event, Lock
-from typing import Any, Optional, Protocol, Union, cast
+from typing import Any, Optional, Union, cast
 import typing
 
 import pytest
@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from instructor.v2.dsl.json_tracker import JsonCompleteness
 from instructor.v2.dsl.partial import Partial, PartialBase
 import instructor.v2.dsl.partial as partial_module
+from tests._streams import consume
 
 
 class State(str, Enum):
@@ -42,36 +43,6 @@ def test_partial_parser_accepts_non_trailing_string_mode() -> None:
     item = parse('{"number": 7', True, model)
     assert item.number == 7
     assert item.state is None
-
-
-class EnvelopeStream(Protocol):
-    @classmethod
-    def model_from_chunks(
-        cls, json_chunks: Iterable[Any], **kwargs: Any
-    ) -> Generator[Envelope, None, None]: ...
-
-    @classmethod
-    def model_from_chunks_async(
-        cls, json_chunks: AsyncGenerator[Any, None], **kwargs: Any
-    ) -> AsyncGenerator[Envelope, None]: ...
-
-    @classmethod
-    def from_streaming_response(
-        cls,
-        completion: Iterable[Any],
-        stream_extractor: Optional[
-            Callable[[Iterable[Any]], Generator[str, None, None]]
-        ],
-    ) -> Generator[Envelope, None, None]: ...
-
-    @classmethod
-    def from_streaming_response_async(
-        cls,
-        completion: AsyncGenerator[Any, None],
-        stream_extractor: Optional[
-            Callable[[AsyncGenerator[Any, None]], AsyncGenerator[str, None]]
-        ],
-    ) -> AsyncGenerator[Envelope, None]: ...
 
 
 _build_partial_object = cast(
@@ -227,138 +198,94 @@ def test_partial_tuple_snapshot_builds_models(
     assert type(items[0]) is Named
 
 
-def test_sync_stream_accepts_string_like_chunks_and_skips_bad_chunks() -> None:
-    partial_envelope = cast(type[EnvelopeStream], Partial[Envelope])
-    values = list(
-        partial_envelope.model_from_chunks(
-            [
-                None,
-                UnprintableChunk(),
-                '{"optional_note":"live","metadata":{"source":"sync"},',
-                TextChunk(
-                    '"featured":{"number":1,"state":"ready"},'
-                    '"items":[{"number":2,"state":"pending"}]}'
-                ),
-            ]
-        )
-    )
+sync_and_async = pytest.mark.parametrize(
+    "is_async", [False, True], ids=["sync", "async"]
+)
+COMPLETE = (
+    '{"optional_note":"complete","metadata":{},'
+    '"featured":{"number":1,"state":"ready"},"items":[]}'
+)
+
+
+def strip_prefix(is_async: bool) -> Any:
+    """Stream extractor removing a transport prefix, in the matching flavor."""
+    if is_async:
+
+        async def aextract(source: AsyncGenerator[str, None]) -> Any:
+            async for chunk in source:
+                yield chunk.removeprefix("payload:")
+
+        return aextract
+
+    def extract(source: Iterable[str]) -> Generator[str, None, None]:
+        for chunk in source:
+            yield chunk.removeprefix("payload:")
+
+    return extract
+
+
+@pytest.mark.asyncio
+@sync_and_async
+async def test_stream_accepts_string_like_chunks_and_skips_bad_chunks(
+    is_async: bool,
+) -> None:
+    chunks = [
+        None,
+        UnprintableChunk(),
+        '{"optional_note":"live","metadata":{"source":"stream"},',
+        TextChunk(
+            '"featured":{"number":1,"state":"ready"},'
+            '"items":[{"number":2,"state":"pending"}]}'
+        ),
+    ]
+    values = await consume(Partial[Envelope], chunks, is_async)
 
     assert len(values) == 2
     assert values[0].optional_note == "live"
     assert values[-1] == Envelope(
         optional_note="live",
-        metadata={"source": "sync"},
+        metadata={"source": "stream"},
         featured=Item(number=1, state=State.READY),
         items=[Item(number=2, state=State.PENDING)],
     )
 
 
-def test_sync_partial_stream_handles_empty_incomplete_and_unbound_models(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.asyncio
+@sync_and_async
+async def test_partial_stream_handles_empty_incomplete_and_unbound_models(
+    monkeypatch: pytest.MonkeyPatch, is_async: bool
 ) -> None:
-    partial_envelope = cast(type[EnvelopeStream], Partial[Envelope])
-    assert list(partial_envelope.model_from_chunks([])) == []
+    partial_envelope = Partial[Envelope]
+    assert await consume(partial_envelope, [], is_async) == []
 
-    incomplete = list(partial_envelope.model_from_chunks(['{"optional_note":"open']))
-    assert len(incomplete) == 1
-    assert incomplete[0].optional_note == "open"
+    incomplete = await consume(partial_envelope, ['{"optional_note":"open'], is_async)
+    assert [value.optional_note for value in incomplete] == ["open"]
 
     monkeypatch.setattr(partial_envelope, "_original_model", None)
-    complete = list(
-        partial_envelope.model_from_chunks(
-            [
-                '{"optional_note":"complete","metadata":{},'
-                '"featured":{"number":1,"state":"ready"},"items":[]}'
-            ]
-        )
-    )
-    assert len(complete) == 1
-    assert complete[0].optional_note == "complete"
+    complete = await consume(partial_envelope, [COMPLETE], is_async)
+    assert [value.optional_note for value in complete] == ["complete"]
 
 
 @pytest.mark.asyncio
-async def test_async_stream_accepts_string_like_chunks_and_skips_bad_chunks() -> None:
-    async def chunks() -> AsyncGenerator[Any, None]:
-        yield None
-        yield UnprintableChunk()
-        yield '{"optional_note":"live","metadata":{"source":"async"},'
-        yield TextChunk(
-            '"featured":{"number":4,"state":"pending"},'
-            '"items":[{"number":5,"state":"ready"}]}'
-        )
-
-    partial_envelope = cast(type[EnvelopeStream], Partial[Envelope])
-    values = [
-        value async for value in partial_envelope.model_from_chunks_async(chunks())
-    ]
-
-    assert len(values) == 2
-    assert values[0].metadata == {"source": "async"}
-    assert values[-1] == Envelope(
-        optional_note="live",
-        metadata={"source": "async"},
-        featured=Item(number=4, state=State.PENDING),
-        items=[Item(number=5, state=State.READY)],
-    )
-
-
-@pytest.mark.asyncio
-async def test_async_partial_stream_handles_empty_incomplete_and_unbound_models(
-    monkeypatch: pytest.MonkeyPatch,
+@sync_and_async
+async def test_streaming_response_requires_and_uses_an_extractor(
+    is_async: bool,
 ) -> None:
-    async def chunks(*values: str) -> AsyncGenerator[str, None]:
-        for value in values:
-            yield value
-
-    partial_envelope = cast(type[EnvelopeStream], Partial[Envelope])
-    assert [
-        value async for value in partial_envelope.model_from_chunks_async(chunks())
-    ] == []
-
-    incomplete = [
-        value
-        async for value in partial_envelope.model_from_chunks_async(
-            chunks('{"optional_note":"open')
-        )
-    ]
-    assert len(incomplete) == 1
-    assert incomplete[0].optional_note == "open"
-
-    monkeypatch.setattr(partial_envelope, "_original_model", None)
-    complete = [
-        value
-        async for value in partial_envelope.model_from_chunks_async(
-            chunks(
-                '{"optional_note":"complete","metadata":{},'
-                '"featured":{"number":1,"state":"ready"},"items":[]}'
-            )
-        )
-    ]
-    assert len(complete) == 1
-    assert complete[0].optional_note == "complete"
-
-
-def test_sync_streaming_response_requires_and_uses_an_extractor() -> None:
-    partial_envelope = cast(type[EnvelopeStream], Partial[Envelope])
+    method = "from_streaming_response"
     with pytest.raises(ValueError, match="stream_extractor is required"):
-        list(partial_envelope.from_streaming_response([], None))
+        await consume(Partial[Envelope], [], is_async, method, stream_extractor=None)
 
-    def extractor(completion: Iterable[str]) -> Generator[str, None, None]:
-        yield from completion
-
-    values = list(
-        partial_envelope.from_streaming_response(
-            [
-                '{"optional_note":"extracted","metadata":{},'
-                '"featured":{"number":1,"state":"ready"},"items":[]}'
-            ],
-            extractor,
-        )
+    values = await consume(
+        Partial[Envelope],
+        ["payload:" + COMPLETE],
+        is_async,
+        method,
+        stream_extractor=strip_prefix(is_async),
     )
 
     assert values == [
         Envelope(
-            optional_note="extracted",
+            optional_note="complete",
             metadata={},
             featured=Item(number=1, state=State.READY),
             items=[],
@@ -367,75 +294,24 @@ def test_sync_streaming_response_requires_and_uses_an_extractor() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_streaming_response_requires_and_uses_an_extractor() -> None:
-    partial_envelope = cast(type[EnvelopeStream], Partial[Envelope])
+@sync_and_async
+async def test_json_extractor_delegates_and_rejects_a_missing_extractor(
+    is_async: bool,
+) -> None:
+    chunks = ["payload:{", 'payload:"ok":true}']
+    extracted = await consume(
+        PartialBase,
+        chunks,
+        is_async,
+        "extract_json",
+        stream_extractor=strip_prefix(is_async),
+    )
 
-    async def empty() -> AsyncGenerator[str, None]:
-        if False:
-            yield ""
-
+    assert extracted == ["{", '"ok":true}']
     with pytest.raises(ValueError, match="stream_extractor is required"):
-        [
-            value
-            async for value in partial_envelope.from_streaming_response_async(
-                empty(), None
-            )
-        ]
-
-    async def completion() -> AsyncGenerator[str, None]:
-        yield (
-            '{"optional_note":"extracted","metadata":{},'
-            '"featured":{"number":6,"state":"pending"},"items":[]}'
+        await consume(
+            PartialBase, chunks, is_async, "extract_json", stream_extractor=None
         )
-
-    async def extractor(source: AsyncGenerator[str, None]) -> AsyncGenerator[str, None]:
-        async for chunk in source:
-            yield chunk
-
-    values = [
-        value
-        async for value in partial_envelope.from_streaming_response_async(
-            completion(), extractor
-        )
-    ]
-
-    assert values == [
-        Envelope(
-            optional_note="extracted",
-            metadata={},
-            featured=Item(number=6, state=State.PENDING),
-            items=[],
-        )
-    ]
-
-
-def test_sync_json_extractor_delegates_and_rejects_a_missing_extractor() -> None:
-    def extractor(completion: Iterable[str]) -> Generator[str, None, None]:
-        for chunk in completion:
-            yield chunk.removeprefix("payload:")
-
-    assert list(
-        PartialBase.extract_json(["payload:{", 'payload:"ok":true}'], extractor)
-    ) == ["{", '"ok":true}']
-    with pytest.raises(ValueError, match="stream_extractor is required"):
-        list(PartialBase.extract_json([], None))
-
-
-@pytest.mark.asyncio
-async def test_async_json_extractor_delegates_and_rejects_a_missing_extractor() -> None:
-    async def completion() -> AsyncGenerator[str, None]:
-        yield "payload:{"
-        yield 'payload:"ok":true}'
-
-    async def extractor(source: AsyncGenerator[str, None]) -> AsyncGenerator[str, None]:
-        async for chunk in source:
-            yield chunk.removeprefix("payload:")
-
-    assert [
-        chunk async for chunk in PartialBase.extract_json_async(completion(), extractor)
-    ] == ["{", '"ok":true}']
-    with pytest.raises(ValueError, match="stream_extractor is required"):
-        [chunk async for chunk in PartialBase.extract_json_async(completion(), None)]
 
 
 @pytest.mark.asyncio

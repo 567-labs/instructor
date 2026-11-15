@@ -1,5 +1,3 @@
-import asyncio
-import json
 from collections.abc import Callable, AsyncGenerator, Generator, Iterable
 from copy import deepcopy
 from enum import Enum
@@ -11,6 +9,7 @@ from pydantic import AliasPath, BaseModel, Field, ValidationError
 
 import instructor
 from instructor.dsl.partial import Partial, PartialLiteralMixin, _make_field_optional
+from tests._streams import consume
 
 
 T_Model = TypeVar("T_Model", bound=BaseModel, covariant=True)
@@ -126,8 +125,8 @@ def test_partial():
 
 
 partial_chunks = ["\n", "\t", " ", "\x00", '{"a": 42, "b": {"b": 1}}']
-expected_sync_models = [
-    # First model has default values (nested models show their fields as None)
+expected_models = [
+    # Whitespace/NUL chunks yield defaults (nested models show fields as None)
     {"a": None, "b": {"b": None}},
     {"a": None, "b": {"b": None}},
     {"a": None, "b": {"b": None}},
@@ -135,152 +134,13 @@ expected_sync_models = [
     # Last model has all fields populated from JSON
     {"a": 42, "b": {"b": 1}},
 ]
-expected_async_models = [
-    {"a": None, "b": {"b": None}},
-    {"a": None, "b": {"b": None}},
-    {"a": None, "b": {"b": None}},
-    {"a": None, "b": {"b": None}},
-    {"a": 42, "b": {"b": 1}},
-]
-
-
-def test_partial_with_whitespace():
-    partial = Partial[SamplePartial]
-    # Get the actual models from chunks - must provide complete data for final validation
-    models = list(_partial_api(partial).model_from_chunks(partial_chunks))
-    assert len(models) == len(expected_sync_models)
-    for i, model in enumerate(models):
-        assert model.model_dump() == expected_sync_models[i]
 
 
 @pytest.mark.asyncio
-async def test_async_partial_with_whitespace():
-    partial = Partial[SamplePartial]
-
-    # Handle any leading whitespace from the model - must provide complete data for final validation
-    async def async_generator():
-        for chunk in partial_chunks:
-            yield chunk
-
-    i = 0
-    async for model in _partial_api(partial).model_from_chunks_async(async_generator()):
-        # Expected behavior: When whitespace chunks are processed, we should always get a model
-        assert model.model_dump() == expected_async_models[i]
-        i += 1
-    assert i == len(expected_async_models)
-
-
-class TextPayload(BaseModel):
-    text: str
-    labels: dict[str, str]
-
-
-def _control_character_chunks(
-    ensure_ascii: bool, chunk_size: int | None
-) -> tuple[TextPayload, list[str]]:
-    # Unlike C0 characters, DEL and C1 are legal unescaped JSON string content.
-    text = "before" + "".join(chr(code) for code in range(0x7F, 0xA0)) + "after"
-    payload = json.dumps(
-        {"text": text, "labels": {text: text}}, ensure_ascii=ensure_ascii
-    )
-    chunks = (
-        [payload]
-        if chunk_size is None
-        else [payload[i : i + chunk_size] for i in range(0, len(payload), chunk_size)]
-    )
-    return TextPayload.model_validate_json(payload), chunks
-
-
-@pytest.mark.parametrize("ensure_ascii", [False, True])
-@pytest.mark.parametrize("chunk_size", [None, 1, 3])
-def test_partial_preserves_json_valid_control_characters(
-    ensure_ascii: bool, chunk_size: int | None
-) -> None:
-    expected, chunks = _control_character_chunks(ensure_ascii, chunk_size)
-    models = list(_partial_api(Partial[TextPayload]).model_from_chunks(chunks))
-
-    assert models[-1].model_dump() == expected.model_dump()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("ensure_ascii", [False, True])
-@pytest.mark.parametrize("chunk_size", [None, 1, 3])
-async def test_async_partial_preserves_json_valid_control_characters(
-    ensure_ascii: bool, chunk_size: int | None
-) -> None:
-    expected, chunks = _control_character_chunks(ensure_ascii, chunk_size)
-
-    async def async_chunks() -> AsyncGenerator[str, None]:
-        for chunk in chunks:
-            yield chunk
-
-    models = [
-        model
-        async for model in _partial_api(Partial[TextPayload]).model_from_chunks_async(
-            async_chunks()
-        )
-    ]
-
-    assert models[-1].model_dump() == expected.model_dump()
-
-
-@pytest.mark.parametrize("escaped", [False, True])
-def test_partial_c0_character_repair(escaped: bool) -> None:
-    controls = "".join(chr(code) for code in range(0x20))
-    payload = json.dumps({"text": controls, "labels": {}})
-    if not escaped:
-        payload = '{"text": "' + controls + '", "labels": {}}'
-
-    models = list(_partial_api(Partial[TextPayload]).model_from_chunks([payload]))
-
-    assert models[-1].text == (controls if escaped else "")
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("escaped", [False, True])
-async def test_async_partial_c0_character_repair(escaped: bool) -> None:
-    controls = "".join(chr(code) for code in range(0x20))
-    payload = json.dumps({"text": controls, "labels": {}})
-    if not escaped:
-        payload = '{"text": "' + controls + '", "labels": {}}'
-
-    async def async_chunks() -> AsyncGenerator[str, None]:
-        yield payload
-
-    models = [
-        model
-        async for model in _partial_api(Partial[TextPayload]).model_from_chunks_async(
-            async_chunks()
-        )
-    ]
-
-    assert models[-1].text == (controls if escaped else "")
-
-
-@pytest.mark.parametrize("character", ["\x7f", "\x85"])
-def test_partial_repairs_del_c1_outside_json_strings(character: str) -> None:
-    # Preserve the historical repair of DEL/C1 outside JSON strings.
-    chunks = ["{" + character + '"text": "value", "labels": {}}']
-
-    models = list(_partial_api(Partial[TextPayload]).model_from_chunks(chunks))
-    assert models[-1].model_dump() == {"text": "value", "labels": {}}
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("character", ["\x7f", "\x85"])
-async def test_async_partial_repairs_del_c1_outside_json_strings(
-    character: str,
-) -> None:
-    async def async_chunks() -> AsyncGenerator[str, None]:
-        yield "{" + character + '"text": "value", "labels": {}}'
-
-    models = [
-        model
-        async for model in _partial_api(Partial[TextPayload]).model_from_chunks_async(
-            async_chunks()
-        )
-    ]
-    assert models[-1].model_dump() == {"text": "value", "labels": {}}
+@pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+async def test_partial_with_whitespace(is_async: bool):
+    models = await consume(Partial[SamplePartial], partial_chunks, is_async)
+    assert [model.model_dump() for model in models] == expected_models
 
 
 def test_union_with_nested():
@@ -893,7 +753,11 @@ class TestFinalValidationAfterStreaming:
     model to enforce required fields and run validators without streaming context.
     """
 
-    def test_final_validation_catches_missing_required_fields(self):
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+    async def test_final_validation_catches_missing_required_fields(
+        self, is_async: bool
+    ):
         """Final validation should fail if required fields are missing."""
 
         class ModelWithRequired(BaseModel):
@@ -901,13 +765,11 @@ class TestFinalValidationAfterStreaming:
             age: int  # Required
             nickname: Optional[str] = None  # Optional
 
-        PartialModel = Partial[ModelWithRequired]
-
         # Simulate streaming that doesn't provide all required fields
         chunks = ['{"name": "John"}']  # Missing 'age'
 
         with pytest.raises(ValidationError) as exc_info:
-            list(_partial_api(PartialModel).model_from_chunks(iter(chunks)))
+            await consume(Partial[ModelWithRequired], chunks, is_async)
 
         # Should fail because 'age' is required but missing
         assert "age" in str(exc_info.value)
@@ -992,27 +854,10 @@ class TestFinalValidationAfterStreaming:
         assert PartialModel._original_model is OriginalModel
 
     @pytest.mark.asyncio
-    async def test_async_final_validation_catches_missing_required_fields(self):
-        """Async streaming should also do final validation."""
-
-        class ModelWithRequired(BaseModel):
-            name: str
-            age: int
-
-        PartialModel = Partial[ModelWithRequired]
-
-        async def async_chunks():
-            yield '{"name": "John"}'  # Missing 'age'
-
-        with pytest.raises(ValidationError) as exc_info:
-            async for _ in _partial_api(PartialModel).model_from_chunks_async(
-                async_chunks()
-            ):
-                pass
-
-        assert "age" in str(exc_info.value)
-
-    def test_final_validation_accepts_explicit_null_for_required_nullable_field(self):
+    @pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+    async def test_final_validation_accepts_explicit_null_for_required_nullable_field(
+        self, is_async: bool
+    ):
         """Explicit JSON null for a required-but-nullable field should validate.
 
         The final validation must not confuse a field the model explicitly
@@ -1023,11 +868,9 @@ class TestFinalValidationAfterStreaming:
             name: str
             email: Optional[str]  # Required, but nullable
 
-        PartialModel = Partial[ModelWithNullable]
-
         chunks = ['{"name": "Al', 'ice", "email"', ": null}"]
 
-        results = list(_partial_api(PartialModel).model_from_chunks(iter(chunks)))
+        results = await consume(Partial[ModelWithNullable], chunks, is_async)
         assert len(results) > 0
         final = results[-1]
         assert final.name == "Alice"
@@ -1048,34 +891,6 @@ class TestFinalValidationAfterStreaming:
             list(_partial_api(PartialModel).model_from_chunks(iter(chunks)))
 
         assert "email" in str(exc_info.value)
-
-    @pytest.mark.asyncio
-    async def test_async_final_validation_accepts_explicit_null_for_required_nullable_field(
-        self,
-    ):
-        """Async streaming should also accept explicit nulls for nullable fields."""
-
-        class ModelWithNullable(BaseModel):
-            name: str
-            email: Optional[str]  # Required, but nullable
-
-        PartialModel = Partial[ModelWithNullable]
-
-        async def async_chunks():
-            yield '{"name": "Al'
-            yield 'ice", "email"'
-            yield ": null}"
-
-        results = []
-        async for obj in _partial_api(PartialModel).model_from_chunks_async(
-            async_chunks()
-        ):
-            results.append(obj)
-
-        assert len(results) > 0
-        final = results[-1]
-        assert final.name == "Alice"
-        assert final.email is None
 
 
 class TestRecursiveModels:
@@ -1437,41 +1252,19 @@ class TestOptionalNestedBaseModelDuringPartialStreaming:
 
 
 class TestAliasPathDuringPartialStreaming:
-    def test_alias_path_builds_nested_model_in_incomplete_snapshot(self):
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+    async def test_alias_path_builds_nested_model_in_incomplete_snapshot(
+        self, is_async: bool
+    ):
         class Inner(BaseModel):
             value: int
 
         class Outer(BaseModel):
             payload: Inner = Field(validation_alias=AliasPath("container", "payload"))
 
-        snapshot = list(
-            _partial_api(Partial[Outer]).model_from_chunks(
-                ['{"container":{"payload":{"value":42}']
-            )
-        )[-1]
-
-        assert isinstance(snapshot.payload, Inner)
-        assert snapshot.payload.value == 42
-
-    def test_alias_path_builds_nested_model_in_async_incomplete_snapshot(self):
-        class Inner(BaseModel):
-            value: int
-
-        class Outer(BaseModel):
-            payload: Inner = Field(validation_alias=AliasPath("container", "payload"))
-
-        async def collect():
-            async def chunks():
-                yield '{"container":{"payload":{"value":42}'
-
-            return [
-                item
-                async for item in _partial_api(Partial[Outer]).model_from_chunks_async(
-                    chunks()
-                )
-            ]
-
-        snapshot = asyncio.run(collect())[-1]
+        chunks = ['{"container":{"payload":{"value":42}']
+        snapshot = (await consume(Partial[Outer], chunks, is_async))[-1]
 
         assert isinstance(snapshot.payload, Inner)
         assert snapshot.payload.value == 42

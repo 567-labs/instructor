@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Generator
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from pydantic import BaseModel, ValidationError, field_validator
 from tenacity import (
     AsyncRetrying,
     Retrying,
@@ -23,7 +25,9 @@ from instructor.v2.core.retry import (
     retry_async_v2,
     retry_sync_v2,
 )
+from instructor.v2.dsl.partial import Partial
 from instructor.v2.dsl.response_list import ListResponse
+from tests.coverage._openai import chat_completion
 
 
 class Answer(BaseModel):
@@ -77,734 +81,213 @@ def test_retry_sync_v2_returns_raw_result_when_no_response_model() -> None:
     assert result == "hello:world"
 
 
-def test_retry_sync_v2_reasks_after_validation_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[dict[str, Any]] = []
-    parser_calls: list[str] = []
-    emitted: dict[str, list[Any]] = {
-        "args": [],
-        "responses": [],
-        "errors": [],
-        "completion_errors": [],
-        "last_attempts": [],
-    }
+# --- real-handler retry loop, sync and async --------------------------------
 
-    def fake_func(*_args: Any, **kwargs: Any) -> dict[str, Any]:
-        calls.append(dict(kwargs))
-        return {"payload": kwargs["messages"][-1]["content"]}
 
-    def fake_parser(**kwargs: Any) -> Answer:
-        parser_calls.append(kwargs["response"]["payload"])
-        if len(parser_calls) == 1:
-            raise _validation_error()
-        return Answer(value=7)
+def _completion(value: Any) -> ChatCompletion:
+    return chat_completion(content=json.dumps({"value": value}))
 
-    def fake_reask_handler(
-        kwargs: dict[str, Any], response: Any, exception: ValidationError
-    ) -> dict[str, Any]:
-        assert response == {"payload": "first"}
-        assert isinstance(exception, ValidationError)
-        return {
-            **kwargs,
-            "messages": [*kwargs["messages"], {"role": "user", "content": "second"}],
+
+def _anthropic_text(text: str) -> Any:
+    types = pytest.importorskip("anthropic.types")
+    return types.Message.model_validate(
+        {
+            "id": "m",
+            "type": "message",
+            "role": "assistant",
+            "model": "m",
+            "content": [{"type": "text", "text": text}],
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "usage": {"input_tokens": 1, "output_tokens": 1},
         }
-
-    hooks = Hooks()
-    hooks.on("completion:kwargs", lambda **kwargs: emitted["args"].append(kwargs))
-    hooks.on(
-        "completion:response",
-        lambda response: emitted["responses"].append(response),
-    )
-    hooks.on(
-        "parse:error",
-        lambda error, **kwargs: emitted["errors"].append((error, kwargs)),
-    )
-    hooks.on(
-        "completion:error",
-        lambda error, **kwargs: emitted["completion_errors"].append((error, kwargs)),
-    )
-    hooks.on(
-        "completion:last_attempt",
-        lambda error, **kwargs: emitted["last_attempts"].append((error, kwargs)),
     )
 
-    def no_validate(_provider: Provider, _mode: Mode) -> None:
-        return None
 
-    def get_handlers(_provider: Provider, _mode: Mode) -> SimpleNamespace:
-        return SimpleNamespace(
-            response_parser=fake_parser,
-            reask_handler=fake_reask_handler,
-        )
+class Recorder:
+    """Plays scripted provider replies and records every hook emission."""
 
-    def update_usage(response: Any, total_usage: Any) -> Any:
-        assert total_usage == {"tokens": 0}
-        return response
-
-    def initialize_usage(_provider: Provider) -> dict[str, int]:
-        return {"tokens": 0}
-
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
-        no_validate,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.mode_registry.get_handlers",
-        get_handlers,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.update_total_usage",
-        update_usage,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry._initialize_usage",
-        initialize_usage,
-    )
-
-    result = retry_sync_v2(
-        func=fake_func,
-        response_model=Answer,
-        provider=Provider.OPENAI,
-        mode=Mode.TOOLS,
-        context={"tenant": "acme"},
-        max_retries=Retrying(
-            stop=stop_after_attempt(2),
-            retry=retry_if_exception_type(ValidationError),
-            reraise=True,
-        ),
-        args=(),
-        kwargs={"messages": [{"role": "user", "content": "first"}]},
-        strict=True,
-        hooks=hooks,
-    )
-
-    assert result.value == 7
-    assert len(calls) == 2
-    assert calls[1]["messages"][-1]["content"] == "second"
-    assert parser_calls == ["first", "second"]
-    assert len(emitted["args"]) == 2
-    assert len(emitted["responses"]) == 2
-    assert len(emitted["errors"]) == 1
-    assert isinstance(emitted["errors"][0][0], ValidationError)
-    assert emitted["errors"][0][1]["attempt_number"] == 1
-    assert emitted["completion_errors"] == []
-    assert emitted["last_attempts"] == []
-
-
-def test_retry_sync_v2_emits_last_attempt_metadata_on_exhaustion(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    emitted: dict[str, list[Any]] = {"completion_errors": [], "last_attempts": []}
-
-    def fake_func(*_args: Any, **kwargs: Any) -> dict[str, Any]:
-        return {"payload": kwargs["messages"][-1]["content"]}
-
-    def always_fail_parser(**_kwargs: Any) -> Answer:
-        raise _validation_error()
-
-    def reask_kwargs(
-        kwargs: dict[str, Any], response: Any, exception: ValidationError
-    ) -> dict[str, Any]:
-        assert response["payload"] in {"first", "retry"}
-        assert isinstance(exception, ValidationError)
-        return {
-            **kwargs,
-            "messages": [*kwargs["messages"], {"role": "user", "content": "retry"}],
+    def __init__(self, replies: list[Any]) -> None:
+        self.replies = replies
+        self.calls: list[dict[str, Any]] = []
+        self.events: dict[str, list[Any]] = {
+            name: []
+            for name in (
+                "completion:kwargs",
+                "completion:response",
+                "parse:error",
+                "completion:error",
+                "completion:last_attempt",
+            )
         }
+        self.hooks = Hooks()
+        for hook, events in self.events.items():
+            name = cast(Any, hook)
+            if name == "completion:response":
+                self.hooks.on(name, events.append)
+            elif name == "completion:kwargs":
+                self.hooks.on(name, lambda events=events, **kw: events.append(kw))
+            else:
+                self.hooks.on(
+                    name,
+                    lambda error, events=events, **meta: events.append((error, meta)),
+                )
 
-    hooks = Hooks()
-    hooks.on(
-        "completion:error",
-        lambda error, **kwargs: emitted["completion_errors"].append((error, kwargs)),
-    )
-    hooks.on(
-        "completion:last_attempt",
-        lambda error, **kwargs: emitted["last_attempts"].append((error, kwargs)),
-    )
+    def reply(self, kwargs: dict[str, Any]) -> Any:
+        # Snapshot: the retry loop extends the same messages list in place.
+        self.calls.append({**kwargs, "messages": list(kwargs["messages"])})
+        reply = self.replies[len(self.calls) - 1]
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
 
-    def no_validate(_provider: Provider, _mode: Mode) -> None:
-        return None
-
-    def get_handlers(_provider: Provider, _mode: Mode) -> SimpleNamespace:
-        return SimpleNamespace(
-            response_parser=always_fail_parser,
-            reask_handler=reask_kwargs,
-        )
-
-    def update_usage(response: Any, total_usage: Any) -> Any:
-        assert total_usage == {"tokens": 0}
-        return response
-
-    def initialize_usage(_provider: Provider) -> dict[str, int]:
-        return {"tokens": 0}
-
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
-        no_validate,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.mode_registry.get_handlers",
-        get_handlers,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.update_total_usage",
-        update_usage,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry._initialize_usage",
-        initialize_usage,
-    )
-
-    with pytest.raises(InstructorRetryException):
-        retry_sync_v2(
-            func=fake_func,
-            response_model=Answer,
-            provider=Provider.OPENAI,
-            mode=Mode.TOOLS,
-            context=None,
-            max_retries=1,
-            args=(),
-            kwargs={"messages": [{"role": "user", "content": "first"}]},
-            strict=True,
-            hooks=hooks,
-        )
-
-    assert emitted["completion_errors"] == []
-    assert len(emitted["last_attempts"]) == 1
-    assert emitted["last_attempts"][0][1] == {
-        "attempt_number": 2,
-        "max_attempts": 2,
-        "is_last_attempt": True,
-    }
-
-
-def test_retry_sync_v2_marks_api_error_as_last_attempt(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = 0
-    emitted: dict[str, list[Any]] = {"completion_errors": [], "last_attempts": []}
-
-    def fake_func(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
-        nonlocal calls
-        calls += 1
-        raise RuntimeError("boom")
-
-    hooks = Hooks()
-    hooks.on(
-        "completion:error",
-        lambda error, **kwargs: emitted["completion_errors"].append((error, kwargs)),
-    )
-    hooks.on(
-        "completion:last_attempt",
-        lambda error, **kwargs: emitted["last_attempts"].append((error, kwargs)),
-    )
-
-    def no_validate(_provider: Provider, _mode: Mode) -> None:
-        return None
-
-    def get_handlers(_provider: Provider, _mode: Mode) -> SimpleNamespace:
-        return SimpleNamespace(
-            response_parser=lambda **_kwargs: Answer(value=1),
-            reask_handler=lambda **kwargs: kwargs,
-        )
-
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
-        no_validate,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.mode_registry.get_handlers",
-        get_handlers,
-    )
-
-    with pytest.raises(InstructorRetryException) as exc_info:
-        retry_sync_v2(
-            func=fake_func,
-            response_model=Answer,
-            provider=Provider.OPENAI,
-            mode=Mode.TOOLS,
-            context=None,
-            max_retries=3,
-            args=(),
-            kwargs={"messages": [{"role": "user", "content": "first"}]},
-            strict=True,
-            hooks=hooks,
-        )
-
-    assert calls == 1
-    assert exc_info.value.n_attempts == 1
-    assert len(emitted["completion_errors"]) == 1
-    assert emitted["completion_errors"][0][1] == {
-        "attempt_number": 1,
-        "max_attempts": 4,
-        "is_last_attempt": True,
-    }
-    assert len(emitted["last_attempts"]) == 1
-    assert emitted["last_attempts"][0][1] == {
-        "attempt_number": 1,
-        "max_attempts": 4,
-        "is_last_attempt": True,
-    }
-
-
-def test_retry_sync_v2_integer_max_retries_counts_retries(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    parser_calls = 0
-
-    def fake_func(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
-        return {"payload": "ok"}
-
-    def fake_parser(**_kwargs: Any) -> Answer:
-        nonlocal parser_calls
-        parser_calls += 1
-        if parser_calls == 1:
-            raise _validation_error()
-        return Answer(value=42)
-
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
-        lambda _provider, _mode: None,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.mode_registry.get_handlers",
-        lambda _provider, _mode: SimpleNamespace(
-            response_parser=fake_parser,
-            reask_handler=lambda **call: call["kwargs"],
-        ),
-    )
-
-    result = retry_sync_v2(
-        func=fake_func,
-        response_model=Answer,
-        provider=Provider.OPENAI,
-        mode=Mode.TOOLS,
-        context=None,
-        max_retries=1,
-        args=(),
-        kwargs={},
-        strict=True,
-        hooks=None,
-    )
-
-    assert result == Answer(value=42)
-    assert parser_calls == 2
-
-
-@pytest.mark.parametrize(
-    "parse_error",
-    [
-        json.JSONDecodeError("bad json", "{", 1),
-        pytest.param(
-            ResponseParsingError("missing tool call"),
-            id="response-parsing-error",
-        ),
-    ],
-)
-def test_retry_sync_v2_retries_parse_errors(
-    monkeypatch: pytest.MonkeyPatch,
-    parse_error: Exception,
-) -> None:
-    parser_calls = 0
-
-    def fake_parser(**_kwargs: Any) -> Answer:
-        nonlocal parser_calls
-        parser_calls += 1
-        if parser_calls == 1:
-            raise parse_error
-        return Answer(value=42)
-
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
-        lambda _provider, _mode: None,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.mode_registry.get_handlers",
-        lambda _provider, _mode: SimpleNamespace(
-            response_parser=fake_parser,
-            reask_handler=lambda **call: call["kwargs"],
-        ),
-    )
-
-    result = retry_sync_v2(
-        func=lambda *_args, **_kwargs: {"payload": "ok"},
-        response_model=Answer,
-        provider=Provider.OPENAI,
-        mode=Mode.JSON,
-        context=None,
-        max_retries=1,
-        args=(),
-        kwargs={},
-        strict=True,
-        hooks=None,
-    )
-
-    assert result == Answer(value=42)
-    assert parser_calls == 2
-
-
-def test_retry_sync_v2_reports_terminal_api_error_after_validation_failure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = 0
-
-    def fake_func(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
-        nonlocal calls
-        calls += 1
-        if calls == 2:
-            raise RuntimeError("terminal API failure")
-        return {"payload": "invalid"}
-
-    def always_fail_parser(**_kwargs: Any) -> Answer:
-        raise _validation_error()
-
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
-        lambda _provider, _mode: None,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.mode_registry.get_handlers",
-        lambda _provider, _mode: SimpleNamespace(
-            response_parser=always_fail_parser,
-            reask_handler=lambda **call: call["kwargs"],
-        ),
-    )
-
-    with pytest.raises(
-        InstructorRetryException, match="terminal API failure"
-    ) as exc_info:
-        retry_sync_v2(
-            func=fake_func,
-            response_model=Answer,
-            provider=Provider.OPENAI,
-            mode=Mode.TOOLS,
-            context=None,
-            max_retries=1,
-            args=(),
-            kwargs={},
-            strict=True,
-            hooks=None,
-        )
-
-    assert exc_info.value.n_attempts == 2
-
-
-def test_retry_sync_v2_raises_instructor_retry_exception_after_exhaustion(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def fake_func(*_args: Any, **kwargs: Any) -> dict[str, Any]:
-        return {"payload": kwargs["messages"][-1]["content"]}
-
-    def always_fail_parser(**_kwargs: Any) -> Answer:
-        raise _validation_error()
-
-    def reask_kwargs(
-        kwargs: dict[str, Any], response: Any, exception: ValidationError
-    ) -> dict[str, Any]:
-        assert response["payload"] in {"first", "retry"}
-        assert isinstance(exception, ValidationError)
-        return {
-            **kwargs,
-            "messages": [*kwargs["messages"], {"role": "user", "content": "retry"}],
-        }
-
-    def no_validate(_provider: Provider, _mode: Mode) -> None:
-        return None
-
-    def get_handlers(_provider: Provider, _mode: Mode) -> SimpleNamespace:
-        return SimpleNamespace(
-            response_parser=always_fail_parser,
-            reask_handler=reask_kwargs,
-        )
-
-    def update_usage(response: Any, total_usage: Any) -> Any:
-        assert total_usage == {"tokens": 0}
-        return response
-
-    def initialize_usage(_provider: Provider) -> dict[str, int]:
-        return {"tokens": 0}
-
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
-        no_validate,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.mode_registry.get_handlers",
-        get_handlers,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.update_total_usage",
-        update_usage,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry._initialize_usage",
-        initialize_usage,
-    )
-
-    with pytest.raises(InstructorRetryException) as exc_info:
-        retry_sync_v2(
-            func=fake_func,
-            response_model=Answer,
-            provider=Provider.OPENAI,
-            mode=Mode.TOOLS,
-            context=None,
-            max_retries=Retrying(
+    async def run(
+        self,
+        is_async: bool,
+        max_retries: int | str = 1,
+        *,
+        provider: Provider = Provider.OPENAI,
+        mode: Mode = Mode.JSON,
+        strict: bool = True,
+    ) -> Any:
+        policy: Any = max_retries
+        if max_retries == "tenacity":
+            policy = (AsyncRetrying if is_async else Retrying)(
                 stop=stop_after_attempt(2),
                 retry=retry_if_exception_type(ValidationError),
                 reraise=True,
-            ),
-            args=(),
-            kwargs={"messages": [{"role": "user", "content": "first"}]},
-            strict=True,
-            hooks=None,
+            )
+        options: dict[str, Any] = {
+            "response_model": Answer,
+            "provider": provider,
+            "mode": mode,
+            "context": {"tenant": "acme"},
+            "max_retries": policy,
+            "args": (),
+            "kwargs": {"messages": [{"role": "user", "content": "first"}]},
+            "strict": strict,
+            "hooks": self.hooks,
+        }
+        if is_async:
+
+            async def acreate(**kwargs: Any) -> Any:
+                return self.reply(kwargs)
+
+            return await retry_async_v2(func=acreate, **options)
+        return retry_sync_v2(func=lambda **kwargs: self.reply(kwargs), **options)
+
+
+sync_and_async = pytest.mark.parametrize(
+    "is_async", [False, True], ids=["sync", "async"]
+)
+LAST = {"attempt_number": 2, "max_attempts": 2, "is_last_attempt": True}
+
+
+@pytest.mark.asyncio
+@sync_and_async
+@pytest.mark.parametrize("policy", [1, "tenacity"])
+async def test_retry_reasks_with_feedback_until_valid(
+    is_async: bool, policy: int | str
+) -> None:
+    recorder = Recorder([_completion("bad"), _completion(7)])
+
+    result = await recorder.run(is_async, policy)
+
+    assert result == Answer(value=7)
+    first, second = (call["messages"] for call in recorder.calls)
+    assert len(second) > len(first)
+    assert second[-1]["role"] == "user"
+    events = recorder.events
+    assert len(events["completion:kwargs"]) == len(events["completion:response"]) == 2
+    [(error, meta)] = events["parse:error"]
+    assert isinstance(error, ValidationError)
+    assert meta["attempt_number"] == 1
+    assert events["completion:error"] == events["completion:last_attempt"] == []
+
+
+@pytest.mark.asyncio
+@sync_and_async
+@pytest.mark.parametrize("error", ["validation", "response-parsing", "json-decode"])
+async def test_retry_retries_every_parse_error(is_async: bool, error: str) -> None:
+    if error == "json-decode":
+        # Non-strict Anthropic JSON decodes with json.loads.
+        replies = [_anthropic_text("{bad"), _anthropic_text('{"value": 42}')]
+        recorder = Recorder(replies)
+        result = await recorder.run(
+            is_async, provider=Provider.ANTHROPIC, mode=Mode.JSON, strict=False
         )
+        expected: type[Exception] = json.JSONDecodeError
+    else:
+        bad = (
+            _completion("bad")
+            if error == "validation"
+            else ChatCompletion(
+                id="c", choices=[], created=0, model="m", object="chat.completion"
+            )
+        )
+        recorder = Recorder([bad, _completion(42)])
+        result = await recorder.run(is_async)
+        expected = ValidationError if error == "validation" else ResponseParsingError
+
+    assert result == Answer(value=42)
+    assert len(recorder.calls) == 2
+    assert isinstance(recorder.events["parse:error"][0][0], expected)
+
+
+@pytest.mark.asyncio
+@sync_and_async
+@pytest.mark.parametrize("policy", [1, "tenacity"])
+async def test_retry_exhaustion_reports_last_attempt(
+    is_async: bool, policy: int | str
+) -> None:
+    replies = [_completion("bad"), _completion("worse")]
+    recorder = Recorder(replies)
+
+    with pytest.raises(InstructorRetryException) as exc_info:
+        await recorder.run(is_async, policy)
 
     error = exc_info.value
     assert error.n_attempts == 2
-    assert error.last_completion == {"payload": "retry"}
+    assert error.last_completion is replies[-1]
     assert error.create_kwargs is not None
-    assert error.create_kwargs["messages"][-1]["content"] == "retry"
+    sent = recorder.calls[-1]["messages"]
+    # The final kwargs keep the last request plus the final feedback turn.
+    assert error.create_kwargs["messages"][: len(sent)] == sent
+    assert error.create_kwargs["messages"][-1]["role"] == "user"
     assert len(error.failed_attempts or []) == 2
+    assert recorder.events["completion:error"] == []
+    [(_, meta)] = recorder.events["completion:last_attempt"]
+    # A custom tenacity policy has no known attempt budget.
+    assert meta == {**LAST, "max_attempts": 2 if policy == 1 else None}
 
 
 @pytest.mark.asyncio
-async def test_retry_async_v2_reasks_after_validation_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    parser_calls: list[str] = []
-
-    async def fake_func(*_args: Any, **kwargs: Any) -> dict[str, Any]:
-        return {"payload": kwargs["messages"][-1]["content"]}
-
-    def fake_parser(**kwargs: Any) -> Answer:
-        parser_calls.append(kwargs["response"]["payload"])
-        if len(parser_calls) == 1:
-            raise _validation_error()
-        return Answer(value=9)
-
-    def reask_kwargs(
-        kwargs: dict[str, Any], response: Any, exception: ValidationError
-    ) -> dict[str, Any]:
-        assert response["payload"] in {"first", "retry"}
-        assert isinstance(exception, ValidationError)
-        return {
-            **kwargs,
-            "messages": [*kwargs["messages"], {"role": "user", "content": "retry"}],
-        }
-
-    def no_validate(_provider: Provider, _mode: Mode) -> None:
-        return None
-
-    def get_handlers(_provider: Provider, _mode: Mode) -> SimpleNamespace:
-        return SimpleNamespace(
-            response_parser=fake_parser,
-            reask_handler=reask_kwargs,
-        )
-
-    def update_usage(response: Any, total_usage: Any) -> Any:
-        assert total_usage == {"tokens": 0}
-        return response
-
-    def initialize_usage(_provider: Provider) -> dict[str, int]:
-        return {"tokens": 0}
-
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
-        no_validate,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.mode_registry.get_handlers",
-        get_handlers,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.update_total_usage",
-        update_usage,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry._initialize_usage",
-        initialize_usage,
-    )
-
-    result = await retry_async_v2(
-        func=fake_func,
-        response_model=Answer,
-        provider=Provider.OPENAI,
-        mode=Mode.TOOLS,
-        context=None,
-        max_retries=AsyncRetrying(
-            stop=stop_after_attempt(2),
-            retry=retry_if_exception_type(ValidationError),
-            reraise=True,
-        ),
-        args=(),
-        kwargs={"messages": [{"role": "user", "content": "first"}]},
-        strict=True,
-        hooks=None,
-    )
-
-    assert result == Answer(value=9)
-    assert parser_calls == ["first", "retry"]
-
-
-@pytest.mark.asyncio
-async def test_retry_async_v2_marks_api_error_as_last_attempt(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = 0
-    emitted: dict[str, list[Any]] = {"completion_errors": [], "last_attempts": []}
-
-    async def fake_func(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
-        nonlocal calls
-        calls += 1
-        raise RuntimeError("boom")
-
-    hooks = Hooks()
-    hooks.on(
-        "completion:error",
-        lambda error, **kwargs: emitted["completion_errors"].append((error, kwargs)),
-    )
-    hooks.on(
-        "completion:last_attempt",
-        lambda error, **kwargs: emitted["last_attempts"].append((error, kwargs)),
-    )
-
-    def no_validate(_provider: Provider, _mode: Mode) -> None:
-        return None
-
-    def get_handlers(_provider: Provider, _mode: Mode) -> SimpleNamespace:
-        return SimpleNamespace(
-            response_parser=lambda **_kwargs: Answer(value=1),
-            reask_handler=lambda **kwargs: kwargs,
-        )
-
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
-        no_validate,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.mode_registry.get_handlers",
-        get_handlers,
-    )
+@sync_and_async
+async def test_retry_api_error_is_terminal_last_attempt(is_async: bool) -> None:
+    recorder = Recorder([RuntimeError("boom")])
 
     with pytest.raises(InstructorRetryException) as exc_info:
-        await retry_async_v2(
-            func=fake_func,
-            response_model=Answer,
-            provider=Provider.OPENAI,
-            mode=Mode.TOOLS,
-            context=None,
-            max_retries=3,
-            args=(),
-            kwargs={"messages": [{"role": "user", "content": "first"}]},
-            strict=True,
-            hooks=hooks,
-        )
+        await recorder.run(is_async, 3)
 
-    assert calls == 1
-    assert exc_info.value.n_attempts == 1
-    assert len(emitted["completion_errors"]) == 1
-    assert emitted["completion_errors"][0][1] == {
-        "attempt_number": 1,
-        "max_attempts": 4,
-        "is_last_attempt": True,
-    }
-    assert len(emitted["last_attempts"]) == 1
-    assert emitted["last_attempts"][0][1] == {
-        "attempt_number": 1,
-        "max_attempts": 4,
-        "is_last_attempt": True,
-    }
+    assert len(recorder.calls) == exc_info.value.n_attempts == 1
+    terminal = {"attempt_number": 1, "max_attempts": 4, "is_last_attempt": True}
+    assert [meta for _, meta in recorder.events["completion:error"]] == [terminal]
+    assert [meta for _, meta in recorder.events["completion:last_attempt"]] == [
+        terminal
+    ]
 
 
 @pytest.mark.asyncio
-async def test_retry_async_v2_integer_max_retries_counts_retries(
-    monkeypatch: pytest.MonkeyPatch,
+@sync_and_async
+async def test_retry_reports_terminal_api_error_after_validation_failure(
+    is_async: bool,
 ) -> None:
-    parser_calls = 0
+    recorder = Recorder([_completion("bad"), RuntimeError("terminal API failure")])
 
-    async def fake_func(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
-        return {"payload": "ok"}
+    with pytest.raises(InstructorRetryException, match="terminal API failure") as exc:
+        await recorder.run(is_async)
 
-    def fake_parser(**_kwargs: Any) -> Answer:
-        nonlocal parser_calls
-        parser_calls += 1
-        if parser_calls == 1:
-            raise _validation_error()
-        return Answer(value=42)
-
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
-        lambda _provider, _mode: None,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.mode_registry.get_handlers",
-        lambda _provider, _mode: SimpleNamespace(
-            response_parser=fake_parser,
-            reask_handler=lambda **call: call["kwargs"],
-        ),
-    )
-
-    result = await retry_async_v2(
-        func=fake_func,
-        response_model=Answer,
-        provider=Provider.OPENAI,
-        mode=Mode.TOOLS,
-        context=None,
-        max_retries=1,
-        args=(),
-        kwargs={},
-        strict=True,
-        hooks=None,
-    )
-
-    assert result == Answer(value=42)
-    assert parser_calls == 2
-
-
-@pytest.mark.asyncio
-async def test_retry_async_v2_retries_json_decode_errors(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    parser_calls = 0
-
-    async def fake_func(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
-        return {"payload": "ok"}
-
-    def fake_parser(**_kwargs: Any) -> Answer:
-        nonlocal parser_calls
-        parser_calls += 1
-        if parser_calls == 1:
-            raise json.JSONDecodeError("bad json", "{", 1)
-        return Answer(value=42)
-
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
-        lambda _provider, _mode: None,
-    )
-    monkeypatch.setattr(
-        "instructor.v2.core.retry.mode_registry.get_handlers",
-        lambda _provider, _mode: SimpleNamespace(
-            response_parser=fake_parser,
-            reask_handler=lambda **call: call["kwargs"],
-        ),
-    )
-
-    result = await retry_async_v2(
-        func=fake_func,
-        response_model=Answer,
-        provider=Provider.OPENAI,
-        mode=Mode.JSON,
-        context=None,
-        max_retries=1,
-        args=(),
-        kwargs={},
-        strict=True,
-        hooks=None,
-    )
-
-    assert result == Answer(value=42)
-    assert parser_calls == 2
+    assert exc.value.n_attempts == 2
 
 
 @pytest.mark.asyncio
@@ -1228,3 +711,117 @@ async def test_retry_async_v2_reports_an_empty_retry_policy_without_losing_conte
     assert "Unexpected code path in retry_async_v2" in [
         record.getMessage() for record in caplog.records
     ]
+
+
+def test_streaming_retry_exhaustion_preserves_validation_error() -> None:
+    import httpx
+    from openai import OpenAI
+
+    import instructor
+
+    class ImpossibleModel(BaseModel):
+        value: str
+
+        @field_validator("value")
+        @classmethod
+        def always_fail(cls, _value: str) -> str:
+            raise ValueError("controlled invalid value")
+
+    requests = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        requests.append(body)
+        call = {
+            "index": 0,
+            "id": "call_1",
+            "type": "function",
+            "function": {
+                "name": body["tools"][0]["function"]["name"],
+                "arguments": '{"value":"test"}',
+            },
+        }
+        chunk = {
+            "id": "chatcmpl-local",
+            "object": "chat.completion.chunk",
+            "created": 1,
+            "model": "local",
+            "choices": [{"index": 0, "delta": {"tool_calls": [call]}}],
+        }
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/event-stream"},
+            content=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n",
+        )
+
+    transport = httpx.MockTransport(respond)
+    with OpenAI(api_key="local", http_client=httpx.Client(transport=transport)) as sdk:
+        client = instructor.from_openai(sdk)
+        with pytest.raises(InstructorRetryException) as caught:
+            list(
+                client.chat.completions.create_partial(
+                    model="local",
+                    max_retries=2,
+                    messages=[{"role": "user", "content": "test"}],
+                    response_model=ImpossibleModel,
+                )
+            )
+    assert len(requests) == caught.value.n_attempts == 3
+    assert isinstance(caught.value.__cause__, ValidationError)
+    assert "controlled invalid value" in str(caught.value.__cause__)
+
+
+@pytest.mark.parametrize("outcome", ["empty", "close", "complete", "invalid-final"])
+def test_sync_partial_retry_stream_lifecycle(outcome: str) -> None:
+    closed = False
+    calls = 0
+
+    def stream() -> Generator[ChatCompletionChunk, None, None]:
+        nonlocal closed
+        try:
+            if outcome == "empty":
+                return
+            final = '"wrong"}' if outcome == "invalid-final" else "7}"
+            for content in ('{"value":', final):
+                yield ChatCompletionChunk.model_validate(
+                    {
+                        "id": "c",
+                        "object": "chat.completion.chunk",
+                        "created": 1,
+                        "model": "m",
+                        "choices": [{"index": 0, "delta": {"content": content}}],
+                    }
+                )
+        finally:
+            closed = True
+
+    def create(**_kwargs: Any) -> Generator[ChatCompletionChunk, None, None]:
+        nonlocal calls
+        calls += 1
+        return stream()
+
+    result = retry_sync_v2(
+        create,
+        Partial[Answer],
+        Provider.OPENAI,
+        Mode.JSON_SCHEMA,
+        None,
+        2,
+        (),
+        {"stream": True},
+        True,
+    )
+    assert isinstance(result, Generator)
+    if outcome == "close":
+        result.close()
+    elif outcome == "invalid-final":
+        assert next(result).value is None
+        with pytest.raises(ValidationError):
+            next(result)
+    else:
+        assert list(result) == (
+            []
+            if outcome == "empty"
+            else [Answer.model_construct(value=None), Answer(value=7)]
+        )
+    assert closed and calls == 1

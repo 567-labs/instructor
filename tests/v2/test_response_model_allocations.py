@@ -40,44 +40,46 @@ def clear_schema_cache():
     generate_openai_schema.cache_clear()
     yield
     generate_openai_schema.cache_clear()
-    gc.collect()
 
 
-@pytest.mark.parametrize(
-    "input_model",
-    [
-        pytest.param(User, id="model"),
-        pytest.param(Nested, id="nested"),
-        pytest.param(list[User], id="list"),
-        pytest.param(Iterable[User], id="iterable"),
-        pytest.param(Record, id="typed-dict"),
-        pytest.param(list[Record], id="list-typed-dict"),
-        pytest.param(int, id="scalar"),
-    ],
-)
-@pytest.mark.parametrize("with_schema", [False, True], ids=["prepare", "schema"])
-def test_generated_classes_are_collectible(input_model: Any, with_schema: bool):
+INPUT_MODELS: list[Any] = [
+    int,
+    User,
+    Nested,
+    Record,
+    list[User],
+    Iterable[User],
+    list[Record],
+]
+
+
+def test_generated_classes_are_collectible():
     capacity = generate_openai_schema.cache_info().maxsize
     assert capacity is not None
-    refs: dict[weakref.ReferenceType, None] = {}
-    for _ in range(capacity + 10 if with_schema else 10):
-        prepared = prepare_response_model(input_model)
-        assert prepared is not None
-        refs[weakref.ref(prepared)] = None
-        if with_schema:
+    # Weak refs in first-use order. Repeated requests may reuse one wrapper,
+    # and every model's block runs to completion before the next starts, so
+    # the LRU schema cache must hold exactly the newest ``capacity`` wrappers.
+    prepared_only: dict[weakref.ReferenceType, None] = {}
+    cached: dict[weakref.ReferenceType, None] = {}
+    for input_model in INPUT_MODELS:
+        for _ in range(10):
+            prepared = prepare_response_model(input_model)
+            assert prepared is not None
+            prepared_only[weakref.ref(prepared)] = None
+        for _ in range(capacity + 10):
+            prepared = prepare_response_model(input_model)
+            assert prepared is not None
+            cached[weakref.ref(prepared)] = None
             generate_openai_schema(prepared)
     del prepared
     gc.collect()
-    # Count distinct live classes: repeated requests may reuse one wrapper.
-    # The schema cache retains at most its capacity and releases every wrapper on clear.
-    assert sum(ref() is not None for ref in refs) == (
-        min(len(refs), capacity) if with_schema else 0
-    )
-    if with_schema:
-        assert all(ref() is None for ref in list(refs)[:-capacity])
+    assert all(ref() is None for ref in prepared_only)
+    live = [ref() is not None for ref in cached]
+    assert len(cached) > capacity
+    assert live == [False] * (len(cached) - capacity) + [True] * capacity
     generate_openai_schema.cache_clear()
     gc.collect()
-    assert all(ref() is None for ref in refs)
+    assert all(ref() is None for ref in cached)
 
 
 def test_dynamic_input_and_wrapped_classes_are_released_after_eviction():

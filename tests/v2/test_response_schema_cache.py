@@ -17,8 +17,13 @@ from instructor.v2.core.function_calls import (
     _response_schema_cache,
     response_schema,
 )
+from instructor.cache import AutoCache
+from instructor.v2.core.mode import Mode
+from instructor.v2.core.patch import patch
+from instructor.v2.core.providers import Provider
 from instructor.v2.core.response_model import prepare_response_model
 from instructor.v2.providers.openai.schema import generate_openai_schema
+from tests.coverage._openai import chat_completion
 
 
 # ---------------------------------------------------------------------------
@@ -218,3 +223,30 @@ def test_concurrent_requests_share_the_same_live_wrapper():
     with ThreadPoolExecutor(max_workers=4) as pool:
         models = list(pool.map(response_schema, [Shared] * 12))
     assert all(model is models[0] for model in models)
+
+
+@pytest.mark.parametrize(
+    ("response_model", "content", "expected"),
+    [
+        (
+            list[User],
+            '{"tasks": [{"name": "Ada", "age": 1}]}',
+            [User(name="Ada", age=1)],
+        ),
+        (str, '{"content": "hi"}', "hi"),
+    ],
+    ids=["list-of-models", "primitive-str"],
+)
+def test_patch_prepares_response_model_before_cache_key(
+    response_model: Any, content: str, expected: Any
+) -> None:
+    """Regression #2374: cache keys used the raw model's model_json_schema."""
+
+    def create(**_kwargs: Any) -> Any:
+        return chat_completion(content=f"```json\n{content}\n```")
+
+    patched: Any = patch(create=create, provider=Provider.OPENAI, mode=Mode.MD_JSON)
+    cache = AutoCache()
+    for _ in range(2):
+        result = patched(response_model=response_model, messages=[], cache=cache)
+        assert (list(result) if isinstance(expected, list) else result) == expected

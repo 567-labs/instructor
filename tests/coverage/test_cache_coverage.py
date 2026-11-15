@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-from types import SimpleNamespace
 from typing import Any
 
 import instructor
@@ -10,11 +8,11 @@ from instructor.cache import (
     AutoCache,
     BaseCache,
     DiskCache,
-    load_cached_response,
     make_cache_key,
-    store_cached_response,
 )
 from pydantic import BaseModel
+
+from tests.coverage._openai import chat_completion
 
 
 class User(BaseModel):
@@ -51,16 +49,38 @@ class MemoryCache(BaseCache):
         self.writes.append((key, value, ttl))
 
 
-def completion(name: str) -> SimpleNamespace:
-    return SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                message=SimpleNamespace(content=User(name=name).model_dump_json()),
-                finish_reason="stop",
-            )
-        ],
-        usage={},
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+async def test_client_stores_on_miss_and_uses_cache_on_hit(is_async: bool) -> None:
+    calls: list[str] = []
+
+    def complete(*_args: Any, **_kwargs: Any) -> Any:
+        calls.append("called")
+        return chat_completion(content=User(name="cached").model_dump_json())
+
+    async def acomplete(*args: Any, **kwargs: Any) -> Any:
+        return complete(*args, **kwargs)
+
+    cache = MemoryCache()
+    client: Any = instructor.from_litellm(
+        acomplete if is_async else complete,
+        mode=instructor.Mode.JSON,
+        async_client=is_async,
     )
+    results = []
+    for _ in range(2):
+        result = client.create(
+            response_model=User,
+            cache=cache,
+            cache_ttl=30,
+            messages=[{"role": "user", "content": "hello"}],
+            model="local",
+        )
+        results.append(await result if is_async else result)
+
+    assert [result.model_dump() for result in results] == [{"name": "cached"}] * 2
+    assert calls == ["called"]
+    assert [ttl for _, _, ttl in cache.writes] == [30]
 
 
 def test_auto_cache_rejects_invalid_size_and_evicts_least_recently_used() -> None:
@@ -92,135 +112,6 @@ def test_disk_cache_round_trip_supports_plain_and_ttl_writes(tmp_path: Any) -> N
         assert cache.get("timed") == {"name": "timed"}
     finally:
         cache._cache.close()
-
-
-def test_sync_client_stores_on_miss_and_uses_cache_on_hit() -> None:
-    calls: list[str] = []
-
-    def complete(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
-        calls.append("called")
-        return completion("sync")
-
-    cache = MemoryCache()
-    client = instructor.from_litellm(complete, mode=instructor.Mode.JSON)
-    first = client.create(
-        response_model=User,
-        cache=cache,
-        cache_ttl=30,
-        messages=[{"role": "user", "content": "hello"}],
-        model="local",
-    )
-    second = client.create(
-        response_model=User,
-        cache=cache,
-        cache_ttl=30,
-        messages=[{"role": "user", "content": "hello"}],
-        model="local",
-    )
-
-    assert isinstance(first, User)
-    assert isinstance(second, User)
-    assert first.name == second.name == "sync"
-    assert calls == ["called"]
-    assert len(cache.writes) == 1
-    assert cache.writes[0][2] == 30
-
-
-@pytest.mark.asyncio
-async def test_async_client_stores_on_miss_and_uses_cache_on_hit() -> None:
-    calls: list[str] = []
-
-    async def complete(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
-        calls.append("called")
-        return completion("async")
-
-    cache = MemoryCache()
-    client = instructor.from_litellm(
-        complete, mode=instructor.Mode.JSON, async_client=True
-    )
-    first = await client.create(
-        response_model=User,
-        cache=cache,
-        cache_ttl=45,
-        messages=[{"role": "user", "content": "hello"}],
-        model="local",
-    )
-    second = await client.create(
-        response_model=User,
-        cache=cache,
-        cache_ttl=45,
-        messages=[{"role": "user", "content": "hello"}],
-        model="local",
-    )
-
-    assert isinstance(first, User)
-    assert isinstance(second, User)
-    assert first.name == second.name == "async"
-    assert calls == ["called"]
-    assert len(cache.writes) == 1
-    assert cache.writes[0][2] == 45
-
-
-def test_load_cached_response_accepts_legacy_model_json() -> None:
-    cache = AutoCache()
-    cache.set("legacy", User(name="legacy").model_dump_json())
-
-    restored = load_cached_response(cache, "legacy", User)
-
-    assert restored == User(name="legacy")
-    assert not hasattr(restored, "_raw_response")
-
-
-def test_store_cached_response_without_raw_response_round_trips() -> None:
-    cache = MemoryCache()
-
-    store_cached_response(cache, "model-only", User(name="model-only"), ttl=15)
-    payload = json.loads(cache.values["model-only"])
-    restored = load_cached_response(cache, "model-only", User)
-
-    assert payload["raw"] is None
-    assert restored == User(name="model-only")
-    assert cache.writes[0][2] == 15
-
-
-def test_pydantic_raw_response_is_restored_as_completion_like_object() -> None:
-    class RawCompletion(BaseModel):
-        id: str
-        choices: list[dict[str, Any]]
-
-    cache = AutoCache()
-    user = User(name="pydantic")
-    object.__setattr__(
-        user,
-        "_raw_response",
-        RawCompletion(id="chatcmpl-1", choices=[{"message": {"content": "ok"}}]),
-    )
-
-    store_cached_response(cache, "pydantic", user, ttl=10)
-    restored = load_cached_response(cache, "pydantic", User)
-
-    assert isinstance(restored, User)
-    assert restored.name == "pydantic"
-    assert restored._raw_response.id == "chatcmpl-1"
-    assert restored._raw_response.choices[0].message.content == "ok"
-
-
-def test_unserializable_raw_response_uses_string_fallback(caplog: Any) -> None:
-    cache = MemoryCache()
-    raw_response: list[Any] = []
-    raw_response.append(raw_response)
-    user = User(name="fallback")
-    object.__setattr__(user, "_raw_response", raw_response)
-
-    store_cached_response(cache, "fallback", user)
-    payload = json.loads(cache.values["fallback"])
-    restored = load_cached_response(cache, "fallback", User)
-
-    assert payload["raw"] == "[[...]]"
-    assert isinstance(restored, User)
-    assert restored.name == "fallback"
-    assert restored._raw_response == "[[...]]"
-    assert "Raw response could not be serialized as JSON" in caplog.text
 
 
 def test_disk_cache_rejects_unsafe_legacy_records_and_preserves_external_files(

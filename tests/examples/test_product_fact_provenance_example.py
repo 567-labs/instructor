@@ -122,7 +122,7 @@ def test_claim_extraction_checks_quotes_without_creating_a_client(monkeypatch):
 
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     example = (
-        Path(__file__).resolve().parents[1] / "examples" / "claim-extraction" / "run.py"
+        Path(__file__).resolve().parents[2] / "examples" / "claim-extraction" / "run.py"
     )
     claims = runpy.run_path(str(example))["ClaimList"]
     source = "The Vega bottle holds 750 mL. Its finish is beautiful."

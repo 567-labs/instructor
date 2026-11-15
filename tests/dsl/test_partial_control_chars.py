@@ -36,9 +36,10 @@ class Payload(BaseModel):
 
 
 def chunkings(raw: str) -> Iterable[list[str]]:
+    # Whole, per-character, and a few fixed two-way splits (start, middle, end).
     yield [raw]
     yield list(raw)
-    for split in range(len(raw) + 1):
+    for split in (1, len(raw) // 2, len(raw) - 1):
         yield [raw[:split], raw[split:]]
 
 

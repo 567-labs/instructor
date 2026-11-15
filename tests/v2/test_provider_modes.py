@@ -222,3 +222,22 @@ def test_anthropic_reasoning_tools_normalizes_in_v2():
         Provider.ANTHROPIC,
         Mode.ANTHROPIC_REASONING_TOOLS,
     )
+
+
+def test_openai_connection_errors_only_skip_outside_strict_provider_runs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    exc = InstructorRetryException(
+        ValueError("Connection error"),
+        last_completion=None,
+        n_attempts=1,
+        messages=[],
+        create_kwargs={},
+        total_usage=0,
+    )
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("INSTRUCTOR_STRICT_PROVIDER_TESTS", raising=False)
+    with pytest.raises(pytest.skip.Exception):
+        _skip_on_provider_quota(Provider.OPENAI, exc)
+    monkeypatch.setenv("CI", "true")
+    _skip_on_provider_quota(Provider.OPENAI, exc)
