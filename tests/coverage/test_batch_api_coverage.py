@@ -397,7 +397,7 @@ def test_anthropic_batch_job_info_accepts_timestamp_variants_and_counts() -> Non
     assert result.timestamps.created_at == created_at
     assert result.timestamps.started_at == created_at
     assert result.timestamps.cancelled_at is None
-    assert result.timestamps.completed_at is None
+    assert result.timestamps.completed_at == datetime.fromtimestamp(17, tz=timezone.utc)
     assert result.timestamps.expires_at == datetime(
         2025, 1, 2, 12, 0, tzinfo=timezone.utc
     )

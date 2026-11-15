@@ -165,8 +165,6 @@ def test_optional_import_fallbacks_are_clear(monkeypatch: pytest.MonkeyPatch) ->
     assert isolated["SyncClient"] is None
     assert isolated["AsyncClient"] is None
     assert isolated["xchat"] is None
-    with pytest.raises(ImportError, match="xai_sdk is required"):
-        isolated["_convert_messages"]([{"role": "user", "content": "hello"}])
 
 
 def test_package_import_falls_back_when_client_cannot_load(

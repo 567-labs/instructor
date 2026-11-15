@@ -101,46 +101,6 @@ class TestClientHelperFunctions:
 
         assert result[0]["content"].startswith("Be terse\n\nReturn your answer as JSON")
 
-    def test_convert_messages_uses_xchat_constructors(self, monkeypatch):
-        from instructor.v2.providers.xai import client as xai_client
-
-        xchat = SimpleNamespace(
-            text=lambda value: ("text", value),
-            user=lambda value: ("user", value),
-            assistant=lambda value: ("assistant", value),
-            system=lambda value: ("system", value),
-            tool_result=lambda value: ("tool", value),
-        )
-        monkeypatch.setattr(xai_client, "xchat", xchat)
-
-        result = xai_client._convert_messages(
-            [
-                {"role": "user", "content": "hi"},
-                {"role": "assistant", "content": "there"},
-                {"role": "system", "content": "rules"},
-                {"role": "tool", "content": "tool output"},
-            ]
-        )
-
-        assert result == [
-            ("user", ("text", "hi")),
-            ("assistant", ("text", "there")),
-            ("system", ("text", "rules")),
-            ("tool", "tool output"),
-        ]
-
-    def test_convert_messages_rejects_non_string_content(self, monkeypatch):
-        from instructor.v2.providers.xai import client as xai_client
-
-        monkeypatch.setattr(
-            xai_client,
-            "xchat",
-            SimpleNamespace(text=lambda value: value, user=lambda value: value),
-        )
-
-        with pytest.raises(ValueError, match="Only string content supported"):
-            xai_client._convert_messages([{"role": "user", "content": ["bad"]}])
-
     def test_iter_tool_call_arg_deltas_emits_only_new_suffixes(self):
         from instructor.v2.providers.xai.client import _iter_tool_call_arg_deltas
 

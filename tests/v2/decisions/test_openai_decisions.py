@@ -4,7 +4,6 @@ from contextlib import AsyncExitStack
 from copy import deepcopy
 import json
 from typing import Annotated, Literal
-from unittest.mock import Mock
 
 import httpx
 import openai
@@ -12,7 +11,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 import instructor
-from instructor.decisions import Choice, Noul, Question, Score
+from instructor.decisions import Choice, Choices, Noul, Question, Score
 from instructor.decisions.client import AsyncDecisionsClient
 
 
@@ -50,15 +49,12 @@ def completion() -> dict:
     }
 
 
-def test_supplied_sdk_prefers_decisions_resource_and_keeps_raw_fields(monkeypatch):
+def test_supplied_sdk_posts_decisions_and_keeps_raw_fields(decision_endpoint):
     raw = {**completion(), "provider_metadata": {"version": 3}}
-    resource = Mock()
-    resource.with_raw_response.create.return_value.http_response = httpx.Response(
-        200, json=raw
-    )
-    monkeypatch.setattr(openai.OpenAI, "decisions", resource, raising=False)
+    decision_endpoint.response = deepcopy(raw)
     with openai.OpenAI(
         api_key="local-contract-key",
+        base_url=decision_endpoint.url + "/v1",
         http_client=openai.DefaultHttpxClient(trust_env=False),
     ) as sdk:
         with instructor.from_openai(sdk, mode=instructor.Mode.DECISIONS) as client:
@@ -67,10 +63,12 @@ def test_supplied_sdk_prefers_decisions_resource_and_keeps_raw_fields(monkeypatc
             )
         assert not sdk.is_closed()
     assert result.severity == 7.0 and returned == raw
-    request = resource.with_raw_response.create.call_args.kwargs
-    assert request["input"] == "Evaluate this ticket."
-    assert request["questions"][0]["instructions"] == "Apply the policy"
-    assert [q["type"] for q in request["questions"]] == ["choice", "predicate", "score"]
+    request = decision_endpoint.calls[0]
+    assert request["path"] == "/v1/decisions"
+    assert request["body"]["input"] == "Evaluate this ticket."
+    assert request["body"]["questions"][0]["instructions"] == "Apply the policy"
+    types = [q["type"] for q in request["body"]["questions"]]
+    assert types == ["choice", "predicate", "score"]
 
 
 def test_supplied_sdk_preserves_caller_settings_and_does_not_retry(decision_endpoint):
@@ -288,14 +286,14 @@ def test_openai_structured_question_metadata_is_preserved():
     from instructor.decisions.schema import build_questions
     from instructor.decisions.openai import request_body
 
+    class Action(Choices):
+        ALLOW = Choice(
+            description={"policy": "review contested cases"}, examples=["dispute"]
+        )
+        REVIEW = Choice()
+
     class Structured(BaseModel):
-        action: Annotated[
-            Literal["allow", "review"],
-            Choice(
-                description={"policy": "review contested cases"}, examples=["dispute"]
-            ),
-            Question(instructions={"question": "Which action?"}),
-        ]
+        action: Annotated[Action, Question(instructions={"question": "Which action?"})]
         probability: Annotated[float, Noul(instructions="Is it unsafe?")]
 
     body = request_body("gpt-6-luna", build_questions(Structured, {}), {})

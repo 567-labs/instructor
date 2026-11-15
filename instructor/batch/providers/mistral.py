@@ -1,10 +1,4 @@
-"""
-Mistral-specific batch processing implementation.
-
-This module contains the Mistral batch processing provider class. It supports
-both Mistral SDK export layouts: ``mistralai.client.Mistral`` on 2.x and
-``mistralai.Mistral`` on 1.x.
-"""
+"""Mistral batch processing provider for mistralai 1.x and 2.x."""
 
 from instructor.v2.providers._mistral_sdk import (
     load_mistral_client_type as _load_mistral_client_type,
@@ -15,16 +9,9 @@ import os
 from typing import Any, Optional, Union
 
 from ..models import BatchJobInfo
-from .base import BatchProvider, _atomic_result_file
+from .base import BatchProvider, _atomic_result_file, _open_jsonl, _submit_errors
 
 logger = logging.getLogger(__name__)
-
-
-def _to_dict(obj: Any) -> dict[str, Any]:
-    """Normalize an SDK response object into a plain dict"""
-    if isinstance(obj, dict):
-        return obj
-    return obj.model_dump()
 
 
 class MistralProvider(BatchProvider):
@@ -44,31 +31,6 @@ class MistralProvider(BatchProvider):
             raise RuntimeError("MISTRAL_API_KEY environment variable is not set")
 
         return client_type(api_key=api_key)
-
-    def _upload_input_file(
-        self, client: Any, file_path_or_buffer: Union[str, io.BytesIO]
-    ) -> str:
-        """Upload batch requests and return the resulting file ID"""
-        if isinstance(file_path_or_buffer, str):
-            logger.debug(f"Uploading batch file from path: {file_path_or_buffer}")
-            with open(file_path_or_buffer, "rb") as f:
-                batch_file = client.files.upload(
-                    file={"file_name": "batch.jsonl", "content": f},
-                    purpose="batch",
-                )
-        elif isinstance(file_path_or_buffer, io.BytesIO):
-            logger.debug("Uploading batch file from BytesIO buffer")
-            file_path_or_buffer.seek(0)
-            batch_file = client.files.upload(
-                file={"file_name": "batch.jsonl", "content": file_path_or_buffer},
-                purpose="batch",
-            )
-        else:
-            raise ValueError(
-                f"Unsupported file_path_or_buffer type: {type(file_path_or_buffer)}"
-            )
-
-        return batch_file.id
 
     def _completed_job(self, client: Any, batch_id: str) -> Any:
         """Fetch a batch job, verifying it produced downloadable results"""
@@ -103,29 +65,20 @@ class MistralProvider(BatchProvider):
             raise ValueError("Mistral batch jobs require a model")
 
         client = self._client()
-        try:
+        with _submit_errors("Mistral"), _open_jsonl(file_path_or_buffer) as f:
             logger.debug(f"Submitting batch job with metadata: {metadata}")
-
             # Inline batching is unavailable on SDK 1.x, so always upload a file
-            input_file_id = self._upload_input_file(client, file_path_or_buffer)
-
+            input_file = client.files.upload(
+                file={"file_name": "batch.jsonl", "content": f}, purpose="batch"
+            )
             batch_job = client.batch.jobs.create(
-                input_files=[input_file_id],
+                input_files=[input_file.id],
                 model=model,
                 endpoint=kwargs.get("endpoint", "/v1/chat/completions"),
                 metadata=metadata or {},
             )
             logger.info(f"Successfully submitted batch job: {batch_job.id}")
             return batch_job.id
-        except (ValueError, TypeError) as e:
-            # Re-raise validation errors as-is
-            logger.error(
-                "Validation error in Mistral batch submission (%s)", type(e).__name__
-            )
-            raise
-        except Exception as e:
-            logger.error("Failed to submit Mistral batch (%s)", type(e).__name__)
-            raise RuntimeError(f"Failed to submit Mistral batch: {e}") from e
 
     def get_status(self, batch_id: str) -> dict[str, Any]:
         """Get Mistral batch status"""
@@ -157,20 +110,15 @@ class MistralProvider(BatchProvider):
 
     def download_results(self, batch_id: str, file_path: str) -> None:
         """Download Mistral batch results to a file"""
-        client = self._client()
-        try:
-            job = self._completed_job(client, batch_id)
-            response = client.files.download(file_id=job.output_file)
-            with _atomic_result_file(file_path) as output:
-                output.write(response.read())
-        except Exception as e:
-            raise RuntimeError(f"Failed to download Mistral results: {e}") from e
+        results = self.retrieve_results(batch_id)
+        with _atomic_result_file(file_path) as output:
+            output.write(results.encode("utf-8"))
 
     def cancel_batch(self, batch_id: str) -> dict[str, Any]:
         """Cancel Mistral batch job"""
         client = self._client()
         try:
-            return _to_dict(client.batch.jobs.cancel(job_id=batch_id))
+            return client.batch.jobs.cancel(job_id=batch_id).model_dump()
         except Exception as e:
             raise RuntimeError(f"Failed to cancel Mistral batch: {e}") from e
 
@@ -187,7 +135,7 @@ class MistralProvider(BatchProvider):
             )
 
         try:
-            return _to_dict(delete(job_id=batch_id))
+            return delete(job_id=batch_id).model_dump()
         except Exception as e:
             raise RuntimeError(f"Failed to delete Mistral batch: {e}") from e
 
@@ -197,6 +145,6 @@ class MistralProvider(BatchProvider):
         try:
             response = client.batch.jobs.list(page_size=limit)
             jobs = getattr(response, "data", None) or []
-            return [BatchJobInfo.from_mistral(_to_dict(job)) for job in jobs[:limit]]
+            return [BatchJobInfo.from_mistral(job.model_dump()) for job in jobs[:limit]]
         except Exception as e:
             raise RuntimeError(f"Failed to list Mistral batches: {e}") from e

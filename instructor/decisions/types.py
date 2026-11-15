@@ -51,7 +51,6 @@ class Noul:
     when_true: Any = None
     when_false: Any = None
     examples: list[tuple[Any, bool]] = field(default_factory=list)
-    criteria: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -65,4 +64,3 @@ class Score:
     instructions: Any
     levels: list[Level | str | dict | list]
     scale: tuple[float, float] | None = None
-    examples: list[tuple[Any, int]] = field(default_factory=list)

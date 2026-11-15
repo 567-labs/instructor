@@ -570,24 +570,17 @@ def test_openai_request_errors_preserve_the_provider_record(
     assert error.raw_data == record
 
 
-def test_extract_returns_none_for_missing_malformed_or_unknown_provider_responses(
-    provider: RecordingProvider,
-) -> None:
-    del provider
-    anthropic = BatchProcessor("anthropic/claude-sonnet", Person)
-    openai = BatchProcessor("openai/gpt-4.1-mini", Person)
-    unknown = BatchProcessor("local/model", Person)
+def test_extract_returns_none_for_missing_malformed_or_unknown_responses() -> None:
+    extract = processor_module._extract_structured_data
 
-    assert anthropic._extract_from_response({"custom_id": "no-result"}) is None
+    assert extract({"custom_id": "no-result"}) is None
     assert (
-        anthropic._extract_from_response(
-            {"result": {"type": "succeeded", "message": {"content": "not-a-list"}}}
-        )
+        extract({"result": {"type": "succeeded", "message": {"content": "not-a-list"}}})
         is None
     )
-    assert anthropic._extract_from_response({"result": {"type": "succeeded"}}) is None
+    assert extract({"result": {"type": "succeeded"}}) is None
     assert (
-        anthropic._extract_from_response(
+        extract(
             {
                 "result": {
                     "type": "succeeded",
@@ -597,7 +590,7 @@ def test_extract_returns_none_for_missing_malformed_or_unknown_provider_response
         )
         is None
     )
-    assert anthropic._extract_from_response(
+    assert extract(
         {
             "result": {
                 "type": "succeeded",
@@ -610,10 +603,8 @@ def test_extract_returns_none_for_missing_malformed_or_unknown_provider_response
             }
         }
     ) == {"name": "Ada", "age": 36}
-    assert (
-        openai._extract_from_response({"response": {"body": {"choices": []}}}) is None
-    )
-    assert unknown._extract_from_response({"anything": "goes"}) is None
+    assert extract({"response": {"body": {"choices": []}}}) is None
+    assert extract({"anything": "goes"}) is None
 
 
 def test_create_batch_file_preserves_previous_file_on_serialization_failure(

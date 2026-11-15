@@ -1,13 +1,14 @@
 """
 Unified Batch Processing API for Multiple Providers
 
-This module provides a unified interface for batch processing across OpenAI and Anthropic
-providers. The API uses a Maybe/Result-like pattern with custom_id
+This module provides a unified interface for batch processing across OpenAI,
+Anthropic and Mistral providers. The API uses a Maybe/Result-like pattern with custom_id
 tracking for type-safe handling of batch results.
 
 Supported Providers:
 - OpenAI: 50% cost savings on batch requests
 - Anthropic: 50% cost savings on batch requests (Message Batches API)
+- Mistral: 50% cost savings on batch requests
 
 Features:
 - Type-safe Maybe/Result pattern for handling successes and errors
@@ -34,6 +35,7 @@ Example usage:
 Documentation:
 - OpenAI Batch API: https://platform.openai.com/docs/guides/batch
 - Anthropic Message Batches: https://docs.anthropic.com/en/api/creating-message-batches
+- Mistral Batch Inference: https://docs.mistral.ai/capabilities/batch/
 """
 
 from typing import Any, Optional
@@ -64,7 +66,8 @@ from .request import (
     RequestBody,
     BatchModel,
 )
-from .processor import BatchProcessor
+from .processor import BatchProcessor, _extract_structured_data
+from instructor.v2.core.errors import IncompleteOutputException
 
 
 class BatchJob:
@@ -113,50 +116,11 @@ class BatchJob:
 
     @classmethod
     def _extract_structured_data(cls, data: dict[str, Any]) -> Optional[dict[str, Any]]:
-        """Extract structured data from various provider response formats"""
-        import json
-
+        """Extract structured data; token-limited output counts as missing"""
         try:
-            # Try OpenAI JSON schema format first
-            if "response" in data and "body" in data["response"]:
-                choices = data["response"]["body"].get("choices", [])
-                if choices:
-                    # Token-limited output is incomplete even if its JSON validates.
-                    if choices[0].get("finish_reason") == "length":
-                        return None
-                    message = choices[0].get("message", {})
-
-                    # JSON schema response
-                    if "content" in message:
-                        content = message["content"]
-                        if isinstance(content, str):
-                            return json.loads(content)
-
-                    # Tool calls (legacy)
-                    if "tool_calls" in message:
-                        tool_call = message["tool_calls"][0]
-                        return json.loads(tool_call["function"]["arguments"])
-
-            # Try Anthropic format
-            if "result" in data and "message" in data["result"]:
-                if data["result"]["message"].get("stop_reason") == "max_tokens":
-                    return None
-                content = data["result"]["message"]["content"]
-                if isinstance(content, list) and len(content) > 0:
-                    # Tool use response
-                    for item in content:
-                        if item.get("type") == "tool_use":
-                            return item.get("input")
-                    # Text response with JSON
-                    for item in content:
-                        if item.get("type") == "text":
-                            text = item.get("text", "")
-                            return json.loads(text)
-
-        except Exception:
-            pass
-
-        return None
+            return _extract_structured_data(data)
+        except IncompleteOutputException:
+            return None
 
 
 # Define what gets exported when someone does "from instructor.batch import *"

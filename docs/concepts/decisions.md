@@ -13,11 +13,11 @@ as a Pydantic model and receive a validated instance.
 
 ## Content moderation
 
-This example uses a reusable choice enum, an inline choice, a yes/no probability,
+This example uses a reusable choice enum, literal choices, a yes/no probability,
 and a score mapped to 0–10. Outputs shown in comments are illustrative.
 
 ```python
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal
 
 import instructor
 from instructor.decisions import Choice, Choices, Level, Noul, Score
@@ -74,20 +74,9 @@ class ModerationDecision(BaseModel):
         description="What kind of content is being reviewed?"
     )
 
-    target: Union[
-        Annotated[
-            Literal["individual"],
-            Choice(description="Directed at an individual"),
-        ],
-        Annotated[
-            Literal["group"],
-            Choice(description="Directed at a group of people"),
-        ],
-        Annotated[
-            Literal["none"],
-            Choice(description="No person or group is targeted"),
-        ],
-    ] = Field(description="Who is the post directed at?")
+    target: Literal["individual", "group", "none"] = Field(
+        description="Who is the post directed at?"
+    )
 
 
 # Set OPENROUTER_API_KEY in your environment.
@@ -208,9 +197,8 @@ inline base64 data URL in `image_url`. When you supply `input`, Instructor uses 
 `context` remains available to Pydantic validators and question templates.
 Values interpolated into question instructions are sent in those instructions.
 
-OpenAI Python SDK 3.26.0 and later expose the native Decisions resource.
-Instructor also supports earlier SDK versions through the same authenticated
-HTTP endpoint.
+Instructor sends the request through the SDK client's authenticated
+`POST /decisions` endpoint, so it does not need a native Decisions resource.
 See the [OpenAI Decisions guide](https://developers.openai.com/api/docs/guides/decisions).
 
 ## Choices
@@ -218,8 +206,7 @@ See the [OpenAI Decisions guide](https://developers.openai.com/api/docs/guides/d
 Use a `Literal` for a short list, a string-valued Python `Enum` for a reusable
 type, or `Choices` when options need descriptions and examples. `Choices`
 returns enum members; names become lowercase values unless `Choice(value=...)`
-sets an explicit value. Inline `Annotated[Literal[...], Choice(...)]` branches
-return literal values.
+sets an explicit value.
 
 Every question needs instructions: use `Question(instructions=...)`,
 `Field(description=...)`, or a `Choices`/enum docstring, in that order. The
@@ -247,14 +234,13 @@ class Route(BaseModel):
 
 `Noul` annotates a `float` with a yes/no question. The result is the probability
 of true, from 0 to 1. `when_true` and `when_false` clarify the boundary; examples
-are `(input, bool)` pairs. For the native shape, use
-`criteria={"true": ..., "false": ...}` instead of `when_true` and `when_false`.
+are `(input, bool)` pairs.
 
 `Score` annotates a `float` with 2–10 ordered levels. Jev returns a weighted value
 on the levels' zero-based indexes. Three levels span 0–2; `scale=(0, 10)` maps
 them to 0, 5, and 10. A result of 7 is an intermediate weighted value, not an
-additional defined level. Bounds must be finite and increasing. Score examples
-are `(input, level_index)` pairs; a `Level` can also carry examples.
+additional defined level. Bounds must be finite and increasing. Attach examples
+to a level with `Level(meaning, examples=[...])`.
 
 The raw score, probabilities, and legend remain in provider units. Choice and
 Score confidence describe the distribution, not the probability of correctness;

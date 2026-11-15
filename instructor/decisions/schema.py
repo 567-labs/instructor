@@ -8,9 +8,9 @@ import types
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Annotated, Literal, TypeVar, Union, get_args, get_origin
+from typing import Any, Literal, TypeVar, Union, get_args, get_origin
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 from instructor.v2.core.templating import apply_template
 from .types import Choice, Choices, Level, Noul, Question, Score
@@ -95,19 +95,7 @@ def _choice_options(annotation: Any) -> tuple[dict[str, Any], Any]:
     def visit(annotation: Any) -> None:
         nonlocal doc
         origin = get_origin(annotation)
-        if origin is Annotated:
-            inner, *metadata = get_args(annotation)
-            choices = [item for item in metadata if isinstance(item, Choice)]
-            if len(choices) != 1 or get_origin(inner) is not Literal:
-                raise ValueError(
-                    "Inline choices require Annotated[Literal[...], Choice(...)]"
-                )
-            spec = choices[0]
-            if spec.value is not None:
-                raise ValueError("Choice(value=...) is only supported in Choices enums")
-            for value in get_args(inner):
-                add(value, spec.description, spec.examples)
-        elif origin is Literal:
+        if origin is Literal:
             for value in get_args(annotation):
                 add(value)
         elif origin in (Union, _UNION_TYPE):
@@ -121,9 +109,7 @@ def _choice_options(annotation: Any) -> tuple[dict[str, Any], Any]:
                 else:
                     add(member.value)
         else:
-            raise ValueError(
-                "Expected a string Literal, enum, or union of inline choices"
-            )
+            raise ValueError("Expected a string Literal, enum, or union of them")
 
     visit(annotation)
     if not 1 <= len(options) <= 255:
@@ -149,25 +135,16 @@ def build_questions(model: type[BaseModel], context: dict[str, Any]) -> list[_Fi
         if len(specs) > 1:
             raise ValueError(f"{name}: use only one decision annotation")
         spec = specs[0] if specs else None
-        input_name = name
-        # Before Pydantic 2.11, this config key is ignored by validation.
-        if not (
-            "validate_by_alias" in ConfigDict.__annotations__
-            and model.model_config.get("validate_by_alias") is False
-        ):
-            if field.validation_alias is not None:
-                input_name = field.validation_alias
+        input_name = field.validation_alias
+        if input_name is None or model.model_config.get("validate_by_alias") is False:
+            input_name = name
         if not isinstance(input_name, str):
             raise ValueError(f"{name}: complex validation aliases are not supported")
         if input_name in input_names:
             raise ValueError(f"{name}: validation aliases must be unique")
         input_names.add(input_name)
-        if isinstance(spec, (Noul, Score)) and any(
-            isinstance(item, Choice) for item in metadata
-        ):
-            raise ValueError(
-                f"{name}: Choice cannot be combined with {type(spec).__name__}"
-            )
+        if any(isinstance(item, Choice) for item in metadata):
+            raise ValueError(f"{name}: Choice is only supported in Choices enums")
         if isinstance(spec, Noul):
             if field.annotation is not float:
                 raise ValueError(f"{name}: Noul requires a float field")
@@ -176,31 +153,8 @@ def build_questions(model: type[BaseModel], context: dict[str, Any]) -> list[_Fi
                 if type(label) is not bool:
                     raise ValueError(f"{name}: Noul example labels must be booleans")
                 grouped[label].append(example)
-            if spec.criteria is not None and (
-                spec.when_true is not None or spec.when_false is not None
-            ):
-                raise ValueError(
-                    f"{name}: criteria cannot be combined with when_true or when_false"
-                )
-            if spec.criteria is not None and (
-                not isinstance(spec.criteria, dict)
-                or set(spec.criteria) - {"true", "false"}
-            ):
-                raise ValueError(
-                    f"{name}: Noul criteria must contain only 'true' and 'false'"
-                )
             criteria = {}
-            true_meaning = (
-                spec.criteria.get("true")
-                if spec.criteria is not None
-                else spec.when_true
-            )
-            false_meaning = (
-                spec.criteria.get("false")
-                if spec.criteria is not None
-                else spec.when_false
-            )
-            for label, meaning in ((True, true_meaning), (False, false_meaning)):
+            for label, meaning in ((True, spec.when_true), (False, spec.when_false)):
                 if meaning is not None or grouped[label]:
                     criteria[str(label).lower()] = _with_examples(
                         meaning, grouped[label]
@@ -231,19 +185,12 @@ def build_questions(model: type[BaseModel], context: dict[str, Any]) -> list[_Fi
                     raise ValueError(
                         f"{name}: scale bounds must be finite and increasing"
                     )
-            examples: list[list[Any]] = [[] for _ in spec.levels]
-            for example, index in spec.examples:
-                if type(index) is not int or not 0 <= index < len(examples):
-                    raise ValueError(f"{name}: invalid Score example level index")
-                examples[index].append(example)
             criteria = []
-            for index, level in enumerate(spec.levels):
+            for level in spec.levels:
                 level = level if isinstance(level, Level) else Level(level)
                 if level.meaning is None:
                     raise ValueError(f"{name}: Score levels require a meaning")
-                criteria.append(
-                    _with_examples(level.meaning, level.examples + examples[index])
-                )
+                criteria.append(_with_examples(level.meaning, level.examples))
             question = {
                 "type": "score",
                 "instructions": _instructions(spec.instructions, context),
@@ -253,13 +200,7 @@ def build_questions(model: type[BaseModel], context: dict[str, Any]) -> list[_Fi
                 _Field(name, input_name, "score", question, spec.scale, len(criteria))
             )
         else:
-            inline = [item for item in metadata if isinstance(item, Choice)]
-            if len(inline) > 1:
-                raise ValueError(f"{name}: use only one Choice annotation")
-            annotation = (
-                Annotated[field.annotation, inline[0]] if inline else field.annotation
-            )
-            options, doc = _choice_options(annotation)
+            options, doc = _choice_options(field.annotation)
             instruction = (
                 spec.instructions
                 if isinstance(spec, Question)
