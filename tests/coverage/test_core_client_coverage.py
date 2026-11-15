@@ -133,45 +133,10 @@ def test_shallow_copy_preserves_client_state(
         _ = copied.missing_attribute
 
 
-@pytest.mark.parametrize("client_class", [Instructor, AsyncInstructor])
-def test_shallow_copy_preserves_inherited_and_private_slots(
-    client_class: type[Instructor],
-) -> None:
-    slotted_base = type(
-        "SlottedBase", (client_class,), {"__slots__": ("inherited_state",)}
-    )
-    slotted_client = type(
-        "SlottedClient",
-        (slotted_base,),
-        {"__slots__": ("custom_state", "__private_state", "unset_state")},
-    )
-    client = slotted_client(client=None, create=lambda **kwargs: kwargs)
-    client.inherited_state = object()
-    client.custom_state = object()
-    client._SlottedClient__private_state = object()
-
-    copied = copy(client)
-
-    assert type(copied) is slotted_client
-    assert copied.inherited_state is client.inherited_state
-    assert copied.custom_state is client.custom_state
-    assert copied._SlottedClient__private_state is client._SlottedClient__private_state
-    assert not hasattr(copied, "unset_state")
-
-
 @pytest.mark.parametrize(
     "mode", [Mode.RESPONSES_TOOLS, Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS]
 )
-@pytest.mark.parametrize(
-    "client_class",
-    [
-        Instructor,
-        type("SlottedInstructor", (Instructor,), {"__slots__": ("responses",)}),
-    ],
-)
-def test_shallow_copy_rebinds_sync_response_facade(
-    mode: Mode, client_class: type[Instructor]
-) -> None:
+def test_shallow_copy_rebinds_sync_response_facade(mode: Mode) -> None:
     received: list[dict[str, Any]] = []
 
     def create(**kwargs: Any) -> User:
@@ -190,7 +155,7 @@ def test_shallow_copy_rebinds_sync_response_facade(
         base_url="https://offline.invalid/v1",
         http_client=httpx.Client(transport=transport),
     ) as native_client:
-        client = client_class(
+        client = Instructor(
             client=native_client,
             create=create,
             mode=mode,
@@ -225,18 +190,7 @@ def test_shallow_copy_rebinds_sync_response_facade(
 @pytest.mark.parametrize(
     "mode", [Mode.RESPONSES_TOOLS, Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS]
 )
-@pytest.mark.parametrize(
-    "client_class",
-    [
-        AsyncInstructor,
-        type(
-            "SlottedAsyncInstructor", (AsyncInstructor,), {"__slots__": ("responses",)}
-        ),
-    ],
-)
-async def test_shallow_copy_rebinds_async_response_facade(
-    mode: Mode, client_class: type[AsyncInstructor]
-) -> None:
+async def test_shallow_copy_rebinds_async_response_facade(mode: Mode) -> None:
     received: list[dict[str, Any]] = []
 
     async def create(**kwargs: Any) -> User:
@@ -255,7 +209,7 @@ async def test_shallow_copy_rebinds_async_response_facade(
         base_url="https://offline.invalid/v1",
         http_client=httpx.AsyncClient(transport=transport),
     ) as native_client:
-        client = client_class(
+        client = AsyncInstructor(
             client=native_client,
             create=create,
             mode=mode,

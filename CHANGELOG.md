@@ -67,6 +67,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Changed
 
+- **Dependencies**: Instructor requires `pydantic>=2.11` (and `pydantic-core>=2.33`).
 - The dependency resolver supports OpenAI 3.x and newer Jiter while retaining Python 3.9 compatibility. The LiteLLM extras accept 1.x releases and exclude the compromised 1.82.7 and 1.82.8 versions.
 
 ### Tests / CI

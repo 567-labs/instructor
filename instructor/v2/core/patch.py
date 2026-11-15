@@ -17,6 +17,13 @@ from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast, get_args, overlo
 from pydantic import BaseModel
 from pydantic_core import PydanticUndefined, PydanticUndefinedType
 
+from instructor.cache import (
+    BaseCache,
+    client_cache_identity,
+    load_cached_response,
+    make_request_cache_key,
+    store_cached_response,
+)
 from instructor.v2.core.budget import _validate_token_budget
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
@@ -25,7 +32,6 @@ from instructor.v2.core.templating import handle_templating
 from instructor.v2.core.utils import is_async
 from instructor.v2.core.exceptions import RegistryValidationMixin
 from instructor.v2.core.registry import mode_registry
-from instructor.v2.core.messages import isolate_retry_kwargs
 from instructor.v2.core.response_model import prepare_response_model
 from instructor.v2.core.retry import retry_async_v2, retry_sync_v2
 
@@ -42,8 +48,6 @@ def _store_cached_result(
     cache: Any, key: str, result: Any, requested_model: Any, ttl: int | None
 ) -> None:
     if isinstance(result, BaseModel):
-        from instructor.v2.core.cache_response import store_cached_response
-
         try:
             store_cached_response(cache, key, result, ttl=ttl)
         except ModuleNotFoundError:
@@ -131,10 +135,161 @@ def patch_v2(
     # Validate mode registration
     RegistryValidationMixin.validate_mode_registration(provider, mode)
 
-    func_is_async = is_async(func)
+    cache_scope = uuid4().hex
 
-    factory = _create_async_wrapper if func_is_async else _create_sync_wrapper
-    create = factory(func, provider, mode, default_model)
+    def prepare(
+        response_model: Any,
+        context: dict[str, Any] | None,
+        max_retries: Any,
+        strict: bool | PydanticUndefinedType,
+        hooks: Hooks | None,
+        token_budget: int | None,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> tuple[Any, dict[str, Any], Callable[[Any], Any]]:
+        """Build retry arguments; return a cached result first when available."""
+        _validate_token_budget(
+            token_budget,
+            response_model=response_model,
+            kwargs=kwargs,
+        )
+        autodetect_images = bool(kwargs.get("autodetect_images", False))
+        cache = kwargs.pop("cache", None)
+        cache_namespace = kwargs.pop("cache_namespace", cache_scope)
+        if not isinstance(cache_namespace, str) or not cache_namespace:
+            raise ValueError("cache_namespace must be a non-empty string")
+        cache_ttl_raw = kwargs.pop("cache_ttl", None)
+        cache_ttl = cache_ttl_raw if isinstance(cache_ttl_raw, int) else None
+
+        if default_model is not None and "model" not in kwargs:
+            kwargs["model"] = default_model
+
+        handlers = mode_registry.get_handlers(provider, mode)
+        if (
+            isinstance(strict, bool)
+            and response_model is not None
+            and handlers.supports_schema_strict
+        ):
+            kwargs["strict"] = strict
+        if not isinstance(strict, bool):
+            strict = True
+
+        requested_model = response_model
+        if response_model is not None and mode not in Mode.parallel_modes():
+            response_model = prepare_response_model(response_model)
+        else:
+            reject_async_validators(response_model)
+
+        prepared_model, new_kwargs = handlers.request_handler(
+            response_model=response_model, kwargs=kwargs
+        )
+        if mode not in Mode.parallel_modes():
+            response_model = prepared_model
+        new_kwargs.pop("autodetect_images", None)
+        if handlers.message_converter and "messages" in new_kwargs:
+            new_kwargs["messages"] = handlers.message_converter(
+                new_kwargs["messages"],
+                autodetect_images=autodetect_images,
+            )
+        new_kwargs = handle_templating(
+            new_kwargs, mode=mode, provider=provider, context=context
+        )
+
+        # Compute identity once, before retries can mutate the prepared request.
+        key = cached = None
+        if isinstance(cache, BaseCache) and response_model is not None:
+            key = make_request_cache_key(
+                client_identity=client_cache_identity(func),
+                request=new_kwargs,
+                args=args,
+                response_model=response_model,
+                provider=provider.value,
+                mode=str(mode.value),
+                namespace=cache_namespace,
+                context=context,
+                strict=strict,
+            )
+            if key is not None:
+                cached = load_cached_response(
+                    cache, key, response_model, context=context, strict=strict
+                )
+
+        def finish(response: Any) -> Any:
+            if key is not None:
+                _store_cached_result(cache, key, response, requested_model, cache_ttl)
+            return response
+
+        retry_kwargs = {
+            "func": func,
+            "response_model": response_model,
+            "provider": provider,
+            "mode": mode,
+            "context": context,
+            "max_retries": max_retries,
+            "args": args,
+            "kwargs": new_kwargs,
+            "strict": strict,
+            "hooks": hooks,
+            "token_budget": token_budget,
+        }
+        return cached, retry_kwargs, finish
+
+    if is_async(func):
+
+        @wraps(func)
+        async def new_create_async(
+            response_model: type[T_Model] | None = None,
+            context: dict[str, Any] | None = None,
+            max_retries: int | AsyncRetrying = 1,
+            strict: bool | PydanticUndefinedType = PydanticUndefined,
+            hooks: Hooks | None = None,
+            token_budget: int | None = None,
+            *args: Any,
+            **kwargs: Any,
+        ) -> T_Model:
+            cached, retry_kwargs, finish = prepare(
+                response_model,
+                context,
+                max_retries,
+                strict,
+                hooks,
+                token_budget,
+                args,
+                kwargs,
+            )
+            if cached is not None:
+                return cached
+            return finish(await retry_async_v2(**retry_kwargs))
+
+        create: Callable[..., Any] = new_create_async
+    else:
+
+        @wraps(func)
+        def new_create_sync(
+            response_model: type[T_Model] | None = None,
+            context: dict[str, Any] | None = None,
+            max_retries: int | Retrying = 1,
+            strict: bool | PydanticUndefinedType = PydanticUndefined,
+            hooks: Hooks | None = None,
+            token_budget: int | None = None,
+            *args: Any,
+            **kwargs: Any,
+        ) -> T_Model:
+            cached, retry_kwargs, finish = prepare(
+                response_model,
+                context,
+                max_retries,
+                strict,
+                hooks,
+                token_budget,
+                args,
+                kwargs,
+            )
+            if cached is not None:
+                return cached
+            return finish(retry_sync_v2(**retry_kwargs))
+
+        create = new_create_sync
     cast(Any, create)._instructor_patched_create = True
     return create
 
@@ -215,261 +370,3 @@ def apatch(
         stacklevel=2,
     )
     return patch(client, mode=mode, provider=provider)
-
-
-def _create_sync_wrapper(
-    func: Callable[..., Any],
-    provider: Provider,
-    mode: Mode,
-    default_model: str | None = None,
-) -> Callable[..., T_Model]:
-    """Create synchronous wrapper for patched function."""
-    cache_scope = uuid4().hex
-
-    @wraps(func)
-    def new_create_sync(
-        response_model: type[T_Model] | None = None,
-        context: dict[str, Any] | None = None,
-        max_retries: int | Retrying = 1,
-        strict: bool | PydanticUndefinedType = PydanticUndefined,
-        hooks: Hooks | None = None,
-        token_budget: int | None = None,
-        *args: Any,
-        **kwargs: Any,
-    ) -> T_Model:
-        """Patched synchronous create function."""
-        _validate_token_budget(
-            token_budget,
-            response_model=response_model,
-            kwargs=kwargs,
-        )
-        autodetect_images = bool(kwargs.get("autodetect_images", False))
-        cache = kwargs.pop("cache", None)
-        cache_namespace = kwargs.pop("cache_namespace", cache_scope)
-        if not isinstance(cache_namespace, str) or not cache_namespace:
-            raise ValueError("cache_namespace must be a non-empty string")
-        cache_ttl_raw = kwargs.pop("cache_ttl", None)
-        cache_ttl = cache_ttl_raw if isinstance(cache_ttl_raw, int) else None
-
-        # Inject default model if not provided and available
-        if default_model is not None and "model" not in kwargs:
-            kwargs["model"] = default_model
-
-        # Get handlers from registry
-        handlers = mode_registry.get_handlers(provider, mode)
-        if (
-            isinstance(strict, bool)
-            and response_model is not None
-            and handlers.supports_schema_strict
-        ):
-            kwargs["strict"] = strict
-        if not isinstance(strict, bool):
-            strict = True
-
-        requested_model = response_model
-        if response_model is not None and mode not in Mode.parallel_modes():
-            response_model = prepare_response_model(response_model)
-        else:
-            reject_async_validators(response_model)
-
-        # Prepare request kwargs using registry handler
-        prepared_model, new_kwargs = handlers.request_handler(
-            response_model=response_model, kwargs=kwargs
-        )
-        if mode not in Mode.parallel_modes():
-            response_model = prepared_model
-        new_kwargs.pop("autodetect_images", None)
-        if handlers.message_converter and "messages" in new_kwargs:
-            new_kwargs["messages"] = handlers.message_converter(
-                new_kwargs["messages"],
-                autodetect_images=autodetect_images,
-            )
-
-        # Handle templating
-        new_kwargs = handle_templating(
-            new_kwargs,
-            mode=mode,
-            provider=provider,
-            context=context,
-        )
-
-        # Compute identity once, before retries can mutate the prepared request.
-        key = None
-        if cache is not None and response_model is not None:
-            from instructor.cache import (
-                BaseCache,
-                make_request_cache_key,
-                client_cache_identity,
-            )
-            from instructor.v2.core.cache_response import load_cached_response
-
-            if isinstance(cache, BaseCache):
-                key = make_request_cache_key(
-                    client_identity=client_cache_identity(func),
-                    request=new_kwargs,
-                    args=args,
-                    response_model=response_model,
-                    provider=provider.value,
-                    mode=str(mode.value),
-                    namespace=cache_namespace,
-                    context=context,
-                    strict=strict,
-                )
-                if key is not None:
-                    cached = load_cached_response(
-                        cache, key, response_model, context=context, strict=strict
-                    )
-                    if cached is not None:
-                        return cached  # type: ignore[return-value]
-
-        # Use v2 retry logic with registry handlers. Pass an isolated copy of the
-        # messages list so reask-handler mutations cannot leak into caller state.
-        response = retry_sync_v2(
-            func=func,
-            response_model=response_model,
-            provider=provider,
-            mode=mode,
-            context=context,
-            max_retries=max_retries,
-            args=args,
-            kwargs=isolate_retry_kwargs(new_kwargs),
-            strict=strict,
-            hooks=hooks,
-            token_budget=token_budget,
-        )
-
-        if key is not None:
-            _store_cached_result(cache, key, response, requested_model, cache_ttl)
-
-        return response  # type: ignore[return-value]
-
-    return new_create_sync  # type: ignore[return-value]
-
-
-def _create_async_wrapper(
-    func: Callable[..., Awaitable[Any]],
-    provider: Provider,
-    mode: Mode,
-    default_model: str | None = None,
-) -> Callable[..., Awaitable[T_Model]]:
-    """Create asynchronous wrapper for patched function."""
-    cache_scope = uuid4().hex
-
-    @wraps(func)
-    async def new_create_async(
-        response_model: type[T_Model] | None = None,
-        context: dict[str, Any] | None = None,
-        max_retries: int | AsyncRetrying = 1,
-        strict: bool | PydanticUndefinedType = PydanticUndefined,
-        hooks: Hooks | None = None,
-        token_budget: int | None = None,
-        *args: Any,
-        **kwargs: Any,
-    ) -> T_Model:
-        """Patched asynchronous create function."""
-        _validate_token_budget(
-            token_budget,
-            response_model=response_model,
-            kwargs=kwargs,
-        )
-        autodetect_images = bool(kwargs.get("autodetect_images", False))
-        cache = kwargs.pop("cache", None)
-        cache_namespace = kwargs.pop("cache_namespace", cache_scope)
-        if not isinstance(cache_namespace, str) or not cache_namespace:
-            raise ValueError("cache_namespace must be a non-empty string")
-        cache_ttl_raw = kwargs.pop("cache_ttl", None)
-        cache_ttl = cache_ttl_raw if isinstance(cache_ttl_raw, int) else None
-
-        # Inject default model if not provided and available
-        if default_model is not None and "model" not in kwargs:
-            kwargs["model"] = default_model
-
-        # Get handlers from registry
-        handlers = mode_registry.get_handlers(provider, mode)
-        if (
-            isinstance(strict, bool)
-            and response_model is not None
-            and handlers.supports_schema_strict
-        ):
-            kwargs["strict"] = strict
-        if not isinstance(strict, bool):
-            strict = True
-
-        requested_model = response_model
-        if response_model is not None and mode not in Mode.parallel_modes():
-            response_model = prepare_response_model(response_model)
-        else:
-            reject_async_validators(response_model)
-
-        # Prepare request kwargs using registry handler
-        prepared_model, new_kwargs = handlers.request_handler(
-            response_model=response_model, kwargs=kwargs
-        )
-        if mode not in Mode.parallel_modes():
-            response_model = prepared_model
-        new_kwargs.pop("autodetect_images", None)
-        if handlers.message_converter and "messages" in new_kwargs:
-            new_kwargs["messages"] = handlers.message_converter(
-                new_kwargs["messages"],
-                autodetect_images=autodetect_images,
-            )
-
-        # Handle templating
-        new_kwargs = handle_templating(
-            new_kwargs,
-            mode=mode,
-            provider=provider,
-            context=context,
-        )
-
-        # Compute identity once, before retries can mutate the prepared request.
-        key = None
-        if cache is not None and response_model is not None:
-            from instructor.cache import (
-                BaseCache,
-                make_request_cache_key,
-                client_cache_identity,
-            )
-            from instructor.v2.core.cache_response import load_cached_response
-
-            if isinstance(cache, BaseCache):
-                key = make_request_cache_key(
-                    client_identity=client_cache_identity(func),
-                    request=new_kwargs,
-                    args=args,
-                    response_model=response_model,
-                    provider=provider.value,
-                    mode=str(mode.value),
-                    namespace=cache_namespace,
-                    context=context,
-                    strict=strict,
-                )
-                if key is not None:
-                    cached = load_cached_response(
-                        cache, key, response_model, context=context, strict=strict
-                    )
-                    if cached is not None:
-                        return cached  # type: ignore[return-value]
-
-        # Use v2 retry logic with registry handlers. Pass an isolated copy of the
-        # messages list so reask-handler mutations cannot leak into caller state.
-        response = await retry_async_v2(
-            func=func,
-            response_model=response_model,
-            provider=provider,
-            mode=mode,
-            context=context,
-            max_retries=max_retries,
-            args=args,
-            kwargs=isolate_retry_kwargs(new_kwargs),
-            strict=strict,
-            hooks=hooks,
-            token_budget=token_budget,
-        )
-
-        if key is not None:
-            _store_cached_result(cache, key, response, requested_model, cache_ttl)
-
-        return response  # type: ignore[return-value]
-
-    return new_create_async  # type: ignore[return-value]

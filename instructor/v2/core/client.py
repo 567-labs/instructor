@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from copy import copy
-from types import MemberDescriptorType
 from typing import (
     TYPE_CHECKING,
     Generic,
@@ -17,6 +16,7 @@ if TYPE_CHECKING:
     import openai
     from openai.types.chat import ChatCompletionMessageParam
 
+from instructor.v2.core.utils import aclose_stream
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from tenacity import (
@@ -798,18 +798,7 @@ class Instructor(Generic[_ResponseT]):
     def __copy__(self) -> Self:
         copied = object.__new__(type(self))
         copied.__dict__.update(self.__dict__)
-        for cls in type(self).__mro__:
-            for descriptor in vars(cls).values():
-                if isinstance(descriptor, MemberDescriptorType):
-                    try:
-                        value = descriptor.__get__(self, type(self))
-                    except AttributeError:
-                        continue
-                    descriptor.__set__(copied, value)
-        try:
-            responses = object.__getattribute__(self, "responses")
-        except AttributeError:
-            responses = None
+        responses = self.__dict__.get("responses")
         if (
             isinstance(responses, (Response, AsyncResponse))
             and responses.client is self
@@ -938,9 +927,7 @@ class AsyncInstructor(Instructor[AsyncResponse]):
             async for item in response:
                 yield item
         finally:
-            close = getattr(response, "aclose", None)
-            if callable(close):
-                await close()
+            await aclose_stream(response)
 
     async def create_iterable(  # type: ignore[override]  # ty: ignore[invalid-method-override]
         self,
@@ -977,9 +964,7 @@ class AsyncInstructor(Instructor[AsyncResponse]):
             async for item in response:
                 yield item
         finally:
-            close = getattr(response, "aclose", None)
-            if callable(close):
-                await close()
+            await aclose_stream(response)
 
     async def create_with_completion(  # type: ignore[override]  # ty: ignore[invalid-method-override]
         self,

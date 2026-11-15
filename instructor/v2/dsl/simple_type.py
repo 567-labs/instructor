@@ -52,7 +52,7 @@ class ModelAdapter(typing.Generic[T]):
 
 
 def validateIsSubClass(response_model: type):
-    """Only concrete classes can be checked with issubclass, including on 3.9."""
+    """Only concrete classes can be checked with issubclass."""
     if typing.get_origin(response_model) is not None:
         return False
     return issubclass(response_model, BaseModel)

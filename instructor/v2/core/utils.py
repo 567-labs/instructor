@@ -37,6 +37,20 @@ def is_async(func: Callable[..., Any]) -> bool:
     return False
 
 
+def close_stream(stream: Any) -> None:
+    close = getattr(stream, "close", None)
+    if callable(close):
+        close()
+
+
+async def aclose_stream(stream: Any) -> None:
+    close = getattr(stream, "aclose", None) or getattr(stream, "close", None)
+    if callable(close):
+        result = close()
+        if inspect.isawaitable(result):
+            await result
+
+
 class classproperty(Generic[R_co]):
     """Descriptor for class-level properties."""
 

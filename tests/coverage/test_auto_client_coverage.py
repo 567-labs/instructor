@@ -186,14 +186,6 @@ def test_anthropic_sets_user_agent_and_default_token_limit(
     assert limited_client.mode is Mode.JSON
 
 
-def test_anthropic_reports_unavailable_factory(monkeypatch: pytest.MonkeyPatch) -> None:
-    import instructor.v2.providers.anthropic.client as anthropic_client
-
-    monkeypatch.setattr(anthropic_client, "from_anthropic", None)
-    with pytest.raises(ConfigurationError, match="Failed to import Anthropic provider"):
-        auto_client.from_provider("anthropic/claude", api_key="test-key")
-
-
 def test_google_extracts_client_options_and_model_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

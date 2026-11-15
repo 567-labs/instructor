@@ -10,10 +10,10 @@ from typing import (
 )
 import json
 import re
-import inspect
 
 from pydantic import BaseModel, Field, create_model
 
+from instructor.v2.core.utils import aclose_stream, close_stream
 from instructor.v2.core.utils import UNION_ORIGINS
 
 
@@ -108,9 +108,7 @@ class IterableBase:
             parser = task_parser or cls.tasks_from_chunks
             yield from parser(json_chunks, **kwargs)
         finally:
-            close = getattr(completion, "close", None)
-            if callable(close):
-                close()
+            close_stream(completion)
 
     @classmethod
     async def from_streaming_response_async(
@@ -130,13 +128,7 @@ class IterableBase:
             async for item in parser(json_chunks, **kwargs):
                 yield item
         finally:
-            close = getattr(completion, "aclose", None) or getattr(
-                completion, "close", None
-            )
-            if callable(close):
-                result = close()
-                if inspect.isawaitable(result):
-                    await result
+            await aclose_stream(completion)
 
     @classmethod
     async def tasks_from_task_list_chunks_async(
