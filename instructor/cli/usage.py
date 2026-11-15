@@ -53,6 +53,7 @@ async def get_usage_for_past_n_days(
 MODEL_COSTS: dict[str, Union[dict[str, float], float]] = {
     "gpt-4o": {"prompt": 0.005 / 1000, "completion": 0.015 / 1000},
     "gpt-4o-2024-05-13": {"prompt": 0.005 / 1000, "completion": 0.015 / 1000},
+    "gpt-4o-mini": {"prompt": 0.00015 / 1000, "completion": 0.0006 / 1000},
     "gpt-4-turbo": {"prompt": 0.01 / 1000, "completion": 0.03 / 1000},
     "gpt-4-turbo-2024-04-09": {"prompt": 0.01 / 1000, "completion": 0.03 / 1000},
     "gpt-4-0125-preview": {"prompt": 0.01 / 1000, "completion": 0.03 / 1000},
@@ -83,21 +84,10 @@ def get_model_cost(
     model: ModelNames,
 ) -> Union[dict[str, float], float]:
     """Get the cost details for a given model."""
-    if model in MODEL_COSTS:
-        return MODEL_COSTS[model]
-
-    if model.startswith("gpt-3.5-turbo-16k"):
-        return MODEL_COSTS["gpt-3.5-turbo-16k"]
-    if model.startswith("gpt-3.5-turbo"):
-        return MODEL_COSTS["gpt-3.5-turbo"]
-    if model.startswith("gpt-4-turbo"):
-        return MODEL_COSTS["gpt-4-turbo-preview"]
-    if model.startswith("gpt-4-32k"):
-        return MODEL_COSTS["gpt-4-32k"]
-    if model.startswith("gpt-4o"):
-        return MODEL_COSTS["gpt-4o"]
-    if model.startswith("gpt-4"):
-        return MODEL_COSTS["gpt-4"]
+    # Longest matching prefix wins, so gpt-4o-mini is not priced as gpt-4o.
+    prefixes = [name for name in MODEL_COSTS if model.startswith(name)]
+    if prefixes:
+        return MODEL_COSTS[max(prefixes, key=len)]
     raise ValueError(f"Cost for model {model} not found")
 
 
