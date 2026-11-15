@@ -35,11 +35,8 @@ class AnthropicParallelBase(ParallelBase[T]):
         validation_context: Any | None = None,
         strict: bool | None = None,
     ) -> Generator[T, None, None]:
-        if not response or not hasattr(response, "content"):
-            return (result for result in ())
-
         results = []
-        for content in response.content:
+        for content in getattr(response, "content", None) or ():
             if getattr(content, "type", None) == "tool_use":
                 name = content.name
                 arguments = content.input

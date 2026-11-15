@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import json
+from functools import partial
 from collections.abc import (
     AsyncGenerator,
     AsyncIterator,
@@ -28,11 +29,8 @@ from instructor.v2.providers.gemini.utils import (
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
 from instructor.v2.core.errors import IncompleteOutputException, ResponseParsingError
-from instructor.v2.core.json import (
-    extract_json_from_codeblock,
-    extract_json_from_stream,
-    extract_json_from_stream_async,
-)
+from instructor.v2.core.json import extract_json_from_codeblock
+from instructor.v2.core.streaming import adrain_stream, drain_stream
 
 
 def _response_text(response: Any) -> str | None:
@@ -193,40 +191,28 @@ class GeminiHandlerBase(ModeHandler):
 
     mode: Mode
 
+    def _chunk_json(self, chunk: Any) -> str | None:
+        if self.mode != Mode.TOOLS:
+            return extract_gemini_chunk_text(chunk)
+        resp = chunk.candidates[0].content.parts[0].function_call
+        resp_dict = type(resp).to_dict(resp)
+        return json.dumps(resp_dict["args"]) if "args" in resp_dict else None
+
     def extract_streaming_json(
-        self, completion: TypingIterable[Any]
+        self, completion: TypingIterable[Any], *, single_json: bool = False
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from Gemini streaming responses."""
-        for chunk in completion:
-            try:
-                # `candidates` can be empty (e.g. a safety-blocked chunk),
-                # which raises IndexError rather than AttributeError — skip
-                # the chunk either way.
-                if self.mode == Mode.TOOLS:
-                    resp = chunk.candidates[0].content.parts[0].function_call
-                    resp_dict = type(resp).to_dict(resp)
-                    if "args" in resp_dict:
-                        yield json.dumps(resp_dict["args"])
-                else:
-                    yield extract_gemini_chunk_text(chunk)
-            except (AttributeError, IndexError):
-                continue
+        return drain_stream(
+            completion, self._chunk_json, extract_json=single_json, single_model=True
+        )
 
-    async def extract_streaming_json_async(
-        self, completion: AsyncGenerator[Any, None]
+    def extract_streaming_json_async(
+        self, completion: AsyncGenerator[Any, None], *, single_json: bool = False
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from Gemini async streams."""
-        async for chunk in completion:
-            try:
-                if self.mode == Mode.TOOLS:
-                    resp = chunk.candidates[0].content.parts[0].function_call
-                    resp_dict = type(resp).to_dict(resp)
-                    if "args" in resp_dict:
-                        yield json.dumps(resp_dict["args"])
-                else:
-                    yield extract_gemini_chunk_text(chunk)
-            except (AttributeError, IndexError):
-                continue
+        return adrain_stream(
+            completion, self._chunk_json, extract_json=single_json, single_model=True
+        )
 
     def _parse_streaming(
         self,
@@ -248,25 +234,17 @@ class GeminiHandlerBase(ModeHandler):
         if inspect.isasyncgen(response) or isinstance(response, AsyncIterator):
             return streaming_model.from_streaming_response_async(
                 response,
-                stream_extractor=(
-                    lambda events: extract_json_from_stream_async(
-                        self.extract_streaming_json_async(events), single_model=True
-                    )
-                )
-                if single_json
-                else self.extract_streaming_json_async,
+                stream_extractor=partial(
+                    self.extract_streaming_json_async, single_json=single_json
+                ),
                 **parse_kwargs,
             )
 
         generator = streaming_model.from_streaming_response(
             response,
-            stream_extractor=(
-                lambda events: extract_json_from_stream(
-                    self.extract_streaming_json(events), single_model=True
-                )
-            )
-            if single_json
-            else self.extract_streaming_json,
+            stream_extractor=partial(
+                self.extract_streaming_json, single_json=single_json
+            ),
             **parse_kwargs,
         )
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):

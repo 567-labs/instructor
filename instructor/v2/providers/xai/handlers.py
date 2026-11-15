@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import inspect
 import json
-from textwrap import dedent
 from functools import partial
 from collections.abc import (
     AsyncGenerator,
@@ -22,7 +21,7 @@ from collections.abc import (
     Generator,
     Iterable as TypingIterable,
 )
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 from pydantic import BaseModel
 
@@ -44,18 +43,15 @@ from instructor.v2.dsl.parallel import (
     model_for_tool_name,
 )
 from instructor.v2.dsl.simple_type import AdapterBase as AdapterBase
-from instructor.v2.core.json import (
-    extract_json_from_codeblock,
-    extract_json_from_stream,
-    extract_json_from_stream_async,
-)
+from instructor.v2.core.json import extract_json_from_codeblock
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
-from instructor.v2.core.streaming import StreamingModelState
-from instructor.v2.core.messages import (
-    append_system_instruction,
-    copy_messages_for_mutation,
+from instructor.v2.core.streaming import (
+    StreamingModelState,
+    adrain_stream,
+    drain_stream,
 )
+from instructor.v2.core.messages import add_json_schema_prompt
 
 
 def _convert_messages_with_chat(messages: list[dict[str, Any]], chat: Any) -> list[Any]:
@@ -174,97 +170,60 @@ class XAIHandlerBase(StreamingModelState, ModeHandler):
 
     mode: Mode
 
+    def _chunk_feed(self) -> Callable[[Any], Generator[str, None, None]]:
+        last_tool_args: dict[str, str] = {}
+        last_args_value = ""
+
+        def feed(chunk: Any) -> Generator[str, None, None]:
+            nonlocal last_args_value
+            for choice in getattr(chunk, "choices", None) or [chunk]:
+                delta = getattr(choice, "delta", None)
+                if delta is None:
+                    continue
+                if self.mode in {Mode.JSON_SCHEMA, Mode.MD_JSON}:
+                    yield getattr(delta, "content", None) or ""
+                    continue
+                if self.mode != Mode.TOOLS:
+                    continue
+                tool_calls = getattr(delta, "tool_calls", None) or []
+                for index, tool_call in enumerate(tool_calls):
+                    function = getattr(tool_call, "function", None)
+                    json_chunk = getattr(function, "arguments", None)
+                    if not json_chunk:
+                        continue
+                    tool_id = getattr(tool_call, "id", None) or str(index)
+                    previous = last_tool_args.get(tool_id, "")
+                    if previous and json_chunk.startswith(previous):
+                        json_chunk = json_chunk[len(previous) :]
+                    elif last_args_value and json_chunk.startswith(last_args_value):
+                        json_chunk = json_chunk[len(last_args_value) :]
+                    last_tool_args[tool_id] = getattr(function, "arguments", "")
+                    last_args_value = getattr(function, "arguments", "")
+                    yield json_chunk
+
+        return feed
+
     def extract_streaming_json(
         self, completion: TypingIterable[Any], *, single_model: bool = False
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from xAI streaming responses."""
+        return drain_stream(
+            completion,
+            self._chunk_feed(),
+            extract_json=self.mode == Mode.MD_JSON,
+            single_model=single_model,
+        )
 
-        def _raw_chunks() -> Generator[str, None, None]:
-            last_tool_args: dict[str, str] = {}
-            last_args_value = ""
-            for chunk in completion:
-                choices = getattr(chunk, "choices", None)
-                for choice in choices or [chunk]:
-                    delta = getattr(choice, "delta", None)
-                    if delta is None:
-                        continue
-                    if self.mode in {Mode.JSON_SCHEMA, Mode.MD_JSON}:
-                        json_chunk = getattr(delta, "content", None)
-                        if json_chunk:
-                            yield json_chunk
-                    elif self.mode == Mode.TOOLS:
-                        tool_calls = getattr(delta, "tool_calls", None) or []
-                        for index, tool_call in enumerate(tool_calls):
-                            function = getattr(tool_call, "function", None)
-                            json_chunk = getattr(function, "arguments", None)
-                            if not json_chunk:
-                                continue
-                            tool_id = getattr(tool_call, "id", None) or str(index)
-                            previous = last_tool_args.get(tool_id, "")
-                            if previous and json_chunk.startswith(previous):
-                                json_chunk = json_chunk[len(previous) :]
-                            elif last_args_value and json_chunk.startswith(
-                                last_args_value
-                            ):
-                                json_chunk = json_chunk[len(last_args_value) :]
-                            last_tool_args[tool_id] = getattr(function, "arguments", "")
-                            last_args_value = getattr(function, "arguments", "")
-                            if json_chunk:
-                                yield json_chunk
-
-        raw_chunks = _raw_chunks()
-        if self.mode == Mode.MD_JSON:
-            yield from extract_json_from_stream(raw_chunks, single_model=single_model)
-            return
-        yield from raw_chunks
-
-    async def extract_streaming_json_async(
+    def extract_streaming_json_async(
         self, completion: AsyncGenerator[Any, None], *, single_model: bool = False
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from xAI async streams."""
-
-        async def _raw_chunks() -> AsyncGenerator[str, None]:
-            last_tool_args: dict[str, str] = {}
-            last_args_value = ""
-            async for chunk in completion:
-                choices = getattr(chunk, "choices", None)
-                for choice in choices or [chunk]:
-                    delta = getattr(choice, "delta", None)
-                    if delta is None:
-                        continue
-                    if self.mode in {Mode.JSON_SCHEMA, Mode.MD_JSON}:
-                        json_chunk = getattr(delta, "content", None)
-                        if json_chunk:
-                            yield json_chunk
-                    elif self.mode == Mode.TOOLS:
-                        tool_calls = getattr(delta, "tool_calls", None) or []
-                        for index, tool_call in enumerate(tool_calls):
-                            function = getattr(tool_call, "function", None)
-                            json_chunk = getattr(function, "arguments", None)
-                            if not json_chunk:
-                                continue
-                            tool_id = getattr(tool_call, "id", None) or str(index)
-                            previous = last_tool_args.get(tool_id, "")
-                            if previous and json_chunk.startswith(previous):
-                                json_chunk = json_chunk[len(previous) :]
-                            elif last_args_value and json_chunk.startswith(
-                                last_args_value
-                            ):
-                                json_chunk = json_chunk[len(last_args_value) :]
-                            last_tool_args[tool_id] = getattr(function, "arguments", "")
-                            last_args_value = getattr(function, "arguments", "")
-                            if json_chunk:
-                                yield json_chunk
-
-        raw_chunks = _raw_chunks()
-        if self.mode == Mode.MD_JSON:
-            async for chunk in extract_json_from_stream_async(
-                raw_chunks, single_model=single_model
-            ):
-                yield chunk
-            return
-        async for chunk in raw_chunks:
-            yield chunk
+        return adrain_stream(
+            completion,
+            self._chunk_feed(),
+            extract_json=self.mode == Mode.MD_JSON,
+            single_model=single_model,
+        )
 
     def _parse_streaming_response(
         self,
@@ -635,36 +594,13 @@ class XAIMDJSONHandler(XAIHandlerBase):
             return None, kwargs
 
         new_kwargs = kwargs.copy()
-        schema = response_model.model_json_schema()
-
-        message = dedent(
-            f"""
-            As a genius expert, your task is to understand the content and provide
-            the parsed objects in json that match the following json_schema:
-
-            {json.dumps(schema, indent=2, ensure_ascii=False)}
-
-            Make sure to return an instance of the JSON, not the schema itself.
-            Return the JSON in a markdown code block.
-            """
+        new_kwargs["messages"] = add_json_schema_prompt(
+            new_kwargs.get("messages", []),
+            response_model.model_json_schema(),
+            codeblock=True,
+            suffix=".\nReturn the JSON in a markdown code block.",
+            merge=False,
         )
-
-        # Add system message with schema
-        messages = copy_messages_for_mutation(new_kwargs.get("messages", []))
-        if messages and messages[0]["role"] == "system":
-            append_system_instruction(messages[0], message)
-        else:
-            messages.insert(0, {"role": "system", "content": message})
-
-        # Add user message requesting JSON in code block
-        messages.append(
-            {
-                "role": "user",
-                "content": "Return the correct JSON response within a ```json codeblock. not the JSON_SCHEMA",
-            },
-        )
-        new_kwargs["messages"] = messages
-
         return response_model, new_kwargs
 
     def handle_reask(

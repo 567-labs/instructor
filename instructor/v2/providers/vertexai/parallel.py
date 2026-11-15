@@ -30,11 +30,8 @@ class VertexAIParallelBase(ParallelBase[T]):
         validation_context: Any | None = None,
         strict: bool | None = None,
     ) -> Generator[T, None, None]:
-        if not response or not response.candidates:
-            return (result for result in ())
-
         results = []
-        for candidate in response.candidates:
+        for candidate in getattr(response, "candidates", None) or ():
             if not candidate.content or not candidate.content.parts:
                 continue
             for part in candidate.content.parts:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import builtins
 import inspect
 from collections.abc import Iterable
 from types import SimpleNamespace
@@ -183,37 +182,6 @@ def test_message_serialization_preserves_anthropic_blocks_and_multimodal_content
         {"role": "assistant"},
     ]
     assert source[0]["content"][0] == "hello"
-
-
-def test_output_format_detection_handles_old_new_and_uninspectable_sdks(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from anthropic.resources.messages import Messages
-
-    assert handlers._anthropic_supports_output_format() is False
-
-    def create_with_output_format(self: Any, *, output_format: Any = None) -> Any:
-        return self, output_format
-
-    monkeypatch.setattr(Messages, "create", create_with_output_format)
-    assert handlers._anthropic_supports_output_format() is True
-
-    monkeypatch.setattr(
-        handlers.inspect,
-        "signature",
-        lambda _value: (_ for _ in ()).throw(ValueError("signature unavailable")),
-    )
-    assert handlers._anthropic_supports_output_format() is False
-
-    real_import = builtins.__import__
-
-    def missing_messages(name: str, *args: Any, **kwargs: Any) -> Any:
-        if name == "anthropic.resources.messages":
-            raise ImportError("anthropic messages are unavailable")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", missing_messages)
-    assert handlers._anthropic_supports_output_format() is False
 
 
 def test_stream_extractors_accept_sdk_shaped_deltas_and_skip_unrelated_events() -> None:
@@ -701,53 +669,12 @@ def test_json_parse_reports_invalid_incomplete_and_textless_anthropic_responses(
         handler.parse_response(message(tool("User", {"name": "Ada"})), User)
 
 
-def test_structured_prepare_falls_back_for_old_sdk_and_requires_a_model(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    handler = AnthropicStructuredOutputsHandler()
-
+def test_structured_prepare_requires_a_model() -> None:
     with pytest.raises(ConfigurationError, match="requires a `response_model`"):
-        handler.prepare_request(None, {"messages": []})
-
-    monkeypatch.setattr(handlers, "_anthropic_supports_output_format", lambda: False)
-    monkeypatch.setattr(handlers, "_anthropic_supports_output_config", lambda: False)
-    with pytest.warns(UserWarning, match="falling back to JSON mode instructions"):
-        returned, request = handler.prepare_request(
-            User, {"messages": [{"role": "user", "content": "extract"}]}
-        )
-    assert returned is User
-    assert "output_format" not in request
-    assert "output_config" not in request
-    assert "json_schema" in request["system"][0]["text"]
+        AnthropicStructuredOutputsHandler().prepare_request(None, {"messages": []})
 
 
-@pytest.mark.parametrize(
-    ("betas", "expected"),
-    [
-        (None, ["structured-outputs-2025-11-13"]),
-        ("other-beta", ["other-beta", "structured-outputs-2025-11-13"]),
-        (("other-beta",), ["other-beta", "structured-outputs-2025-11-13"]),
-        (
-            ["structured-outputs-2025-11-13"],
-            ["structured-outputs-2025-11-13"],
-        ),
-    ],
-)
-def test_structured_prepare_builds_schema_normalizes_betas_and_clears_tools(
-    monkeypatch: pytest.MonkeyPatch, betas: Any, expected: list[str]
-) -> None:
-    monkeypatch.setattr(handlers, "_anthropic_supports_output_format", lambda: True)
-    monkeypatch.setattr(handlers, "_anthropic_supports_output_config", lambda: False)
-    monkeypatch.setattr(
-        anthropic,
-        "transform_schema",
-        lambda model: {
-            "title": model.__name__,
-            "type": "object",
-            "additionalProperties": False,
-        },
-        raising=False,
-    )
+def test_structured_prepare_builds_output_config_and_clears_tools() -> None:
     kwargs: dict[str, Any] = {
         "system": "existing",
         "messages": [
@@ -756,9 +683,8 @@ def test_structured_prepare_builds_schema_normalizes_betas_and_clears_tools(
         ],
         "tools": [{"name": "legacy"}],
         "tool_choice": {"type": "auto"},
+        "output_config": {"effort": "low"},
     }
-    if betas is not None:
-        kwargs["betas"] = betas
 
     returned, request = AnthropicStructuredOutputsHandler().prepare_request(
         User, kwargs
@@ -770,32 +696,12 @@ def test_structured_prepare_builds_schema_normalizes_betas_and_clears_tools(
         {"type": "text", "text": "existing"},
         {"type": "text", "text": "extract a user"},
     ]
-    assert request["output_format"] == {
-        "type": "json_schema",
-        "schema": {"title": "User", "type": "object", "additionalProperties": False},
+    assert request["output_config"] == {
+        "effort": "low",
+        "format": {"type": "json_schema", "schema": anthropic.transform_schema(User)},
     }
-    assert request["betas"] == expected
     assert "tools" not in request
     assert "tool_choice" not in request
-
-
-def test_structured_prepare_uses_pydantic_schema_when_transform_is_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(handlers, "_anthropic_supports_output_format", lambda: True)
-    monkeypatch.setattr(handlers, "_anthropic_supports_output_config", lambda: False)
-    monkeypatch.delattr(anthropic, "transform_schema", raising=False)
-
-    with pytest.warns(
-        UserWarning, match="Falling back to response_model.model_json_schema"
-    ):
-        returned, request = AnthropicStructuredOutputsHandler().prepare_request(
-            User, {"messages": [{"role": "user", "content": "extract"}]}
-        )
-
-    assert returned is User
-    assert request["output_format"]["schema"] == User.model_json_schema()
-    assert request["betas"] == ["structured-outputs-2025-11-13"]
 
 
 def test_structured_reask_and_parse_validates_text_and_reports_refusals() -> None:

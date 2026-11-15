@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import inspect
 import json
-import warnings
 from collections.abc import (
     AsyncGenerator,
     AsyncIterator,
     Generator,
     Iterable as TypingIterable,
 )
+from functools import partial
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any, Callable, TypedDict, cast, get_origin
 
@@ -35,15 +35,15 @@ from instructor.v2.providers.anthropic.parallel import (
 from instructor.v2.dsl.simple_type import AdapterBase as AdapterBase
 from instructor.v2.core.multimodal import Audio, Image, PDF
 from instructor.v2.core.multimodal import convert_messages as convert_messages_v1
-from instructor.v2.core.json import (
-    extract_json_from_codeblock,
-    extract_json_from_stream,
-    extract_json_from_stream_async,
-)
+from instructor.v2.core.json import extract_json_from_codeblock
 from instructor.v2.providers.anthropic.schema import generate_anthropic_schema
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
-from instructor.v2.core.streaming import StreamingModelState
+from instructor.v2.core.streaming import (
+    StreamingModelState,
+    adrain_stream,
+    drain_stream,
+)
 
 
 class SystemMessage(TypedDict, total=False):
@@ -150,43 +150,10 @@ def serialize_message_content(content: Any) -> Any:
     return content
 
 
-def _anthropic_messages_create_params() -> set[str]:
-    """Return the parameter names accepted by the installed SDK's Messages.create."""
-
-    try:
-        from anthropic.resources.messages import Messages
-    except (ImportError, AttributeError):
-        return set()
-
-    try:
-        signature = inspect.signature(Messages.create)
-    except (ValueError, TypeError):
-        return set()
-
-    return set(signature.parameters)
-
-
-def _anthropic_supports_output_config() -> bool:
-    """Detect if the installed anthropic SDK supports the GA output_config parameter."""
-
-    return "output_config" in _anthropic_messages_create_params()
-
-
-def _anthropic_supports_output_format() -> bool:
-    """Detect if the installed anthropic SDK supports the beta output_format parameter."""
-
-    return "output_format" in _anthropic_messages_create_params()
-
-
 def _is_anthropic_message(response: Any) -> bool:
     """Return True for both stable ``Message`` and beta ``BetaMessage`` responses."""
-
     from anthropic.types import Message
-
-    try:
-        from anthropic.types.beta import BetaMessage
-    except ImportError:  # pragma: no cover - older SDKs
-        return isinstance(response, Message)
+    from anthropic.types.beta import BetaMessage
 
     return isinstance(response, (Message, BetaMessage))
 
@@ -216,55 +183,50 @@ class AnthropicHandlerBase(StreamingModelState, ModeHandler):
 
     mode: Mode
 
+    def _stream_drain_options(
+        self, require_complete: bool, single_json: bool
+    ) -> dict[str, Any]:
+        def feed(chunk: Any) -> str | None:
+            if self.mode in {Mode.TOOLS, Mode.PARALLEL_TOOLS}:
+                return chunk.delta.partial_json
+            if self.mode in {Mode.JSON, Mode.JSON_SCHEMA}:
+                return chunk.delta.text
+            return None
+
+        def truncated(chunk: Any) -> bool:
+            delta = getattr(chunk, "delta", None)
+            return getattr(delta, "stop_reason", None) == "max_tokens"
+
+        return {
+            "feed": feed,
+            "truncated": truncated if require_complete else None,
+            "extract_json": single_json,
+            "single_model": True,
+        }
+
     def extract_streaming_json(
         self,
         completion: TypingIterable[Any],
         *,
         require_complete: bool = False,
+        single_json: bool = False,
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from Anthropic streaming responses."""
-        incomplete_chunk: Any = None
-        for chunk in completion:
-            try:
-                if (
-                    require_complete
-                    and getattr(chunk.delta, "stop_reason", None) == "max_tokens"
-                ):
-                    incomplete_chunk = chunk
-                if self.mode in {Mode.TOOLS, Mode.PARALLEL_TOOLS}:
-                    yield chunk.delta.partial_json
-                elif self.mode in {Mode.JSON, Mode.JSON_SCHEMA}:
-                    if json_chunk := chunk.delta.text:
-                        yield json_chunk
-            except AttributeError:
-                continue
-        if incomplete_chunk is not None:
-            raise IncompleteOutputException(last_completion=incomplete_chunk)
+        return drain_stream(
+            completion, **self._stream_drain_options(require_complete, single_json)
+        )
 
-    async def extract_streaming_json_async(
+    def extract_streaming_json_async(
         self,
         completion: AsyncGenerator[Any, None],
         *,
         require_complete: bool = False,
+        single_json: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from Anthropic async streams."""
-        incomplete_chunk: Any = None
-        async for chunk in completion:
-            try:
-                if (
-                    require_complete
-                    and getattr(chunk.delta, "stop_reason", None) == "max_tokens"
-                ):
-                    incomplete_chunk = chunk
-                if self.mode in {Mode.TOOLS, Mode.PARALLEL_TOOLS}:
-                    yield chunk.delta.partial_json
-                elif self.mode in {Mode.JSON, Mode.JSON_SCHEMA}:
-                    if json_chunk := chunk.delta.text:
-                        yield json_chunk
-            except AttributeError:
-                continue
-        if incomplete_chunk is not None:
-            raise IncompleteOutputException(last_completion=incomplete_chunk)
+        return adrain_stream(
+            completion, **self._stream_drain_options(require_complete, single_json)
+        )
 
     def convert_messages(
         self, messages: list[dict[str, Any]], autodetect_images: bool = False
@@ -292,36 +254,21 @@ class AnthropicHandlerBase(StreamingModelState, ModeHandler):
             parse_kwargs["strict"] = strict
 
         streaming_model = cast(Any, response_model)
-        single_json = self.mode == Mode.JSON and not issubclass(
-            response_model, IterableBase
-        )
-        require_complete = issubclass(response_model, IterableBase)
+        is_iterable = issubclass(response_model, IterableBase)
+        options = {
+            "require_complete": is_iterable,
+            "single_json": self.mode == Mode.JSON and not is_iterable,
+        }
         if inspect.isasyncgen(response) or isinstance(response, AsyncIterator):
             return streaming_model.from_streaming_response_async(
                 response,
-                stream_extractor=(
-                    lambda events: extract_json_from_stream_async(
-                        self.extract_streaming_json_async(events), single_model=True
-                    )
-                )
-                if single_json
-                else lambda events: self.extract_streaming_json_async(
-                    events, require_complete=require_complete
-                ),
+                stream_extractor=partial(self.extract_streaming_json_async, **options),
                 **parse_kwargs,
             )
 
         generator = streaming_model.from_streaming_response(
             response,
-            stream_extractor=(
-                lambda events: extract_json_from_stream(
-                    self.extract_streaming_json(events), single_model=True
-                )
-            )
-            if single_json
-            else lambda events: self.extract_streaming_json(
-                events, require_complete=require_complete
-            ),
+            stream_extractor=partial(self.extract_streaming_json, **options),
             **parse_kwargs,
         )
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):
@@ -757,15 +704,7 @@ class AnthropicJSONHandler(AnthropicHandlerBase):
 
 @register_mode_handler(Provider.ANTHROPIC, Mode.JSON_SCHEMA)
 class AnthropicStructuredOutputsHandler(AnthropicHandlerBase):
-    """Handler for Anthropic structured outputs mode.
-
-    Uses Claude's native structured output enforcement. When the installed SDK's
-    ``Messages.create`` accepts ``output_config`` (GA structured outputs), the
-    schema is sent as ``output_config.format``. Older SDKs that only expose the
-    beta ``output_format`` parameter use it with the
-    structured-outputs-2025-11-13 beta. SDKs with neither fall back to JSON mode
-    instructions.
-    """
+    """Handler for Anthropic structured outputs via ``output_config.format``."""
 
     mode = Mode.JSON_SCHEMA
 
@@ -783,16 +722,6 @@ class AnthropicStructuredOutputsHandler(AnthropicHandlerBase):
                 "Mode.JSON_SCHEMA (Anthropic structured outputs) requires a `response_model`."
             )
 
-        supports_output_config = _anthropic_supports_output_config()
-        if not supports_output_config and not _anthropic_supports_output_format():
-            warnings.warn(
-                "Anthropic client does not support `output_config` or `output_format`; falling back to JSON mode instructions.",
-                UserWarning,
-                stacklevel=2,
-            )
-            json_handler = AnthropicJSONHandler()
-            return json_handler.prepare_request(response_model, kwargs)
-
         new_kwargs = kwargs.copy()
         system_messages = extract_system_messages(new_kwargs.get("messages", []))
         if system_messages:
@@ -804,76 +733,23 @@ class AnthropicStructuredOutputsHandler(AnthropicHandlerBase):
         ]
         new_kwargs["messages"] = process_messages_for_anthropic(new_kwargs["messages"])
 
-        import anthropic
-
-        transform_schema = getattr(anthropic, "transform_schema", None)
-        if transform_schema is None:
-            warnings.warn(
-                "Anthropic structured outputs works best with anthropic>=0.71.0. "
-                "Falling back to response_model.model_json_schema().",
-                UserWarning,
-                stacklevel=2,
-            )
-
-            def transform_schema(model: type[BaseModel]) -> dict[str, Any]:
-                return model.model_json_schema()
+        from anthropic import transform_schema
 
         output_format = {
             "type": "json_schema",
             "schema": transform_schema(response_model),
         }
-
         # Ensure legacy tool kwargs are cleared
         new_kwargs.pop("tools", None)
         new_kwargs.pop("tool_choice", None)
-
-        if supports_output_config:
-            existing_config = new_kwargs.get("output_config")
-            if not isinstance(existing_config, dict):
-                # None or the SDK's Omit/NOT_GIVEN sentinels mean "not set".
-                existing_config = {}
-            new_kwargs["output_config"] = {**existing_config, "format": output_format}
-            return response_model, new_kwargs
-
-        new_kwargs["output_format"] = output_format
-
-        required_beta = "structured-outputs-2025-11-13"
-        betas = new_kwargs.get("betas")
-        if betas is None:
-            new_kwargs["betas"] = [required_beta]
-        else:
-            if isinstance(betas, str):
-                betas = [betas]
-            elif not isinstance(betas, list):
-                betas = list(betas)
-            if required_beta not in betas:
-                betas.append(required_beta)
-            new_kwargs["betas"] = betas
-
+        existing_config = new_kwargs.get("output_config")
+        if not isinstance(existing_config, dict):
+            # None or the SDK's Omit/NOT_GIVEN sentinels mean "not set".
+            existing_config = {}
+        new_kwargs["output_config"] = {**existing_config, "format": output_format}
         return response_model, new_kwargs
 
-    def handle_reask(
-        self,
-        kwargs: dict[str, Any],
-        response: Message,
-        exception: Exception,
-    ) -> dict[str, Any]:
-        # Use same reask logic as JSON mode
-        kwargs = kwargs.copy()
-        text_blocks = [c for c in response.content if c.type == "text"]
-        if not text_blocks:
-            text_content = "No text content found in response"
-        else:
-            text_content = text_blocks[-1].text
-        reask_msg = {
-            "role": "user",
-            "content": (
-                "Validation Errors found:\n"
-                f"{exception}\nRecall the function correctly, fix the errors found in the following attempt:\n{text_content}"
-            ),
-        }
-        kwargs["messages"].append(reask_msg)
-        return kwargs
+    handle_reask = AnthropicJSONHandler.handle_reask
 
     def parse_response(
         self,
@@ -923,16 +799,8 @@ class AnthropicStructuredOutputsHandler(AnthropicHandlerBase):
         # Get the text content (should be valid JSON per schema)
         text_content = text_blocks[-1].text
 
-        # Parse and validate
-        if strict:
-            return response_model.model_validate_json(
-                text_content,
-                context=validation_context,
-                strict=strict,
-            )
         return response_model.model_validate_json(
-            text_content,
-            context=validation_context,
+            text_content, context=validation_context, strict=strict or None
         )
 
 

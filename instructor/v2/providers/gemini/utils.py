@@ -18,6 +18,7 @@ from instructor.v2.core.messages import (
     copy_messages_for_mutation,
     get_message_content,
 )
+from instructor.v2.providers.genai.request import update_genai_kwargs
 
 if TYPE_CHECKING:
     from google.genai.types import Content as GenAIContent
@@ -85,12 +86,7 @@ def extract_gemini_chunk_text(chunk: Any) -> str:
     try:
         return chunk.text
     except (AttributeError, ValueError):
-        # `candidates` (and a candidate's `parts`) can be empty — e.g. a
-        # safety-blocked chunk or a trailing usage-only chunk — in which
-        # case this raises IndexError. Both callers of this function
-        # already wrap the call in `except (AttributeError, IndexError)`
-        # to skip such chunks, so let it propagate rather than swallowing
-        # it here and returning an empty string.
+        # Empty candidates/parts raise IndexError; stream callers skip the chunk.
         part_text = chunk.candidates[0].content.parts[0].text
         if part_text:
             return part_text
@@ -247,17 +243,6 @@ def map_to_genai_schema(obj: dict[str, Any]) -> genai_types.Schema:
         return normalized
 
     return types.Schema.model_validate(normalize(schema))
-
-
-def update_genai_kwargs(
-    kwargs: dict[str, Any], base_config: dict[str, Any]
-) -> dict[str, Any]:
-    """Compatibility wrapper for the GenAI-owned request policy."""
-    from instructor.v2.providers.genai.request import (
-        update_genai_kwargs as update_genai_kwargs_impl,
-    )
-
-    return update_genai_kwargs_impl(kwargs, base_config)
 
 
 def update_gemini_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:

@@ -16,7 +16,6 @@ from collections.abc import (
     Iterable as TypingIterable,
 )
 from functools import partial
-from textwrap import dedent
 from typing import TYPE_CHECKING, Any, cast, get_origin
 
 from pydantic import BaseModel
@@ -42,16 +41,11 @@ from instructor.v2.dsl.parallel import (
 )
 from instructor.v2.dsl.simple_type import AdapterBase as AdapterBase
 from instructor.v2.core.multimodal import convert_messages as convert_messages_v1
-from instructor.v2.core.json import (
-    extract_json_from_codeblock,
-    extract_json_from_stream,
-    extract_json_from_stream_async,
-)
+from instructor.v2.core.json import extract_json_from_codeblock
 from instructor.v2.core.messages import (
-    append_system_instruction,
-    copy_messages_for_mutation,
+    add_json_schema_prompt,
     dump_message,
-    merge_consecutive_messages,
+    first_choice_message,
 )
 from instructor.v2.providers.openai.schema import (
     generate_openai_schema,
@@ -59,7 +53,11 @@ from instructor.v2.providers.openai.schema import (
 )
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
-from instructor.v2.core.streaming import StreamingModelState
+from instructor.v2.core.streaming import (
+    StreamingModelState,
+    adrain_stream,
+    drain_stream,
+)
 
 logger = logging.getLogger("instructor")
 
@@ -99,16 +97,6 @@ OPENAI_JSON_SCHEMA_PROVIDERS = [
     Provider.FIREWORKS,
     Provider.CEREBRAS,
 ]
-
-
-def _has_no_choice_to_replay(response: Any) -> bool:
-    """Return whether the response has no completion choice to replay.
-
-    Covers Stream objects (no ``choices`` attribute) and the empty
-    ``choices`` lists some gateways return for filtered or failed turns,
-    where a reask handler has no assistant message to append.
-    """
-    return not getattr(response, "choices", None)
 
 
 def _filter_responses_tool_calls(output_items: list[Any]) -> list[Any]:
@@ -180,27 +168,11 @@ def reask_tools(
 ):
     """Handle reask for OpenAI tools mode when validation fails."""
     kwargs = kwargs.copy()
-
-    if _has_no_choice_to_replay(response):
-        kwargs["messages"].append(
-            {
-                "role": "user",
-                "content": (
-                    f"Validation Error found:\n{exception}\n"
-                    "Recall the function correctly, fix the errors"
-                ),
-            }
-        )
-        return kwargs
-
-    message = response.choices[0].message
-    reask_msgs: list[Any] = [dump_message(message)]
-    tool_calls = message.tool_calls or []
+    message = first_choice_message(response)
+    reask_msgs: list[Any] = [dump_message(message)] if message is not None else []
+    tool_calls = (message.tool_calls or []) if message is not None else []
     if not tool_calls:
-        # Model replied without calling the tool (e.g. OpenAI-compatible
-        # providers that don't honor forced tool_choice). Fall back to a plain
-        # user correction instead of iterating None, mirroring the streaming
-        # branch and the GenAI reask handler.
+        # No choice or no tool call (forced tool_choice ignored): plain correction.
         reask_msgs.append(
             {
                 "role": "user",
@@ -305,29 +277,17 @@ def reask_md_json(
 ):
     """Handle reask for OpenAI JSON modes when validation fails."""
     kwargs = kwargs.copy()
-
-    if _has_no_choice_to_replay(response):
-        kwargs["messages"].append(
-            {
-                "role": "user",
-                "content": (
-                    "Correct your JSON ONLY RESPONSE, based on the following errors:\n"
-                    f"{exception}"
-                ),
-            }
-        )
-        return kwargs
-
-    message = response.choices[0].message
-    try:
-        assistant_message = dump_message(message)
-    except (AttributeError, KeyError, TypeError):
-        assistant_message = {
-            "role": getattr(message, "role", "assistant"),
-            "content": getattr(message, "content", "") or "",
-        }
-
-    reask_msgs = [assistant_message]
+    reask_msgs: list[Any] = []
+    if (message := first_choice_message(response)) is not None:
+        try:
+            reask_msgs.append(dump_message(message))
+        except (AttributeError, KeyError, TypeError):
+            reask_msgs.append(
+                {
+                    "role": getattr(message, "role", "assistant"),
+                    "content": getattr(message, "content", "") or "",
+                }
+            )
     reask_msgs.append(
         {
             "role": "user",
@@ -348,20 +308,8 @@ def reask_default(
 ):
     """Handle reask for OpenAI default mode when validation fails."""
     kwargs = kwargs.copy()
-
-    if _has_no_choice_to_replay(response):
-        kwargs["messages"].append(
-            {
-                "role": "user",
-                "content": (
-                    "Recall the function correctly, fix the errors, exceptions found\n"
-                    f"{exception}"
-                ),
-            }
-        )
-        return kwargs
-
-    reask_msgs = [dump_message(response.choices[0].message)]
+    message = first_choice_message(response)
+    reask_msgs: list[Any] = [dump_message(message)] if message is not None else []
     reask_msgs.append(
         {
             "role": "user",
@@ -390,11 +338,7 @@ def _prepare_json_schema(
     return model, kwargs
 
 
-def handle_openrouter_structured_outputs(
-    response_model: type[Any], new_kwargs: dict[str, Any]
-) -> tuple[type[Any], dict[str, Any]]:
-    """Prepare a structured-output request for OpenRouter."""
-    return _prepare_json_schema(response_model, new_kwargs)
+handle_openrouter_structured_outputs = _prepare_json_schema
 
 
 def _apply_tool_strictness(kwargs: dict[str, Any]) -> None:
@@ -493,6 +437,49 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
 
     mode: Mode
 
+    def _stream_drain_options(
+        self, response_tool_name: str | None, single_model: bool, require_complete: bool
+    ) -> dict[str, Any]:
+        options: dict[str, Any] = {
+            "extract_json": self.mode == Mode.MD_JSON,
+            "single_model": single_model,
+        }
+        if self.mode == Mode.RESPONSES_TOOLS:
+            result = _ResponsesStreamResult(response_tool_name)
+            options["feed"] = result.delta
+            if require_complete:
+                options["truncated"] = lambda _chunk: (
+                    result.incomplete_response is not None
+                )
+                options["error"] = lambda _chunk: IncompleteOutputException(
+                    last_completion=result.incomplete_response,
+                    message=_responses_incomplete_message(result.incomplete_response),
+                )
+            return options
+
+        tool_arguments = _ChatToolArguments(single_model)
+
+        def feed(chunk: Any) -> Any:
+            if not chunk.choices:
+                return None
+            delta = chunk.choices[0].delta
+            if self.mode == Mode.FUNCTIONS:
+                Mode.warn_mode_functions_deprecation()
+                return delta.function_call.arguments
+            if self.mode in {Mode.JSON, Mode.MD_JSON, Mode.JSON_SCHEMA}:
+                return delta.content
+            if self.mode in {Mode.TOOLS, Mode.TOOLS_STRICT, Mode.PARALLEL_TOOLS}:
+                return tool_arguments.feed(delta.tool_calls)
+            return None
+
+        options.update(feed=feed, finish=tool_arguments.finish)
+        if require_complete:
+            options["truncated"] = lambda chunk: bool(
+                getattr(chunk, "choices", None)
+                and getattr(chunk.choices[0], "finish_reason", None) == "length"
+            )
+        return options
+
     def extract_streaming_json(
         self,
         completion: TypingIterable[Any],
@@ -502,76 +489,14 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         require_complete: bool = False,
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from OpenAI-compatible streaming responses."""
-        # Raised only after every complete item has been flushed downstream.
-        truncated: list[IncompleteOutputException] = []
+        return drain_stream(
+            completion,
+            **self._stream_drain_options(
+                response_tool_name, single_model, require_complete
+            ),
+        )
 
-        def _raw_chunks() -> Generator[str, None, None]:
-            result = _ResponsesStreamResult(response_tool_name)
-            tool_arguments = _ChatToolArguments(single_model)
-            incomplete_chunk: Any = None
-            for chunk in completion:
-                try:
-                    if self.mode == Mode.RESPONSES_TOOLS:
-                        if (delta := result.delta(chunk)) is not None:
-                            yield delta
-                        continue
-
-                    if not getattr(chunk, "choices", None):
-                        continue
-
-                    if (
-                        require_complete
-                        and getattr(chunk.choices[0], "finish_reason", None) == "length"
-                    ):
-                        incomplete_chunk = chunk
-
-                    if self.mode == Mode.FUNCTIONS:
-                        Mode.warn_mode_functions_deprecation()
-                        if json_chunk := chunk.choices[0].delta.function_call.arguments:
-                            yield json_chunk
-                    elif self.mode in {
-                        Mode.JSON,
-                        Mode.MD_JSON,
-                        Mode.JSON_SCHEMA,
-                    }:
-                        if json_chunk := chunk.choices[0].delta.content:
-                            yield json_chunk
-                    elif self.mode in {
-                        Mode.TOOLS,
-                        Mode.TOOLS_STRICT,
-                        Mode.PARALLEL_TOOLS,
-                    }:
-                        for arguments in tool_arguments.feed(
-                            chunk.choices[0].delta.tool_calls
-                        ):
-                            yield arguments
-                except AttributeError:
-                    continue
-            for arguments in tool_arguments.finish():
-                yield arguments
-            if require_complete and result.incomplete_response is not None:
-                truncated.append(
-                    IncompleteOutputException(
-                        last_completion=result.incomplete_response,
-                        message=_responses_incomplete_message(
-                            result.incomplete_response
-                        ),
-                    )
-                )
-            elif incomplete_chunk is not None:
-                truncated.append(
-                    IncompleteOutputException(last_completion=incomplete_chunk)
-                )
-
-        raw_chunks = _raw_chunks()
-        if self.mode == Mode.MD_JSON:
-            yield from extract_json_from_stream(raw_chunks, single_model=single_model)
-        else:
-            yield from raw_chunks
-        if truncated:
-            raise truncated[0]
-
-    async def extract_streaming_json_async(
+    def extract_streaming_json_async(
         self,
         completion: AsyncGenerator[Any, None],
         response_tool_name: str | None = None,
@@ -580,77 +505,12 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         require_complete: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from OpenAI-compatible async streams."""
-        truncated: list[IncompleteOutputException] = []
-
-        async def _raw_chunks() -> AsyncGenerator[str, None]:
-            result = _ResponsesStreamResult(response_tool_name)
-            tool_arguments = _ChatToolArguments(single_model)
-            incomplete_chunk: Any = None
-            async for chunk in completion:
-                try:
-                    if self.mode == Mode.RESPONSES_TOOLS:
-                        if (delta := result.delta(chunk)) is not None:
-                            yield delta
-                        continue
-
-                    if not getattr(chunk, "choices", None):
-                        continue
-
-                    if (
-                        require_complete
-                        and getattr(chunk.choices[0], "finish_reason", None) == "length"
-                    ):
-                        incomplete_chunk = chunk
-
-                    if self.mode == Mode.FUNCTIONS:
-                        Mode.warn_mode_functions_deprecation()
-                        if json_chunk := chunk.choices[0].delta.function_call.arguments:
-                            yield json_chunk
-                    elif self.mode in {
-                        Mode.JSON,
-                        Mode.MD_JSON,
-                        Mode.JSON_SCHEMA,
-                    }:
-                        if json_chunk := chunk.choices[0].delta.content:
-                            yield json_chunk
-                    elif self.mode in {
-                        Mode.TOOLS,
-                        Mode.TOOLS_STRICT,
-                        Mode.PARALLEL_TOOLS,
-                    }:
-                        for arguments in tool_arguments.feed(
-                            chunk.choices[0].delta.tool_calls
-                        ):
-                            yield arguments
-                except AttributeError:
-                    continue
-            for arguments in tool_arguments.finish():
-                yield arguments
-            if require_complete and result.incomplete_response is not None:
-                truncated.append(
-                    IncompleteOutputException(
-                        last_completion=result.incomplete_response,
-                        message=_responses_incomplete_message(
-                            result.incomplete_response
-                        ),
-                    )
-                )
-            elif incomplete_chunk is not None:
-                truncated.append(
-                    IncompleteOutputException(last_completion=incomplete_chunk)
-                )
-
-        raw_chunks = _raw_chunks()
-        if self.mode == Mode.MD_JSON:
-            async for chunk in extract_json_from_stream_async(
-                raw_chunks, single_model=single_model
-            ):
-                yield chunk
-        else:
-            async for chunk in raw_chunks:
-                yield chunk
-        if truncated:
-            raise truncated[0]
+        return adrain_stream(
+            completion,
+            **self._stream_drain_options(
+                response_tool_name, single_model, require_complete
+            ),
+        )
 
     def convert_messages(
         self, messages: list[dict[str, Any]], autodetect_images: bool = False
@@ -792,6 +652,8 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         validation_context: dict[str, Any] | None = None,
         strict: bool | None = None,
         stream: bool | None = None,
+        *,
+        codeblock: bool = False,
     ) -> Any:
         if self._should_parse_streaming(response_model, stream):
             return self._parse_streaming_response(
@@ -806,6 +668,8 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                 raise IncompleteOutputException(last_completion=response)
 
         text = self._extract_text_content(response)
+        if codeblock:
+            text = extract_json_from_codeblock(text)
         parsed = response_model.model_validate_json(
             text,
             context=validation_context,
@@ -990,23 +854,9 @@ class OpenAIJSONHandler(OpenAIHandlerBase):
 
         new_kwargs = kwargs.copy()
         new_kwargs["response_format"] = {"type": "json_object"}
-        schema = response_model.model_json_schema()
-        message = dedent(
-            f"""
-            As a genius expert, your task is to understand the content and provide
-            the parsed objects in json that match the following json_schema:\n
-
-            {json.dumps(schema, indent=2, ensure_ascii=False)}
-
-            Make sure to return an instance of the JSON, not the schema itself
-            """
+        new_kwargs["messages"] = add_json_schema_prompt(
+            new_kwargs.get("messages", []), response_model.model_json_schema()
         )
-        messages = copy_messages_for_mutation(new_kwargs.get("messages", []))
-        if messages and messages[0]["role"] == "system":
-            append_system_instruction(messages[0], message)
-        else:
-            messages.insert(0, {"role": "system", "content": message})
-        new_kwargs["messages"] = merge_consecutive_messages(messages)
         return response_model, new_kwargs
 
     def handle_reask(
@@ -1051,35 +901,11 @@ class OpenAIMDJSONHandler(OpenAIHandlerBase):
             return None, kwargs
 
         new_kwargs = kwargs.copy()
-        schema = response_model.model_json_schema()
-
-        message = dedent(
-            f"""
-            As a genius expert, your task is to understand the content and provide
-            the parsed objects in json that match the following json_schema:\n
-
-            {json.dumps(schema, indent=2, ensure_ascii=False)}
-
-            Make sure to return an instance of the JSON, not the schema itself
-            """
+        new_kwargs["messages"] = add_json_schema_prompt(
+            new_kwargs.get("messages", []),
+            response_model.model_json_schema(),
+            codeblock=True,
         )
-
-        # Add system message with schema
-        messages = copy_messages_for_mutation(new_kwargs.get("messages", []))
-        if messages and messages[0]["role"] == "system":
-            append_system_instruction(messages[0], message)
-        else:
-            messages.insert(0, {"role": "system", "content": message})
-
-        # Add user message requesting JSON in code block
-        messages.append(
-            {
-                "role": "user",
-                "content": "Return the correct JSON response within a ```json codeblock. not the JSON_SCHEMA",
-            },
-        )
-        new_kwargs["messages"] = merge_consecutive_messages(messages)
-
         return response_model, new_kwargs
 
     def handle_reask(
@@ -1101,28 +927,9 @@ class OpenAIMDJSONHandler(OpenAIHandlerBase):
         is_async: bool = False,  # noqa: ARG002
     ) -> Any:
         """Parse JSON from markdown code block in response."""
-        # Check for streaming
-        if self._should_parse_streaming(response_model, stream):
-            return self._parse_streaming_response(
-                response_model,
-                response,
-                validation_context,
-                strict,
-            )
-
-        # Check for incomplete output
-        if hasattr(response, "choices") and response.choices:
-            if response.choices[0].finish_reason == "length":
-                raise IncompleteOutputException(last_completion=response)
-
-        text = self._extract_text_content(response)
-        json_str = extract_json_from_codeblock(text)
-        parsed = response_model.model_validate_json(
-            json_str,
-            context=validation_context,
-            strict=strict,
+        return self._parse_json_response(
+            response, response_model, validation_context, strict, stream, codeblock=True
         )
-        return self._finalize_parsed_result(response_model, response, parsed)
 
 
 @register_mode_handler(
