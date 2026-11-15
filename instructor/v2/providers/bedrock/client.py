@@ -147,15 +147,7 @@ def _runtime_client(api_key: str | None, aws_kwargs: dict[str, Any]) -> Any:
         return boto3.client("bedrock-runtime", **aws_kwargs)
 
     from botocore.session import get_session
-
-    try:
-        from botocore.tokens import ScopedEnvTokenProvider
-    except ImportError as exc:
-        from instructor.v2.core.errors import ConfigurationError
-
-        raise ConfigurationError(
-            "Install the instructor[bedrock] extra to use Bedrock API keys."
-        ) from exc
+    from botocore.tokens import ScopedEnvTokenProvider
 
     session = get_session()
     session.register_component(

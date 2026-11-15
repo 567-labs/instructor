@@ -16,7 +16,6 @@ from contextvars import ContextVar
 from copy import deepcopy
 from functools import cache
 from functools import reduce
-from inspect import Parameter, signature
 from operator import or_
 from typing import (  # noqa: UP035
     Any,
@@ -25,7 +24,6 @@ from typing import (  # noqa: UP035
     Optional,
     TypeVar,
     Union,
-    cast,
     get_args,
     get_origin,
 )
@@ -35,6 +33,7 @@ from pydantic import AliasChoices, AliasPath, BaseModel, create_model
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
+from instructor.v2.core.utils import aclose_stream, close_stream
 from instructor.v2.dsl.json_tracker import JsonCompleteness, is_json_complete
 
 T_Model = TypeVar("T_Model", bound=BaseModel)
@@ -216,27 +215,10 @@ def _streamed_field(
 
 
 def _get_partial_default(field: FieldInfo) -> Any:
-    factory = field.default_factory
-    if factory is None:
-        return field.get_default()
-
-    # Match Pydantic's single-required-argument factory contract without relying
-    # on FieldInfo.default_factory_takes_validated_data (absent in early 2.10).
-    try:
-        parameters = list(signature(factory).parameters.values())
-    except (TypeError, ValueError):
-        parameters = []
-    if (
-        len(parameters) == 1
-        and parameters[0].kind
-        in {Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD}
-        and parameters[0].default is Parameter.empty
-    ):
-        # Partial fields are not validated yet. Let model_validate compute this
-        # default once the containing object's JSON is complete.
+    if field.default_factory_takes_validated_data:
+        # Let model_validate compute this default once the object is complete.
         return None
-
-    return cast(Callable[[], Any], factory)()
+    return field.get_default(call_default_factory=True)
 
 
 def _build_partial_object(
@@ -508,9 +490,7 @@ class PartialBase(Generic[T_Model]):
             parser = chunk_parser or cls.model_from_chunks
             yield from parser(json_chunks, **kwargs)
         finally:
-            close = getattr(completion, "close", None)
-            if callable(close):
-                close()
+            close_stream(completion)
 
     @classmethod
     async def from_streaming_response_async(
@@ -524,7 +504,6 @@ class PartialBase(Generic[T_Model]):
     ) -> AsyncGenerator[T_Model, None]:
         if stream_extractor is None:
             raise ValueError("stream_extractor is required for streaming responses")
-        from inspect import isawaitable
 
         try:
             json_chunks = stream_extractor(completion)
@@ -532,13 +511,7 @@ class PartialBase(Generic[T_Model]):
             async for item in parser(json_chunks, **kwargs):
                 yield item
         finally:
-            close = getattr(completion, "aclose", None) or getattr(
-                completion, "close", None
-            )
-            if callable(close):
-                result = close()
-                if isawaitable(result):
-                    await result
+            await aclose_stream(completion)
 
     @classmethod
     def model_from_chunks(

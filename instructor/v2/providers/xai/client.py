@@ -9,7 +9,7 @@ the translation between Instructor's interface and xAI's native SDK.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, cast, overload
+from typing import TYPE_CHECKING, Any, Callable, cast, overload
 
 from pydantic import BaseModel
 
@@ -22,8 +22,8 @@ from instructor.v2.dsl.partial import PartialBase
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.core.response_model import prepare_response_model
 
-# Ensure handlers are registered (decorators auto-register on import)
-from instructor.v2.providers.xai import handlers
+# Importing handlers also registers them
+from instructor.v2.providers.xai.handlers import _convert_messages
 
 if TYPE_CHECKING:
     from xai_sdk.sync.client import Client as SyncClient
@@ -65,10 +65,6 @@ def _finalize_parsed_response(parsed: Any, raw_response: Any) -> Any:
     return parsed
 
 
-def _convert_messages(messages: list[dict[str, Any]]) -> list[Any]:
-    return handlers._convert_messages_with_chat(messages, xchat)
-
-
 def _add_md_json_instructions(
     messages: list[dict[str, Any]], response_model: Any
 ) -> list[dict[str, Any]]:
@@ -93,6 +89,26 @@ def _add_md_json_instructions(
         return new_messages
 
     return [{"role": "system", "content": instruction}, *new_messages]
+
+
+def _parallel_request(
+    chat: Any, response_model: Any, call_kwargs: dict[str, Any], model: str
+) -> Callable[[dict[str, Any]], dict[str, Any]]:
+    """Register parallel tools on chat; build each retry attempt's create kwargs."""
+    for model_type in get_types_array(response_model):  # type: ignore[arg-type]
+        schema = _get_model_schema(model_type)
+        tool = xchat.tool(
+            name=schema["title"],
+            description=model_type.__doc__ or "",
+            parameters=schema,
+        )
+        chat.proto.tools.append(cast(Any, tool))
+    return lambda retry_kwargs: {
+        **call_kwargs,
+        "model": model,
+        "messages": _convert_messages(retry_kwargs["messages"]),
+        "tools": list(chat.proto.tools),
+    }
 
 
 def _iter_tool_call_arg_deltas(stream_iter: Any) -> Any:
@@ -348,23 +364,12 @@ def from_xai(
             parsed = _validate_model_from_json(model_for_validation, args, None, strict)
             return _finalize_parsed_response(parsed, resp)
         if mode == Mode.PARALLEL_TOOLS:
-            for model_type in get_types_array(response_model):  # type: ignore[arg-type]
-                tool_obj = xchat.tool(
-                    name=_get_model_schema(model_type)["title"],
-                    description=model_type.__doc__ or "",
-                    parameters=_get_model_schema(model_type),
-                )
-                chat.proto.tools.append(cast(Any, tool_obj))
+            request = _parallel_request(chat, response_model, call_kwargs, model)
             from instructor.v2.core.retry import retry_async_v2
 
             async def sample_parallel(**retry_kwargs: Any) -> Any:
-                request = dict(call_kwargs)
-                request.update(
-                    model=model,
-                    messages=_convert_messages(retry_kwargs["messages"]),
-                    tools=list(chat.proto.tools),
-                )
-                return await cast(AsyncClient, client).chat.create(**request).sample()
+                attempt = cast(AsyncClient, client).chat.create(**request(retry_kwargs))
+                return await attempt.sample()
 
             return await retry_async_v2(
                 func=sample_parallel,
@@ -516,23 +521,11 @@ def from_xai(
             parsed = _validate_model_from_json(model_for_validation, args, None, strict)
             return _finalize_parsed_response(parsed, resp)
         if mode == Mode.PARALLEL_TOOLS:
-            for model_type in get_types_array(response_model):  # type: ignore[arg-type]
-                tool_obj = xchat.tool(
-                    name=_get_model_schema(model_type)["title"],
-                    description=model_type.__doc__ or "",
-                    parameters=_get_model_schema(model_type),
-                )
-                chat.proto.tools.append(cast(Any, tool_obj))
+            request = _parallel_request(chat, response_model, call_kwargs, model)
             from instructor.v2.core.retry import retry_sync_v2
 
             def sample_parallel(**retry_kwargs: Any) -> Any:
-                request = dict(call_kwargs)
-                request.update(
-                    model=model,
-                    messages=_convert_messages(retry_kwargs["messages"]),
-                    tools=list(chat.proto.tools),
-                )
-                return client.chat.create(**request).sample()
+                return client.chat.create(**request(retry_kwargs)).sample()
 
             return retry_sync_v2(
                 func=sample_parallel,

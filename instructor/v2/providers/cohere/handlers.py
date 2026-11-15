@@ -21,13 +21,13 @@ from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.errors import (
     ConfigurationError,
-    IncompleteOutputException,
     ResponseParsingError,
 )
 from instructor.v2.core.json import extract_json_from_codeblock
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
 from instructor.v2.core.messages import copy_messages_for_mutation
+from instructor.v2.core.streaming import adrain_stream, drain_stream
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.partial import PartialBase
 
@@ -167,28 +167,20 @@ class CohereHandlerBase(ModeHandler):
     def extract_streaming_json(
         self, completion: Any, *, require_complete: bool = False
     ) -> Generator[str, None, None]:
-        incomplete_chunk: Any = None
-        for chunk in completion:
-            if require_complete and _is_max_tokens_end(chunk):
-                incomplete_chunk = chunk
-            text = _extract_text_from_stream_chunk(chunk)
-            if text:
-                yield text
-        if incomplete_chunk is not None:
-            raise IncompleteOutputException(last_completion=incomplete_chunk)
+        return drain_stream(
+            completion,
+            _extract_text_from_stream_chunk,
+            truncated=_is_max_tokens_end if require_complete else None,
+        )
 
-    async def extract_streaming_json_async(
+    def extract_streaming_json_async(
         self, completion: AsyncGenerator[Any, None], *, require_complete: bool = False
     ) -> AsyncGenerator[str, None]:
-        incomplete_chunk: Any = None
-        async for chunk in completion:
-            if require_complete and _is_max_tokens_end(chunk):
-                incomplete_chunk = chunk
-            text = _extract_text_from_stream_chunk(chunk)
-            if text:
-                yield text
-        if incomplete_chunk is not None:
-            raise IncompleteOutputException(last_completion=incomplete_chunk)
+        return adrain_stream(
+            completion,
+            _extract_text_from_stream_chunk,
+            truncated=_is_max_tokens_end if require_complete else None,
+        )
 
     def handle_reask(
         self,

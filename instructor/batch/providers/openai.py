@@ -8,7 +8,7 @@ from typing import Any, Optional, Union
 import io
 import logging
 import time
-from .base import BatchProvider, _atomic_result_file
+from .base import BatchProvider, _atomic_result_file, _open_jsonl, _submit_errors
 from ..models import BatchJobInfo
 
 logger = logging.getLogger(__name__)
@@ -24,33 +24,16 @@ class OpenAIProvider(BatchProvider):
         **kwargs,
     ) -> str:
         """Submit OpenAI batch job"""
-        if not isinstance(file_path_or_buffer, (str, io.BytesIO)):
-            raise ValueError(
-                f"Unsupported file_path_or_buffer type: {type(file_path_or_buffer)}"
-            )
-
-        try:
+        with _submit_errors("OpenAI"), _open_jsonl(file_path_or_buffer) as f:
             from openai import OpenAI
 
             client = OpenAI()
-
             if metadata is None:
                 metadata = {"description": "Instructor batch job"}
-
             logger.debug(f"Submitting batch job with metadata: {metadata}")
-
-            if isinstance(file_path_or_buffer, str):
-                logger.debug(f"Creating batch file from path: {file_path_or_buffer}")
-                with open(file_path_or_buffer, "rb") as f:
-                    batch_file = client.files.create(file=f, purpose="batch")
-            else:
-                logger.debug("Creating batch file from BytesIO buffer")
-                file_path_or_buffer.seek(0)
-                # Name in-memory uploads so the API sees a JSONL file.
-                batch_file = client.files.create(
-                    file=("batch.jsonl", file_path_or_buffer), purpose="batch"
-                )
-
+            # Name in-memory uploads so the API sees a JSONL file.
+            upload = f if isinstance(file_path_or_buffer, str) else ("batch.jsonl", f)
+            batch_file = client.files.create(file=upload, purpose="batch")
             batch_job = client.batches.create(
                 input_file_id=batch_file.id,
                 endpoint="/v1/chat/completions",
@@ -59,15 +42,6 @@ class OpenAIProvider(BatchProvider):
             )
             logger.info(f"Successfully submitted batch job: {batch_job.id}")
             return batch_job.id
-        except (ValueError, TypeError) as e:
-            # Re-raise validation errors as-is
-            logger.error(
-                "Validation error in OpenAI batch submission (%s)", type(e).__name__
-            )
-            raise
-        except Exception as e:
-            logger.error("Failed to submit OpenAI batch (%s)", type(e).__name__)
-            raise RuntimeError(f"Failed to submit OpenAI batch: {e}") from e
 
     def get_status(self, batch_id: str) -> dict[str, Any]:
         """Get OpenAI batch status"""

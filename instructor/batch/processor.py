@@ -8,18 +8,49 @@ for batch processing across different LLM providers.
 from __future__ import annotations
 from typing import Any, Generic
 import json
-import os
 import io
 import re
-import stat
-import tempfile
-from pathlib import Path
 from .models import BatchResult, BatchSuccess, BatchError, BatchJobInfo, T
 from .request import BatchRequest
 from .providers import get_provider
+from .providers.base import _atomic_result_file
 from instructor.v2.core.errors import IncompleteOutputException
 
 _ANTHROPIC_CUSTOM_ID = re.compile(r"[a-zA-Z0-9_-]{1,64}")
+
+
+def _extract_structured_data(data: dict[str, Any]) -> Any:
+    """Return the JSON payload of an OpenAI-style or Anthropic batch record.
+
+    Raises IncompleteOutputException when the output hit the token limit.
+    """
+    try:
+        if "response" in data:
+            choice = data["response"]["body"]["choices"][0]
+            if choice.get("finish_reason") == "length":
+                raise IncompleteOutputException(last_completion=data)
+            message = choice["message"]
+            if isinstance(message.get("content"), str):
+                return json.loads(message["content"])
+            return json.loads(message["tool_calls"][0]["function"]["arguments"])
+        message = data["result"]["message"]
+        if message.get("stop_reason") == "max_tokens":
+            raise IncompleteOutputException(last_completion=data)
+        content = message["content"]
+        for item in content:
+            if item.get("type") == "tool_use":
+                return item.get("input")
+        for item in content:
+            if item.get("type") == "text":
+                try:
+                    return json.loads(item.get("text", ""))
+                except json.JSONDecodeError:
+                    continue
+    except IncompleteOutputException:
+        raise
+    except Exception:
+        return None
+    return None
 
 
 class BatchProcessor(Generic[T]):
@@ -64,54 +95,15 @@ class BatchProcessor(Generic[T]):
 
         Returns:
             The file path where the batch was saved, or BytesIO buffer if file_path is None
-
-        Raises:
-            ValueError: If custom_ids does not match messages_list in length, contains
-                duplicates, or (for Anthropic) does not match ^[a-zA-Z0-9_-]{1,64}$
         """
         if custom_ids is None:
             custom_ids = [f"request-{i}" for i in range(len(messages_list))]
         else:
             self._validate_custom_ids(custom_ids, len(messages_list))
 
-        if file_path is not None:
-            with tempfile.NamedTemporaryFile(
-                dir=os.path.dirname(os.path.abspath(file_path)), delete=False
-            ) as temporary_file:
-                temporary_path = temporary_file.name
-
-            try:
-                batch_requests = []
-                for custom_id, messages in zip(custom_ids, messages_list):
-                    batch_request = BatchRequest[T](
-                        custom_id=custom_id,
-                        messages=messages,
-                        response_model=self.response_model,
-                        model=self.model_name,
-                        max_tokens=max_tokens,
-                        temperature=temperature,
-                        strict=strict,
-                    )
-                    batch_request.save_to_file(temporary_path, self.provider_name)
-                    batch_requests.append(batch_request)
-                try:
-                    existing_mode = os.lstat(file_path).st_mode
-                except FileNotFoundError:
-                    pass
-                else:
-                    if stat.S_ISREG(existing_mode):
-                        os.chmod(temporary_path, stat.S_IMODE(existing_mode) & 0o777)
-                os.replace(temporary_path, file_path)
-            finally:
-                Path(temporary_path).unlink(missing_ok=True)
-
-            print(f"Created batch file {file_path} with {len(batch_requests)} requests")
-            return file_path
-        # Create BytesIO buffer - caller is responsible for cleanup
         buffer = io.BytesIO()
-        batch_requests = []
         for custom_id, messages in zip(custom_ids, messages_list):
-            batch_request = BatchRequest[T](
+            BatchRequest[T](
                 custom_id=custom_id,
                 messages=messages,
                 response_model=self.response_model,
@@ -119,13 +111,16 @@ class BatchProcessor(Generic[T]):
                 max_tokens=max_tokens,
                 temperature=temperature,
                 strict=strict,
-            )
-            batch_request.save_to_file(buffer, self.provider_name)
-            batch_requests.append(batch_request)
+            ).save_to_file(buffer, self.provider_name)
 
-        print(f"Created batch buffer with {len(batch_requests)} requests")
-        buffer.seek(0)  # Reset buffer position for reading
-        return buffer
+        if file_path is None:
+            print(f"Created batch buffer with {len(custom_ids)} requests")
+            buffer.seek(0)  # Caller reads from the start and owns cleanup
+            return buffer
+        with _atomic_result_file(file_path) as output:
+            output.write(buffer.getvalue())
+        print(f"Created batch file {file_path} with {len(custom_ids)} requests")
+        return file_path
 
     def _validate_custom_ids(self, custom_ids: list[str], expected: int) -> None:
         """Fail before writing requests if the provider would reject the IDs"""
@@ -242,7 +237,7 @@ class BatchProcessor(Generic[T]):
             try:
                 data = json.loads(line)
                 custom_id = data.get("custom_id", "unknown")
-                extracted_data = self._extract_from_response(data)
+                extracted_data = _extract_structured_data(data)
 
                 if extracted_data is not None:
                     try:
@@ -266,40 +261,10 @@ class BatchProcessor(Generic[T]):
                         results.append(error_result)
                 else:
                     # Check if this is a provider error response
-                    error_message = "Unknown error"
-                    error_type = "extraction_error"
-
-                    if self.provider_name == "openai":
-                        response = data.get("response")
-                        body = (
-                            response.get("body") if isinstance(response, dict) else None
-                        )
-                        status = (
-                            response.get("status_code")
-                            if isinstance(response, dict)
-                            else None
-                        )
-                        error_info = data.get("error") or (
-                            body.get("error") if isinstance(body, dict) else None
-                        )
-                        if isinstance(error_info, dict):
-                            error_message = (
-                                error_info.get("message") or "Unknown OpenAI error"
-                            )
-                            error_type = (
-                                error_info.get("type")
-                                or error_info.get("code")
-                                or "openai_error"
-                            )
-
-                        elif isinstance(error_info, str) and error_info:
-                            error_type = "openai_error"
-                            error_message = error_info
-                        elif isinstance(status, int) and not 200 <= status < 300:
-                            error_type = "openai_error"
-                            error_message = f"HTTP {status} error"
-
-                    if self.provider_name == "anthropic" and "result" in data:
+                    error_type, error_message = "extraction_error", "Unknown error"
+                    if self.provider_name in {"openai", "mistral"}:
+                        error_type, error_message = self._openai_style_error(data)
+                    elif self.provider_name == "anthropic" and "result" in data:
                         result = data["result"]
                         if result.get("type") in {"errored", "error"}:
                             error_info = result.get("error", {})
@@ -314,17 +279,6 @@ class BatchProcessor(Generic[T]):
                             else:
                                 error_message = str(error_info)
                                 error_type = "anthropic_error"
-
-                    if self.provider_name == "mistral" and data.get("error"):
-                        mistral_error = data["error"]
-                        error_type = "mistral_error"
-                        if isinstance(mistral_error, dict):
-                            error_message = (
-                                mistral_error.get("message") or "Unknown Mistral error"
-                            )
-                            error_type = mistral_error.get("type") or error_type
-                        else:
-                            error_message = str(mistral_error)
 
                     error_result = BatchError(
                         custom_id=custom_id,
@@ -354,54 +308,25 @@ class BatchProcessor(Generic[T]):
 
         return results
 
-    def _extract_from_response(self, data: dict[str, Any]) -> dict[str, Any] | None:
-        """Extract structured data from provider-specific response format"""
-        try:
-            if self.provider_name in {"openai", "mistral"}:
-                # OpenAI JSON schema response
-                choice = data["response"]["body"]["choices"][0]
-                if choice.get("finish_reason") == "length":
-                    raise IncompleteOutputException(last_completion=data)
-                content = choice["message"]["content"]
-                return json.loads(content)
-
-            if self.provider_name == "anthropic":
-                # Anthropic batch response format
-                if "result" not in data:
-                    return None
-
-                result = data["result"]
-
-                # Check if result is an error
-                if result.get("type") == "error":
-                    # Return None to indicate error, let caller handle
-                    return None
-
-                # Handle successful message result
-                if result.get("type") == "succeeded" and "message" in result:
-                    if result["message"].get("stop_reason") == "max_tokens":
-                        raise IncompleteOutputException(last_completion=data)
-                    content = result["message"]["content"]
-                    if isinstance(content, list) and len(content) > 0:
-                        # Try tool_use first
-                        for item in content:
-                            if item.get("type") == "tool_use":
-                                return item.get("input")
-
-                        # Fallback to text content and parse JSON
-                        for item in content:
-                            if item.get("type") == "text":
-                                text = item.get("text", "")
-                                try:
-                                    return json.loads(text)
-                                except json.JSONDecodeError:
-                                    continue
-
-                return None
-
-        except IncompleteOutputException:
-            raise
-        except Exception:
-            return None
-
-        return None
+    def _openai_style_error(self, data: dict[str, Any]) -> tuple[str, str]:
+        """Read the error from an OpenAI or Mistral batch output record"""
+        name = self.provider_name
+        default_type = f"{name}_error"
+        response = data.get("response")
+        body = response.get("body") if isinstance(response, dict) else None
+        status = response.get("status_code") if isinstance(response, dict) else None
+        error_info = data.get("error") or (
+            body.get("error") if isinstance(body, dict) else None
+        )
+        if isinstance(error_info, dict):
+            label = "OpenAI" if name == "openai" else "Mistral"
+            code = error_info.get("code") if name == "openai" else None
+            return (
+                error_info.get("type") or code or default_type,
+                error_info.get("message") or f"Unknown {label} error",
+            )
+        if error_info and (isinstance(error_info, str) or name == "mistral"):
+            return default_type, str(error_info)
+        if isinstance(status, int) and not 200 <= status < 300:
+            return default_type, f"HTTP {status} error"
+        return "extraction_error", "Unknown error"

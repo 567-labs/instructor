@@ -9,8 +9,6 @@ request preparation and response parsing.
 
 from __future__ import annotations
 
-import json
-from textwrap import dedent
 from typing import Any
 
 from pydantic import BaseModel
@@ -20,12 +18,7 @@ from instructor.v2.core.providers import Provider
 from instructor.v2.core.errors import IncompleteOutputException, ResponseParsingError
 from instructor.v2.core.json import extract_json_from_codeblock
 from instructor.v2.providers.openai.schema import generate_openai_schema
-from instructor.v2.core.messages import (
-    append_system_instruction,
-    copy_messages_for_mutation,
-    dump_message,
-    merge_consecutive_messages,
-)
+from instructor.v2.core.messages import add_json_schema_prompt, dump_message
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.providers.openai.handlers import OpenAIHandlerBase
 
@@ -233,35 +226,11 @@ class WriterMDJSONHandler(WriterHandlerBase):
 
         new_kwargs = kwargs.copy()
         self._register_streaming_from_kwargs(response_model, new_kwargs)
-        schema = response_model.model_json_schema()
-
-        message = dedent(
-            f"""
-            As a genius expert, your task is to understand the content and provide
-            the parsed objects in json that match the following json_schema:\n
-
-            {json.dumps(schema, indent=2, ensure_ascii=False)}
-
-            Make sure to return an instance of the JSON, not the schema itself
-            """
+        new_kwargs["messages"] = add_json_schema_prompt(
+            new_kwargs.get("messages", []),
+            response_model.model_json_schema(),
+            codeblock=True,
         )
-
-        # Add system message with schema
-        messages = copy_messages_for_mutation(new_kwargs.get("messages", []))
-        if messages and messages[0]["role"] == "system":
-            append_system_instruction(messages[0], message)
-        else:
-            messages.insert(0, {"role": "system", "content": message})
-
-        # Add user message requesting JSON in code block
-        messages.append(
-            {
-                "role": "user",
-                "content": "Return the correct JSON response within a ```json codeblock. not the JSON_SCHEMA",
-            },
-        )
-        new_kwargs["messages"] = merge_consecutive_messages(messages)
-
         return response_model, new_kwargs
 
     def handle_reask(

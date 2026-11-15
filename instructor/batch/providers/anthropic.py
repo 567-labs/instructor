@@ -10,7 +10,7 @@ from collections.abc import Generator, Iterator
 from typing import Any, Optional, Union
 import io
 import logging
-from .base import BatchProvider, _atomic_result_file
+from .base import BatchProvider, _atomic_result_file, _open_jsonl, _submit_errors
 from ..models import BatchJobInfo
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ class AnthropicProvider(BatchProvider):
     ) -> str:
         """Submit Anthropic batch job"""
         _ = kwargs  # Unused but accepted for API consistency
-        try:
+        with _submit_errors("Anthropic"), _open_jsonl(file_path_or_buffer) as f:
             import anthropic
 
             client = anthropic.Anthropic()
@@ -45,30 +45,9 @@ class AnthropicProvider(BatchProvider):
             except AttributeError:
                 batches_client = client.beta.messages.batches
 
-            if isinstance(file_path_or_buffer, str):
-                with open(file_path_or_buffer, encoding="utf-8") as f:
-                    requests = [json.loads(line) for line in f if line.strip()]
-            elif isinstance(file_path_or_buffer, io.BytesIO):
-                file_path_or_buffer.seek(0)
-                content = file_path_or_buffer.read().decode("utf-8")
-                requests = [
-                    json.loads(line) for line in content.split("\n") if line.strip()
-                ]
-            else:
-                raise ValueError(
-                    f"Unsupported file_path_or_buffer type: {type(file_path_or_buffer)}"
-                )
-
+            requests = [json.loads(line) for line in f if line.strip()]
             batch = batches_client.create(requests=requests)
             return batch.id
-        except (ValueError, TypeError) as e:
-            # Re-raise validation errors as-is
-            logger.error(
-                "Validation error in Anthropic batch submission (%s)", type(e).__name__
-            )
-            raise
-        except Exception as e:
-            raise RuntimeError(f"Failed to submit Anthropic batch: {e}") from e
 
     def get_status(self, batch_id: str) -> dict[str, Any]:
         """Get Anthropic batch status"""

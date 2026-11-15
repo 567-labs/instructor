@@ -37,7 +37,8 @@ from instructor.v2.core.errors import (
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.partial import PartialBase
 from instructor.v2.dsl.response_list import ListResponse
-from instructor.v2.dsl.simple_type import AdapterBase
+from instructor.v2.dsl.parallel import ParallelBase
+from instructor.v2.dsl.simple_type import AdapterBase, unwrap_adapter
 from instructor.v2.core.messages import extract_messages, isolate_retry_kwargs
 from instructor.v2.core.usage import (
     _usage_snapshot as _usage_snapshot,
@@ -85,26 +86,31 @@ def _finalize_parsed_response(
     parsed: Any,
     response: Any,
     total_usage: Any | None = None,
+    *,
+    response_model: Any = None,
+    wrap_list: bool = True,
 ) -> Any:
-    usage = _usage_snapshot(total_usage) if total_usage is not None else None
+    """Unwrap DSL results and attach the raw response and usage.
+
+    ``wrap_list=False`` keeps lists plain and leaves parallel results untouched.
+    """
     if isinstance(parsed, IterableBase):
-        parsed = [task for task in parsed.tasks]
+        parsed = [unwrap_adapter(task) for task in parsed.tasks]
+    if isinstance(parsed, list) and not wrap_list:
+        return parsed
+    usage = _usage_snapshot(total_usage) if total_usage is not None else None
+    if isinstance(parsed, list) and not isinstance(parsed, ListResponse):
+        return ListResponse.from_list(parsed, raw_response=response, total_usage=usage)
+    if isinstance(response_model, ParallelBase):
+        if wrap_list:
+            object.__setattr__(parsed, "_raw_response", response)
+        return parsed
     if isinstance(parsed, AdapterBase):
         return parsed.content
-    if isinstance(parsed, list) and not isinstance(parsed, ListResponse):
-        return ListResponse.from_list(
-            parsed,
-            raw_response=response,
-            total_usage=usage,
-        )
-    if isinstance(parsed, ListResponse):
-        parsed._raw_response = response
-        parsed._total_usage = usage
-        return parsed
-    if isinstance(parsed, BaseModel):
-        parsed._raw_response = response  # type: ignore[attr-defined]
+    if isinstance(parsed, (BaseModel, ListResponse)):
+        object.__setattr__(parsed, "_raw_response", response)
         if usage is not None:
-            parsed._total_usage = usage  # type: ignore[attr-defined]
+            object.__setattr__(parsed, "_total_usage", usage)
     return parsed
 
 

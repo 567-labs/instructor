@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from textwrap import dedent
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -23,13 +24,7 @@ def text_from_content_blocks(blocks: list[Any]) -> str | None:
 
 
 def append_system_instruction(message: dict[str, Any], instruction: str) -> None:
-    """Append `instruction` to an existing system message in place.
-
-    String content gets the text appended. List content gets it appended to
-    the first dict part with string `text` (images and other parts untouched);
-    if there is no such part, a new text part is added. Callers must pass a
-    message that is already safe to mutate (see `copy_messages_for_mutation`).
-    """
+    """Append `instruction` to a mutable system message's first text part."""
     content = message.get("content")
     if isinstance(content, str):
         message["content"] = f"{content}\n\n{instruction}"
@@ -71,6 +66,46 @@ def copy_messages_for_mutation(messages: list[dict[str, Any]]) -> list[dict[str,
                 dict(item) if isinstance(item, dict) else item for item in content
             ]
     return copied
+
+
+def add_json_schema_prompt(
+    messages: list[dict[str, Any]],
+    schema: dict[str, Any],
+    *,
+    codeblock: bool = False,
+    suffix: str = "",
+    merge: bool = True,
+) -> list[dict[str, Any]]:
+    """Return a copy of `messages` with the JSON-schema system instruction."""
+    instruction = dedent(
+        f"""
+            As a genius expert, your task is to understand the content and provide
+            the parsed objects in json that match the following json_schema:\n
+
+            {json.dumps(schema, indent=2, ensure_ascii=False)}
+
+            Make sure to return an instance of the JSON, not the schema itself{suffix}
+            """
+    )
+    messages = copy_messages_for_mutation(messages)
+    if messages and messages[0]["role"] == "system":
+        append_system_instruction(messages[0], instruction)
+    else:
+        messages.insert(0, {"role": "system", "content": instruction})
+    if codeblock:
+        messages.append(
+            {
+                "role": "user",
+                "content": "Return the correct JSON response within a ```json codeblock. not the JSON_SCHEMA",
+            }
+        )
+    return merge_consecutive_messages(messages) if merge else messages
+
+
+def first_choice_message(response: Any) -> Any | None:
+    """Return `choices[0].message`, or None for streams and empty `choices`."""
+    choices = getattr(response, "choices", None)
+    return choices[0].message if choices else None
 
 
 def isolate_retry_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -147,13 +182,7 @@ def merge_consecutive_messages(messages: list[dict[str, Any]]) -> list[dict[str,
 
 
 def get_message_content(message: ChatCompletionMessageParam | None) -> list[Any]:
-    """Return message content in list form for Gemini-style APIs.
-
-    The returned list is always a new object: callers treat it as their own
-    `parts` list (e.g. `transform_to_gemini_prompt` hoists the system prompt
-    into it with `.insert(0, ...)`), and returning the caller's own content
-    list would splice the hoisted prompt into the caller's message.
-    """
+    """Return a new list of message content for Gemini-style APIs."""
     if not message:
         return [""]
     content = message.get("content", "")

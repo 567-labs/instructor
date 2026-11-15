@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from instructor.cache import AutoCache, load_cached_response, store_cached_response
 
@@ -72,23 +72,6 @@ def test_separate_validation_and_serialization_aliases_round_trip():
     with pytest.raises(ValidationError):
         load_cached_response(cache, "entry", Envelope, strict=True)
     assert load_cached_response(cache, "entry", Envelope, strict=False) == model
-
-
-def test_schema_fallback_preserves_field_names_and_original_configuration(monkeypatch):
-    from instructor.v2.core import cache_response
-
-    class OldEntry(BaseModel):
-        code: int = Field(alias="wireCode")
-        values: list[int] = Field(default_factory=list)
-
-    monkeypatch.setattr(cache_response, "_SUPPORTS_BY_NAME", False)
-    cache = AutoCache()
-    cache.set("legacy", '{"code":1,"values":[1,2]}')
-    assert load_cached_response(cache, "legacy", OldEntry) == OldEntry(
-        wireCode=1, values=[1, 2]
-    )
-    with pytest.raises(ValidationError):
-        OldEntry.model_validate({"code": 1})
 
 
 def test_cache_keeps_overlapping_field_names_distinct() -> None:

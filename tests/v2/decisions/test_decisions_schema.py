@@ -67,21 +67,7 @@ def test_choices_enum_values_descriptions_examples_and_typed_results() -> None:
     [
         (Literal["yes", "no"], {"yes": None, "no": None}, "no"),
         (PlainAction, {"allow": None, "review": None}, PlainAction.REVIEW),
-        (
-            Annotated[Literal["yes", "no"], Choice(description=["A rule"])],
-            {"yes": ["A rule"], "no": ["A rule"]},
-            "yes",
-        ),
-        (
-            Union[
-                Annotated[Literal["yes"], Choice(description="Accept")],
-                Annotated[
-                    Literal["no"], Choice(description="Reject", examples=[False])
-                ],
-            ],
-            {"yes": "Accept", "no": {"meaning": "Reject", "examples": ["False"]}},
-            "no",
-        ),
+        (Union[Literal["yes"], Literal["no"]], {"yes": None, "no": None}, "no"),
     ],
 )
 def test_choice_annotations_generate_criteria_and_validate_results(
@@ -133,9 +119,11 @@ def test_generated_criteria_are_independent_of_annotation_data(
     meaning = {"rules": ["Original"]}
     original_examples = examples.copy()
     if kind == "choice":
-        annotation = Annotated[
-            Literal["ok"], Choice(description=meaning, examples=examples)
-        ]
+
+        class Options(Choices):
+            OK = Choice(description=meaning, examples=examples)
+
+        annotation = Options
     elif kind == "noul":
         annotation = Annotated[
             float,
@@ -170,8 +158,7 @@ def test_noul_and_score_group_examples_without_modifying_specs() -> None:
     noul = Noul("Flag {{ item }}?", examples=[("good", False), (7, True)])
     score = Score(
         "Rate {{ item }}",
-        levels=[Level("Low", examples=["base"]), Level({"rule": "High"})],
-        examples=[("extra", 0), (3, 1)],
+        levels=[Level("Low", examples=["base", "extra"]), Level({"rule": "High"}, [3])],
         scale=(-5, 5),
     )
     before = deepcopy((noul, score))
@@ -294,24 +281,12 @@ def test_choice_answers_require_a_declared_string_option(value: Any) -> None:
         ({"populate_by_name": True}, {"alias": "wire"}, "wire"),
         ({}, {"alias": "wire", "validation_alias": "incoming"}, "incoming"),
         ({}, {"serialization_alias": "outgoing"}, "value"),
-        pytest.param(
+        (
             {"validate_by_alias": False, "validate_by_name": True},
             {"alias": "wire", "validation_alias": "incoming"},
             "value",
-            marks=pytest.mark.skipif(
-                "validate_by_alias" not in ConfigDict.__annotations__,
-                reason="Pydantic before 2.11 does not support validate_by_alias",
-            ),
         ),
-        pytest.param(
-            {"validate_by_alias": False},
-            {"alias": "wire"},
-            "value",
-            marks=pytest.mark.skipif(
-                "validate_by_alias" not in ConfigDict.__annotations__,
-                reason="Pydantic before 2.11 does not support validate_by_alias",
-            ),
-        ),
+        ({"validate_by_alias": False}, {"alias": "wire"}, "value"),
     ],
 )
 def test_aliases_follow_pydantic_input_configuration_but_keep_question_names(
@@ -336,23 +311,6 @@ def test_aliases_follow_pydantic_input_configuration_but_keep_question_names(
             {},
             True,
         )
-
-
-@pytest.mark.skipif(
-    "validate_by_alias" in ConfigDict.__annotations__,
-    reason="Only Pydantic before 2.11 ignores validate_by_alias",
-)
-def test_legacy_pydantic_configuration_ignores_unsupported_alias_flag() -> None:
-    model = create_model(
-        "LegacyAlias",
-        __config__=ConfigDict(**{"validate_by_alias": False}),
-        value=(Literal["ok"], Field(alias="wire", description="Decide")),
-    )
-    fields = build_questions(model, {})
-    assert fields[0].input_name == "wire"
-    assert parse_answers(
-        model, fields, reply("choice", "ok"), {}, True
-    ).model_dump() == {"value": "ok"}
 
 
 def test_context_and_strictness_reach_real_pydantic_validation() -> None:
@@ -382,14 +340,10 @@ def test_context_and_strictness_reach_real_pydantic_validation() -> None:
             Annotated[float, Noul("Flag"), Score("Rate", ["Low", "High"])],
             "only one decision annotation",
         ),
-        (Annotated[float, Noul("Flag"), Choice()], "Choice cannot be combined"),
+        (Annotated[float, Noul("Flag"), Choice()], "only supported in Choices"),
         (
             Annotated[float, Score("Rate", ["Low", "High"]), Choice()],
-            "Choice cannot be combined",
-        ),
-        (
-            Annotated[Literal["ok"], Choice(), Choice(description="Other")],
-            "only one Choice annotation",
+            "only supported in Choices",
         ),
         (
             Annotated[Literal["ok"], Question("First"), Question("Second")],
@@ -409,18 +363,9 @@ def test_conflicting_annotations_are_rejected(annotation: Any, message: str) -> 
         (Literal[1], "unique nonempty strings"),
         (Literal[""], "unique nonempty strings"),
         (Union[Literal["ok"], None], "Expected a string Literal"),
-        (Annotated[str, Choice()], "Inline choices require"),
-        (
-            Annotated[Literal["ok"], Choice(value="other")],
-            "only supported in Choices enums",
-        ),
-        (
-            Union[
-                Annotated[Literal["ok"], Choice(description="First")],
-                Annotated[Literal["ok"], Choice(description="Second")],
-            ],
-            "unique nonempty strings",
-        ),
+        (Annotated[Literal["ok"], Choice()], "only supported in Choices enums"),
+        (Union[Literal["ok"], Literal["ok"], int], "Expected a string Literal"),
+        (Union[Literal["ok"], PlainAction, Literal["allow"]], "unique nonempty"),
         (Annotated[int, Noul("Flag")], "Noul requires a float field"),
         (
             Annotated[int, Score("Rate", ["Low", "High"])],
@@ -433,14 +378,6 @@ def test_conflicting_annotations_are_rejected(annotation: Any, message: str) -> 
         (
             Annotated[float, Noul("Flag", examples=cast(Any, [("x", 1)]))],
             "labels must be booleans",
-        ),
-        (
-            Annotated[float, Noul("Flag", when_true="yes", criteria={"true": "yes"})],
-            "criteria cannot be combined",
-        ),
-        (
-            Annotated[float, Noul("Flag", criteria={"unknown": "yes"})],
-            "only 'true' and 'false'",
         ),
     ],
 )
@@ -470,15 +407,6 @@ def test_score_scale_requires_two_finite_increasing_numeric_bounds(scale: Any) -
         Annotated[float, Score("Rate", ["Low", "High"], scale=scale)]
     )
     with pytest.raises(ValueError, match="finite and increasing"):
-        build_questions(model, {})
-
-
-@pytest.mark.parametrize("index", [True, False, -1, 2, 0.5, "0"])
-def test_score_example_index_requires_an_in_range_integer(index: Any) -> None:
-    model = decision_model(
-        Annotated[float, Score("Rate", ["Low", "High"], examples=[("x", index)])]
-    )
-    with pytest.raises(ValueError, match="invalid Score example level index"):
         build_questions(model, {})
 
 
@@ -514,10 +442,11 @@ def test_instructions_must_be_nonempty_json_strings_objects_or_arrays(
 def test_choice_criteria_reject_non_json_or_non_structured_meanings(
     meaning: Any,
 ) -> None:
+    class Options(Choices):
+        OK = Choice(description=meaning)
+
     with pytest.raises(ValueError, match="Instructions and criteria"):
-        build_questions(
-            decision_model(Annotated[Literal["ok"], Choice(description=meaning)]), {}
-        )
+        build_questions(decision_model(Options), {})
 
 
 def test_empty_model_invalid_model_and_non_dictionary_context_are_rejected() -> None:
@@ -606,7 +535,7 @@ def test_plain_enums_reject_non_string_values_aliases_and_empty_options() -> Non
 
 
 def test_score_accepts_ten_levels_and_uses_the_last_example_index() -> None:
-    spec = Score("Rate", [str(index) for index in range(10)], examples=[("last", 9)])
+    spec = Score("Rate", [str(index) for index in range(9)] + [Level("9", ["last"])])
     model = decision_model(Annotated[float, spec])
     fields = build_questions(model, {})
     assert fields[0].question["criteria"] == [str(index) for index in range(9)] + [

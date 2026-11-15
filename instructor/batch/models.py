@@ -15,6 +15,20 @@ from enum import Enum
 T = TypeVar("T", bound=BaseModel)
 
 
+def _parse_timestamp(value: Any) -> datetime | None:
+    """Parse a datetime, Unix seconds, or ISO string; missing or invalid is None"""
+    if isinstance(value, datetime):
+        return value
+    try:
+        if isinstance(value, str):
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value:
+            return datetime.fromtimestamp(value, tz=timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        pass
+    return None
+
+
 class BatchSuccess(BaseModel, Generic[T]):
     """Successful batch result with custom_id"""
 
@@ -36,11 +50,7 @@ class BatchError(BaseModel):
 
 
 class BatchStatus(str, Enum):
-    """Normalized batch status across providers.
-
-    CANCELLED includes cancellation requests still in progress. Use
-    BatchJobInfo.raw_status for the provider's exact state.
-    """
+    """Normalized batch status; CANCELLED includes pending cancellations"""
 
     PENDING = "pending"
     PROCESSING = "processing"
@@ -130,11 +140,7 @@ class BatchJobInfo(BaseModel):
 
     @classmethod
     def from_openai(cls, batch_data: dict[str, Any]) -> BatchJobInfo:
-        """Create from an OpenAI batch response.
-
-        Missing or null request counts stay unknown; missing or null metadata
-        becomes an empty mapping.
-        """
+        """Create from OpenAI batch response"""
         # Normalize status
         status_map = {
             "validating": BatchStatus.PENDING,
@@ -147,43 +153,14 @@ class BatchJobInfo(BaseModel):
             "cancelling": BatchStatus.CANCELLED,
         }
 
-        # Parse timestamps
         timestamps = BatchTimestamps(
-            created_at=(
-                datetime.fromtimestamp(batch_data["created_at"], tz=timezone.utc)
-                if batch_data.get("created_at")
-                else None
-            ),
-            started_at=(
-                datetime.fromtimestamp(batch_data["in_progress_at"], tz=timezone.utc)
-                if batch_data.get("in_progress_at")
-                else None
-            ),
-            completed_at=(
-                datetime.fromtimestamp(batch_data["completed_at"], tz=timezone.utc)
-                if batch_data.get("completed_at")
-                else None
-            ),
-            failed_at=(
-                datetime.fromtimestamp(batch_data["failed_at"], tz=timezone.utc)
-                if batch_data.get("failed_at")
-                else None
-            ),
-            cancelled_at=(
-                datetime.fromtimestamp(batch_data["cancelled_at"], tz=timezone.utc)
-                if batch_data.get("cancelled_at")
-                else None
-            ),
-            expired_at=(
-                datetime.fromtimestamp(batch_data["expired_at"], tz=timezone.utc)
-                if batch_data.get("expired_at")
-                else None
-            ),
-            expires_at=(
-                datetime.fromtimestamp(batch_data["expires_at"], tz=timezone.utc)
-                if batch_data.get("expires_at")
-                else None
-            ),
+            created_at=_parse_timestamp(batch_data.get("created_at")),
+            started_at=_parse_timestamp(batch_data.get("in_progress_at")),
+            completed_at=_parse_timestamp(batch_data.get("completed_at")),
+            failed_at=_parse_timestamp(batch_data.get("failed_at")),
+            cancelled_at=_parse_timestamp(batch_data.get("cancelled_at")),
+            expired_at=_parse_timestamp(batch_data.get("expired_at")),
+            expires_at=_parse_timestamp(batch_data.get("expires_at")),
         )
 
         # Parse request counts
@@ -241,30 +218,14 @@ class BatchJobInfo(BaseModel):
             "expired": BatchStatus.EXPIRED,
         }
 
-        # Parse timestamps
-        def parse_iso_timestamp(timestamp_value):
-            if not timestamp_value:
-                return None
-            try:
-                # Handle different timestamp format variations
-                if isinstance(timestamp_value, datetime):
-                    return timestamp_value
-                if isinstance(timestamp_value, str):
-                    return datetime.fromisoformat(
-                        timestamp_value.replace("Z", "+00:00")
-                    )
-                return None
-            except (ValueError, AttributeError):
-                return None
-
         timestamps = BatchTimestamps(
-            created_at=parse_iso_timestamp(batch_data.get("created_at")),
-            started_at=parse_iso_timestamp(
+            created_at=_parse_timestamp(batch_data.get("created_at")),
+            started_at=_parse_timestamp(
                 batch_data.get("created_at")
             ),  # Anthropic doesn't provide started_at, use created_at
-            cancelled_at=parse_iso_timestamp(batch_data.get("cancel_initiated_at")),
-            completed_at=parse_iso_timestamp(batch_data.get("ended_at")),
-            expires_at=parse_iso_timestamp(batch_data.get("expires_at")),
+            cancelled_at=_parse_timestamp(batch_data.get("cancel_initiated_at")),
+            completed_at=_parse_timestamp(batch_data.get("ended_at")),
+            expires_at=_parse_timestamp(batch_data.get("expires_at")),
         )
 
         # Parse request counts
@@ -314,30 +275,10 @@ class BatchJobInfo(BaseModel):
             "CANCELLED": BatchStatus.CANCELLED,
         }
 
-        # Mistral reports timestamps as Unix seconds
-        def parse_timestamp(timestamp_value):
-            if isinstance(timestamp_value, datetime):
-                return timestamp_value
-            if isinstance(timestamp_value, (int, float)) and not isinstance(
-                timestamp_value, bool
-            ):
-                try:
-                    return datetime.fromtimestamp(timestamp_value, tz=timezone.utc)
-                except (OverflowError, OSError, ValueError):
-                    return None
-            if isinstance(timestamp_value, str):
-                try:
-                    return datetime.fromisoformat(
-                        timestamp_value.replace("Z", "+00:00")
-                    )
-                except ValueError:
-                    return None
-            return None
-
         timestamps = BatchTimestamps(
-            created_at=parse_timestamp(batch_data.get("created_at")),
-            started_at=parse_timestamp(batch_data.get("started_at")),
-            completed_at=parse_timestamp(batch_data.get("completed_at")),
+            created_at=_parse_timestamp(batch_data.get("created_at")),
+            started_at=_parse_timestamp(batch_data.get("started_at")),
+            completed_at=_parse_timestamp(batch_data.get("completed_at")),
         )
 
         request_counts = BatchRequestCounts(

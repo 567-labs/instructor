@@ -13,6 +13,7 @@ from instructor.v2.core.mode import Mode
 from instructor.v2.core.multimodal import extract_genai_multimodal_content
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.response_model import prepare_response_model
+from instructor.v2.core.streaming import adrain_stream, drain_stream
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import ParallelBase
 from instructor.v2.dsl.partial import Partial, PartialBase
@@ -116,17 +117,6 @@ def reask_genai_structured_outputs(
     return kwargs
 
 
-def _is_truncated_at_max_tokens(response: Any) -> bool:
-    """Return True when the first candidate stopped at the token limit."""
-    from google.genai import types as genai_types
-
-    candidates = getattr(response, "candidates", None)
-    return bool(
-        candidates
-        and candidates[0].finish_reason == genai_types.FinishReason.MAX_TOKENS
-    )
-
-
 def parse_genai_structured_outputs(
     response_model: type[BaseModel],
     completion: Any,
@@ -196,8 +186,6 @@ class GenAIHandlerBase(ModeHandler):
         return None
 
     def _extract_chunk_json(self, chunk: Any) -> str | None:
-        # `candidates` can be empty (e.g. a safety-blocked chunk), which
-        # raises IndexError; callers skip the chunk either way.
         if self.mode == Mode.TOOLS:
             parts = chunk.candidates[0].content.parts or []
             # Skip thought parts that may share the chunk with the function call.
@@ -209,36 +197,26 @@ class GenAIHandlerBase(ModeHandler):
         self, completion: Any, *, require_complete: bool = False
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from GenAI streaming responses."""
-        incomplete_chunk: Any = None
-        for chunk in completion:
-            if require_complete and _is_truncated_at_max_tokens(chunk):
-                incomplete_chunk = chunk
-            try:
-                if text := self._extract_chunk_json(chunk):
-                    yield text
-            except (AttributeError, IndexError):
-                continue
-        if incomplete_chunk is not None:
-            raise IncompleteOutputException(last_completion=incomplete_chunk)
+        truncated = gemini_utils.is_truncated_at_max_tokens
+        return drain_stream(
+            completion,
+            self._extract_chunk_json,
+            truncated=truncated if require_complete else None,
+        )
 
-    async def extract_streaming_json_async(
+    def extract_streaming_json_async(
         self,
         completion: AsyncGenerator[Any, None],
         *,
         require_complete: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from GenAI async streams."""
-        incomplete_chunk: Any = None
-        async for chunk in completion:
-            if require_complete and _is_truncated_at_max_tokens(chunk):
-                incomplete_chunk = chunk
-            try:
-                if text := self._extract_chunk_json(chunk):
-                    yield text
-            except (AttributeError, IndexError):
-                continue
-        if incomplete_chunk is not None:
-            raise IncompleteOutputException(last_completion=incomplete_chunk)
+        truncated = gemini_utils.is_truncated_at_max_tokens
+        return adrain_stream(
+            completion,
+            self._extract_chunk_json,
+            truncated=truncated if require_complete else None,
+        )
 
     def _wrap_streaming_model(
         self,
@@ -385,7 +363,7 @@ class GenAIHandlerBase(ModeHandler):
         # emitted the remaining fields, so parsing it yields schema defaults that
         # are indistinguishable from values the model actually chose.
         # Restores the check shipped in v1.15.0 (#2232), dropped by 60cc815.
-        if _is_truncated_at_max_tokens(response):
+        if gemini_utils.is_truncated_at_max_tokens(response):
             raise IncompleteOutputException(last_completion=response)
 
         if self.mode == Mode.TOOLS:

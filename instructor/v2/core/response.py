@@ -47,10 +47,7 @@ from typing_extensions import ParamSpec
 from instructor.v2.core.errors import InstructorError
 
 from instructor.v2.dsl.iterable import IterableBase
-from instructor.v2.dsl.parallel import ParallelBase
 from instructor.v2.dsl.partial import PartialBase
-from instructor.v2.dsl.response_list import ListResponse
-from instructor.v2.dsl.simple_type import AdapterBase, unwrap_adapter
 
 if TYPE_CHECKING:
     from instructor.v2.core.function_calls import ResponseSchema
@@ -66,6 +63,7 @@ from instructor.v2.core.response_model import (
     prepare_response_model,
 )
 from instructor.v2.core.registry import mode_registry
+from instructor.v2.core.retry import _finalize_parsed_response
 
 logger = logging.getLogger("instructor")
 
@@ -89,31 +87,6 @@ def _ensure_registry_loaded() -> None:
     except Exception:
         # Best-effort: allow downstream KeyError to surface if registry is empty.
         return
-
-
-def _finalize_response(model: Any, response_model: Any, response: Any) -> Any:
-    if isinstance(model, IterableBase):
-        logger.debug(f"Returning takes from IterableBase")
-        return ListResponse.from_list(  # type: ignore[return-value]
-            [unwrap_adapter(task) for task in cast(Any, model).tasks],
-            raw_response=response,
-        )
-    if isinstance(model, list) and not isinstance(model, ListResponse):
-        logger.debug("Wrapping list response with ListResponse")
-        return ListResponse.from_list(model, raw_response=response)
-
-    if isinstance(response_model, ParallelBase):
-        logger.debug(f"Returning model from ParallelBase")
-        object.__setattr__(model, "_raw_response", response)
-        return model
-
-    if isinstance(model, AdapterBase):
-        logger.debug(f"Returning model from AdapterBase")
-        return cast(Any, model).content
-
-    if isinstance(model, BaseModel):
-        object.__setattr__(model, "_raw_response", response)
-    return model
 
 
 def _provider_kwarg(from_response: Any, provider: Any) -> dict[str, Any]:
@@ -204,7 +177,7 @@ async def process_response_async(
             **_provider_kwarg(dynamic_response_model.from_response, provider),
         )
         # Provider parsers may return the IterableBase or its finalized task list.
-        return _finalize_response(model, response_model, response)
+        return _finalize_parsed_response(model, response, response_model=response_model)
 
     _ensure_registry_loaded()
     handlers = mode_registry.get_handlers(provider, mode)
@@ -230,7 +203,7 @@ async def process_response_async(
     ):
         return model
 
-    return _finalize_response(model, response_model, response)
+    return _finalize_parsed_response(model, response, response_model=response_model)
 
 
 def process_response(
@@ -320,7 +293,7 @@ def process_response(
             **_provider_kwarg(dynamic_response_model.from_response, provider),
         )
         # Provider parsers may return the IterableBase or its finalized task list.
-        return _finalize_response(model, response_model, response)
+        return _finalize_parsed_response(model, response, response_model=response_model)
 
     _ensure_registry_loaded()
     handlers = mode_registry.get_handlers(provider, mode)
@@ -346,7 +319,7 @@ def process_response(
     ):
         return model
 
-    return _finalize_response(model, response_model, response)
+    return _finalize_parsed_response(model, response, response_model=response_model)
 
 
 def handle_response_model(

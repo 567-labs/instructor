@@ -9,12 +9,8 @@ from pydantic import ValidationError
 from typing_extensions import NotRequired, TypedDict
 
 from instructor import Mode
-from instructor.cache import AutoCache
+from instructor.cache import AutoCache, load_cached_response, store_cached_response
 from instructor.processing.response import handle_response_model, process_response
-from instructor.v2.core.cache_response import (
-    load_cached_response,
-    store_cached_response,
-)
 from instructor.v2.core.response_model import prepare_response_model
 
 

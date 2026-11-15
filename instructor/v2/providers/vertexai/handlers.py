@@ -29,6 +29,7 @@ from instructor.v2.providers.gemini.utils import (
 )
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
+from instructor.v2.core.streaming import adrain_stream, drain_stream
 
 
 def _gm() -> Any:
@@ -260,38 +261,25 @@ class VertexAIHandlerBase(ModeHandler):
 
     mode: Mode
 
+    def _chunk_json(self, chunk: Any) -> str:
+        part = chunk.candidates[0].content.parts[0]
+        return (
+            json.dumps(part.function_call.args)
+            if self.mode == Mode.TOOLS
+            else part.text
+        )
+
     def extract_streaming_json(
         self, completion: TypingIterable[Any]
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from VertexAI streaming responses."""
-        for chunk in completion:
-            try:
-                # `candidates` can be empty (e.g. a safety-blocked chunk),
-                # which raises IndexError rather than AttributeError — skip
-                # the chunk either way.
-                if self.mode == Mode.TOOLS:
-                    yield json.dumps(
-                        chunk.candidates[0].content.parts[0].function_call.args
-                    )
-                else:
-                    yield chunk.candidates[0].content.parts[0].text
-            except (AttributeError, IndexError):
-                continue
+        return drain_stream(completion, self._chunk_json)
 
-    async def extract_streaming_json_async(
+    def extract_streaming_json_async(
         self, completion: AsyncGenerator[Any, None]
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from VertexAI async streams."""
-        async for chunk in completion:
-            try:
-                if self.mode == Mode.TOOLS:
-                    yield json.dumps(
-                        chunk.candidates[0].content.parts[0].function_call.args
-                    )
-                else:
-                    yield chunk.candidates[0].content.parts[0].text
-            except (AttributeError, IndexError):
-                continue
+        return adrain_stream(completion, self._chunk_json)
 
     def _parse_streaming(
         self,

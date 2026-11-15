@@ -98,6 +98,17 @@ _AUDIO_SUFFIX_MEDIA_TYPES = {
 }
 
 
+def _autodetect_safely(cls: Any, source: str | Path | bytes) -> Any:
+    try:
+        return cls.autodetect(source)
+    except ValueError:
+        return str(source)
+    except OSError:
+        if isinstance(source, Path):
+            return str(source)
+        raise
+
+
 class ImageParamsBase(TypedDict):
     type: Literal["image"]
     source: str
@@ -150,22 +161,8 @@ class Image(BaseModel):
 
     @classmethod
     def autodetect_safely(cls, source: Union[str, Path, bytes]) -> Union[Image, str]:  # noqa: UP007
-        """Safely attempt to autodetect an image from a source string or path.
-
-        Args:
-            source (Union[str,path]): The source string or path.
-        Returns:
-            An Image if the source is detected to be a valid image, otherwise
-            the source itself as a string.
-        """
-        try:
-            return cls.autodetect(source)
-        except ValueError:
-            return str(source)
-        except OSError:
-            if isinstance(source, Path):
-                return str(source)
-            raise
+        """Return an image if *source* is one, otherwise the source as a string."""
+        return _autodetect_safely(cls, source)
 
     @classmethod
     def is_base64(cls, s: str) -> bool:
@@ -340,22 +337,8 @@ class Audio(BaseModel):
 
     @classmethod
     def autodetect_safely(cls, source: Union[str, Path]) -> Union[Audio, str]:  # noqa: UP007
-        """Safely attempt to autodetect an audio from a source string or path.
-
-        Args:
-            source (Union[str,path]): The source string or path.
-        Returns:
-            An Audio if the source is detected to be a valid audio, otherwise
-            the source itself as a string.
-        """
-        try:
-            return cls.autodetect(source)
-        except ValueError:
-            return str(source)
-        except OSError:
-            if isinstance(source, Path):
-                return str(source)
-            raise
+        """Return an audio if *source* is one, otherwise the source as a string."""
+        return _autodetect_safely(cls, source)
 
     @classmethod
     def is_base64(cls, s: str) -> bool:
@@ -548,22 +531,8 @@ class PDF(BaseModel):
 
     @classmethod
     def autodetect_safely(cls, source: Union[str, Path]) -> Union[PDF, str]:  # noqa: UP007
-        """Safely attempt to autodetect a PDF from a source string or path.
-
-        Args:
-            source (Union[str,path]): The source string or path.
-        Returns:
-            A PDF if the source is detected to be a valid PDF, otherwise
-            the source itself as a string.
-        """
-        try:
-            return cls.autodetect(source)
-        except ValueError:
-            return str(source)
-        except OSError:
-            if isinstance(source, Path):
-                return str(source)
-            raise
+        """Return a PDF if *source* is one, otherwise the source as a string."""
+        return _autodetect_safely(cls, source)
 
     @classmethod
     def is_base64(cls, s: str) -> bool:

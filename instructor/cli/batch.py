@@ -7,18 +7,12 @@ import time
 import json
 import warnings
 from instructor.batch import BatchProcessor, BatchJobInfo
+from instructor.batch.providers import get_provider
 
 
 app = typer.Typer()
 
 console = Console()
-
-# Placeholder models used when an operation only needs the provider name
-PROVIDER_MODEL_MAP = {
-    "openai": "openai/gpt-4o-mini",
-    "anthropic": "anthropic/claude-3-sonnet",
-    "mistral": "mistral/mistral-small-latest",
-}
 
 PROVIDER_API_KEYS = {
     "openai": "OPENAI_API_KEY",
@@ -152,23 +146,11 @@ def generate_table(
 
 
 def get_jobs(limit: int = 10, provider: str = "openai") -> list[BatchJobInfo]:
-    """Get batch jobs for the specified provider using BatchProcessor"""
-
-    # We just need the provider part for listing batches
-    if provider not in PROVIDER_MODEL_MAP:
+    """Get batch jobs for the specified provider"""
+    if provider not in PROVIDER_API_KEYS:
         raise ValueError(f"Unsupported provider: {provider}")
-
-    # Create a dummy response model (not used for listing)
-    from pydantic import BaseModel
-
-    class DummyModel(BaseModel):
-        dummy: str = "dummy"
-
     try:
-        # Create BatchProcessor instance
-        processor = BatchProcessor(PROVIDER_MODEL_MAP[provider], DummyModel)
-        # Get batch jobs
-        return processor.list_batches(limit=limit)
+        return get_provider(provider).list_batches(limit=limit)
     except Exception as e:
         console.print(f"[red]Error listing {provider} batch jobs: {e}[/red]")
         return []
@@ -300,6 +282,28 @@ def create_from_file(
         console.print(f"[bold red]Error creating batch job: {e}[/bold red]")
 
 
+def _run_batch_action(
+    action: str, verb: str, past: str, batch_id: str, provider: str
+) -> None:
+    """Cancel or delete a batch, then show the updated list"""
+    try:
+        if provider not in PROVIDER_API_KEYS:
+            console.print(f"[red]Unsupported provider: {provider}[/red]")
+            return
+        with console.status(
+            f"[bold yellow]{verb} {provider} batch job...", spinner="dots"
+        ):
+            getattr(get_provider(provider), f"{action}_batch")(batch_id)
+        console.print(f"[bold green]Batch {batch_id} {past} successfully![/bold green]")
+        watch(limit=5, poll=2, screen=False, live=False, provider=provider)
+    except NotImplementedError as e:
+        console.print(f"[yellow]Note: {e}[/yellow]")
+    except Exception as e:
+        console.print(
+            f"[bold red]Error {verb.lower()} batch {batch_id}: {e}[/bold red]"
+        )
+
+
 @app.command(help="Cancel a batch job")
 def cancel(
     batch_id: str = typer.Option(help="Batch job ID to cancel"),
@@ -313,8 +317,7 @@ def cancel(
         help="[DEPRECATED] Use --provider 'anthropic' instead. Use Anthropic API instead of OpenAI",
     ),
 ):
-    """Cancel a batch job using the unified BatchProcessor"""
-    # Handle deprecated flag
+    """Cancel a batch job"""
     if use_anthropic is not None:
         warnings.warn(
             "--use-anthropic is deprecated. Use --provider 'anthropic' instead.",
@@ -323,37 +326,7 @@ def cancel(
         )
         if use_anthropic:
             provider = "anthropic"
-
-    try:
-        # Create a dummy response model (not used for cancellation)
-        from pydantic import BaseModel
-
-        class DummyModel(BaseModel):
-            dummy: str = "dummy"
-
-        if provider not in PROVIDER_MODEL_MAP:
-            console.print(f"[red]Unsupported provider: {provider}[/red]")
-            return
-
-        # Create BatchProcessor instance
-        processor = BatchProcessor(PROVIDER_MODEL_MAP[provider], DummyModel)
-
-        with console.status(
-            f"[bold yellow]Cancelling {provider} batch job...", spinner="dots"
-        ):
-            processor.cancel_batch(batch_id)
-
-        console.print(
-            f"[bold green]Batch {batch_id} cancelled successfully![/bold green]"
-        )
-
-        # Show updated status
-        watch(limit=5, poll=2, screen=False, live=False, provider=provider)
-
-    except NotImplementedError as e:
-        console.print(f"[yellow]Note: {e}[/yellow]")
-    except Exception as e:
-        console.print(f"[bold red]Error cancelling batch {batch_id}: {e}[/bold red]")
+    _run_batch_action("cancel", "Cancelling", "cancelled", batch_id, provider)
 
 
 @app.command(help="Delete a completed batch job")
@@ -364,37 +337,8 @@ def delete(
         help="Provider to use (e.g., 'openai', 'anthropic', 'mistral')",
     ),
 ):
-    """Delete a batch job using the unified BatchProcessor"""
-    try:
-        # Create a dummy response model (not used for deletion)
-        from pydantic import BaseModel
-
-        class DummyModel(BaseModel):
-            dummy: str = "dummy"
-
-        if provider not in PROVIDER_MODEL_MAP:
-            console.print(f"[red]Unsupported provider: {provider}[/red]")
-            return
-
-        # Create BatchProcessor instance
-        processor = BatchProcessor(PROVIDER_MODEL_MAP[provider], DummyModel)
-
-        with console.status(
-            f"[bold yellow]Deleting {provider} batch job...", spinner="dots"
-        ):
-            processor.delete_batch(batch_id)
-
-        console.print(
-            f"[bold green]Batch {batch_id} deleted successfully![/bold green]"
-        )
-
-        # Show updated status
-        watch(limit=5, poll=2, screen=False, live=False, provider=provider)
-
-    except NotImplementedError as e:
-        console.print(f"[yellow]Note: {e}[/yellow]")
-    except Exception as e:
-        console.print(f"[bold red]Error deleting batch {batch_id}: {e}[/bold red]")
+    """Delete a batch job"""
+    _run_batch_action("delete", "Deleting", "deleted", batch_id, provider)
 
 
 @app.command(help="Download the file associated with a batch job")
@@ -408,8 +352,6 @@ def download_file(
 ):
     try:
         if provider in ("anthropic", "mistral"):
-            from instructor.batch.providers import get_provider
-
             # Provider downloads replace the file only after every record is read.
             get_provider(provider).download_results(batch_id, download_file_path)
         else:
@@ -470,8 +412,6 @@ def results(
             console.print(f"[bold green]Results saved to: {output_file}[/bold green]")
 
         elif provider in ("anthropic", "mistral"):
-            from instructor.batch.providers import get_provider
-
             get_provider(provider).download_results(batch_id, output_file)
             console.print(f"[bold green]Results saved to: {output_file}[/bold green]")
 

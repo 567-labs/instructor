@@ -125,26 +125,15 @@ def _response_usage_as_completion(response_usage: Any) -> Any:
 
 def has_compatible_usage(response: object, total_usage: object) -> bool:
     """Return whether a response exposes usage supported by the accumulator."""
-    response_usage = getattr(response, "usage", None)
-
     from openai.types import CompletionUsage as _OpenAIUsage
+    from openai.types.responses import ResponseUsage as _ResponseUsage
 
-    if isinstance(response_usage, _OpenAIUsage) and isinstance(
+    response_usage = getattr(response, "usage", None)
+    # Responses API usage is compatible with the Chat-shaped running total.
+    if isinstance(response_usage, (_OpenAIUsage, _ResponseUsage)) and isinstance(
         total_usage, _OpenAIUsage
     ):
         return True
-
-    # The Responses API returns a distinct ``ResponseUsage`` shape against the same
-    # Chat-shaped running total; it is compatible once projected (see update below).
-    try:
-        from openai.types.responses import ResponseUsage as _ResponseUsage
-
-        if isinstance(response_usage, _ResponseUsage) and isinstance(
-            total_usage, _OpenAIUsage
-        ):
-            return True
-    except ImportError:
-        pass
 
     try:
         from anthropic.types import Usage as _AnthropicUsage
@@ -164,6 +153,7 @@ def update_total_usage(
         return None
 
     from openai.types import CompletionUsage as _OpenAIUsage
+    from openai.types.responses import ResponseUsage as _ResponseUsage
 
     response_usage = getattr(response, "usage", None)
     if isinstance(response_usage, _OpenAIUsage) and isinstance(
@@ -172,36 +162,27 @@ def update_total_usage(
         _accumulate_models(response_usage, total_usage)
         return response
 
-    # OpenAI Responses API returns ``ResponseUsage`` (input/output_tokens) against
-    # the same Chat-shaped running total. Project it onto ``CompletionUsage`` and
-    # accumulate through the shared path, then echo the running totals back.
-    try:
-        from openai.types.responses import ResponseUsage as _ResponseUsage
-
-        if isinstance(response_usage, _ResponseUsage) and isinstance(
-            total_usage, _OpenAIUsage
-        ):
-            _accumulate_models(
-                _response_usage_as_completion(response_usage), total_usage
-            )
-            response_usage.input_tokens = total_usage.prompt_tokens
-            response_usage.output_tokens = total_usage.completion_tokens
-            response_usage.total_tokens = total_usage.total_tokens
-            if response_usage.input_tokens_details is not None:
-                details = total_usage.prompt_tokens_details
-                if details is not None:
-                    response_usage.input_tokens_details.cached_tokens = (
-                        details.cached_tokens
-                    )
-            if response_usage.output_tokens_details is not None:
-                details = total_usage.completion_tokens_details
-                if details is not None:
-                    response_usage.output_tokens_details.reasoning_tokens = (
-                        details.reasoning_tokens
-                    )
-            return response
-    except ImportError:
-        pass
+    # Project Responses API usage onto the Chat-shaped total, then echo totals back.
+    if isinstance(response_usage, _ResponseUsage) and isinstance(
+        total_usage, _OpenAIUsage
+    ):
+        _accumulate_models(_response_usage_as_completion(response_usage), total_usage)
+        response_usage.input_tokens = total_usage.prompt_tokens
+        response_usage.output_tokens = total_usage.completion_tokens
+        response_usage.total_tokens = total_usage.total_tokens
+        if response_usage.input_tokens_details is not None:
+            details = total_usage.prompt_tokens_details
+            if details is not None:
+                response_usage.input_tokens_details.cached_tokens = (
+                    details.cached_tokens
+                )
+        if response_usage.output_tokens_details is not None:
+            details = total_usage.completion_tokens_details
+            if details is not None:
+                response_usage.output_tokens_details.reasoning_tokens = (
+                    details.reasoning_tokens
+                )
+        return response
 
     try:
         from instructor.v2.providers.anthropic.usage import (

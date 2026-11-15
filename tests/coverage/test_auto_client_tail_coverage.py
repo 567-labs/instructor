@@ -230,10 +230,12 @@ def test_generative_ai_builder_uses_environment_key_and_forwards_options(
 
     assert isinstance(seen["client"], genai.Client)
     assert seen["client"]._api_client.api_key == "environment-key"
-    expected = {"model": "gemini-test", "mode": Mode.JSON, "max_tokens": 31}
-    if async_client:
-        expected["use_async"] = True
-    assert result == expected
+    assert result == {
+        "model": "gemini-test",
+        "mode": Mode.JSON,
+        "max_tokens": 31,
+        "use_async": async_client,
+    }
 
 
 @pytest.mark.parametrize(
@@ -456,24 +458,6 @@ async def test_xai_builder_forwards_real_client_and_mode(
                 channel.close()
 
 
-def test_xai_builder_reports_unavailable_factory(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import instructor.v2.providers.xai.client as xai_client
-
-    monkeypatch.setattr(xai_client, "from_xai", None)
-    with pytest.raises(ConfigurationError, match="Failed to import xAI provider"):
-        auto_client._build_xai(
-            provider="xai",
-            model_name="grok-test",
-            async_client=False,
-            mode=None,
-            api_key="test-key",
-            kwargs={},
-            provider_info=provider_info("xai"),
-        )
-
-
 @pytest.mark.parametrize("async_client", [False, True])
 def test_litellm_builder_selects_completion_and_forwards_mode(
     monkeypatch: pytest.MonkeyPatch, async_client: bool
@@ -577,62 +561,53 @@ def test_tail_builder_missing_dependency_has_actionable_error(
 FACTORY_FAILURES = [
     (
         "cerebras",
-        auto_client._build_cerebras,
         "instructor.v2.providers.cerebras.client",
         "from_cerebras",
     ),
     (
         "fireworks",
-        auto_client._build_fireworks,
         "instructor.v2.providers.fireworks.client",
         "from_fireworks",
     ),
-    ("vertexai", auto_client._build_vertexai, "instructor", "from_vertexai"),
+    ("vertexai", "instructor", "from_vertexai"),
     (
         "generative-ai",
-        auto_client._build_generative_ai,
         "instructor.v2.providers.genai.client",
         "from_genai",
     ),
     (
         "ollama",
-        auto_client._build_ollama,
         "instructor.v2.providers.openai.client",
         "from_openai",
     ),
     (
         "deepseek",
-        auto_client._build_deepseek,
         "instructor.v2.providers.openai.client",
         "from_deepseek",
     ),
     pytest.param(
         "xai",
-        auto_client._build_xai,
         "instructor.v2.providers.xai.client",
         "from_xai",
     ),
     (
         "openrouter",
-        auto_client._build_openrouter,
         "instructor.v2.providers.openrouter.client",
         "from_openrouter",
     ),
     (
         "litellm",
-        auto_client._build_litellm,
         "instructor.v2.providers.litellm.client",
         "from_litellm",
     ),
 ]
 
 
-@pytest.mark.parametrize("provider,builder,module_name,factory_name", FACTORY_FAILURES)
+@pytest.mark.parametrize("provider,module_name,factory_name", FACTORY_FAILURES)
 def test_tail_builder_factory_failure_is_logged_and_propagated(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
     provider: str,
-    builder: Any,
     module_name: str,
     factory_name: str,
 ) -> None:
@@ -653,19 +628,16 @@ def test_tail_builder_factory_failure_is_logged_and_propagated(
         raise RuntimeError("provider factory failed")
 
     monkeypatch.setattr(module, factory_name, fail)
+    options: dict[str, Any] = (
+        {"project": "project-test"} if provider == "vertexai" else {}
+    )
     with expected_provider_deprecation(provider):
         with caplog.at_level(logging.ERROR, logger="instructor.auto_client"):
             with pytest.raises(RuntimeError, match="provider factory failed"):
-                builder(
-                    provider=provider,
-                    model_name="model-test",
-                    async_client=False,
-                    mode=None,
+                auto_client.from_provider(
+                    f"{provider}/model-test",
                     api_key="test-key",
-                    kwargs={"project": "project-test"}
-                    if provider == "vertexai"
-                    else {},
-                    provider_info=provider_info(provider),
+                    **options,
                 )
 
     assert f"Error initializing {provider} client" in caplog.text
@@ -673,7 +645,7 @@ def test_tail_builder_factory_failure_is_logged_and_propagated(
         record for record in caplog.records if record.name == "instructor.auto_client"
     )
     assert record.exc_info is None
-    assert record.funcName == builder.__name__
+    assert record.funcName == "from_provider"
     assert "provider factory failed" not in record.getMessage()
 
 

@@ -113,10 +113,10 @@ class RecordingJobs:
         self.cancelled_ids.append(job_id)
         return make_job(job_id=job_id, status="CANCELLATION_REQUESTED")
 
-    def _delete(self, *, job_id: str) -> dict[str, Any]:
+    def _delete(self, *, job_id: str) -> FakeJob:
         self._raise_if_needed("delete")
         self.deleted_ids.append(job_id)
-        return {"id": job_id, "object": "batch", "deleted": True}
+        return FakeJob({"id": job_id, "object": "batch", "deleted": True})
 
     def list(self, **kwargs: Any) -> SimpleNamespace:
         self._raise_if_needed("list")

@@ -47,16 +47,12 @@ class Decision(BaseModel):
             levels=[
                 Level("None", examples=["Hello"]),
                 Level("Insult"),
-                Level("Threat"),
+                Level("Threat", examples=["Threatening"]),
             ],
-            examples=[("Threatening", 2)],
         ),
     ]
     format: Literal["text", "image"] = Field(description="What format?")
-    target: (
-        Annotated[Literal["person"], Choice(description="A person")]
-        | Annotated[Literal["group"], Choice(description="A group")]
-    ) = Field(description="Who is targeted?")
+    target: Literal["person", "group"] = Field(description="Who is targeted?")
 
     @field_validator("severity")
     @classmethod
@@ -133,10 +129,7 @@ def assert_request(endpoint: DecisionEndpoint, model: str, url: str) -> None:
         "Insult",
         {"meaning": "Threat", "examples": ["Threatening"]},
     ]
-    assert questions["target"]["criteria"] == {
-        "person": "A person",
-        "group": "A group",
-    }
+    assert questions["target"]["criteria"] == {"person": None, "group": None}
 
 
 def assert_decision(result: Decision) -> None:
@@ -228,12 +221,8 @@ def test_plain_enum_structured_question_and_alias(decision_endpoint):
         action: Annotated[
             Action, Question(instructions={"question": "Review {{ item }}?"})
         ] = Field(alias="decision")
-        only: Annotated[Literal["ok"], Choice(description="Fine")] = Field(
-            description="Which?"
-        )
-        yes: Annotated[
-            float, Noul("OK?", criteria={"true": ["yes"], "false": {"no": "no"}})
-        ]
+        only: Literal["ok"] = Field(description="Which?")
+        yes: Annotated[float, Noul("OK?", when_true=["yes"], when_false={"no": "no"})]
 
     decision_endpoint.response = {
         "answers": {
@@ -260,7 +249,7 @@ def test_plain_enum_structured_question_and_alias(decision_endpoint):
     questions = decision_endpoint.calls[0]["body"]["questions"]
     assert questions["action"]["instructions"] == {"question": "Review test?"}
     assert questions["action"]["criteria"] == {"allow": None, "review": None}
-    assert questions["only"]["criteria"] == {"ok": "Fine"}
+    assert questions["only"]["criteria"] == {"ok": None}
     assert questions["yes"]["criteria"] == {
         "true": ["yes"],
         "false": {"no": "no"},
@@ -283,15 +272,10 @@ def test_invalid_models_are_rejected_before_request(decision_endpoint):
         class InvalidScore(BaseModel):
             score: Annotated[float, Score("How?", levels=["a", "b"], scale=(10, 0))]
 
-        class InvalidExample(BaseModel):
-            score: Annotated[
-                float, Score("How?", levels=["a", "b"], examples=[("x", 2)])
-            ]
-
-        class ConflictingCriteria(BaseModel):
-            flag: Annotated[
-                float, Noul("OK?", when_true="yes", criteria={"true": "yes"})
-            ]
+        class InlineChoice(BaseModel):
+            only: Annotated[Literal["ok"], Choice(description="Fine")] = Field(
+                description="Which?"
+            )
 
         for model, error in (
             (
@@ -299,11 +283,7 @@ def test_invalid_models_are_rejected_before_request(decision_endpoint):
                 "Instructions and criteria must be strings, objects, or arrays",
             ),
             (InvalidScore, "score: scale bounds must be finite and increasing"),
-            (InvalidExample, "score: invalid Score example level index"),
-            (
-                ConflictingCriteria,
-                "flag: criteria cannot be combined with when_true or when_false",
-            ),
+            (InlineChoice, "only: Choice is only supported in Choices enums"),
         ):
             with pytest.raises(ValueError, match=error):
                 client.create(response_model=model, context={})
