@@ -176,6 +176,57 @@ def test_partial_builder_preserves_bare_containers_and_complete_scalar_items() -
     assert result.counts == [1]
 
 
+class Named(BaseModel):
+    name: str
+
+
+class DefaultChild(BaseModel):
+    value: Optional[int] = None
+
+
+class DefaultParent(BaseModel):
+    name: str
+    child: DefaultChild = DefaultChild(value=7)
+
+
+class FixedTuple(BaseModel):
+    items: tuple[Named, int]
+
+
+class VariadicTuple(BaseModel):
+    items: tuple[Named, ...]
+
+
+def _last_partial(model: type[BaseModel], chunks: list[str]) -> Any:
+    return list(cast(Any, Partial)[model].model_from_chunks(chunks))[-1]
+
+
+def test_partial_missing_nested_model_uses_declared_default() -> None:
+    assert _last_partial(DefaultParent, ['{"name":"a']).child == DefaultChild(value=7)
+
+
+@pytest.mark.parametrize(
+    ("model", "chunks", "expected"),
+    [
+        (FixedTuple, ['{"items":[{"name":"a"},', "3"], (Named(name="a"), 3)),
+        (
+            VariadicTuple,
+            ['{"items":[{"name":"a"},{"name":"b'],
+            (Named(name="a"), Named(name="b")),
+        ),
+    ],
+    ids=["fixed", "variadic"],
+)
+def test_partial_tuple_snapshot_builds_models(
+    model: type[BaseModel], chunks: list[str], expected: tuple[Any, ...]
+) -> None:
+    items = _last_partial(model, chunks).items
+
+    assert isinstance(items, tuple)
+    assert items == expected
+    assert type(items[0]) is Named
+
+
 def test_sync_stream_accepts_string_like_chunks_and_skips_bad_chunks() -> None:
     partial_envelope = cast(type[EnvelopeStream], Partial[Envelope])
     values = list(

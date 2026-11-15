@@ -10,6 +10,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- **CLI**: `instructor files download` uses `files.content` and writes raw bytes; `files list` reads every page; `files delete` and `jobs cancel` exit nonzero on failure. ([#2979](https://github.com/567-labs/instructor/issues/2979), [#2984](https://github.com/567-labs/instructor/issues/2984))
+- **CLI (Anthropic batch)**: `batch download-file` and `batch results` keep the existing file when the result stream fails.
+- **Batch (OpenAI)**: Result downloads replace the destination atomically, in-memory uploads are named `batch.jsonl`, cancelled batches return partial results, and stopped batches with no finished requests return immediately. ([#3008](https://github.com/567-labs/instructor/issues/3008), [#2996](https://github.com/567-labs/instructor/issues/2996))
+- **Batch (legacy)**: `BatchJob.parse_from_string` rejects OpenAI `length` and Anthropic `max_tokens` records even when their JSON validates.
+- **Iterable streaming**: OpenAI Chat, OpenAI Responses, Gemini/Vertex AI, Cohere and Mistral raise `IncompleteOutputException` when the token limit hits between items.
+- **Token limits**: Bedrock and Writer JSON modes reject token-limited completions.
+- **JSON/MD_JSON system prompts**: OpenAI, Writer, Mistral and xAI append the schema instruction to a text part of list-form system messages instead of crashing on empty or image-first lists. ([#3049](https://github.com/567-labs/instructor/issues/3049))
+- **create_with_completion**: `response_model=None` returns the raw completion instead of raising `AttributeError`. ([#3047](https://github.com/567-labs/instructor/issues/3047))
+- **Anthropic**: `Mode.JSON_SCHEMA` sends native `output_config.format` on SDKs that support it instead of falling back to prompt instructions. JSON, JSON_SCHEMA and TOOLS accept `BetaMessage` responses, and forced `tool_choice` uses the declared tool name for custom schema titles.
+- **Anthropic Iterable**: `process_response` routes non-streaming Iterable responses through the given provider.
+- **Templating**: Anthropic and Bedrock string `system` prompts render with context.
+- **GenAI**: Requests without a response model keep generation options, `thinking_config` and `safety_settings`. Tool streams skip thought parts and empty chunks. `gs://` images decode base64 data, and PDF uploads stop polling when processing fails.
+- **OpenAI Responses**: Structured streams ignore commentary-phase message text.
+- **Mistral**: Responses with thinking and text chunks parse in JSON_SCHEMA and MD_JSON modes, and streams skip `None` deltas.
+- **Partial**: Snapshots keep declared defaults for missing nested models, build models inside tuple fields, and async streams close the source when the consumer stops.
+- **Iterable**: Streams ignore sibling keys after a `tasks` wrapper array closes.
+- **Errors**: Instructor exceptions survive pickling.
+- **Multimodal**: `Audio.from_path` accepts platform FLAC, M4A and AAC MIME aliases. `convert_messages` keeps legacy assistant `function_call` turns.
+- **Ollama**: `from_provider("ollama/...")` forwards a caller `api_key`.
 - Anthropic Iterable streams report a `max_tokens` stop between complete items as `IncompleteOutputException` instead of returning a silently truncated list.
 - Gemini and Vertex AI reject completions stopped at the token limit. Google and Mistral streaming handlers skip empty metadata chunks, and GenAI JSON mode aliases are classified consistently.
 - Validation errors retain user input and custom messages that contain Pydantic documentation URLs.

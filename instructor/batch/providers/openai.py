@@ -8,7 +8,7 @@ from typing import Any, Optional, Union
 import io
 import logging
 import time
-from .base import BatchProvider
+from .base import BatchProvider, _atomic_result_file
 from ..models import BatchJobInfo
 
 logger = logging.getLogger(__name__)
@@ -46,8 +46,9 @@ class OpenAIProvider(BatchProvider):
             else:
                 logger.debug("Creating batch file from BytesIO buffer")
                 file_path_or_buffer.seek(0)
+                # Name in-memory uploads so the API sees a JSONL file.
                 batch_file = client.files.create(
-                    file=file_path_or_buffer, purpose="batch"
+                    file=("batch.jsonl", file_path_or_buffer), purpose="batch"
                 )
 
             batch_job = client.batches.create(
@@ -89,19 +90,28 @@ class OpenAIProvider(BatchProvider):
             raise Exception(f"Failed to get OpenAI batch status: {e}") from e
 
     def _get_results_text(self, batch_id: str) -> str:
-        """Return success and error records for a completed or expired OpenAI batch."""
+        """Return success and error records for a finished OpenAI batch."""
         from openai import OpenAI
         from openai.types import Batch
 
         client = OpenAI()
         batch = client.batches.retrieve(batch_id)
 
-        result_statuses = {"completed", "expired"}
+        # Expired and cancelled batches keep records finished before they stopped.
+        result_statuses = {"completed", "expired", "cancelled"}
         if batch.status not in result_statuses:
             raise Exception(f"Batch not completed, status: {batch.status}")
 
         def files_ready(batch: Batch) -> bool:
             counts = batch.request_counts
+            if (
+                batch.status in {"expired", "cancelled"}
+                and counts is not None
+                and not counts.completed
+                and not counts.failed
+            ):
+                # No request finished, so no result file will ever appear.
+                return True
             return bool(batch.output_file_id or batch.error_file_id) and (
                 counts is None
                 or (
@@ -154,8 +164,8 @@ class OpenAIProvider(BatchProvider):
         """Download OpenAI batch results to a file"""
         try:
             results_text = self._get_results_text(batch_id)
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(results_text)
+            with _atomic_result_file(file_path) as output:
+                output.write(results_text.encode("utf-8"))
         except Exception as e:
             raise Exception(f"Failed to download OpenAI results: {e}") from e
 

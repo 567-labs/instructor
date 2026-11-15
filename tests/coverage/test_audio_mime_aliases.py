@@ -93,3 +93,45 @@ def test_audio_path_with_unknown_media_type(tmp_path: Path, wav_bytes: bytes) ->
     path.write_bytes(wav_bytes)
     with pytest.raises(ValueError, match="Unsupported audio format"):
         Audio.from_path(path)
+
+
+@pytest.mark.parametrize("platform_db", [True, False], ids=["platform", "fallback"])
+@pytest.mark.parametrize(
+    ("suffix", "media_types"),
+    # Linux maps .m4a to audio/mp4; other platforms report an m4a alias.
+    [
+        (".flac", {"audio/flac"}),
+        (".m4a", {"audio/m4a", "audio/mp4"}),
+        (".aac", {"audio/aac"}),
+    ],
+)
+def test_audio_from_path_accepts_platform_aliases(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    suffix: str,
+    media_types: set[str],
+    platform_db: bool,
+) -> None:
+    if not platform_db:
+        # Simulate a mimetypes database with no entry for the suffix.
+        monkeypatch.setattr("mimetypes.guess_type", lambda _path: (None, None))
+    path = tmp_path / f"clip{suffix}"
+    path.write_bytes(b"audio-bytes")
+
+    audio = Audio.from_path(path)
+
+    assert audio.media_type in media_types
+    assert audio.data == base64.b64encode(b"audio-bytes").decode()
+
+
+@pytest.mark.parametrize(
+    ("alias", "media_type"),
+    [
+        ("audio/x-flac", "audio/flac"),
+        ("audio/x-aac", "audio/aac"),
+        ("audio/x-m4a", "audio/m4a"),
+        ("audio/mp4a-latm", "audio/m4a"),
+    ],
+)
+def test_audio_data_uri_aliases_are_normalized(alias: str, media_type: str) -> None:
+    assert Audio.from_base64(f"data:{alias};base64,YWJj").media_type == media_type

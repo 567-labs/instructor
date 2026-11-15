@@ -12,6 +12,8 @@ from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import ParallelBase
 from instructor.v2.dsl.partial import PartialBase
 
+_MISSING = object()
+
 
 class StreamingModelState:
     """Share routing policy, without sharing provider event parsing.
@@ -42,10 +44,12 @@ class StreamingModelState:
     def _consume_streaming_flag(
         self, response_model: type[BaseModel] | ParallelBase | None
     ) -> bool:
-        if inspect.isclass(response_model) and response_model in self._streaming_models:
-            del self._streaming_models[response_model]
-            return True
-        return False
+        # Single atomic pop avoids a check-then-delete race when two calls
+        # consume the same marker concurrently.
+        return (
+            inspect.isclass(response_model)
+            and self._streaming_models.pop(response_model, _MISSING) is not _MISSING
+        )
 
     def _should_parse_streaming(
         self,

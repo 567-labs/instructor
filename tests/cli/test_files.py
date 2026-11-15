@@ -96,3 +96,97 @@ def test_failed_file_prevents_fine_tuning_job(monkeypatch, tmp_path, failed):
             str(train), "test-model", 0, None, None, None, str(validation), None
         )
     assert exc.value.exit_code == 1
+
+
+def _openai_client(handler):
+    from openai import OpenAI
+
+    from tests.openai_http import Client, MockTransport
+
+    return OpenAI(api_key="test", http_client=Client(transport=MockTransport(handler)))
+
+
+def test_download_writes_raw_file_bytes(monkeypatch, tmp_path) -> None:
+    from instructor.cli import files
+    from tests.openai_http import Response
+
+    payload = b'{"a": 1}\n\xff\xfe binary'
+    paths = []
+
+    def handler(request):
+        paths.append(request.url.path)
+        return Response(200, content=payload)
+
+    monkeypatch.setattr(files, "client", _openai_client(handler))
+    output = tmp_path / "out.jsonl"
+
+    files.download("file-1", str(output))
+
+    assert output.read_bytes() == payload
+    assert paths == ["/v1/files/file-1/content"]
+
+
+def test_get_files_reads_every_page(monkeypatch) -> None:
+    from instructor.cli import files
+    from tests.openai_http import Response
+
+    def file_json(file_id: str, created_at: int) -> dict:
+        return FileObject(
+            id=file_id,
+            bytes=1,
+            created_at=created_at,
+            filename=f"{file_id}.jsonl",
+            object="file",
+            purpose="fine-tune",
+            status="processed",
+        ).model_dump()
+
+    pages = {
+        None: ([file_json("file-mid", 2), file_json("file-old", 1)], True),
+        "file-old": ([file_json("file-new", 3)], False),
+    }
+
+    def handler(request):
+        data, has_more = pages[request.url.params.get("after")]
+        return Response(
+            200, json={"object": "list", "data": data, "has_more": has_more}
+        )
+
+    monkeypatch.setattr(files, "client", _openai_client(handler))
+
+    assert [f.id for f in files.get_files()] == ["file-new", "file-mid", "file-old"]
+
+
+@pytest.mark.parametrize("fails", [False, True])
+@pytest.mark.parametrize("command", ["files.delete", "jobs.cancel"])
+def test_delete_and_cancel_exit_nonzero_only_on_failure(
+    monkeypatch, command, fails
+) -> None:
+    import typer
+
+    from instructor.cli import files, jobs
+
+    calls = []
+
+    def action(resource_id):
+        calls.append(resource_id)
+        if fails:
+            raise RuntimeError("not found")
+
+    if command == "files.delete":
+        module, run = files, files.delete
+        fake = SimpleNamespace(files=SimpleNamespace(delete=action))
+    else:
+        module, run = jobs, jobs.cancel
+        fake = SimpleNamespace(
+            fine_tuning=SimpleNamespace(jobs=SimpleNamespace(cancel=action))
+        )
+    monkeypatch.setattr(module, "client", fake)
+
+    if fails:
+        with pytest.raises(typer.Exit) as exc:
+            run("id-1")
+        assert exc.value.exit_code == 1
+    else:
+        run("id-1")
+    assert calls == ["id-1"]

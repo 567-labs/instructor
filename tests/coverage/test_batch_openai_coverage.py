@@ -63,6 +63,7 @@ class FilesAPI:
     def __init__(self, text: str = '{"ok": true}\n') -> None:
         self.text = text
         self.uploads: list[tuple[bytes, str]] = []
+        self.upload_names: list[str | None] = []
         self.content_ids: list[str] = []
         self.create_error: Exception | None = None
         self.content_error: Exception | None = None
@@ -70,6 +71,8 @@ class FilesAPI:
     def create(self, *, file: Any, purpose: str) -> SimpleNamespace:
         if self.create_error:
             raise self.create_error
+        name, file = file if isinstance(file, tuple) else (None, file)
+        self.upload_names.append(name)
         self.uploads.append((file.read(), purpose))
         return SimpleNamespace(id="file_input")
 
@@ -131,23 +134,25 @@ def install_client(
     return OpenAIProvider()
 
 
+@pytest.mark.parametrize("status", ["expired", "cancelled"])
 @pytest.mark.parametrize("operation", ["retrieve", "download"])
 @pytest.mark.parametrize("delayed_files", [False, True])
-def test_expired_batch_retains_available_results(
+def test_stopped_batch_retains_available_results(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     operation: str,
     delayed_files: bool,
+    status: str,
 ) -> None:
     counts = SimpleNamespace(total=2, completed=1, failed=1)
     ready = BatchResponse(
-        status="expired", request_counts=counts, error_file_id="file_errors"
+        status=status, request_counts=counts, error_file_id="file_errors"
     )
     responses = [ready]
     if delayed_files:
         responses.insert(
             0,
-            BatchResponse(status="expired", output_file_id=None, request_counts=counts),
+            BatchResponse(status=status, output_file_id=None, request_counts=counts),
         )
     client = OpenAIClient(responses)
     provider = install_client(monkeypatch, client)
@@ -601,3 +606,57 @@ def test_batch_provider_contract_requires_and_defines_all_operations() -> None:
     assert BatchProvider.__abstractmethods__ == expected
     with pytest.raises(TypeError, match="abstract methods"):
         BatchProvider()  # ty: ignore[call-non-callable]
+
+
+def test_submit_batch_names_in_memory_upload_as_jsonl(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    client = OpenAIClient()
+    provider = install_client(monkeypatch, client)
+    path = tmp_path / "requests.jsonl"
+    path.write_bytes(b"{}\n")
+
+    provider.submit_batch(io.BytesIO(b"{}\n"))
+    provider.submit_batch(str(path))
+
+    assert client.files.upload_names == ["batch.jsonl", None]
+
+
+@pytest.mark.parametrize("write_fails", [False, True])
+def test_download_results_replaces_existing_file_only_after_full_write(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, write_fails: bool
+) -> None:
+    client = OpenAIClient()
+    # A lone surrogate cannot be encoded, so the write fails mid-download.
+    client.files.text = "new\ud800" if write_fails else "new\n"
+    provider = install_client(monkeypatch, client)
+    destination = tmp_path / "results.jsonl"
+    destination.write_text("previous\n")
+
+    if write_fails:
+        with pytest.raises(Exception, match="encode"):
+            provider.download_results("batch_1", str(destination))
+    else:
+        provider.download_results("batch_1", str(destination))
+
+    assert destination.read_text() == ("previous\n" if write_fails else "new\n")
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+@pytest.mark.parametrize("status", ["cancelled", "expired"])
+def test_stopped_batch_without_finished_requests_returns_empty(
+    monkeypatch: pytest.MonkeyPatch, status: str
+) -> None:
+    counts = SimpleNamespace(total=5, completed=0, failed=0)
+    client = OpenAIClient(
+        [BatchResponse(status=status, request_counts=counts, output_file_id=None)]
+    )
+    provider = install_client(monkeypatch, client)
+
+    def no_wait(_seconds: float) -> None:
+        raise AssertionError("polled for result files that cannot exist")
+
+    monkeypatch.setattr("time.sleep", no_wait)
+
+    assert provider.retrieve_results("batch_stopped") == ""
+    assert client.files.content_ids == []

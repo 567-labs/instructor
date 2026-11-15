@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+from collections.abc import Callable
 from typing import Any
+from weakref import WeakKeyDictionary
 
 import pytest
 from anthropic.types import (
@@ -19,6 +21,7 @@ from anthropic.types import (
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from pydantic import BaseModel, ValidationError, ValidationInfo, field_validator
 
+from instructor.v2.core.streaming import StreamingModelState
 from instructor.v2.dsl.partial import Partial
 from instructor.v2.providers.anthropic.handlers import (
     AnthropicHandlerBase,
@@ -330,6 +333,37 @@ def test_legacy_prepare_parse_still_infers_stream(handler_type: Any) -> None:
     )
     assert list(handler.parse_response(iter([chunk]), model))[-1].name == "Ada"
     assert not handler._consume_streaming_flag(model)
+
+
+class _InterleavingDict(WeakKeyDictionary[type[Any], None]):
+    """Runs a competing consumer right after the first membership check."""
+
+    def __init__(self, on_check: Callable[[Any], None]) -> None:
+        super().__init__()
+        self._on_check: Callable[[Any], None] | None = on_check
+
+    def __contains__(self, key: object) -> bool:
+        found = super().__contains__(key)
+        hook, self._on_check = self._on_check, None
+        if found and hook is not None:
+            hook(key)
+        return found
+
+
+def test_streaming_flag_is_consumed_once_under_interleaving() -> None:
+    state = StreamingModelState()
+    model = Partial[Person]
+    results: list[bool] = []
+    state._streaming_models = _InterleavingDict(
+        lambda key: results.append(state._consume_streaming_flag(key))
+    )
+    state.mark_streaming_model(model, True)
+
+    results.append(state._consume_streaming_flag(model))
+
+    assert results.count(True) == 1
+    assert state._consume_streaming_flag(model) is False
+    assert state._consume_streaming_flag(None) is False
 
 
 @pytest.mark.asyncio

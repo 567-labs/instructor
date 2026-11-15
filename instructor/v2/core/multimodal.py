@@ -83,7 +83,19 @@ def _normalize_audio_media_type(media_type: str | None) -> str | None:
     return {
         "audio/x-wav": "audio/wav",
         "audio/vnd.dlna.adts": "audio/aac",
+        "audio/x-aac": "audio/aac",
+        "audio/x-flac": "audio/flac",
+        "audio/x-m4a": "audio/m4a",
+        "audio/mp4a-latm": "audio/m4a",
     }.get(media_type, media_type)
+
+
+# Used when the platform mimetypes database has no entry for the suffix.
+_AUDIO_SUFFIX_MEDIA_TYPES = {
+    ".aac": "audio/aac",
+    ".flac": "audio/flac",
+    ".m4a": "audio/m4a",
+}
 
 
 class ImageParamsBase(TypedDict):
@@ -387,7 +399,10 @@ class Audio(BaseModel):
         if path.stat().st_size == 0:
             raise ValueError("Audio file is empty")
 
-        mime_type = _normalize_audio_media_type(mimetypes.guess_type(str(path))[0])
+        mime_type = _normalize_audio_media_type(
+            mimetypes.guess_type(str(path))[0]
+            or _AUDIO_SUFFIX_MEDIA_TYPES.get(path.suffix.lower())
+        )
 
         if mime_type not in VALID_AUDIO_MIME_TYPES:
             raise ValueError(
@@ -868,7 +883,7 @@ def convert_messages(
         }
         if (
             role == "assistant"
-            and message.get("tool_calls")
+            and (message.get("tool_calls") or message.get("function_call"))
             and message.get("content") is None
         ):
             converted_messages.append(dict(message))

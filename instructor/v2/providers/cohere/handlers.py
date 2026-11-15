@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator, Generator
+from functools import partial
 from typing import Any, cast
 
 from pydantic import BaseModel
@@ -18,7 +19,11 @@ from pydantic import BaseModel
 from instructor.v2.core.messages import text_from_content_blocks
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
-from instructor.v2.core.errors import ConfigurationError, ResponseParsingError
+from instructor.v2.core.errors import (
+    ConfigurationError,
+    IncompleteOutputException,
+    ResponseParsingError,
+)
 from instructor.v2.core.json import extract_json_from_codeblock
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
@@ -130,6 +135,14 @@ def _extract_text_from_stream_chunk(chunk: Any) -> str | None:
     return None
 
 
+def _is_max_tokens_end(chunk: Any) -> bool:
+    return (
+        getattr(chunk, "type", None) == "message-end"
+        and getattr(getattr(chunk, "delta", None), "finish_reason", None)
+        == "MAX_TOKENS"
+    )
+
+
 class CohereHandlerBase(ModeHandler):
     """Base class for Cohere handlers with shared utilities."""
 
@@ -151,19 +164,31 @@ class CohereHandlerBase(ModeHandler):
             f"JSON:\n{response_text}\n\nExceptions:\n{exception}"
         )
 
-    def extract_streaming_json(self, completion: Any) -> Generator[str, None, None]:
+    def extract_streaming_json(
+        self, completion: Any, *, require_complete: bool = False
+    ) -> Generator[str, None, None]:
+        incomplete_chunk: Any = None
         for chunk in completion:
+            if require_complete and _is_max_tokens_end(chunk):
+                incomplete_chunk = chunk
             text = _extract_text_from_stream_chunk(chunk)
             if text:
                 yield text
+        if incomplete_chunk is not None:
+            raise IncompleteOutputException(last_completion=incomplete_chunk)
 
     async def extract_streaming_json_async(
-        self, completion: AsyncGenerator[Any, None]
+        self, completion: AsyncGenerator[Any, None], *, require_complete: bool = False
     ) -> AsyncGenerator[str, None]:
+        incomplete_chunk: Any = None
         async for chunk in completion:
+            if require_complete and _is_max_tokens_end(chunk):
+                incomplete_chunk = chunk
             text = _extract_text_from_stream_chunk(chunk)
             if text:
                 yield text
+        if incomplete_chunk is not None:
+            raise IncompleteOutputException(last_completion=incomplete_chunk)
 
     def handle_reask(
         self,
@@ -267,16 +292,22 @@ Respond with JSON only. Do not include code fences, markdown, or extra text.
                 parse_kwargs["strict"] = strict
 
             streaming_model = cast(Any, response_model)
+            require_complete = issubclass(response_model, IterableBase)
             if is_async:
                 return streaming_model.from_streaming_response_async(
                     response,
-                    stream_extractor=self.extract_streaming_json_async,
+                    stream_extractor=partial(
+                        self.extract_streaming_json_async,
+                        require_complete=require_complete,
+                    ),
                     **parse_kwargs,
                 )
 
             return streaming_model.from_streaming_response(
                 response,
-                stream_extractor=self.extract_streaming_json,
+                stream_extractor=partial(
+                    self.extract_streaming_json, require_complete=require_complete
+                ),
                 **parse_kwargs,
             )
         # Check for V1 native tool calls first

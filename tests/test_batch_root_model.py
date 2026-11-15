@@ -149,6 +149,29 @@ def test_batch_job_string_parser_validates_root_model_object(
     assert errors == []
 
 
+@pytest.mark.parametrize(
+    ("provider", "stop", "truncated"),
+    [
+        ("openai", "stop", False),
+        ("openai", "length", True),
+        ("anthropic", "tool_use", False),
+        ("anthropic", "max_tokens", True),
+    ],
+)
+def test_batch_job_string_parser_rejects_token_limited_records(
+    provider: str, stop: str, truncated: bool
+) -> None:
+    record = json.loads(batch_result(provider, {"root": "Ada"}))
+    if provider == "openai":
+        record["response"]["body"]["choices"][0]["finish_reason"] = stop
+    else:
+        record["result"]["message"]["stop_reason"] = stop
+
+    parsed = BatchJob.parse_from_string(json.dumps(record), Document)
+
+    assert parsed == (([], [record]) if truncated else ([Document(root="Ada")], []))
+
+
 @pytest.mark.parametrize("provider", ["openai", "anthropic"])
 def test_batch_job_file_parser_preserves_root_model_and_invalid_record(
     provider: str, tmp_path: Path

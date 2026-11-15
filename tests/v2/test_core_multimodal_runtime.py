@@ -199,6 +199,16 @@ def test_convert_messages_accepts_a_tool_call_turn_without_a_content_key() -> No
     assert "content" not in converted[0]
 
 
+@pytest.mark.parametrize("content", [{}, {"content": None}], ids=["no-key", "null"])
+def test_convert_messages_keeps_a_legacy_function_call_turn(
+    content: dict[str, Any],
+) -> None:
+    function_call = {"name": "lookup", "arguments": "{}"}
+    message = {"role": "assistant", **content, "function_call": function_call}
+
+    assert convert_messages([message], Mode.TOOLS) == [message]
+
+
 def test_convert_messages_does_not_change_the_input_of_a_tool_call_turn() -> None:
     message = {"role": "assistant", "content": None, "tool_calls": TOOL_CALLS}
 

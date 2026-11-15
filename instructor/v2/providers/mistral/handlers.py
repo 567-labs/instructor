@@ -47,9 +47,11 @@ from instructor.v2.core.json import (
 )
 from instructor.v2.providers.openai.schema import generate_openai_schema
 from instructor.v2.core.messages import (
+    append_system_instruction,
     copy_messages_for_mutation,
     dump_message,
     merge_consecutive_messages,
+    text_from_content_blocks,
 )
 from instructor.v2.core.decorators import register_mode_handler
 from instructor.v2.core.handler import ModeHandler
@@ -85,53 +87,75 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
             )
         return message
 
+    def _stream_chunk_json(self, chunk: Any) -> str | None:
+        """Return the JSON fragment carried by one stream chunk, if any."""
+        try:
+            # `choices` can be empty (e.g. a trailing usage-only chunk), which
+            # raises IndexError rather than AttributeError.
+            delta = chunk.data.choices[0].delta
+            if self.mode == Mode.TOOLS:
+                if not delta.tool_calls:
+                    return None
+                return delta.tool_calls[0].function.arguments
+            content = delta.content
+        except (AttributeError, IndexError):
+            return None
+        if isinstance(content, list):
+            # Reasoning models stream [ThinkChunk, TextChunk] deltas.
+            return text_from_content_blocks(content)
+        return content if isinstance(content, str) else None
+
+    @staticmethod
+    def _is_length_stop(chunk: Any) -> bool:
+        try:
+            return chunk.data.choices[0].finish_reason == "length"
+        except (AttributeError, IndexError):
+            return False
+
     def extract_streaming_json(
         self, completion: TypingIterable[Any], *, single_model: bool = False
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from Mistral streaming responses."""
+        # Raised only after every complete item has been flushed downstream.
+        truncated: list[IncompleteOutputException] = []
 
         def _raw_chunks() -> Generator[str, None, None]:
+            incomplete_chunk: Any = None
             for chunk in completion:
-                try:
-                    # `choices` can be empty (e.g. a trailing usage-only
-                    # chunk), which raises IndexError rather than
-                    # AttributeError — skip the chunk either way, same as
-                    # the OpenAI handler's `if not chunk.choices` guard.
-                    if self.mode == Mode.TOOLS:
-                        if not chunk.data.choices[0].delta.tool_calls:
-                            continue
-                        yield (
-                            chunk.data.choices[0].delta.tool_calls[0].function.arguments
-                        )
-                    else:
-                        yield chunk.data.choices[0].delta.content
-                except (AttributeError, IndexError):
-                    continue
+                if not single_model and self._is_length_stop(chunk):
+                    incomplete_chunk = chunk
+                if json_chunk := self._stream_chunk_json(chunk):
+                    yield json_chunk
+            if incomplete_chunk is not None:
+                truncated.append(
+                    IncompleteOutputException(last_completion=incomplete_chunk)
+                )
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
             yield from extract_json_from_stream(raw_chunks, single_model=single_model)
-            return
-        yield from raw_chunks
+        else:
+            yield from raw_chunks
+        if truncated:
+            raise truncated[0]
 
     async def extract_streaming_json_async(
         self, completion: AsyncGenerator[Any, None], *, single_model: bool = False
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from Mistral async streams."""
+        truncated: list[IncompleteOutputException] = []
 
         async def _raw_chunks() -> AsyncGenerator[str, None]:
+            incomplete_chunk: Any = None
             async for chunk in completion:
-                try:
-                    if self.mode == Mode.TOOLS:
-                        if not chunk.data.choices[0].delta.tool_calls:
-                            continue
-                        yield (
-                            chunk.data.choices[0].delta.tool_calls[0].function.arguments
-                        )
-                    else:
-                        yield chunk.data.choices[0].delta.content
-                except (AttributeError, IndexError):
-                    continue
+                if not single_model and self._is_length_stop(chunk):
+                    incomplete_chunk = chunk
+                if json_chunk := self._stream_chunk_json(chunk):
+                    yield json_chunk
+            if incomplete_chunk is not None:
+                truncated.append(
+                    IncompleteOutputException(last_completion=incomplete_chunk)
+                )
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
@@ -139,9 +163,11 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
                 raw_chunks, single_model=single_model
             ):
                 yield chunk
-            return
-        async for chunk in raw_chunks:
-            yield chunk
+        else:
+            async for chunk in raw_chunks:
+                yield chunk
+        if truncated:
+            raise truncated[0]
 
     def convert_messages(
         self, messages: list[dict[str, Any]], autodetect_images: bool = False
@@ -234,7 +260,11 @@ class MistralHandlerBase(StreamingModelState, ModeHandler):
     def _extract_text_content(self, response: Any) -> str:
         """Extract text content from response."""
         message = self._require_choice_message(response)
-        return message.content or ""
+        content = message.content
+        if isinstance(content, list):
+            # Reasoning models (Magistral) return [ThinkChunk, TextChunk].
+            return text_from_content_blocks(content) or ""
+        return content or ""
 
 
 @register_mode_handler(Provider.MISTRAL, Mode.TOOLS)
@@ -529,22 +559,8 @@ class MistralMDJSONHandler(MistralHandlerBase):
 
         # Add system message with schema
         messages = copy_messages_for_mutation(new_kwargs.get("messages", []))
-        if messages and messages[0]["role"] != "system":
-            messages.insert(
-                0,
-                {
-                    "role": "system",
-                    "content": message,
-                },
-            )
-        elif messages and isinstance(messages[0]["content"], str):
-            messages[0]["content"] += f"\n\n{message}"
-        elif (
-            messages
-            and isinstance(messages[0]["content"], list)
-            and messages[0]["content"]
-        ):
-            messages[0]["content"][0]["text"] += f"\n\n{message}"
+        if messages and messages[0]["role"] == "system":
+            append_system_instruction(messages[0], message)
         else:
             messages.insert(0, {"role": "system", "content": message})
 

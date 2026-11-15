@@ -25,8 +25,6 @@ def _types() -> Any:
 
 def image_to_genai(image: Any) -> Any:
     types = _types()
-    if isinstance(image.source, str) and image.source.startswith("gs://"):
-        return types.Part.from_bytes(data=image.data, mime_type=image.media_type)
     if isinstance(image.source, str) and image.source.startswith(
         ("http://", "https://")
     ):
@@ -78,16 +76,20 @@ def pdf_to_genai(pdf: Any) -> Any:
     raise ValueError("Unsupported PDF format")
 
 
-def upload_new_pdf_file(
-    cls: type[Any], file_path: str, retry_delay: int = 10, max_retries: int = 20
+def _wait_for_active_file(
+    file: Any,
+    get_file: Any,
+    retry_delay: float = 10,
+    max_retries: int = 20,
 ) -> Any:
-    from google.genai import Client
+    """Poll an uploaded GenAI file until it is ACTIVE; fail fast on FAILED."""
     from google.genai.types import FileState
     import time
 
-    client = Client()
-    file = client.files.upload(file=file_path)
     while file.state != FileState.ACTIVE:
+        if file.state == FileState.FAILED:
+            detail = getattr(file, "error", None) or file.name
+            raise ValueError(f"GenAI file processing failed: {detail}")
         file_name = file.name
         if file_name is None:
             raise ValueError("Cannot poll a pending GenAI file without a file name")
@@ -96,8 +98,19 @@ def upload_new_pdf_file(
                 "Max retries reached. File upload has been started but is still pending"
             )
         time.sleep(retry_delay)
-        file = client.files.get(name=file_name)
+        file = get_file(name=file_name)
         max_retries -= 1
+    return file
+
+
+def upload_new_pdf_file(
+    cls: type[Any], file_path: str, retry_delay: int = 10, max_retries: int = 20
+) -> Any:
+    from google.genai import Client
+
+    client = Client()
+    file = client.files.upload(file=file_path)
+    file = _wait_for_active_file(file, client.files.get, retry_delay, max_retries)
     return cls(source=file.uri, media_type=file.mime_type, data=None)
 
 

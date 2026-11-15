@@ -277,14 +277,14 @@ def _build_partial_object(
     # Set missing fields to None or empty nested models
     for field_name, field_info in missing:
         field_type = field_info.annotation
-        if isinstance(field_type, type) and issubclass(field_type, BaseModel):
+        if not field_info.is_required():
+            result[field_name] = _get_partial_default(field_info)
+        elif isinstance(field_type, type) and issubclass(field_type, BaseModel):
             result[field_name] = _build_partial_object(
                 {}, field_type, tracker, "", **kwargs
             )
-        elif field_info.is_required():
-            result[field_name] = None
         else:
-            result[field_name] = _get_partial_default(field_info)
+            result[field_name] = None
 
     instance = model.model_construct(**result)
     # model_construct also considers aliases. Keep the values already resolved
@@ -321,6 +321,20 @@ def _build_partial_value(
             _build_partial_value(item, args[0], tracker, f"{path}[{index}]", **kwargs)
             for index, item in enumerate(value)
         ]
+    if origin is tuple and args and isinstance(value, (list, tuple)):
+        variadic = len(args) == 2 and args[1] is Ellipsis
+        return tuple(
+            _build_partial_value(
+                item,
+                args[0] if variadic else args[index],
+                tracker,
+                f"{path}[{index}]",
+                **kwargs,
+            )
+            if variadic or index < len(args)
+            else item
+            for index, item in enumerate(value)
+        )
     if (
         isinstance(origin, type)
         and issubclass(origin, Mapping)
@@ -510,10 +524,21 @@ class PartialBase(Generic[T_Model]):
     ) -> AsyncGenerator[T_Model, None]:
         if stream_extractor is None:
             raise ValueError("stream_extractor is required for streaming responses")
-        json_chunks = stream_extractor(completion)
-        parser = chunk_parser or cls.model_from_chunks_async
-        async for item in parser(json_chunks, **kwargs):
-            yield item
+        from inspect import isawaitable
+
+        try:
+            json_chunks = stream_extractor(completion)
+            parser = chunk_parser or cls.model_from_chunks_async
+            async for item in parser(json_chunks, **kwargs):
+                yield item
+        finally:
+            close = getattr(completion, "aclose", None) or getattr(
+                completion, "close", None
+            )
+            if callable(close):
+                result = close()
+                if isawaitable(result):
+                    await result
 
     @classmethod
     def model_from_chunks(
