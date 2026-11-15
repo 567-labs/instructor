@@ -13,7 +13,7 @@ constraints=()
 if [ "${PACKAGE_SDK:-latest}" = minimum ]; then
     # Pin the declared SDK/model floors, allowing their transitive dependencies
     # (notably pydantic-core) to resolve to compatible versions.
-    constraints=("openai==2.0.0" "pydantic==2.8.0")
+    constraints=("openai==2.0.0" "pydantic==2.11.0")
 fi
 uv pip install \
     --python "$tmp_dir/.venv/bin/python" \
