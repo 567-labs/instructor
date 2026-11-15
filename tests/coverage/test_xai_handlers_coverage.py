@@ -173,6 +173,7 @@ def test_legacy_reask_helpers_preserve_the_failed_response_and_validation_error(
     assert "answer must be a number" in json_retry["messages"][-3]["content"]
     assert "not a number" in json_retry["messages"][-3]["content"]
     assert tools_retry is not original
+    assert tools_retry["messages"] is original["messages"]
     assert tools_retry["messages"][-2] == {
         "role": "assistant",
         "content": str(response),
@@ -571,10 +572,11 @@ def test_schema_and_markdown_parsers_accept_remaining_content_shapes_and_reject_
         (handlers.XAIMDJSONHandler(), "Could not extract JSON from xAI response"),
     ],
 )
-def test_response_handlers_reject_unsupported_content_objects(
-    handler: Any, match: str
+@pytest.mark.parametrize("content", [None, {"answer": 4.0}], ids=["empty", "object"])
+def test_response_handlers_reject_missing_or_unsupported_content(
+    handler: Any, match: str, content: Any
 ) -> None:
-    response = SimpleNamespace(tool_calls=[], text=None, content={"answer": 4.0})
+    response = SimpleNamespace(tool_calls=None, text=None, content=content)
 
     with pytest.raises(ValueError, match=match):
         handler.parse_response(response, Answer)
@@ -621,3 +623,110 @@ def test_markdown_request_preserves_multimodal_system_text_and_handles_empty_mes
     assert empty["messages"][0]["role"] == "system"
     assert [m["role"] for m in empty_system["messages"]].count("system") == 1
     assert "json_schema" in empty_system["messages"][0]["content"][0]["text"]
+
+
+def test_request_handlers_attach_xai_tool_schema_and_markdown_instructions() -> None:
+    class Address(BaseModel):
+        street: str
+
+    class Person(BaseModel):
+        name: str
+        address: Address
+
+    request = {
+        "messages": [{"role": "user", "content": "2 + 2?"}],
+        "max_tokens": 500,
+    }
+    tool_model, tools = handlers.XAIToolsHandler().prepare_request(Person, request)
+    schema_model, schema = handlers.XAIJSONSchemaHandler().prepare_request(
+        Answer, request
+    )
+    md_model, markdown = handlers.XAIMDJSONHandler().prepare_request(Answer, request)
+
+    assert tool_model is not None
+    assert tools["_xai_tool"]["name"] == "Person"
+    assert "address" in tools["_xai_tool"]["parameters"]["properties"]
+    assert tools["max_tokens"] == 500
+    assert schema_model is Answer
+    assert schema["_xai_json_schema"]["name"] == "Answer"
+    assert "schema" in schema["_xai_json_schema"]
+    assert md_model is Answer
+    assert markdown["messages"][0]["role"] == "system"
+    assert "json_schema" in markdown["messages"][0]["content"]
+    assert any("json codeblock" in m["content"].lower() for m in markdown["messages"])
+    assert request == {
+        "messages": [{"role": "user", "content": "2 + 2?"}],
+        "max_tokens": 500,
+    }
+
+
+@pytest.mark.parametrize(
+    ("handler", "response", "expected"),
+    [
+        (
+            handlers.XAIToolsHandler(),
+            SimpleNamespace(tool_calls=[_tool_call("Answer", '{"answer": 4.0}')]),
+            4.0,
+        ),
+        (
+            handlers.XAIToolsHandler(),
+            SimpleNamespace(tool_calls=[_tool_call("Answer", {"answer": 42.0})]),
+            42.0,
+        ),
+        (handlers.XAIToolsHandler(), SimpleNamespace(text='{"answer": 5.0}'), 5.0),
+        (
+            handlers.XAIToolsHandler(),
+            SimpleNamespace(text=None, content='{"answer": 6.0}'),
+            6.0,
+        ),
+        (
+            handlers.XAIToolsHandler(),
+            SimpleNamespace(text=None, content=['{"answer": 7.0}']),
+            7.0,
+        ),
+        (
+            handlers.XAIToolsHandler(),
+            SimpleNamespace(text='```json\n{"answer": 8.0}\n```'),
+            8.0,
+        ),
+        (
+            handlers.XAIJSONSchemaHandler(),
+            SimpleNamespace(text='{"answer": 11.0}'),
+            11.0,
+        ),
+        (
+            handlers.XAIJSONSchemaHandler(),
+            SimpleNamespace(text=None, content='{"answer": 12.0}'),
+            12.0,
+        ),
+        (
+            handlers.XAIMDJSONHandler(),
+            SimpleNamespace(text='```json\n{"answer": 13.0}\n```'),
+            13.0,
+        ),
+        (handlers.XAIMDJSONHandler(), SimpleNamespace(text='{"answer": 14.0}'), 14.0),
+        (
+            handlers.XAIMDJSONHandler(),
+            SimpleNamespace(text=None, content=['{"answer": 15.0}']),
+            15.0,
+        ),
+    ],
+)
+def test_response_handlers_parse_supported_content_shapes(
+    handler: Any, response: Any, expected: float
+) -> None:
+    result = handler.parse_response(response, Answer)
+
+    assert isinstance(result, Answer)
+    assert result.answer == expected
+
+
+def test_json_schema_handler_unwraps_sdk_tuple_and_keeps_raw_response() -> None:
+    raw = SimpleNamespace(text="raw")
+
+    result = handlers.XAIJSONSchemaHandler().parse_response(
+        (raw, Answer(answer=10.0)), Answer
+    )
+
+    assert result.answer == 10.0
+    assert result._raw_response is raw

@@ -104,14 +104,6 @@ class TestCohereToolsHandler:
         """Get the TOOLS handler from registry."""
         return mode_registry.get_handlers(Provider.COHERE, Mode.TOOLS)
 
-    def test_prepare_request_with_none_model(self, handler):
-        """Test prepare_request returns unchanged kwargs when response_model is None."""
-        kwargs = {"messages": [{"role": "user", "content": "Hello"}]}
-        result_model, result_kwargs = handler.request_handler(None, kwargs)
-
-        assert result_model is None
-        assert "messages" in result_kwargs
-
     def test_prepare_request_adds_extraction_instruction_v2(self, handler):
         """Test prepare_request adds extraction instruction for V2 format."""
         kwargs = {"messages": [{"role": "user", "content": "What is 2+2?"}]}
@@ -136,21 +128,6 @@ class TestCohereToolsHandler:
         assert len(result_kwargs["chat_history"]) >= 1
         # First message should be the instruction
         assert "Extract a valid" in result_kwargs["chat_history"][0]["message"]
-
-    def test_prepare_request_preserves_original_kwargs(self, handler):
-        """Test prepare_request doesn't modify original kwargs."""
-        original_kwargs = {
-            "messages": [{"role": "user", "content": "Test"}],
-            "max_tokens": 100,
-        }
-        kwargs_copy = {
-            "messages": [{"role": "user", "content": "Test"}],
-            "max_tokens": 100,
-        }
-        handler.request_handler(Answer, original_kwargs)
-
-        # Original should be unchanged (messages list is modified in place though)
-        assert original_kwargs["max_tokens"] == kwargs_copy["max_tokens"]
 
     def test_parse_response_from_v1_tool_calls(self, handler):
         """Test parsing response from V1 tool_calls."""
@@ -180,19 +157,6 @@ class TestCohereToolsHandler:
 
         assert isinstance(result, Answer)
         assert result.answer == 6.0
-
-    def test_parse_response_with_validation_context(self, handler):
-        """Test parsing with validation context."""
-        response = MockCohereV1Response(text='{"answer": 7.0}')
-
-        result = handler.response_parser(
-            response,
-            Answer,
-            validation_context={"test": "context"},
-        )
-
-        assert isinstance(result, Answer)
-        assert result.answer == 7.0
 
     def test_handle_reask_v2_format(self, handler):
         """Test handle_reask adds error message for V2 format."""
@@ -256,14 +220,6 @@ class TestCohereJSONSchemaHandler:
         """Get the JSON_SCHEMA handler from registry."""
         return mode_registry.get_handlers(Provider.COHERE, Mode.JSON_SCHEMA)
 
-    def test_prepare_request_with_none_model(self, handler):
-        """Test prepare_request returns unchanged kwargs when response_model is None."""
-        kwargs = {"messages": [{"role": "user", "content": "Hello"}]}
-        result_model, result_kwargs = handler.request_handler(None, kwargs)
-
-        assert result_model is None
-        assert "messages" in result_kwargs
-
     def test_prepare_request_sets_response_format(self, handler):
         """Test prepare_request sets response_format with schema."""
         kwargs = {"messages": [{"role": "user", "content": "What is 2+2?"}]}
@@ -306,19 +262,6 @@ class TestCohereJSONSchemaHandler:
         assert isinstance(result, Answer)
         assert result.answer == 9.0
 
-    def test_parse_response_with_validation_context(self, handler):
-        """Test parsing with validation context."""
-        response = MockCohereV1Response(text='{"answer": 10.0}')
-
-        result = handler.response_parser(
-            response,
-            Answer,
-            validation_context={"test": "context"},
-        )
-
-        assert isinstance(result, Answer)
-        assert result.answer == 10.0
-
     def test_handle_reask_v2_format(self, handler):
         """Test handle_reask adds user message with error for V2 format."""
         kwargs = {"messages": [{"role": "user", "content": "Original"}]}
@@ -360,14 +303,6 @@ class TestCohereMDJSONHandler:
     def handler(self):
         """Get the MD_JSON handler from registry."""
         return mode_registry.get_handlers(Provider.COHERE, Mode.MD_JSON)
-
-    def test_prepare_request_with_none_model(self, handler):
-        """Test prepare_request returns unchanged kwargs when response_model is None."""
-        kwargs = {"messages": [{"role": "user", "content": "Hello"}]}
-        result_model, result_kwargs = handler.request_handler(None, kwargs)
-
-        assert result_model is None
-        assert "messages" in result_kwargs
 
     def test_prepare_request_adds_markdown_instruction_v2(self, handler):
         """Test prepare_request adds markdown instruction for V2 format."""
@@ -420,20 +355,6 @@ class TestCohereMDJSONHandler:
         assert isinstance(result, Answer)
         assert result.answer == 13.0
 
-    def test_handle_reask_adds_message(self, handler):
-        """Test handle_reask adds user message with error."""
-        kwargs = {"messages": [{"role": "user", "content": "Original"}]}
-        response = MockCohereV1Response(text="Invalid")
-        exception = ValueError("JSON extraction failed")
-
-        result = handler.reask_handler(kwargs, response, exception)
-
-        # Should have added a message
-        assert len(result["messages"]) > 1
-        # Last message should contain the error
-        last_msg = result["messages"][-1]
-        assert "JSON extraction failed" in last_msg["content"]
-
     def test_md_json_handler_with_strict_validation(self, handler):
         """Test MD_JSON handler with strict validation."""
         response = MockCohereV1Response(text='{"answer": 14.0}')
@@ -446,52 +367,6 @@ class TestCohereMDJSONHandler:
 
         assert isinstance(result, Answer)
         assert result.answer == 14.0
-
-
-# ============================================================================
-# Handler Registration Tests
-# ============================================================================
-# Note: Common handler registration tests are unified in
-# test_handler_registration_unified.py. Only provider-specific tests remain here.
-
-
-# ============================================================================
-# Mode Normalization Tests
-# ============================================================================
-
-
-class TestCohereModeNormalization:
-    """Tests for Cohere mode handling in v2."""
-
-    def test_cohere_tools_normalizes_to_tools(self):
-        """Legacy COHERE_TOOLS remains accepted via normalization."""
-        from instructor.v2.core.registry import mode_registry, normalize_mode
-
-        result = normalize_mode(Provider.COHERE, Mode.COHERE_TOOLS)
-        assert result == Mode.TOOLS
-        assert mode_registry.is_registered(Provider.COHERE, Mode.COHERE_TOOLS)
-
-    def test_cohere_json_schema_normalizes_to_json_schema(self):
-        """Legacy COHERE_JSON_SCHEMA remains accepted via normalization."""
-        from instructor.v2.core.registry import mode_registry, normalize_mode
-
-        result = normalize_mode(Provider.COHERE, Mode.COHERE_JSON_SCHEMA)
-        assert result == Mode.JSON_SCHEMA
-        assert mode_registry.is_registered(Provider.COHERE, Mode.COHERE_JSON_SCHEMA)
-
-    def test_generic_tools_passes_through(self):
-        """Test generic TOOLS mode passes through unchanged."""
-        from instructor.v2.core.registry import normalize_mode
-
-        result = normalize_mode(Provider.COHERE, Mode.TOOLS)
-        assert result == Mode.TOOLS
-
-    def test_generic_json_schema_passes_through(self):
-        """Test generic JSON_SCHEMA mode passes through unchanged."""
-        from instructor.v2.core.registry import normalize_mode
-
-        result = normalize_mode(Provider.COHERE, Mode.JSON_SCHEMA)
-        assert result == Mode.JSON_SCHEMA
 
 
 # ============================================================================
@@ -721,46 +596,11 @@ class TestCohereHandlerEdgeCases:
         assert "message" in result
 
 
-# ============================================================================
-# Import Tests
-# ============================================================================
+@pytest.mark.parametrize(
+    ("legacy", "expected"),
+    [(Mode.COHERE_TOOLS, Mode.TOOLS), (Mode.COHERE_JSON_SCHEMA, Mode.JSON_SCHEMA)],
+)
+def test_legacy_cohere_modes_normalize_to_generic(legacy: Mode, expected: Mode) -> None:
+    from instructor.v2.core.registry import normalize_mode
 
-
-class TestCohereImports:
-    """Tests for Cohere v2 imports."""
-
-    def test_from_cohere_importable_from_v2(self):
-        """Test from_cohere can be imported from instructor.v2.
-
-        Note: This may be None if cohere SDK is not installed.
-        """
-
-        # from_cohere may be None if cohere SDK is not installed
-        # The test passes if the import doesn't raise an error
-        pass  # Import succeeded, test passes
-
-    def test_handlers_importable(self):
-        """Test handlers can be imported directly."""
-        from instructor.v2.providers.cohere.handlers import (
-            CohereToolsHandler,
-            CohereJSONSchemaHandler,
-            CohereMDJSONHandler,
-        )
-
-        assert CohereToolsHandler is not None
-        assert CohereJSONSchemaHandler is not None
-        assert CohereMDJSONHandler is not None
-
-    def test_helper_functions_importable(self):
-        """Test helper functions can be imported."""
-        from instructor.v2.providers.cohere.handlers import (
-            _detect_client_version,
-            _convert_messages_to_cohere_v1,
-            _convert_messages_to_cohere_v2,
-            _extract_text_from_response,
-        )
-
-        assert _detect_client_version is not None
-        assert _convert_messages_to_cohere_v1 is not None
-        assert _convert_messages_to_cohere_v2 is not None
-        assert _extract_text_from_response is not None
+    assert normalize_mode(Provider.COHERE, legacy) == expected

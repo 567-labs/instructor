@@ -244,29 +244,35 @@ def test_from_mistral_warns_for_deprecated_tools_mode(
     assert client.mode is Mode.TOOLS
 
 
-def test_sync_client_routes_completion_retry_and_stream(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+async def test_client_routes_completion_retry_and_stream(
+    monkeypatch: pytest.MonkeyPatch, is_async: bool
 ) -> None:
     monkeypatch.setattr(mistral_client, "Mistral", FakeMistral)
     sdk = FakeMistral()
+    complete = sdk.chat.complete_async if is_async else sdk.chat.complete
+    stream = sdk.chat.stream_async if is_async else sdk.chat.stream
     valid_response = response(
         tool_calls=[tool_call("User", {"name": "Ada", "age": 36}, "second")]
     )
-    sdk.chat.complete.side_effect = [
+    complete.side_effect = [
         response(
             tool_calls=[tool_call("User", {"name": "Ada", "age": "bad"}, "first")]
         ),
         valid_response,
     ]
-    sdk.chat.stream.return_value = [
+    events = [
         event(tool_calls=[]),
         event(tool_calls=[tool_call("PartialUser", '{"name":"Ada"', "partial-1")]),
         event(tool_calls=[tool_call("PartialUser", ',"age":36}', "partial-2")]),
     ]
+    stream.return_value = async_items(events) if is_async else events
 
-    client = mistral_client.from_mistral(
+    client: Any = mistral_client.from_mistral(
         cast(Any, sdk),
         mode=Mode.TOOLS,
+        use_async=is_async,
         model="mistral-small-latest",
         temperature=0.2,
     )
@@ -275,18 +281,19 @@ def test_sync_client_routes_completion_retry_and_stream(
         messages=[{"role": "user", "content": "Extract Ada"}],
         max_retries=2,
     )
-    streamed = list(
-        client.create_partial(
-            response_model=User,
-            messages=[{"role": "user", "content": "Stream Ada"}],
-        )
+    if is_async:
+        result = await result
+    partials = client.create_partial(
+        response_model=User,
+        messages=[{"role": "user", "content": "Stream Ada"}],
     )
+    streamed = [item async for item in partials] if is_async else list(partials)
 
     assert isinstance(result, User)
     assert result.model_dump() == {"name": "Ada", "age": 36}
     assert cast(Any, result)._raw_response is valid_response
-    assert sdk.chat.complete.call_count == 2
-    retry_kwargs = sdk.chat.complete.call_args_list[1].kwargs
+    assert complete.call_count == 2
+    retry_kwargs = complete.call_args_list[1].kwargs
     assert retry_kwargs["model"] == "mistral-small-latest"
     assert retry_kwargs["tool_choice"] == "any"
     assert retry_kwargs["temperature"] == 0.2
@@ -294,70 +301,10 @@ def test_sync_client_routes_completion_retry_and_stream(
     assert retry_kwargs["messages"][-1]["role"] == "tool"
     assert retry_kwargs["messages"][-1]["tool_call_id"] == "first"
     assert "Validation Error found" in retry_kwargs["messages"][-1]["content"]
-    assert sdk.chat.stream.call_count == 1
-    assert "stream" not in sdk.chat.stream.call_args.kwargs
+    assert stream.call_count == 1
+    assert "stream" not in stream.call_args.kwargs
     assert streamed[-1].name == "Ada"
     assert streamed[-1].age == 36
-
-
-@pytest.mark.asyncio
-async def test_async_client_routes_completion_retry_and_stream(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(mistral_client, "Mistral", FakeMistral)
-    sdk = FakeMistral()
-    valid_response = response(
-        tool_calls=[tool_call("User", {"name": "Grace", "age": 40}, "second")]
-    )
-    sdk.chat.complete_async.side_effect = [
-        response(
-            tool_calls=[tool_call("User", {"name": "Grace", "age": "bad"}, "first")]
-        ),
-        valid_response,
-    ]
-    sdk.chat.stream_async.return_value = async_items(
-        [
-            event(tool_calls=[]),
-            event(
-                tool_calls=[tool_call("PartialUser", '{"name":"Grace"', "partial-1")]
-            ),
-            event(tool_calls=[tool_call("PartialUser", ',"age":40}', "partial-2")]),
-        ]
-    )
-
-    client = mistral_client.from_mistral(
-        cast(Any, sdk),
-        mode=Mode.TOOLS,
-        use_async=True,
-        model="mistral-small-latest",
-        temperature=0.1,
-    )
-    result = await client.create(
-        response_model=User,
-        messages=[{"role": "user", "content": "Extract Grace"}],
-        max_retries=2,
-    )
-    streamed = [
-        item
-        async for item in client.create_partial(
-            response_model=User,
-            messages=[{"role": "user", "content": "Stream Grace"}],
-        )
-    ]
-
-    assert isinstance(result, User)
-    assert result.model_dump() == {"name": "Grace", "age": 40}
-    assert cast(Any, result)._raw_response is valid_response
-    assert sdk.chat.complete_async.await_count == 2
-    retry_kwargs = sdk.chat.complete_async.await_args_list[1].kwargs
-    assert retry_kwargs["model"] == "mistral-small-latest"
-    assert retry_kwargs["tool_choice"] == "any"
-    assert retry_kwargs["messages"][-1]["tool_call_id"] == "first"
-    assert "Validation Error found" in retry_kwargs["messages"][-1]["content"]
-    sdk.chat.stream_async.assert_awaited_once()
-    assert "stream" not in sdk.chat.stream_async.await_args.kwargs
-    assert streamed[-1].name == "Grace"
-    assert streamed[-1].age == 40
 
 
 def test_streaming_flags_and_sync_extractors_skip_empty_and_bad_chunks() -> None:

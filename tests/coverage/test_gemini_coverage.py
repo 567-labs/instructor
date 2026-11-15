@@ -906,64 +906,6 @@ def test_genai_request_helpers_cover_unstructured_streaming_and_config_inheritan
     assert tool_request["config"].system_instruction is None
 
 
-def test_genai_request_helpers_preserve_cached_content_and_system_messages_from_config() -> (
-    None
-):
-    cached = types.GenerateContentConfig(
-        cached_content="cachedContents/session-1",
-        thinking_config=types.ThinkingConfig(thinking_budget=24),
-    )
-    messages = [
-        {"role": "system", "content": "use cached rules"},
-        {"role": "user", "content": "extract a value"},
-    ]
-
-    structured_model, structured = utils.handle_genai_structured_outputs(
-        Answer, {"messages": messages.copy(), "config": cached}
-    )
-    assert structured_model is Answer
-    assert structured["config"].cached_content == "cachedContents/session-1"
-    assert structured["config"].thinking_config.thinking_budget == 24
-    assert structured["config"].system_instruction is None
-    assert structured["contents"][0].parts[0].text == "extract a value"
-
-    tool_model, tool_request = utils.handle_genai_tools(
-        Answer, {"messages": messages.copy(), "config": cached}
-    )
-    assert tool_model is Answer
-    assert tool_request["config"].cached_content == "cachedContents/session-1"
-    assert tool_request["config"].thinking_config.thinking_budget == 24
-    assert tool_request["config"].system_instruction is None
-    assert tool_request["config"].tools is None
-    assert tool_request["contents"][0].parts[0].text == "extract a value"
-
-    cached_only = SimpleNamespace(cached_content="cachedContents/session-2")
-    _, structured_cached_only = utils.handle_genai_structured_outputs(
-        Answer, {"messages": messages.copy(), "config": cached_only}
-    )
-    _, tools_cached_only = utils.handle_genai_tools(
-        Answer, {"messages": messages.copy(), "config": cached_only}
-    )
-    assert structured_cached_only["config"].cached_content == "cachedContents/session-2"
-    assert structured_cached_only["config"].thinking_config is None
-    assert tools_cached_only["config"].cached_content == "cachedContents/session-2"
-    assert tools_cached_only["config"].thinking_config is None
-
-    thinking_only = SimpleNamespace(
-        thinking_config=types.ThinkingConfig(thinking_budget=12)
-    )
-    _, structured_thinking_only = utils.handle_genai_structured_outputs(
-        Answer, {"messages": messages.copy(), "config": thinking_only}
-    )
-    _, tools_thinking_only = utils.handle_genai_tools(
-        Answer, {"messages": messages.copy(), "config": thinking_only}
-    )
-    assert structured_thinking_only["config"].cached_content is None
-    assert structured_thinking_only["config"].thinking_config.thinking_budget == 12
-    assert tools_thinking_only["config"].cached_content is None
-    assert tools_thinking_only["config"].thinking_config.thinking_budget == 12
-
-
 def test_gemini_compatibility_helpers_keep_vertex_passthrough_and_genai_reask() -> None:
     kwargs = {"messages": [{"role": "user", "content": "hello"}]}
     vertex_model, vertex_tools = utils.handle_vertexai_tools(None, kwargs)

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sys
-from enum import Enum
 from types import ModuleType
 from typing import Any
 
@@ -10,73 +9,12 @@ from pydantic import BaseModel
 
 from instructor.v2.core.errors import ConfigurationError
 from instructor.v2.providers.gemini import utils
-from tests.v2._fake_genai import FakeContent, FakeFile, FakePart, install_fake_genai
+
+types = pytest.importorskip("google.genai.types")
 
 
 class Answer(BaseModel):
     value: int
-
-
-class FakeGenerateContentConfig:
-    def __init__(self, **kwargs: Any) -> None:
-        self.kwargs = kwargs
-
-
-class FakeFunctionDeclaration:
-    def __init__(self, *, name: str, description: str | None, parameters: Any) -> None:
-        self.name = name
-        self.description = description
-        self.parameters = parameters
-
-
-class FakeTool:
-    def __init__(self, *, function_declarations: list[Any]) -> None:
-        self.function_declarations = function_declarations
-
-
-class FakeFunctionCallingConfigMode(Enum):
-    ANY = "ANY"
-
-
-class FakeFunctionCallingConfig:
-    def __init__(self, *, mode: Any, allowed_function_names: list[str]) -> None:
-        self.mode = mode
-        self.allowed_function_names = allowed_function_names
-
-
-class FakeToolConfig:
-    def __init__(self, *, function_calling_config: Any) -> None:
-        self.function_calling_config = function_calling_config
-
-
-class FakeHarmBlockThreshold(Enum):
-    OFF = 0
-    BLOCK_ONLY_HIGH = 1
-
-
-class FakeHarmCategory(Enum):
-    HARM_CATEGORY_UNSPECIFIED = "unspecified"
-    HARM_CATEGORY_JAILBREAK = "jailbreak"
-    HARM_CATEGORY_IMAGE_SAFETY = "image"
-    HARM_CATEGORY_HATE_SPEECH = "hate"
-    HARM_CATEGORY_HARASSMENT = "harassment"
-    HARM_CATEGORY_DANGEROUS_CONTENT = "dangerous"
-
-
-def _install_fake_genai_types(monkeypatch: pytest.MonkeyPatch) -> None:
-    install_fake_genai(
-        monkeypatch,
-        extra_types={
-            "GenerateContentConfig": FakeGenerateContentConfig,
-            "FunctionDeclaration": FakeFunctionDeclaration,
-            "Tool": FakeTool,
-            "ToolConfig": FakeToolConfig,
-            "FunctionCallingConfig": FakeFunctionCallingConfig,
-            "FunctionCallingConfigMode": FakeFunctionCallingConfigMode,
-            "HarmBlockThreshold": FakeHarmBlockThreshold,
-            "HarmCategory": FakeHarmCategory,
-        },
-    )
 
 
 def _install_fake_vertexai_wrappers(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -172,17 +110,17 @@ def test_extract_genai_system_message_validates_edge_cases() -> None:
 def test_convert_to_genai_messages_supports_strings_existing_content_and_media(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install_fake_genai_types(monkeypatch)
+    image_part = types.Part.from_text(text="image-part")
 
     class FakeImage:
-        def to_genai(self) -> str:
-            return "image-part"
+        def to_genai(self) -> Any:
+            return image_part
 
     image = FakeImage()
     monkeypatch.setattr(utils, "Image", FakeImage)
 
-    existing = FakeContent(role="user", parts=[FakePart.from_text("existing")])
-    uploaded = FakeFile()
+    existing = types.Content(role="user", parts=[types.Part.from_text(text="x")])
+    uploaded = types.File()
 
     messages: list[Any] = [
         "hello",
@@ -197,13 +135,12 @@ def test_convert_to_genai_messages_supports_strings_existing_content_and_media(
     assert result[1] is existing
     assert result[2] is uploaded
     assert result[3].parts[0].text == "one"
-    assert result[3].parts[1] == "image-part"
+    assert result[3].parts[1] is image_part
 
 
 def test_handle_genai_message_conversion_extracts_system_and_contents(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install_fake_genai_types(monkeypatch)
     monkeypatch.setattr(
         utils,
         "convert_to_genai_messages",
@@ -225,7 +162,7 @@ def test_handle_genai_message_conversion_extracts_system_and_contents(
     )
 
     assert result["contents"][-1] is True
-    assert result["config"].kwargs["system_instruction"] == "rules\n\n"
+    assert result["config"].system_instruction == "rules\n\n"
     assert "messages" not in result
 
 
@@ -234,7 +171,6 @@ def test_handle_genai_message_conversion_folds_generation_config(
 ) -> None:
     # Regression test for #2366: when response_model is None, generation_config must be folded
     # into `config` instead of leaking as a raw keyword argument to generate_content.
-    _install_fake_genai_types(monkeypatch)
     monkeypatch.setattr(
         utils, "convert_to_genai_messages", lambda _messages: ["converted"]
     )
@@ -251,8 +187,8 @@ def test_handle_genai_message_conversion_folds_generation_config(
     )
 
     assert "generation_config" not in result
-    assert result["config"].kwargs["temperature"] == 0.7
-    assert result["config"].kwargs["max_output_tokens"] == 128
+    assert result["config"].temperature == 0.7
+    assert result["config"].max_output_tokens == 128
 
 
 def test_handle_vertexai_wrappers_use_provider_helpers(
@@ -396,16 +332,14 @@ def test_handle_gemini_json_rejects_model_kwarg() -> None:
         utils.handle_gemini_json(Answer, {"messages": [], "model": "gemini-pro"})
 
 
-def test_update_genai_kwargs_merges_generation_safety_and_user_config(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _install_fake_genai_types(monkeypatch)
-
+def test_update_genai_kwargs_merges_generation_safety_and_user_config() -> None:
     result = utils.update_genai_kwargs(
         {
             "generation_config": {"max_tokens": 64, "stop": ["done"]},
             "safety_settings": {
-                FakeHarmCategory.HARM_CATEGORY_HARASSMENT: FakeHarmBlockThreshold.BLOCK_ONLY_HIGH
+                types.HarmCategory.HARM_CATEGORY_HARASSMENT: (
+                    types.HarmBlockThreshold.BLOCK_ONLY_HIGH
+                )
             },
             "config": {
                 "thinking_config": {"budget": 2},
@@ -423,17 +357,24 @@ def test_update_genai_kwargs_merges_generation_safety_and_user_config(
     assert result["labels"] == {"team": "dx"}
     assert result["cached_content"] == "cache-1"
     assert result["automatic_function_calling"] is True
-    assert {entry["category"] for entry in result["safety_settings"]} == {
-        FakeHarmCategory.HARM_CATEGORY_HATE_SPEECH,
-        FakeHarmCategory.HARM_CATEGORY_HARASSMENT,
-        FakeHarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    thresholds = {
+        entry["category"]: entry["threshold"] for entry in result["safety_settings"]
     }
+    assert thresholds.pop(types.HarmCategory.HARM_CATEGORY_HARASSMENT) is (
+        types.HarmBlockThreshold.BLOCK_ONLY_HIGH
+    )
+    assert types.HarmCategory.HARM_CATEGORY_HATE_SPEECH in thresholds
+    assert set(thresholds.values()) == {types.HarmBlockThreshold.OFF}
+    assert not any(
+        category is types.HarmCategory.HARM_CATEGORY_UNSPECIFIED
+        or category.name.startswith("HARM_CATEGORY_IMAGE_")
+        for category in thresholds
+    )
 
 
 def test_handle_genai_structured_outputs_builds_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install_fake_genai_types(monkeypatch)
     monkeypatch.setattr(
         utils,
         "convert_to_genai_messages",
@@ -447,7 +388,8 @@ def test_handle_genai_structured_outputs_builds_config(
     monkeypatch.setattr(
         utils,
         "update_genai_kwargs",
-        lambda _kwargs, base_config: base_config | {"thinking_config": {"budget": 4}},
+        lambda _kwargs, base_config: base_config
+        | {"thinking_config": {"thinking_budget": 4}},
     )
 
     model, result = utils.handle_genai_structured_outputs(
@@ -461,16 +403,15 @@ def test_handle_genai_structured_outputs_builds_config(
 
     assert model is Answer
     assert result["contents"] == ["converted", True]
-    assert result["config"].kwargs["system_instruction"] == "rules"
-    assert result["config"].kwargs["response_schema"] is Answer
-    assert result["config"].kwargs["thinking_config"] == {"budget": 4}
+    assert result["config"].system_instruction == "rules"
+    assert result["config"].response_schema is Answer
+    assert result["config"].thinking_config.thinking_budget == 4
     assert "messages" not in result
 
 
 def test_handle_genai_tools_builds_tool_declaration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install_fake_genai_types(monkeypatch)
     monkeypatch.setattr(
         utils,
         "convert_to_genai_messages",
@@ -480,7 +421,6 @@ def test_handle_genai_tools_builds_tool_declaration(
         "instructor.v2.core.multimodal.extract_genai_multimodal_content",
         lambda contents, autodetect_images: [*contents, autodetect_images],
     )
-    monkeypatch.setattr(utils, "map_to_genai_schema", lambda _schema: {"schema": "ok"})
     monkeypatch.setattr(
         utils,
         "update_genai_kwargs",
@@ -497,19 +437,18 @@ def test_handle_genai_tools_builds_tool_declaration(
     )
 
     assert model is Answer
-    declaration = result["config"].kwargs["tools"][0].function_declarations[0]
+    declaration = result["config"].tools[0].function_declarations[0]
     assert declaration.name == "Answer"
-    assert declaration.parameters == {"schema": "ok"}
-    assert result["config"].kwargs["tool_config"].function_calling_config.mode is (
-        FakeFunctionCallingConfigMode.ANY
+    assert "value" in declaration.parameters.properties
+    assert result["config"].tool_config.function_calling_config.mode is (
+        types.FunctionCallingConfigMode.ANY
     )
-    assert result["config"].kwargs["system_instruction"] == "rules"
+    assert result["config"].system_instruction == "rules"
 
 
 def test_handle_genai_tools_without_model_uses_message_conversion(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install_fake_genai_types(monkeypatch)
     expected = {"contents": ["converted"]}
     monkeypatch.setattr(
         utils,

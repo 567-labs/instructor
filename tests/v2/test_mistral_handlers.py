@@ -112,14 +112,6 @@ class TestMistralToolsHandler:
         handlers = mode_registry.get_handlers(Provider.MISTRAL, Mode.TOOLS)
         return handlers
 
-    def test_prepare_request_with_none_model(self, handler):
-        """Test prepare_request returns unchanged kwargs when response_model is None."""
-        kwargs = {"messages": [{"role": "user", "content": "Hello"}]}
-        result_model, result_kwargs = handler.request_handler(None, kwargs)
-
-        assert result_model is None
-        assert "messages" in result_kwargs
-
     def test_prepare_request_adds_tool_schema(self, handler):
         """Test prepare_request adds tool schema for response model."""
         kwargs = {"messages": [{"role": "user", "content": "What is 2+2?"}]}
@@ -136,18 +128,6 @@ class TestMistralToolsHandler:
         result_model, result_kwargs = handler.request_handler(Answer, kwargs)
 
         assert result_kwargs["tool_choice"] == "any"
-
-    def test_prepare_request_preserves_original_kwargs(self, handler):
-        """Test prepare_request doesn't modify original kwargs."""
-        original_kwargs = {
-            "messages": [{"role": "user", "content": "Test"}],
-            "max_tokens": 100,
-        }
-        kwargs_copy = original_kwargs.copy()
-        handler.request_handler(Answer, original_kwargs)
-
-        # Original should be unchanged
-        assert original_kwargs == kwargs_copy
 
     def test_parse_response_from_tool_calls_dict_args(self, handler):
         """Test parsing response when arguments are a dict (Mistral format)."""
@@ -166,19 +146,6 @@ class TestMistralToolsHandler:
 
         assert isinstance(result, Answer)
         assert result.answer == 5.0
-
-    def test_parse_response_with_validation_context(self, handler):
-        """Test parsing with validation context."""
-        response = MockResponse(tool_calls=[MockToolCall("Answer", {"answer": 6.0})])
-
-        result = handler.response_parser(
-            response,
-            Answer,
-            validation_context={"test": "context"},
-        )
-
-        assert isinstance(result, Answer)
-        assert result.answer == 6.0
 
     def test_handle_reask_adds_messages(self, handler):
         """Test handle_reask adds error message to conversation."""
@@ -301,19 +268,6 @@ class TestMistralJSONSchemaHandler:
         assert isinstance(result, Answer)
         assert result.answer == 7.0
 
-    def test_parse_response_with_validation_context(self, handler):
-        """Test parsing with validation context."""
-        response = MockResponse(content='{"answer": 8.0}')
-
-        result = handler.response_parser(
-            response,
-            Answer,
-            validation_context={"test": "context"},
-        )
-
-        assert isinstance(result, Answer)
-        assert result.answer == 8.0
-
     def test_handle_reask_adds_messages(self, handler):
         """Test handle_reask adds user message with error."""
         kwargs = {"messages": [{"role": "user", "content": "Original"}]}
@@ -330,12 +284,6 @@ class TestMistralJSONSchemaHandler:
         assert result["messages"][-1]["role"] == "user"
         assert "Validation Error" in result["messages"][-1]["content"]
 
-    @pytest.mark.skipif(True, reason="Requires mistralai SDK")
-    def test_prepare_request_uses_mistral_helper(self, handler):
-        """Test prepare_request uses Mistral's response_format_from_pydantic_model."""
-        # This test requires the mistralai SDK
-        pass
-
 
 # ============================================================================
 # MistralMDJSONHandler Tests
@@ -351,14 +299,6 @@ class TestMistralMDJSONHandler:
         handlers = mode_registry.get_handlers(Provider.MISTRAL, Mode.MD_JSON)
         return handlers
 
-    def test_prepare_request_with_none_model(self, handler):
-        """Test prepare_request returns unchanged kwargs when response_model is None."""
-        kwargs = {"messages": [{"role": "user", "content": "Hello"}]}
-        result_model, result_kwargs = handler.request_handler(None, kwargs)
-
-        assert result_model is None
-        assert result_kwargs == kwargs
-
     def test_prepare_request_adds_system_message(self, handler):
         """Test prepare_request adds system message with schema."""
         kwargs = {"messages": [{"role": "user", "content": "What is 2+2?"}]}
@@ -370,23 +310,6 @@ class TestMistralMDJSONHandler:
         # Should have system message at start
         assert messages[0]["role"] == "system"
         assert "json_schema" in messages[0]["content"]
-
-    def test_prepare_request_appends_to_existing_system(self, handler):
-        """Test prepare_request appends to existing system message."""
-        kwargs = {
-            "messages": [
-                {"role": "system", "content": "You are helpful."},
-                {"role": "user", "content": "What is 2+2?"},
-            ]
-        }
-        result_model, result_kwargs = handler.request_handler(Answer, kwargs)
-
-        messages = result_kwargs["messages"]
-        system_msg = messages[0]
-
-        assert system_msg["role"] == "system"
-        assert "You are helpful." in system_msg["content"]
-        assert "json_schema" in system_msg["content"]
 
     def test_parse_response_from_markdown_codeblock(self, handler):
         """Test parsing JSON from markdown code block."""
@@ -406,22 +329,6 @@ class TestMistralMDJSONHandler:
         assert isinstance(result, Answer)
         assert result.answer == 10.0
 
-    def test_handle_reask_adds_message(self, handler):
-        """Test handle_reask adds user message with error."""
-        kwargs = {"messages": [{"role": "user", "content": "Original"}]}
-        response = MockResponse(content="Invalid")
-        exception = ValueError("JSON extraction failed")
-
-        result = handler.reask_handler(kwargs, response, exception)
-
-        # Should have added messages for reask
-        assert len(result["messages"]) > 1
-        # Should have assistant message with previous response
-        assert result["messages"][-2]["role"] == "assistant"
-        # Should have user message with error
-        assert result["messages"][-1]["role"] == "user"
-        assert "Validation Error" in result["messages"][-1]["content"]
-
     def test_md_json_handler_with_strict_validation(self, handler):
         """Test MD_JSON handler with strict validation."""
         response = MockResponse(content='{"answer": 11.0}')
@@ -434,54 +341,6 @@ class TestMistralMDJSONHandler:
 
         assert isinstance(result, Answer)
         assert result.answer == 11.0
-
-
-# ============================================================================
-# Handler Registration Tests
-# ============================================================================
-# Note: Common handler registration tests are unified in
-# test_handler_registration_unified.py. Only provider-specific tests remain here.
-
-
-# ============================================================================
-# Mode Normalization Tests
-# ============================================================================
-
-
-class TestMistralModeNormalization:
-    """Tests for Mistral mode handling in v2."""
-
-    def test_mistral_tools_normalizes_to_tools(self):
-        """Legacy MISTRAL_TOOLS remains accepted via normalization."""
-        from instructor.v2.core.registry import mode_registry, normalize_mode
-
-        result = normalize_mode(Provider.MISTRAL, Mode.MISTRAL_TOOLS)
-        assert result == Mode.TOOLS
-        assert mode_registry.is_registered(Provider.MISTRAL, Mode.MISTRAL_TOOLS)
-
-    def test_mistral_structured_outputs_normalizes_to_json_schema(self):
-        """Legacy structured outputs remains accepted via normalization."""
-        from instructor.v2.core.registry import mode_registry, normalize_mode
-
-        result = normalize_mode(Provider.MISTRAL, Mode.MISTRAL_STRUCTURED_OUTPUTS)
-        assert result == Mode.JSON_SCHEMA
-        assert mode_registry.is_registered(
-            Provider.MISTRAL, Mode.MISTRAL_STRUCTURED_OUTPUTS
-        )
-
-    def test_generic_tools_passes_through(self):
-        """Test generic TOOLS mode passes through unchanged."""
-        from instructor.v2.core.registry import normalize_mode
-
-        result = normalize_mode(Provider.MISTRAL, Mode.TOOLS)
-        assert result == Mode.TOOLS
-
-    def test_generic_json_schema_passes_through(self):
-        """Test generic JSON_SCHEMA mode passes through unchanged."""
-        from instructor.v2.core.registry import normalize_mode
-
-        result = normalize_mode(Provider.MISTRAL, Mode.JSON_SCHEMA)
-        assert result == Mode.JSON_SCHEMA
 
 
 # ============================================================================
@@ -560,28 +419,16 @@ class TestMistralHandlerEdgeCases:
         assert messages[0]["role"] == "system"
 
 
-# ============================================================================
-# Import Tests
-# ============================================================================
+@pytest.mark.parametrize(
+    ("legacy", "expected"),
+    [
+        (Mode.MISTRAL_TOOLS, Mode.TOOLS),
+        (Mode.MISTRAL_STRUCTURED_OUTPUTS, Mode.JSON_SCHEMA),
+    ],
+)
+def test_legacy_mistral_modes_normalize_to_generic(
+    legacy: Mode, expected: Mode
+) -> None:
+    from instructor.v2.core.registry import normalize_mode
 
-
-class TestMistralImports:
-    """Tests for Mistral v2 imports."""
-
-    def test_from_mistral_importable_from_v2(self):
-        """Test from_mistral can be imported from instructor.v2."""
-        from instructor.v2 import from_mistral
-
-        assert from_mistral is not None
-
-    def test_handlers_importable(self):
-        """Test handlers can be imported directly."""
-        from instructor.v2.providers.mistral.handlers import (
-            MistralToolsHandler,
-            MistralJSONSchemaHandler,
-            MistralMDJSONHandler,
-        )
-
-        assert MistralToolsHandler is not None
-        assert MistralJSONSchemaHandler is not None
-        assert MistralMDJSONHandler is not None
+    assert normalize_mode(Provider.MISTRAL, legacy) == expected

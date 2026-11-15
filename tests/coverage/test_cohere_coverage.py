@@ -17,7 +17,7 @@ import pytest
 import pytest_asyncio
 from pydantic import BaseModel
 
-from instructor.v2.core.client import AsyncInstructor, Instructor
+from instructor.v2.core.client import AsyncInstructor
 from instructor.v2.core.errors import (
     ClientError,
     ConfigurationError,
@@ -88,35 +88,43 @@ def _stream_events(answer: int) -> list[Any]:
     ]
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("client_type", "response_factory", "version"),
     [
         (cohere.Client, _v1_response, "v1"),
         (cohere.ClientV2, _v2_response, "v2"),
+        (cohere.AsyncClient, _v1_response, "v1"),
+        (cohere.AsyncClientV2, _v2_response, "v2"),
     ],
+    ids=["sync-v1", "sync-v2", "async-v1", "async-v2"],
 )
-def test_sync_cohere_clients_retry_and_stream(
+async def test_cohere_clients_retry_and_stream(
     client_type: type[Any],
     response_factory: Any,
     version: str,
     http_client: httpx.Client,
+    async_http_client: httpx.AsyncClient,
 ) -> None:
+    is_async = client_type.__name__.startswith("Async")
     raw = client_type(
         api_key="test-key",
         base_url="http://127.0.0.1:9",
-        httpx_client=http_client,
+        httpx_client=async_http_client if is_async else http_client,
     )
-    raw.chat = Mock(
-        side_effect=[
-            response_factory('{"answer":"wrong"}'),
-            response_factory('{"answer":7}'),
-        ]
+    responses = [
+        response_factory('{"answer":"wrong"}'),
+        response_factory('{"answer":7}'),
+    ]
+    raw.chat = (AsyncMock if is_async else Mock)(side_effect=responses)
+    events = _stream_events(8)
+    raw.chat_stream = Mock(
+        return_value=async_items(events) if is_async else iter(events)
     )
-    raw.chat_stream = Mock(return_value=iter(_stream_events(8)))
 
     wrapped = from_cohere(raw, mode=Mode.TOOLS)
 
-    assert isinstance(wrapped, Instructor)
+    assert isinstance(wrapped, AsyncInstructor) is is_async
     assert wrapped.provider is Provider.COHERE
     assert wrapped.mode is Mode.TOOLS
     assert wrapped.kwargs["_cohere_client_version"] == version
@@ -127,14 +135,15 @@ def test_sync_cohere_clients_retry_and_stream(
         model_name="command-r",
         max_retries=1,
     )
-    streamed = list(
-        wrapped.create_iterable(
-            response_model=Answer,
-            messages=[{"role": "user", "content": "Stream the answer"}],
-            model_name="command-r",
-            max_retries=0,
-        )
+    if is_async:
+        result = await result
+    stream = wrapped.create_iterable(
+        response_model=Answer,
+        messages=[{"role": "user", "content": "Stream the answer"}],
+        model_name="command-r",
+        max_retries=0,
     )
+    streamed = [item async for item in stream] if is_async else list(stream)
 
     assert result.model_dump() == {"answer": 7}
     assert streamed == [Answer(answer=8)]
@@ -208,74 +217,6 @@ def test_cohere_templating_applies_context_to_a_string_message() -> None:
     )
 
     assert result == {"role": "user", "message": "Hello, Ada"}
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("client_type", "response_factory", "version"),
-    [
-        (cohere.AsyncClient, _v1_response, "v1"),
-        (cohere.AsyncClientV2, _v2_response, "v2"),
-    ],
-)
-async def test_async_cohere_clients_retry_and_stream(
-    client_type: type[Any],
-    response_factory: Any,
-    version: str,
-    async_http_client: httpx.AsyncClient,
-) -> None:
-    raw = client_type(
-        api_key="test-key",
-        base_url="http://127.0.0.1:9",
-        httpx_client=async_http_client,
-    )
-    responses = [
-        response_factory('{"answer":"wrong"}'),
-        response_factory('{"answer":9}'),
-    ]
-    raw.chat = AsyncMock(side_effect=responses)
-    raw.chat_stream = Mock(return_value=async_items(_stream_events(10)))
-
-    wrapped = from_cohere(raw, mode=Mode.TOOLS)
-
-    assert isinstance(wrapped, AsyncInstructor)
-    assert wrapped.provider is Provider.COHERE
-    assert wrapped.mode is Mode.TOOLS
-    assert wrapped.kwargs["_cohere_client_version"] == version
-
-    result = await wrapped.create(
-        response_model=Answer,
-        messages=[{"role": "user", "content": "Give the answer"}],
-        model_name="command-r",
-        max_retries=1,
-    )
-    streamed = [
-        item
-        async for item in wrapped.create_iterable(
-            response_model=Answer,
-            messages=[{"role": "user", "content": "Stream the answer"}],
-            model_name="command-r",
-            max_retries=0,
-        )
-    ]
-
-    assert result.model_dump() == {"answer": 9}
-    assert streamed == [Answer(answer=10)]
-    assert raw.chat.await_count == 2
-    assert raw.chat_stream.call_count == 1
-    retry_kwargs = raw.chat.call_args_list[1].kwargs
-    stream_kwargs = raw.chat_stream.call_args.kwargs
-    assert retry_kwargs["model"] == stream_kwargs["model"] == "command-r"
-    assert "stream" not in stream_kwargs
-    if version == "v1":
-        assert "Correct the following JSON response" in retry_kwargs["message"]
-        assert stream_kwargs["message"] == "Stream the answer"
-    else:
-        assert (
-            "Correct the following JSON response"
-            in retry_kwargs["messages"][-1]["content"]
-        )
-        assert stream_kwargs["messages"][-1]["content"] == "Stream the answer"
 
 
 @pytest.mark.asyncio

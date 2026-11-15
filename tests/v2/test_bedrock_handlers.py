@@ -113,14 +113,6 @@ class TestBedrockToolsHandler:
         """Get the TOOLS handler from registry."""
         return mode_registry.get_handlers(Provider.BEDROCK, Mode.TOOLS)
 
-    def test_prepare_request_with_none_model(self, handler):
-        """prepare_request returns unchanged model and converted kwargs."""
-        kwargs = {"messages": [{"role": "user", "content": "Hello"}]}
-        result_model, result_kwargs = handler.request_handler(None, kwargs)
-
-        assert result_model is None
-        assert "messages" in result_kwargs
-
     def test_prepare_request_adds_tool_config(self, handler):
         """prepare_request adds Bedrock tool config."""
         kwargs = {"messages": [{"role": "user", "content": "What is 2+2?"}]}
@@ -244,14 +236,6 @@ class TestBedrockMDJSONHandler:
     def handler(self):
         """Get the MD_JSON handler from registry."""
         return mode_registry.get_handlers(Provider.BEDROCK, Mode.MD_JSON)
-
-    def test_prepare_request_with_none_model(self, handler):
-        """prepare_request returns unchanged model and converted kwargs."""
-        kwargs = {"messages": [{"role": "user", "content": "Hello"}]}
-        result_model, result_kwargs = handler.request_handler(None, kwargs)
-
-        assert result_model is None
-        assert "messages" in result_kwargs
 
     def test_prepare_request_with_none_model_converts_to_converse(self, handler):
         """response_model=None still converts OpenAI-style kwargs, like TOOLS."""
