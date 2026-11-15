@@ -297,9 +297,17 @@ class MistralToolsHandler(MistralHandlerBase):
         # With no completion choice there is no assistant message to replay;
         # fall through to the plain user correction below.
         message = first_choice_message(response)
-        reask_msgs: list[Any] = [dump_message(message)] if message is not None else []
-
-        tool_calls = (message.tool_calls or []) if message is not None else []
+        reask_msgs: list[Any] = []
+        tool_calls: list[Any] = []
+        if message is not None:
+            tool_calls = message.tool_calls or []
+            # Mistral leaves `tool_calls` UNSET on prose replies and drops it
+            # from `model_dump()`, so replay plain text without `dump_message`.
+            reask_msgs.append(
+                dump_message(message)
+                if tool_calls
+                else {"role": "assistant", "content": message.content or ""}
+            )
         if not tool_calls:
             # The model answered in prose without calling the tool, so there is
             # no tool_call_id to attach a tool-role message to. Fall back to a

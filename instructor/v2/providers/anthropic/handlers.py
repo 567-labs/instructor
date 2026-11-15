@@ -620,18 +620,21 @@ class AnthropicJSONHandler(AnthropicHandlerBase):
         exception: Exception,
     ) -> dict[str, Any]:
         kwargs = kwargs.copy()
-        text_blocks = [c for c in response.content if c.type == "text"]
-        if not text_blocks:
-            text_content = "No text content found in response"
-        else:
-            text_content = text_blocks[-1].text
-        reask_msg = {
-            "role": "user",
-            "content": (
-                "Validation Errors found:\n"
-                f"{exception}\nRecall the function correctly, fix the errors found in the following attempt:\n{text_content}"
-            ),
-        }
+        feedback = (
+            f"Validation Errors found:\n{exception}\nRecall the function correctly, "
+            "fix the errors"
+        )
+        # A missing response or unconsumed stream has no content blocks to quote.
+        content = getattr(response, "content", None)
+        if isinstance(content, list):
+            text_blocks = [c for c in content if getattr(c, "type", None) == "text"]
+            text_content = (
+                text_blocks[-1].text
+                if text_blocks
+                else "No text content found in response"
+            )
+            feedback += f" found in the following attempt:\n{text_content}"
+        reask_msg = {"role": "user", "content": feedback}
         kwargs["messages"].append(reask_msg)
         return kwargs
 
