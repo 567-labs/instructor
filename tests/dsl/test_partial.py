@@ -1533,3 +1533,54 @@ def test_partial_model_builds_models_inside_mapping_values():
     assert obj.nested[0]["c"].name == "cherry"
     assert isinstance(obj.nested[0]["d"], Item)
     assert obj.nested[0]["d"].name == "dam"
+
+
+def test_partial_annotated_nested_models() -> None:
+    """Annotated[SubModel, ...] inside list, Optional, dict, and Annotated containers."""
+    from typing import Annotated
+
+    class Step(BaseModel):
+        val: int
+
+    class Plan(BaseModel):
+        items: list[Annotated[Step, Field(description="A step")]]
+        opt_step: Optional[Annotated[Step, Field(description="Optional step")]] = None
+        mapping: dict[str, Annotated[Step, Field(description="Mapped step")]]
+        annotated_list: Annotated[
+            list[Annotated[Step, Field(description="Inner step")]],
+            Field(description="Outer annotated list"),
+        ]
+        opt_annotated_list: Optional[
+            Annotated[
+                list[Annotated[Step, Field(description="Optional inner step")]],
+                Field(description="Optional outer annotated list"),
+            ]
+        ] = None
+        summary: str
+
+    partial = _partial_api(Partial[Plan]).get_partial_model()
+    chunks = [
+        '{"items": [{"val": 7}], "opt_step": {"val": 9}, '
+        '"mapping": {"first": {"val": 11}}, '
+        '"annotated_list": [{"val": 13}], '
+        '"opt_annotated_list": [{"val": 15}], '
+        '"summary": "in prog'
+    ]
+
+    snapshots = list(_partial_api(partial).model_from_chunks(chunks))
+    last = snapshots[-1]
+
+    assert isinstance(last.items[0], Step)
+    assert last.items[0].val == 7
+
+    assert isinstance(last.opt_step, Step)
+    assert last.opt_step.val == 9
+
+    assert isinstance(last.mapping["first"], Step)
+    assert last.mapping["first"].val == 11
+
+    assert isinstance(last.annotated_list[0], Step)
+    assert last.annotated_list[0].val == 13
+
+    assert isinstance(last.opt_annotated_list[0], Step)
+    assert last.opt_annotated_list[0].val == 15
