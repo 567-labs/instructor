@@ -21,6 +21,7 @@ from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import ParallelBase, get_types_array
 from instructor.v2.dsl.partial import PartialBase
 from instructor.v2.dsl.simple_type import AdapterBase
+from instructor.v2.providers.vertexai.parallel import VertexAIParallelBase
 from instructor.v2.providers.gemini.utils import (
     handle_vertexai_json,
     handle_vertexai_parallel_tools,
@@ -90,18 +91,40 @@ def vertexai_message_list_parser(
     ]
 
 
+def _vertexai_reply_content(response: Any) -> Any:
+    """Return the first candidate's content, or None when there is none to replay."""
+    candidates = getattr(response, "candidates", None)
+    if not candidates:
+        return None
+    content = getattr(candidates[0], "content", None)
+    if content is None or not getattr(content, "parts", None):
+        return None
+    return content
+
+
+def _vertexai_function_call(content: Any) -> Any:
+    """Return the first function call in `content`, if the model made one."""
+    for part in content.parts:
+        function_call = getattr(part, "function_call", None)
+        if function_call is not None and getattr(function_call, "name", None):
+            return function_call
+    return None
+
+
+def _vertexai_tool_error(exception: Exception) -> str:
+    return (
+        f"Validation Error found:\n{exception}\nRecall the function correctly, "
+        "fix the errors"
+    )
+
+
 def vertexai_function_response_parser(response: Any, exception: Exception) -> Any:
     gm = _gm()
     return gm.Content(
         parts=[
             gm.Part.from_function_response(
-                name=response.candidates[0].content.parts[0].function_call.name,
-                response={
-                    "content": (
-                        "Validation Error found:\n"
-                        f"{exception}\nRecall the function correctly, fix the errors"
-                    )
-                },
+                name=_vertexai_function_call(response.candidates[0].content).name,
+                response={"content": _vertexai_tool_error(exception)},
             )
         ]
     )
@@ -114,11 +137,21 @@ def reask_vertexai_tools(
 ):
     """Build a VertexAI tool reask payload after validation failure."""
     kwargs = kwargs.copy()
-    reask_msgs = [
-        response.candidates[0].content,
-        vertexai_function_response_parser(response, exception),
-    ]
-    kwargs["contents"].extend(reask_msgs)
+    kwargs["contents"] = list(kwargs.get("contents") or [])
+    content = _vertexai_reply_content(response)
+    function_call = _vertexai_function_call(content) if content is not None else None
+    if content is not None:
+        kwargs["contents"].append(content)
+    if function_call is None:
+        # No candidate (None, stream, blocked) or a prose reply: there is no
+        # function call to answer, so send a plain user correction.
+        kwargs["contents"].append(
+            vertexai_message_parser(
+                {"role": "user", "content": _vertexai_tool_error(exception)}
+            )
+        )
+        return kwargs
+    kwargs["contents"].append(vertexai_function_response_parser(response, exception))
     return kwargs
 
 
@@ -129,19 +162,18 @@ def reask_vertexai_json(
 ):
     """Build a VertexAI JSON reask payload after validation failure."""
     kwargs = kwargs.copy()
-    reask_msgs = [
-        response.candidates[0].content,
-        vertexai_message_parser(
-            {
-                "role": "user",
-                "content": (
-                    f"Validation Errors found:\n{exception}\nRecall the function correctly, "
-                    f"fix the errors found in the following attempt:\n{response.text}"
-                ),
-            }
-        ),
-    ]
-    kwargs["contents"].extend(reask_msgs)
+    kwargs["contents"] = list(kwargs.get("contents") or [])
+    content = _vertexai_reply_content(response)
+    feedback = (
+        f"Validation Errors found:\n{exception}\nRecall the function correctly, "
+        "fix the errors"
+    )
+    if content is not None:
+        kwargs["contents"].append(content)
+        feedback += f" found in the following attempt:\n{response.text}"
+    kwargs["contents"].append(
+        vertexai_message_parser({"role": "user", "content": feedback})
+    )
     return kwargs
 
 
@@ -207,6 +239,8 @@ def _create_vertexai_tool(
         model_list = list(get_types_array(cast(Any, models)))
     else:
         model_list = models if isinstance(models, list) else [models]
+    # Declarations are keyed by class name; reject clashes like the registry.
+    VertexAIParallelBase(*model_list)
 
     declarations = []
     for model in model_list:

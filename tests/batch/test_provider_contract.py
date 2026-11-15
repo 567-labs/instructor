@@ -38,7 +38,7 @@ from pydantic import BaseModel
 
 import instructor.batch.providers as batch_providers
 from instructor.batch import BatchProcessor
-from instructor.batch.models import BatchStatus
+from instructor.batch.models import BatchError, BatchStatus, BatchSuccess
 from instructor.batch.providers import mistral as mistral_module
 from instructor.batch.providers.anthropic import AnthropicProvider
 from instructor.batch.providers.base import BatchProvider
@@ -153,6 +153,8 @@ def mistral_job(
     succeeded: int = 2,
     failed: int = 0,
     output: str | None = "file_out",
+    error: str | None = None,
+    completed: int | None = None,
 ) -> BatchJob:
     return BatchJob.model_validate(
         {
@@ -161,11 +163,14 @@ def mistral_job(
             "created_at": EPOCH,
             "input_files": ["file_in"],
             "output_file": output,
+            "error_file": error,
             "errors": [],
             "endpoint": "/v1/chat/completions",
             "model": "mistral-small-latest",
             "total_requests": succeeded + failed,
-            "completed_requests": succeeded + failed,
+            "completed_requests": succeeded + failed
+            if completed is None
+            else completed,
             "succeeded_requests": succeeded,
             "failed_requests": failed,
         }
@@ -419,6 +424,8 @@ class MistralHarness(Harness):
         self.job = mistral_job()
         self.listed: list[BatchJob] = []
         self.payload = b'{"ok": true}\n'
+        # Per-file payloads; files not listed serve ``payload``.
+        self.files: dict[str, bytes] = {}
         self.read: Callable[[], bytes] = lambda: self.payload
         self.created: dict[str, Any] = {}
         self.api_keys: list[str | None] = []
@@ -448,6 +455,8 @@ class MistralHarness(Harness):
 
     def download(self, *, file_id: str) -> SimpleNamespace:
         self.record("files.download", file_id)
+        if file_id in self.files:
+            return SimpleNamespace(read=lambda: self.files[file_id])
         return SimpleNamespace(read=self.read)
 
     def create(self, **kwargs: Any) -> BatchJob:
@@ -1145,12 +1154,146 @@ def test_mistral_delete_requires_sdk2(monkeypatch: pytest.MonkeyPatch) -> None:
         harness.provider.delete_batch("batch_123")
 
 
+def mistral_record(custom_id: str, **fields: Any) -> str:
+    return json.dumps({"id": f"result_{custom_id}", "custom_id": custom_id, **fields})
+
+
+MISTRAL_SUCCESS = mistral_record(
+    "ok",
+    response={
+        "status_code": 200,
+        "body": {
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": '{"name": "Ada"}',
+                    },
+                    "finish_reason": "stop",
+                }
+            ]
+        },
+    },
+    error=None,
+)
+MISTRAL_FAILURE = mistral_record(
+    "bad",
+    response={
+        "status_code": 400,
+        "body": {"error": {"type": "invalid_request_error", "message": "Bad input"}},
+    },
+    error=None,
+)
+
+
+@pytest.mark.parametrize("operation", ["retrieve", "download"])
+@pytest.mark.parametrize("status", ["SUCCESS", "TIMEOUT_EXCEEDED", "CANCELLED"])
+def test_mistral_combines_output_and_error_files(
+    mistral_harness: MistralHarness, tmp_path: Path, operation: str, status: str
+) -> None:
+    mistral_harness.job = mistral_job(
+        status=status, succeeded=1, failed=1, error="file_err"
+    )
+    # The output file has no trailing newline; the merge must still split lines.
+    mistral_harness.files = {
+        "file_out": MISTRAL_SUCCESS.encode(),
+        "file_err": f"{MISTRAL_FAILURE}\n".encode(),
+    }
+    destination = tmp_path / "results.jsonl"
+
+    result = run(mistral_harness, operation, destination)
+
+    if operation == "download":
+        result = destination.read_text(encoding="utf-8")
+    assert result == f"{MISTRAL_SUCCESS}\n{MISTRAL_FAILURE}"
+    assert mistral_harness.called("files.download") == ["file_out", "file_err"]
+
+
+@pytest.mark.parametrize("status", ["SUCCESS", "FAILED"])
+def test_mistral_returns_per_request_errors_when_every_request_failed(
+    mistral_harness: MistralHarness, status: str
+) -> None:
+    class Person(BaseModel):
+        name: str
+
+    mistral_harness.job = mistral_job(
+        status=status, succeeded=0, failed=1, output=None, error="file_err"
+    )
+    mistral_harness.files = {"file_err": f"{MISTRAL_FAILURE}\n".encode()}
+
+    text = mistral_harness.provider.retrieve_results("batch_123")
+    [failure] = BatchProcessor("mistral/mistral-small-latest", Person).parse_results(
+        text
+    )
+
+    assert text == f"{MISTRAL_FAILURE}\n"
+    assert mistral_harness.called("files.download") == ["file_err"]
+    assert isinstance(failure, BatchError)
+    assert (failure.custom_id, failure.error_type, failure.error_message) == (
+        "bad",
+        "invalid_request_error",
+        "Bad input",
+    )
+
+
+def test_mistral_merged_results_parse_into_successes_and_errors(
+    mistral_harness: MistralHarness,
+) -> None:
+    class Person(BaseModel):
+        name: str
+
+    mistral_harness.job = mistral_job(succeeded=1, failed=1, error="file_err")
+    mistral_harness.files = {
+        "file_out": f"{MISTRAL_SUCCESS}\n".encode(),
+        "file_err": f"{MISTRAL_FAILURE}\n".encode(),
+    }
+
+    text = mistral_harness.provider.retrieve_results("batch_123")
+    success, failure = BatchProcessor(
+        "mistral/mistral-small-latest", Person
+    ).parse_results(text)
+
+    assert success == BatchSuccess(custom_id="ok", result=Person(name="Ada"))
+    assert isinstance(failure, BatchError)
+    assert (failure.custom_id, failure.error_message) == ("bad", "Bad input")
+
+
+@pytest.mark.parametrize("status", ["CANCELLED", "TIMEOUT_EXCEEDED"])
+def test_mistral_stopped_job_without_finished_requests_is_empty(
+    mistral_harness: MistralHarness, status: str
+) -> None:
+    mistral_harness.job = mistral_job(
+        status=status, succeeded=0, output=None, completed=0
+    )
+
+    assert mistral_harness.provider.retrieve_results("batch_123") == ""
+    assert mistral_harness.called("files.download") == []
+
+
 @pytest.mark.parametrize(
     ("job", "message"),
     [
-        (mistral_job(status="FAILED"), "Batch not completed, status: FAILED"),
-        (mistral_job(succeeded=0, failed=3), "All 3 batch requests failed"),
-        (mistral_job(output=None), "Batch has no output file ID available"),
+        (
+            mistral_job(status="QUEUED"),
+            "Batch not completed, status: QUEUED",
+        ),
+        (
+            mistral_job(status="CANCELLATION_REQUESTED"),
+            "Batch not completed, status: CANCELLATION_REQUESTED",
+        ),
+        (
+            mistral_job(status="FAILED", output=None),
+            "no output or error file available, status: FAILED",
+        ),
+        (
+            mistral_job(output=None),
+            "no output or error file available, status: SUCCESS",
+        ),
+        (
+            mistral_job(status="CANCELLED", succeeded=1, output=None),
+            "no output or error file available, status: CANCELLED",
+        ),
     ],
 )
 def test_mistral_results_refuse_jobs_without_usable_output(
@@ -1160,3 +1303,4 @@ def test_mistral_results_refuse_jobs_without_usable_output(
 
     with pytest.raises(RuntimeError, match=message):
         mistral_harness.provider.retrieve_results("batch_123")
+    assert mistral_harness.called("files.download") == []

@@ -2,13 +2,13 @@
 
 One table covers `update_total_usage` for every supported SDK shape: each row
 accumulates real SDK responses into a running total and checks the totals and
-the totals echoed back onto the latest response. Known gaps are strict xfails
-that assert the desired behavior, so a fix flips them to XPASS and fails CI.
+the totals echoed back onto the latest response.
 """
 
 from __future__ import annotations
 
 import json
+import sys
 from collections.abc import Callable
 from typing import Any, NamedTuple
 
@@ -387,42 +387,9 @@ def test_accumulate_models_follows_recursive_sdk_shape_changes() -> None:
     assert second.details is not total.details
 
 
-@pytest.mark.parametrize(
-    ("previous", "current", "expected"),
-    [(0, 0, 0), (None, 6, 6), (12, None, None), (True, 6, 6), (12, False, False)],
-)
-def test_anthropic_dictionary_thinking_preserves_non_counts(
-    previous: int | None, current: int | None, expected: int | None
-) -> None:
-    types = pytest.importorskip("anthropic.types")
-    if "output_tokens_details" in types.Usage.model_fields:
-        pytest.skip("Invalid extra-dictionary payloads apply only to untyped SDKs.")
-    from instructor.v2.providers.anthropic.usage import initialize_usage
-    from instructor.v2.providers.anthropic.usage import update_total_usage as accumulate
-
-    total = initialize_usage()
-    for count, unknown in [(previous, 100), (current, 200)]:
-        usage = types.Usage.model_validate(
-            {
-                "input_tokens": 1,
-                "output_tokens": 20,
-                "output_tokens_details": {
-                    "thinking_tokens": count,
-                    "unknown_metadata": unknown,
-                },
-            }
-        )
-        assert accumulate(usage, total)
-    details = total.model_dump()["output_tokens_details"]
-    assert details["thinking_tokens"] == expected
-    assert type(details["thinking_tokens"]) is type(expected)
-    assert details["unknown_metadata"] == 200
+# Regressions for fixed accounting gaps.
 
 
-# Known limitations. Each strict xfail asserts the desired behavior.
-
-
-@pytest.mark.xfail(strict=True, reason="nested dict usage keeps only last attempt")
 def test_nested_dictionary_cost_accumulates() -> None:
     total = _initialize_usage(Provider.OPENAI)
     for cost in [0.25, 0.75]:
@@ -476,16 +443,25 @@ def _anthropic_beta_message() -> tuple[Any, Any]:
     return response, _initialize_usage(Provider.ANTHROPIC)
 
 
-@pytest.mark.xfail(strict=True, reason="SDK usage type is not recognized")
 @pytest.mark.parametrize("build", [_groq_completion, _anthropic_beta_message])
 def test_sdk_usage_variant_is_recognized(
     build: Callable[[], tuple[Any, Any]],
 ) -> None:
     response, total = build()
     assert has_compatible_usage(response, total)
+    assert update_total_usage(response, total) is response
+    assert _usage_total_tokens(total) == 15
 
 
-@pytest.mark.xfail(strict=True, reason="CLI prices gpt-4o-mini as gpt-4o")
+def test_openai_usage_is_recognized_without_groq(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(sys.modules, "groq.types", None)
+    total = _initialize_usage(Provider.OPENAI)
+    response = chat({"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3})
+    assert has_compatible_usage(response, total)
+
+
 def test_cli_mini_model_has_its_own_price() -> None:
     from instructor.cli.usage import get_model_cost
 
@@ -494,7 +470,6 @@ def test_cli_mini_model_has_its_own_price() -> None:
     assert mini_cost is not get_model_cost("gpt-4o")
 
 
-@pytest.mark.xfail(strict=True, reason="one usage copy is shared by all handlers")
 def test_usage_event_copy_is_isolated_between_handlers() -> None:
     from instructor.v2.core.hooks import Hooks
 

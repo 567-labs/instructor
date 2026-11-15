@@ -89,9 +89,24 @@ def _mistral_message(message: dict[str, Any]) -> Any:
     )
 
 
+def _anthropic_text() -> Any:
+    types = pytest.importorskip("anthropic.types")
+    return types.Message(
+        id="m",
+        type="message",
+        role="assistant",
+        model="m",
+        content=[types.TextBlock(type="text", text="no tool call")],
+        stop_reason="end_turn",
+        usage=types.Usage(input_tokens=0, output_tokens=0),
+    )
+
+
 def _empty_choices(provider: Provider) -> Any:
     if provider is Provider.MISTRAL:
         return _mistral([])
+    if provider is Provider.BEDROCK:
+        return {"output": {}, "stopReason": "end_turn"}
     return ChatCompletion(
         id="c", choices=[], created=0, model="m", object="chat.completion"
     )
@@ -100,6 +115,11 @@ def _empty_choices(provider: Provider) -> Any:
 def _text_only(provider: Provider) -> Any:
     if provider is Provider.MISTRAL:
         return _mistral_message({"content": "no tool call"})
+    if provider is Provider.ANTHROPIC:
+        return _anthropic_text()
+    if provider is Provider.BEDROCK:
+        text = [{"text": "no tool call"}]
+        return {"output": {"message": {"role": "assistant", "content": text}}}
     return chat_completion(content="no tool call")
 
 
@@ -111,16 +131,6 @@ VARIANTS: dict[str, Callable[[Provider], Any]] = {
 }
 NO_REPLAY = ["user", "user"]
 REPLAY = ["user", "assistant", "user"]
-MISTRAL_TEXT_TOOLS = pytest.param(
-    Provider.MISTRAL,
-    Mode.TOOLS,
-    "no-tool-call",
-    NO_REPLAY,
-    id="mistral-tools-no-tool-call",
-    marks=pytest.mark.xfail(
-        strict=True, raises=KeyError, reason="Mistral tools reask needs tool_calls"
-    ),
-)
 CASES: list[tuple[Provider, Mode, list[str]]] = [
     # (provider, mode, roles after reasking a text-only reply)
     (Provider.OPENAI, Mode.TOOLS, REPLAY),
@@ -128,9 +138,16 @@ CASES: list[tuple[Provider, Mode, list[str]]] = [
     (Provider.OPENAI, Mode.MD_JSON, REPLAY),
     (Provider.OPENAI, Mode.RESPONSES_TOOLS, NO_REPLAY),
     (Provider.PERPLEXITY, Mode.MD_JSON, REPLAY),
+    (Provider.MISTRAL, Mode.TOOLS, REPLAY),
     (Provider.MISTRAL, Mode.JSON_SCHEMA, REPLAY),
     (Provider.MISTRAL, Mode.MD_JSON, REPLAY),
-    (Provider.ANTHROPIC, Mode.TOOLS, NO_REPLAY),
+    (Provider.ANTHROPIC, Mode.TOOLS, REPLAY),
+    (Provider.ANTHROPIC, Mode.JSON, NO_REPLAY),
+    (Provider.ANTHROPIC, Mode.JSON_SCHEMA, NO_REPLAY),
+    (Provider.BEDROCK, Mode.TOOLS, REPLAY),
+    (Provider.BEDROCK, Mode.TOOLS_STRICT, REPLAY),
+    (Provider.BEDROCK, Mode.MD_JSON, REPLAY),
+    (Provider.BEDROCK, Mode.JSON_SCHEMA, REPLAY),
     (Provider.COHERE, Mode.TOOLS, NO_REPLAY),
 ]
 MATRIX = [
@@ -143,17 +160,7 @@ MATRIX = [
     )
     for provider, mode, text_roles in CASES
     for variant in VARIANTS
-] + [
-    pytest.param(
-        Provider.MISTRAL,
-        Mode.TOOLS,
-        variant,
-        NO_REPLAY,
-        id=f"mistral-tools-{variant}",
-    )
-    for variant in ("none", "stream", "empty-choices")
 ]
-MATRIX.append(MISTRAL_TEXT_TOOLS)
 
 
 @pytest.mark.parametrize(("provider", "mode", "variant", "roles"), MATRIX)
@@ -294,6 +301,38 @@ def test_genai_tools_reask_without_function_call_replays_model_text() -> None:
 
     assert result["contents"][0] is response.candidates[0].content
     assert result["contents"][1].role == "user"
+
+
+# --- Vertex AI: contents built from GenerationResponse candidates -----------
+
+
+def _vertexai_response(provider: Provider, variant: str) -> Any:
+    if variant in ("none", "stream"):
+        return VARIANTS[variant](provider)
+    gm = pytest.importorskip("vertexai.generative_models")
+    if variant == "no-tool-call":
+        content = {"role": "model", "parts": [{"text": "no tool call"}]}
+        return gm.GenerationResponse.from_dict({"candidates": [{"content": content}]})
+    # A safety-blocked candidate carries no content parts to replay.
+    blocked = {"finish_reason": "SAFETY"}
+    return gm.GenerationResponse.from_dict({"candidates": [blocked]})
+
+
+@pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.PARALLEL_TOOLS, Mode.MD_JSON])
+@pytest.mark.parametrize("variant", list(VARIANTS))
+def test_vertexai_reask_appends_feedback_for_any_response_shape(
+    mode: Mode, variant: str
+) -> None:
+    pytest.importorskip("vertexai.generative_models")
+    caller_contents: list[Any] = []
+    reasked = mode_registry.get_handlers(Provider.VERTEXAI, mode).reask_handler(
+        kwargs={"contents": caller_contents},
+        response=_vertexai_response(Provider.VERTEXAI, variant),
+        exception=_validation_error(),
+    )
+    assert caller_contents == []
+    roles = ["model", "user"] if variant == "no-tool-call" else ["user"]
+    assert [content.role for content in reasked["contents"]] == roles
 
 
 # --- retry loop --------------------------------------------------------------

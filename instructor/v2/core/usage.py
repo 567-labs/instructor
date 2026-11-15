@@ -43,54 +43,72 @@ def _usage_total_tokens(total_usage: Any) -> int | None:
     return sum(numeric_values) if numeric_values else None
 
 
-def _field_names(model: BaseModel) -> set[str]:
-    """Return declared and Pydantic extra field names for a model."""
+def _field_names(model: BaseModel | dict[str, Any]) -> set[str]:
+    """Return keys, or declared and Pydantic extra field names, for usage data."""
+    if isinstance(model, dict):
+        return set(model)
     return set(type(model).model_fields) | set(model.model_extra or {})
 
 
-def _all_field_names(*models: BaseModel) -> set[str]:
+def _all_field_names(*models: BaseModel | dict[str, Any]) -> set[str]:
     return {field_name for model in models for field_name in _field_names(model)}
+
+
+def _get(model: BaseModel | dict[str, Any], field_name: str) -> Any:
+    if isinstance(model, dict):
+        return model.get(field_name)
+    return getattr(model, field_name, None)
+
+
+def _set(model: BaseModel | dict[str, Any], field_name: str, value: Any) -> None:
+    if isinstance(model, dict):
+        model[field_name] = value
+    else:
+        setattr(model, field_name, value)
 
 
 def _is_numeric(value: object) -> bool:
     return isinstance(value, Real) and not isinstance(value, bool)
 
 
-def _zero_numeric_fields(model: BaseModel) -> BaseModel:
+def _zero_numeric_fields(model: Any) -> Any:
     for field_name in _field_names(model):
-        value = getattr(model, field_name, None)
-        if isinstance(value, BaseModel):
+        value = _get(model, field_name)
+        if isinstance(value, (BaseModel, dict)):
             _zero_numeric_fields(value)
         elif _is_numeric(value):
-            setattr(model, field_name, 0)
+            _set(model, field_name, 0)
     return model
 
 
-def _accumulate_models(response: BaseModel, total: BaseModel) -> None:
+def _accumulate_models(
+    response: BaseModel | dict[str, Any], total: BaseModel | dict[str, Any]
+) -> None:
+    """Add numeric usage, recursing into nested models and dicts such as cost details."""
     for field_name in _all_field_names(response, total):
-        response_value = getattr(response, field_name, None)
-        total_value = getattr(total, field_name, None)
-        if isinstance(response_value, BaseModel):
-            if not isinstance(total_value, BaseModel):
-                total_value = _zero_numeric_fields(response_value.model_copy(deep=True))
-                setattr(total, field_name, total_value)
+        response_value = _get(response, field_name)
+        total_value = _get(total, field_name)
+        if isinstance(response_value, (BaseModel, dict)):
+            if not isinstance(total_value, (BaseModel, dict)):
+                total_value = _zero_numeric_fields(_usage_snapshot(response_value))
+                _set(total, field_name, total_value)
             _accumulate_models(response_value, total_value)
-            setattr(response, field_name, total_value.model_copy(deep=True))
-        elif isinstance(total_value, BaseModel):
-            setattr(response, field_name, total_value.model_copy(deep=True))
+            _set(response, field_name, _usage_snapshot(total_value))
+        elif isinstance(total_value, (BaseModel, dict)):
+            _set(response, field_name, _usage_snapshot(total_value))
         elif _is_numeric(response_value):
             response_number = cast(Real, response_value)
             total_number = cast(Real, total_value) if _is_numeric(total_value) else 0
             value = total_number + response_number
-            setattr(total, field_name, value)
-            setattr(response, field_name, value)
+            _set(total, field_name, value)
+            _set(response, field_name, value)
         elif _is_numeric(total_value):
-            setattr(response, field_name, total_value)
+            _set(response, field_name, total_value)
         elif response_value is not None:
-            setattr(total, field_name, response_value)
-            setattr(response, field_name, response_value)
+            _set(total, field_name, response_value)
+            _set(response, field_name, response_value)
         elif total_value is not None:
-            setattr(response, field_name, total_value)
+            _set(response, field_name, total_value)
 
 
 def _response_usage_as_completion(response_usage: Any) -> Any:
@@ -123,24 +141,33 @@ def _response_usage_as_completion(response_usage: Any) -> Any:
     )
 
 
-def has_compatible_usage(response: object, total_usage: object) -> bool:
-    """Return whether a response exposes usage supported by the accumulator."""
+def _openai_usage_types() -> tuple[type, ...]:
+    """Chat-shaped usage types that accumulate into an OpenAI ``CompletionUsage``."""
     from openai.types import CompletionUsage as _OpenAIUsage
     from openai.types.responses import ResponseUsage as _ResponseUsage
 
+    try:
+        from groq.types import CompletionUsage as _GroqUsage
+    except ImportError:
+        return (_OpenAIUsage, _ResponseUsage)
+    return (_OpenAIUsage, _ResponseUsage, _GroqUsage)
+
+
+def has_compatible_usage(response: object, total_usage: object) -> bool:
+    """Return whether a response exposes usage supported by the accumulator."""
+    from openai.types import CompletionUsage as _OpenAIUsage
+
     response_usage = getattr(response, "usage", None)
-    # Responses API usage is compatible with the Chat-shaped running total.
-    if isinstance(response_usage, (_OpenAIUsage, _ResponseUsage)) and isinstance(
+    # Responses API and Groq usage are compatible with the Chat-shaped running total.
+    if isinstance(response_usage, _openai_usage_types()) and isinstance(
         total_usage, _OpenAIUsage
     ):
         return True
 
     try:
-        from anthropic.types import Usage as _AnthropicUsage
+        from instructor.v2.providers.anthropic.usage import is_compatible_usage
 
-        return isinstance(response_usage, _AnthropicUsage) and isinstance(
-            total_usage, _AnthropicUsage
-        )
+        return is_compatible_usage(response_usage, total_usage)
     except ImportError:
         return False
 
@@ -156,12 +183,6 @@ def update_total_usage(
     from openai.types.responses import ResponseUsage as _ResponseUsage
 
     response_usage = getattr(response, "usage", None)
-    if isinstance(response_usage, _OpenAIUsage) and isinstance(
-        total_usage, _OpenAIUsage
-    ):
-        _accumulate_models(response_usage, total_usage)
-        return response
-
     # Project Responses API usage onto the Chat-shaped total, then echo totals back.
     if isinstance(response_usage, _ResponseUsage) and isinstance(
         total_usage, _OpenAIUsage
@@ -182,6 +203,12 @@ def update_total_usage(
                 response_usage.output_tokens_details.reasoning_tokens = (
                     details.reasoning_tokens
                 )
+        return response
+
+    if isinstance(response_usage, _openai_usage_types()) and isinstance(
+        total_usage, _OpenAIUsage
+    ):
+        _accumulate_models(cast(BaseModel, response_usage), total_usage)
         return response
 
     try:

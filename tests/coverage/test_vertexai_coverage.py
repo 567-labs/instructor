@@ -226,7 +226,8 @@ def test_vertexai_handlers_parse_reask_and_finalize_responses() -> None:
         cast(type[BaseModel], ModelAdapter[int]),
     )
     tool_retry = tools_handler.handle_reask({"contents": []}, tool_response, error)
-    json_retry = json_handler.handle_reask({"contents": []}, json_response, error)
+    json_attempt = _response(_part(text='{"city": 1}'), text='{"city": 1}')
+    json_retry = json_handler.handle_reask({"contents": []}, json_attempt, error)
     parallel_retry = parallel_handler.handle_reask(
         {"contents": []}, tool_response, error
     )
@@ -238,7 +239,9 @@ def test_vertexai_handlers_parse_reask_and_finalize_responses() -> None:
     assert adapted == 7
     assert len(tool_retry["contents"]) == 2
     assert tool_retry["contents"][1].parts[0].function_response.name == "Weather"
+    assert json_retry["contents"][0] is json_attempt.candidates[0].content
     assert "city is required" in json_retry["contents"][1].parts[0].text
+    assert '{"city": 1}' in json_retry["contents"][1].parts[0].text
     assert len(parallel_retry["contents"]) == 2
 
 

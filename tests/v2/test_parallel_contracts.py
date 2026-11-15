@@ -269,38 +269,34 @@ def vertex_tool_names(models: Any) -> list[str]:
     return [declaration["name"] for declaration in tool["function_declarations"]]
 
 
-# (declared tool names for Iterable[Union[...]], naming rule, rejects clashes)
+# (declared tool names for Iterable[Union[...]], naming rule); clashing names
+# are rejected everywhere
 NAMING = {
-    "openai-registry": (lambda m: list(dsl.ParallelModel(m).registry), "title", True),
+    "openai-registry": (lambda m: list(dsl.ParallelModel(m).registry), "title"),
     "openai-tools": (
         lambda m: [t["function"]["name"] for t in dsl.handle_parallel_model(m)],
         "title",
-        True,
     ),
     "anthropic-registry": (
         lambda m: list(dsl.AnthropicParallelModel(m).registry),
         "title",
-        True,
     ),
     "anthropic-tools": (
         lambda m: [t["name"] for t in dsl.handle_anthropic_parallel_model(m)],
         "title",
-        True,
     ),
-    "mistral-tools": (mistral_tool_names, "title", True),
+    "mistral-tools": (mistral_tool_names, "title"),
     "vertex-registry": (
         lambda m: list(dsl.VertexAIParallelModel(m).registry),
         "class",
-        True,
     ),
-    # Vertex declarations are not deduplicated; its registry rejects clashes.
-    "vertex-tools": (vertex_tool_names, "class", False),
+    "vertex-tools": (vertex_tool_names, "class"),
 }
 
 
-@pytest.mark.parametrize("declared_names,rule,rejects", NAMING.values(), ids=NAMING)
+@pytest.mark.parametrize("declared_names,rule", NAMING.values(), ids=NAMING)
 def test_parallel_tool_names_follow_rule_and_must_be_unique(
-    declared_names: Any, rule: str, rejects: bool
+    declared_names: Any, rule: str
 ) -> None:
     # Same class name, distinct titles vs. distinct class names, same title.
     by_title: Any = Iterable[Union[Payments.Record, Contacts.Record]]
@@ -309,11 +305,8 @@ def test_parallel_tool_names_follow_rule_and_must_be_unique(
         (by_title, by_class) if rule == "title" else (by_class, by_title)
     )
     assert declared_names(distinct) == ["Payment", "Contact"]
-    if rejects:
-        with pytest.raises(ValueError, match="unique.*Record"):
-            declared_names(clashing)
-    else:
-        assert declared_names(clashing) == ["Record", "Record"]
+    with pytest.raises(ValueError, match="unique.*Record"):
+        declared_names(clashing)
 
 
 class DefaultName(BaseModel):

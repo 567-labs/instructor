@@ -122,6 +122,14 @@ def generate_bedrock_schema(
     return {"toolSpec": tool_spec}
 
 
+def _bedrock_reply_message(response: Any) -> dict[str, Any] | None:
+    """Return the Converse assistant message, or None when there is none."""
+    if not isinstance(response, dict):
+        return None
+    message = (response.get("output") or {}).get("message")
+    return message if isinstance(message, dict) else None
+
+
 def reask_bedrock_json(
     kwargs: dict[str, Any],
     response: Any,
@@ -130,7 +138,8 @@ def reask_bedrock_json(
     """Handle reask for Bedrock JSON mode when validation fails."""
     new_kwargs = kwargs.copy()
     new_kwargs["messages"] = list(kwargs.get("messages", []))
-    reask_msgs = [response["output"]["message"]]
+    assistant_message = _bedrock_reply_message(response)
+    reask_msgs = [assistant_message] if assistant_message is not None else []
     reask_msgs.append(
         {
             "role": "user",
@@ -157,7 +166,24 @@ def reask_bedrock_tools(
     new_kwargs = kwargs.copy()
     new_kwargs["messages"] = list(kwargs.get("messages", []))
 
-    assistant_message = response["output"]["message"]
+    assistant_message = _bedrock_reply_message(response)
+    if assistant_message is None:
+        # Nothing to replay (missing response or unconsumed stream): send only
+        # the correction.
+        new_kwargs["messages"].append(
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "text": (
+                            "Validation Error found:\n"
+                            f"{exception}\nRecall the function correctly, fix the errors"
+                        )
+                    }
+                ],
+            }
+        )
+        return new_kwargs
     reask_msgs = [assistant_message]
 
     tool_use_id = None

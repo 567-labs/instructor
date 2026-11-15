@@ -19,13 +19,19 @@ def initialize_usage() -> Any:
     )
 
 
+def is_compatible_usage(response_usage: Any, total_usage: Any) -> bool:
+    """Return whether standard or beta Anthropic usage fits the running total."""
+    from anthropic.types import Usage as AnthropicUsage
+    from anthropic.types.beta import BetaUsage
+
+    return isinstance(response_usage, (AnthropicUsage, BetaUsage)) and isinstance(
+        total_usage, AnthropicUsage
+    )
+
+
 def update_total_usage(response_usage: Any, total_usage: Any) -> bool:
     """Accumulate Anthropic token usage into a running total when applicable."""
-    from anthropic.types import Usage as AnthropicUsage
-
-    if not isinstance(response_usage, AnthropicUsage) or not isinstance(
-        total_usage, AnthropicUsage
-    ):
+    if not is_compatible_usage(response_usage, total_usage):
         return False
 
     _accumulate_models(response_usage, total_usage)

@@ -6,6 +6,8 @@ from typing import Any, Literal, TypeVar, Protocol, Union
 import inspect
 import warnings
 
+from instructor.v2.core.usage import _usage_snapshot
+
 T = TypeVar("T")
 
 
@@ -158,15 +160,19 @@ class Hooks:
             **kwargs: Keyword arguments to pass to handlers
         """
         for handler in self._handlers[hook_name].copy():
+            handler_args = args
+            if hook_name is HookName.COMPLETION_USAGE:
+                # Each handler gets its own snapshot so one cannot alter another's.
+                handler_args = tuple(_usage_snapshot(arg) for arg in args)
             try:
                 if kwargs:
                     try:
                         sig = inspect.signature(handler)
-                        sig.bind(*args, **kwargs)
+                        sig.bind(*handler_args, **kwargs)
                     except (TypeError, ValueError):
-                        handler(*args)
+                        handler(*handler_args)
                         continue
-                handler(*args, **kwargs)
+                handler(*handler_args, **kwargs)
             except Exception as error:
                 try:
                     warnings.warn(
@@ -217,7 +223,7 @@ class Hooks:
         self.emit(HookName.COMPLETION_LAST_ATTEMPT, error, **kwargs)
 
     def emit_completion_usage(self, usage: Any, **kwargs: Any) -> None:
-        """Emit an immutable snapshot of cumulative completion usage."""
+        """Emit cumulative completion usage, copied separately for each handler."""
         self.emit(HookName.COMPLETION_USAGE, usage, **kwargs)
 
     def emit_parse_error(self, error: Exception, **kwargs: Any) -> None:
