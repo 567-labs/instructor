@@ -172,6 +172,13 @@ while status["status"] not in ["SUCCESS", "FAILED", "CANCELLED", "TIMEOUT_EXCEED
 results = processor.retrieve_results(batch_id)
 ```
 
+When a Mistral job ends with `SUCCESS`, `FAILED`, `CANCELLED`, or
+`TIMEOUT_EXCEEDED`, retrieval reads both its output file and its error file.
+Requests that failed come back as `BatchError` records, even when every request
+failed. A cancelled or timed-out job keeps the requests that finished before it
+stopped, and returns no records if none finished. A job with no output or error
+file for any other reason raises an error.
+
 ## Processing Results
 
 OpenAI batch requests use strict JSON schemas. All named fields are required in

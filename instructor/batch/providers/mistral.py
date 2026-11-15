@@ -13,6 +13,11 @@ from .base import BatchProvider, _atomic_result_file, _open_jsonl, _submit_error
 
 logger = logging.getLogger(__name__)
 
+# Stopped jobs keep the records that finished before they stopped.
+_STOPPED_STATUSES = frozenset({"CANCELLED", "TIMEOUT_EXCEEDED"})
+# A failed job may still carry an error file with per-request errors.
+_FINISHED_STATUSES = _STOPPED_STATUSES | {"SUCCESS", "FAILED"}
+
 
 class MistralProvider(BatchProvider):
     """Mistral batch processing provider"""
@@ -32,25 +37,37 @@ class MistralProvider(BatchProvider):
 
         return client_type(api_key=api_key)
 
-    def _completed_job(self, client: Any, batch_id: str) -> Any:
-        """Fetch a batch job, verifying it produced downloadable results"""
+    def _results_text(self, client: Any, batch_id: str) -> str:
+        """Return success and error records for a finished Mistral job"""
         job = client.batch.jobs.get(job_id=batch_id)
 
-        if job.status != "SUCCESS":
+        if job.status not in _FINISHED_STATUSES:
             raise RuntimeError(f"Batch not completed, status: {job.status}")
 
-        succeeded = getattr(job, "succeeded_requests", 0) or 0
-        failed = getattr(job, "failed_requests", 0) or 0
-        if failed and not succeeded:
-            total = getattr(job, "total_requests", succeeded + failed)
+        # Unset SDK fields are falsy, so missing and null files are skipped.
+        file_ids = dict.fromkeys(
+            file_id
+            for file_id in (job.output_file, getattr(job, "error_file", None))
+            if file_id
+        )
+        if not file_ids:
+            if job.status in _STOPPED_STATUSES and not (
+                getattr(job, "completed_requests", 0) or 0
+            ):
+                # No request finished, so no result file will ever appear.
+                return ""
             raise RuntimeError(
-                f"All {total} batch requests failed. No results will be available."
+                f"Batch has no output or error file available, status: {job.status}"
             )
 
-        if not job.output_file:
-            raise RuntimeError("Batch has no output file ID available")
-
-        return job
+        contents = [
+            client.files.download(file_id=file_id).read().decode("utf-8")
+            for file_id in file_ids
+        ]
+        if len(contents) == 1:
+            return contents[0]
+        # Each file is JSONL; the output file need not end with a newline.
+        return "\n".join(content.rstrip("\n") for content in contents)
 
     def submit_batch(
         self,
@@ -102,9 +119,7 @@ class MistralProvider(BatchProvider):
         """Retrieve Mistral batch results"""
         client = self._client()
         try:
-            job = self._completed_job(client, batch_id)
-            response = client.files.download(file_id=job.output_file)
-            return response.read().decode("utf-8")
+            return self._results_text(client, batch_id)
         except Exception as e:
             raise RuntimeError(f"Failed to retrieve Mistral results: {e}") from e
 
