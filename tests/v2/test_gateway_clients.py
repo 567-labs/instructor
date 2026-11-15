@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import json
-import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 import openai
@@ -14,6 +11,7 @@ from instructor import Mode, Provider
 from instructor.v2.core.errors import ConfigurationError, ModeError
 from instructor.v2.core.providers import get_provider
 from instructor.v2.core.registry import mode_registry
+from tests._http import JSONHandler, serve
 
 
 CASES = [
@@ -37,10 +35,9 @@ class Contact(BaseModel):
 def wire_server():
     received: list[tuple[str, dict[str, str], dict[str, Any]]] = []
 
-    class Handler(BaseHTTPRequestHandler):
+    class Handler(JSONHandler):
         def do_POST(self) -> None:
-            size = int(self.headers["Content-Length"])
-            payload = json.loads(self.rfile.read(size))
+            payload = self.read_json()
             received.append(
                 (self.path, {k.lower(): v for k, v in self.headers.items()}, payload)
             )
@@ -57,7 +54,7 @@ def wire_server():
                         "function": {"name": "Contact", "arguments": arguments},
                     }
                 ]
-            body = json.dumps(
+            self.send_json(
                 {
                     "id": "chatcmpl-1",
                     "object": "chat.completion",
@@ -67,22 +64,10 @@ def wire_server():
                         {"index": 0, "message": message, "finish_reason": "stop"}
                     ],
                 }
-            ).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            )
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_port}/v1", received
-    finally:
-        server.shutdown()
-        worker.join()
-        server.server_close()
+    with serve(Handler) as url:
+        yield f"{url}/v1", received
 
 
 @pytest.mark.parametrize(("name", "host", "key", "default"), CASES)
@@ -194,45 +179,30 @@ def test_legacy_provider_modes_and_invalid_url() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
 async def test_gateway_model_factories_keep_project_and_organization_on_the_sdk(
-    wire_server,
+    wire_server, is_async: bool
 ):
     base_url, received = wire_server
-    sync = instructor.from_zai(
+    client: Any = instructor.from_zai(
         "model",
+        async_client=is_async,
         base_url=base_url,
         api_key="fixture",
         organization="org-fixture",
         project="proj-fixture",
     )
-    assert isinstance(sync.client, openai.OpenAI)
-    try:
-        assert (
-            sync.create(
-                response_model=Contact, messages=[{"role": "user", "content": "Ada"}]
-            ).name
-            == "Ada"
-        )
-    finally:
-        sync.client.close()
-    asynchronous = instructor.from_zai(
-        "model",
-        async_client=True,
-        base_url=base_url,
-        api_key="fixture",
-        organization="org-fixture",
-        project="proj-fixture",
+    sdk_type = openai.AsyncOpenAI if is_async else openai.OpenAI
+    assert isinstance(client.client, sdk_type)
+    request = dict(
+        response_model=Contact, messages=[{"role": "user", "content": "Ada"}]
     )
-    assert isinstance(asynchronous.client, openai.AsyncOpenAI)
     try:
-        assert (
-            await asynchronous.create(
-                response_model=Contact, messages=[{"role": "user", "content": "Ada"}]
-            )
-        ).name == "Ada"
+        result = client.create(**request)
+        assert (await result if is_async else result).name == "Ada"
     finally:
-        await asynchronous.client.close()
-    for _path, headers, body in received[-2:]:
-        assert headers["openai-organization"] == "org-fixture"
-        assert headers["openai-project"] == "proj-fixture"
-        assert "organization" not in body and "project" not in body
+        await client.client.close() if is_async else client.client.close()
+    _path, headers, body = received[-1]
+    assert headers["openai-organization"] == "org-fixture"
+    assert headers["openai-project"] == "proj-fixture"
+    assert "organization" not in body and "project" not in body

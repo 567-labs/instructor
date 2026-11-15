@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import socket
-import threading
 from collections.abc import Iterable
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Union
 
 import pytest
@@ -24,6 +21,7 @@ from instructor.v2.validation.async_validators import (
     async_field_validator,
     async_model_validator,
 )
+from tests._http import JSONHandler, serve
 
 
 class Answer(BaseModel):
@@ -54,22 +52,18 @@ class ModelMarked(BaseModel):
 def local_provider():
     calls: list[dict[str, Any]] = []
 
-    class Handler(BaseHTTPRequestHandler):
+    class Handler(JSONHandler):
         def do_POST(self):
-            request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            calls.append(request)
-            body = json.dumps(
+            calls.append(self.read_json())
+            message = {"role": "assistant", "content": '{"value":1}'}
+            self.send_json(
                 {
                     "id": "local",
                     "object": "chat.completion",
                     "created": 0,
                     "model": "local",
                     "choices": [
-                        {
-                            "index": 0,
-                            "finish_reason": "stop",
-                            "message": {"role": "assistant", "content": '{"value":1}'},
-                        }
+                        {"index": 0, "finish_reason": "stop", "message": message}
                     ],
                     "usage": {
                         "prompt_tokens": 1,
@@ -77,25 +71,10 @@ def local_provider():
                         "total_tokens": 2,
                     },
                 }
-            ).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            )
 
-        def log_message(self, format: str, *args: Any) -> None:  # noqa: A002, ARG002
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_port}/v1", calls
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join()
+    with serve(Handler) as url:
+        yield f"{url}/v1", calls
 
 
 def request_key(request, **overrides):

@@ -3,12 +3,10 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
-import threading
 from collections import deque
 from collections.abc import Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, cast
+from typing import Any, Union, cast
 
 import pytest
 from pydantic import (
@@ -16,14 +14,19 @@ from pydantic import (
     ConfigDict,
     ValidationError,
     ValidationInfo,
+    create_model,
     field_validator,
 )
 
+import instructor.dsl.parallel as dsl
 from instructor import Mode
 from instructor.v2.core.errors import InstructorRetryException, ResponseParsingError
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.registry import mode_registry
+from instructor.v2.core.response import process_response, process_response_async
 from instructor.v2.dsl.parallel import VertexAIParallelModel
+from instructor.v2.providers.mistral.handlers import MistralToolsHandler
+from tests._http import JSONHandler, serve
 from tests.coverage._openai import chat_completion
 
 
@@ -216,14 +219,179 @@ def test_openai_tools_parallel_missing_tool_calls_is_retryable() -> None:
     assert error.value.raw_response is response
 
 
-def test_openai_tools_parallel_missing_choices_is_retryable() -> None:
-    complete_response = chat_completion(content="Just text, no tools.")
-    response = type(complete_response).model_validate(
-        {**complete_response.model_dump(), "choices": []}
-    )
+@pytest.mark.parametrize("provider", [Provider.OPENAI, Provider.MISTRAL])
+def test_tools_parallel_missing_choices_is_retryable(provider: Provider) -> None:
+    payload = {**response_payload(provider, []), "choices": []}
+    response = type(sdk_response(provider, [])).model_validate(payload)
     with pytest.raises(ResponseParsingError, match="No choices") as error:
-        parse(Provider.OPENAI, Mode.TOOLS, response, Contract, True)
+        parse(provider, Mode.TOOLS, response, Contract, True)
     assert error.value.raw_response is response
+
+
+# Parallel tool naming. OpenAI-style declarations (and the registries that parse
+# them) are keyed by JSON schema title; VertexAI is keyed by Python class name.
+
+
+class Payment(BaseModel):
+    model_config = ConfigDict(title="Record")
+    amount: int = 0
+
+
+class Contact(BaseModel):
+    model_config = ConfigDict(title="Record")
+    name: str = ""
+
+
+class Payments:
+    class Record(BaseModel):
+        model_config = ConfigDict(title="Payment")
+        amount: int = 0
+
+
+class Contacts:
+    class Record(BaseModel):
+        model_config = ConfigDict(title="Contact")
+        name: str = ""
+
+
+def mistral_tool_names(models: Any) -> list[str]:
+    _, kwargs = MistralToolsHandler().prepare_request(
+        models, {"messages": [{"role": "user", "content": "Extract records"}]}
+    )
+    return [tool["function"]["name"] for tool in kwargs["tools"]]
+
+
+def vertex_tool_names(models: Any) -> list[str]:
+    pytest.importorskip("vertexai.generative_models")
+    from instructor.v2.providers.vertexai.handlers import _create_vertexai_tool
+
+    tool = _create_vertexai_tool(models).to_dict()
+    return [declaration["name"] for declaration in tool["function_declarations"]]
+
+
+# (declared tool names for Iterable[Union[...]], naming rule, rejects clashes)
+NAMING = {
+    "openai-registry": (lambda m: list(dsl.ParallelModel(m).registry), "title", True),
+    "openai-tools": (
+        lambda m: [t["function"]["name"] for t in dsl.handle_parallel_model(m)],
+        "title",
+        True,
+    ),
+    "anthropic-registry": (
+        lambda m: list(dsl.AnthropicParallelModel(m).registry),
+        "title",
+        True,
+    ),
+    "anthropic-tools": (
+        lambda m: [t["name"] for t in dsl.handle_anthropic_parallel_model(m)],
+        "title",
+        True,
+    ),
+    "mistral-tools": (mistral_tool_names, "title", True),
+    "vertex-registry": (
+        lambda m: list(dsl.VertexAIParallelModel(m).registry),
+        "class",
+        True,
+    ),
+    # Vertex declarations are not deduplicated; its registry rejects clashes.
+    "vertex-tools": (vertex_tool_names, "class", False),
+}
+
+
+@pytest.mark.parametrize("declared_names,rule,rejects", NAMING.values(), ids=NAMING)
+def test_parallel_tool_names_follow_rule_and_must_be_unique(
+    declared_names: Any, rule: str, rejects: bool
+) -> None:
+    # Same class name, distinct titles vs. distinct class names, same title.
+    by_title: Any = Iterable[Union[Payments.Record, Contacts.Record]]
+    by_class: Any = Iterable[Union[Payment, Contact]]
+    distinct, clashing = (
+        (by_title, by_class) if rule == "title" else (by_class, by_title)
+    )
+    assert declared_names(distinct) == ["Payment", "Contact"]
+    if rejects:
+        with pytest.raises(ValueError, match="unique.*Record"):
+            declared_names(clashing)
+    else:
+        assert declared_names(clashing) == ["Record", "Record"]
+
+
+class DefaultName(BaseModel):
+    value: int
+
+
+class ConfiguredName(BaseModel):
+    model_config = ConfigDict(title="extract_value")
+    value: int
+
+
+class SchemaExtraName(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"title": "extra_value"})
+    value: int
+
+
+def titled(name: str, title: str) -> type[BaseModel]:
+    return create_model(name, __config__=ConfigDict(title=title), value=(int, ...))
+
+
+ROUTED = {
+    "default": (DefaultName,),
+    "configured": (ConfiguredName,),
+    "schema-extra": (SchemaExtraName,),
+    "same-class-name": (
+        titled("Entry", "first_entry"),
+        titled("Entry", "second_entry"),
+    ),
+    "swapped-names": (titled("First", "Second"), titled("Second", "First")),
+}
+
+
+@pytest.mark.parametrize("models", ROUTED.values(), ids=ROUTED)
+@pytest.mark.parametrize("provider", [Provider.OPENAI, Provider.ANTHROPIC])
+@pytest.mark.parametrize("path", ["legacy", "sync", "async", "tools"])
+def test_parallel_routes_calls_by_declared_tool_name(
+    models: tuple[type[BaseModel], ...], provider: Provider, path: str
+) -> None:
+    response_model = cast(Any, Iterable)[cast(Any, Union)[models]]
+    anthropic = provider == Provider.ANTHROPIC
+    if path == "legacy":
+        build = (
+            dsl.handle_anthropic_parallel_model
+            if anthropic
+            else dsl.handle_parallel_model
+        )
+        tools = build(response_model)
+    else:
+        _, kwargs = mode_registry.get_handlers(
+            provider, Mode.PARALLEL_TOOLS
+        ).request_handler(
+            response_model=response_model,
+            kwargs={"messages": [{"role": "user", "content": "Extract the values."}]},
+        )
+        tools = kwargs["tools"]
+    names = [t["name"] if anthropic else t["function"]["name"] for t in tools]
+    response = sdk_response(provider, [(n, i) for i, n in enumerate(names, 1)])
+    if path == "legacy":
+        parallel = (
+            dsl.AnthropicParallelModel(response_model)
+            if anthropic
+            else dsl.ParallelModel(response_model)
+        )
+        mode = Mode.ANTHROPIC_PARALLEL_TOOLS if anthropic else Mode.PARALLEL_TOOLS
+        results = list(parallel.from_response(response, mode))
+    else:
+        options: dict[str, Any] = dict(
+            response_model=response_model,
+            mode=Mode.TOOLS if path == "tools" else Mode.PARALLEL_TOOLS,
+            provider=provider,
+            stream=False,
+        )
+        results = list(
+            asyncio.run(process_response_async(response, **options))
+            if path == "async"
+            else process_response(response, **options)
+        )
+    assert results == [m.model_validate({"value": i}) for i, m in enumerate(models, 1)]
 
 
 @pytest.fixture
@@ -231,30 +399,13 @@ def local_http() -> Iterator[tuple[str, deque[dict[str, Any]], list[dict[str, An
     replies: deque[dict[str, Any]] = deque()
     requests: list[dict[str, Any]] = []
 
-    class Handler(BaseHTTPRequestHandler):
+    class Handler(JSONHandler):
         def do_POST(self) -> None:
-            requests.append(
-                json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            )
-            payload = json.dumps(replies.popleft()).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
-            self.end_headers()
-            self.wfile.write(payload)
+            requests.append(self.read_json())
+            self.send_json(replies.popleft())
 
-        def log_message(self, format: str, *args: Any) -> None:
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_port}", replies, requests
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join()
+    with serve(Handler) as url:
+        yield url, replies, requests
 
 
 HTTP_CASES = [

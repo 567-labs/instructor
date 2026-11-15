@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import threading
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 import openai
@@ -18,6 +16,7 @@ from tenacity import AsyncRetrying, Retrying, stop_after_attempt
 
 import instructor
 from instructor.core.exceptions import InstructorRetryException
+from tests._http import JSONHandler, serve
 
 
 class Answer(BaseModel):
@@ -28,7 +27,7 @@ class Answer(BaseModel):
 class Reply:
     status: int = 200
     content: str = '{"value": 7}'
-    delay: float = 0
+    hang: bool = False  # Hold the response until the test tears down.
     retry_after: float = 0.001
 
 
@@ -38,6 +37,7 @@ class Endpoint:
         self.replies: list[Reply] = []
         self.requests: list[dict[str, Any]] = []
         self.entered = threading.Event()
+        self.release = threading.Event()
         self.url = ""
 
 
@@ -47,14 +47,14 @@ def endpoint(request: pytest.FixtureRequest) -> Iterator[Endpoint]:
         pytest.importorskip("anthropic")
     endpoint = Endpoint(request.param)
 
-    class Handler(BaseHTTPRequestHandler):
+    class Handler(JSONHandler):
         def do_POST(self) -> None:
-            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             index = len(endpoint.requests)
-            endpoint.requests.append(body)
+            endpoint.requests.append(self.read_json())
             endpoint.entered.set()
             reply = endpoint.replies[min(index, len(endpoint.replies) - 1)]
-            time.sleep(reply.delay)
+            if reply.hang:
+                endpoint.release.wait()
             if reply.status != 200:
                 payload = {"error": {"message": "local failure", "type": "api_error"}}
             elif endpoint.provider == "anthropic":
@@ -69,46 +69,27 @@ def endpoint(request: pytest.FixtureRequest) -> Iterator[Endpoint]:
                     "usage": {"input_tokens": 0, "output_tokens": 0},
                 }
             else:
+                message = {"role": "assistant", "content": reply.content}
                 payload = {
                     "id": "chatcmpl-local",
                     "object": "chat.completion",
                     "created": 0,
                     "model": "local",
                     "choices": [
-                        {
-                            "index": 0,
-                            "message": {"role": "assistant", "content": reply.content},
-                            "finish_reason": "stop",
-                        }
+                        {"index": 0, "message": message, "finish_reason": "stop"}
                     ],
                 }
-            encoded = json.dumps(payload).encode()
-            try:
-                self.send_response(reply.status)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(encoded)))
-                self.send_header("Retry-After", str(reply.retry_after))
-                self.end_headers()
-                self.wfile.write(encoded)
-            except (BrokenPipeError, ConnectionResetError):
-                pass  # Expected when the client times out or is cancelled.
+            self.send_json(
+                payload, reply.status, {"Retry-After": str(reply.retry_after)}
+            )
 
-        def log_message(self, format: str, *args: Any) -> None:
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    server.daemon_threads = False
-    endpoint.url = f"http://127.0.0.1:{server.server_port}/v1"
-    thread = threading.Thread(
-        target=server.serve_forever, kwargs={"poll_interval": 0.01}
-    )
-    thread.start()
-    try:
-        yield endpoint
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join()
+    # Non-daemon handler threads are joined on close, after hung replies release.
+    with serve(Handler, daemon_threads=False) as url:
+        endpoint.url = f"{url}/v1"
+        try:
+            yield endpoint
+        finally:
+            endpoint.release.set()
 
 
 def observe(client: Any) -> dict[str, list[Any]]:
@@ -281,13 +262,13 @@ def test_numeric_timeout_is_not_a_deadline(
     endpoint: Endpoint, asynchronous: bool, valid: bool
 ) -> None:
     endpoint.replies = [
-        Reply(429, retry_after=0.15),
+        Reply(429, retry_after=0.08),
         Reply(content='{"value":7}' if valid else "{"),
     ]
     result, events, elapsed = asyncio.run(
         extract(endpoint, asynchronous, 1, 3, timeout=0.05)
     )
-    assert elapsed >= 0.15
+    assert elapsed >= 0.08
     assert len(endpoint.requests) == 2
     assert len(events["completion:kwargs"]) == 1
     if valid:
@@ -303,7 +284,7 @@ def test_numeric_timeout_is_not_a_deadline(
 def test_transport_read_timeout(
     endpoint: Endpoint, asynchronous: bool, sdk_retries: int
 ) -> None:
-    endpoint.replies = [Reply(delay=0.3)]
+    endpoint.replies = [Reply(hang=True)]
     result, events, _ = asyncio.run(
         extract(endpoint, asynchronous, sdk_retries, 3, timeout=0.05)
     )
@@ -315,7 +296,7 @@ def test_transport_read_timeout(
 
 @pytest.mark.parametrize("deadline", [False, True], ids=["cancel", "wait-for"])
 def test_async_cancellation_does_not_retry(endpoint: Endpoint, deadline: bool) -> None:
-    endpoint.replies = [Reply(delay=0.5)]
+    endpoint.replies = [Reply(hang=True)]
 
     async def run() -> None:
         sdk, client = make_client(endpoint, True, 2)
