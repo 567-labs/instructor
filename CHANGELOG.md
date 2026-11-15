@@ -13,6 +13,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **CLI**: `instructor files download` uses `files.content` and writes raw bytes; `files list` reads every page; `files delete` and `jobs cancel` exit nonzero on failure. ([#2979](https://github.com/567-labs/instructor/issues/2979), [#2984](https://github.com/567-labs/instructor/issues/2984))
 - **CLI (Anthropic batch)**: `batch download-file` and `batch results` keep the existing file when the result stream fails.
 - **Batch (OpenAI)**: Result downloads replace the destination atomically, in-memory uploads are named `batch.jsonl`, cancelled batches return partial results, and stopped batches with no finished requests return immediately. ([#3008](https://github.com/567-labs/instructor/issues/3008), [#2996](https://github.com/567-labs/instructor/issues/2996))
+- **Batch (Mistral)**: Results merge the job's output and error files, so failed requests come back as `BatchError` records instead of raising when every request failed. Cancelled and timed-out jobs return the requests that finished, or nothing when none finished.
 - **Batch (legacy)**: `BatchJob.parse_from_string` rejects OpenAI `length` and Anthropic `max_tokens` records even when their JSON validates.
 - **Iterable streaming**: OpenAI Chat, OpenAI Responses, Gemini/Vertex AI, Cohere and Mistral raise `IncompleteOutputException` when the token limit hits between items.
 - **Token limits**: Bedrock and Writer JSON modes reject token-limited completions.
@@ -29,6 +30,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Errors**: Instructor exceptions survive pickling.
 - **Multimodal**: `Audio.from_path` accepts platform FLAC, M4A and AAC MIME aliases. `convert_messages` keeps legacy assistant `function_call` turns.
 - **Ollama**: `from_provider("ollama/...")` forwards a caller `api_key`.
+- **Reask**: Mistral TOOLS no longer raises `KeyError` when the model replies with text only. Anthropic JSON/JSON_SCHEMA, Bedrock and Vertex AI reask append only the validation feedback when the response is missing, an unconsumed stream, or has no content, instead of crashing; Vertex AI TOOLS also handles text-only replies.
+- **Vertex AI**: Tool declarations reject parallel models that share a class name, matching the parallel registry, instead of declaring duplicate function names.
+- **Usage**: Nested dict usage fields such as OpenRouter `cost_details` add up across retries instead of keeping only the last attempt.
+- **Usage**: Groq `CompletionUsage` and Anthropic beta `BetaUsage` count toward retry usage totals and token budgets.
+- **Usage hooks**: Each `completion:usage` handler gets its own usage copy, so one handler cannot change what the next one sees.
+- **CLI usage**: `instructor usage` prices `gpt-4o-mini` at its own rate; the longest matching model prefix wins.
 - Anthropic Iterable streams report a `max_tokens` stop between complete items as `IncompleteOutputException` instead of returning a silently truncated list.
 - Gemini and Vertex AI reject completions stopped at the token limit. Google and Mistral streaming handlers skip empty metadata chunks, and GenAI JSON mode aliases are classified consistently.
 - Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
