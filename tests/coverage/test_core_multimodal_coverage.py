@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import base64
 import errno
+import io
+import wave
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -76,27 +78,6 @@ def test_image_gcs_loading_and_autodetection(monkeypatch: pytest.MonkeyPatch) ->
     ]
 
 
-def test_image_gcs_rejects_invalid_sources_and_failures(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    with pytest.raises(ValueError, match="URL must start with gs://"):
-        Image.from_gs_url("https://example.test/photo.png")
-
-    monkeypatch.setattr(
-        requests, "get", lambda *_args, **_kwargs: response(b"text", "text/plain")
-    )
-    with pytest.raises(ValueError, match="Unsupported image format: text/plain"):
-        Image.from_gs_url("gs://pictures/readme.txt")
-
-    monkeypatch.setattr(
-        requests,
-        "get",
-        lambda *_args, **_kwargs: response(b"missing", "image/png", status=404),
-    )
-    with pytest.raises(ValueError, match="Failed to access GCS image"):
-        Image.from_gs_url("gs://pictures/missing.png")
-
-
 def test_image_url_errors_missing_path_and_unsupported_data_uri(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -140,99 +121,6 @@ def test_remote_media_types_ignore_http_parameters(
     assert image.media_type == "image/png"
     assert audio.media_type == "audio/wav"
     assert pdf.media_type == "application/pdf"
-
-
-def test_is_base64_accepts_optional_data_uri_parameters() -> None:
-    # RFC 2397 data URIs may carry media-type parameters before ;base64.
-    # is_base64 must still classify them so autodetect routes to from_base64.
-    image_uri = "data:image/png;charset=utf-8;name=photo.png;base64,aW1hZ2U="
-    pdf_uri = "data:APPLICATION/Pdf;name=report.pdf;base64,JVBERi0="
-
-    assert Image.is_base64(image_uri)
-    assert PDF.is_base64(pdf_uri)
-    # Plain form without parameters still matches.
-    assert Image.is_base64("data:image/png;base64,aW1hZ2U=")
-    assert PDF.is_base64("data:application/pdf;base64,JVBERi0=")
-    # Non-base64 or wrong type stay rejected.
-    assert not Image.is_base64("data:image/png;charset=utf-8,aW1hZ2U=")
-    assert not PDF.is_base64("data:application/json;base64,e30=")
-
-
-def test_autodetect_media_keeps_data_uris_with_parameters() -> None:
-    image_uri = "data:image/png;charset=utf-8;name=photo.png;base64,aW1hZ2U="
-    pdf_uri = "data:APPLICATION/Pdf;name=report.pdf;base64,JVBERi0="
-
-    image = autodetect_media(image_uri)
-    pdf = autodetect_media(pdf_uri)
-
-    assert isinstance(image, Image)
-    assert image.media_type == "image/png"
-    assert image.data == "aW1hZ2U="
-    assert isinstance(pdf, PDF)
-    assert pdf.media_type == "application/pdf"
-    assert pdf.data == "JVBERi0="
-
-
-def test_convert_messages_autodetects_data_uri_with_parameters() -> None:
-    # Real producer path: convert_messages -> autodetect_media -> provider encoder.
-    image_uri = "data:image/png;charset=utf-8;name=photo.png;base64,aW1hZ2U="
-    pdf_uri = "data:APPLICATION/Pdf;name=report.pdf;base64,JVBERi0="
-    messages: list[dict[str, Any]] = [
-        {"role": "user", "content": [image_uri, pdf_uri]},
-    ]
-
-    converted = convert_messages(messages, Mode.TOOLS, autodetect_images=True)
-
-    assert converted == [
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "image_url",
-                    "image_url": {"url": "data:image/png;base64,aW1hZ2U="},
-                },
-                {
-                    "type": "file",
-                    "file": {
-                        "filename": pdf_uri,
-                        "file_data": "data:application/pdf;base64,JVBERi0=",
-                    },
-                },
-            ],
-        }
-    ]
-
-
-def test_data_uri_media_types_are_case_insensitive() -> None:
-    # Media types are case-insensitive, and optional parameters are
-    # allowed after them, so these are all equivalent to `data:image/png`.
-    for media_type in ("image/PNG", "IMAGE/PNG", "Image/Png"):
-        image = Image.from_base64(f"data:{media_type};base64,aW1hZ2U=")
-
-        assert image.media_type == "image/png"
-        assert image.data == "aW1hZ2U="
-
-    for media_type in ("application/PDF", "APPLICATION/Pdf"):
-        pdf = PDF.from_base64(f"data:{media_type};base64,JVBERi0=")
-
-        assert pdf.media_type == "application/pdf"
-        assert pdf.data == "JVBERi0="
-
-
-def test_data_uri_media_types_still_reject_unsupported_types() -> None:
-    with pytest.raises(MultimodalError, match="Unsupported image format: image/tiff"):
-        Image.from_base64("data:image/TIFF;base64,aW1hZ2U=")
-
-    with pytest.raises(ValueError, match="Unsupported PDF format: image/png"):
-        PDF.from_base64("data:image/PNG;base64,JVBERi0=")
-
-
-def test_data_uri_with_parameters_keeps_payload_intact() -> None:
-    image = Image.from_base64("data:image/PNG;charset=utf-8;base64,aW1hZ2U=")
-
-    assert image.media_type == "image/png"
-    assert image.data == "aW1hZ2U="
-    assert image.source == "data:image/PNG;charset=utf-8;base64,aW1hZ2U="
 
 
 def test_image_path_probe_falls_back_to_raw_base64(
@@ -331,27 +219,6 @@ def test_audio_invalid_inputs_and_conversions(monkeypatch: pytest.MonkeyPatch) -
     audio = Audio(source="clip.wav", data="UklGRg==", media_type="audio/wav")
     with pytest.raises(NotImplementedError, match="Anthropic is not supported yet"):
         audio.to_anthropic()
-
-
-def test_audio_gcs_rejects_invalid_sources_and_failures(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    with pytest.raises(ValueError, match="URL must start with gs://"):
-        Audio.from_gs_url("https://example.test/clip.wav")
-
-    monkeypatch.setattr(
-        requests, "get", lambda *_args, **_kwargs: response(b"text", "text/plain")
-    )
-    with pytest.raises(ValueError, match="Unsupported audio format: text/plain"):
-        Audio.from_gs_url("gs://sounds/readme.txt")
-
-    monkeypatch.setattr(
-        requests,
-        "get",
-        lambda *_args, **_kwargs: response(b"missing", "audio/wav", status=404),
-    )
-    with pytest.raises(ValueError, match="Failed to access GCS audio"):
-        Audio.from_gs_url("gs://sounds/missing.wav")
 
 
 def test_image_params_keep_cache_control_and_encode_anthropic_image() -> None:
@@ -455,27 +322,6 @@ def test_pdf_rejects_invalid_data_and_local_files(tmp_path: Path) -> None:
         PDF.from_path(empty)
     with pytest.raises(ValueError, match="Unsupported PDF format: text/plain"):
         PDF.from_path(text)
-
-
-def test_pdf_gcs_rejects_invalid_sources_and_failures(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    with pytest.raises(ValueError, match="URL must start with gs://"):
-        PDF.from_gs_url("https://example.test/report.pdf")
-
-    monkeypatch.setattr(
-        requests, "get", lambda *_args, **_kwargs: response(b"text", "text/plain")
-    )
-    with pytest.raises(ValueError, match="Unsupported PDF format: text/plain"):
-        PDF.from_gs_url("gs://reports/readme.txt")
-
-    monkeypatch.setattr(
-        requests,
-        "get",
-        lambda *_args, **_kwargs: response(b"missing", "application/pdf", status=404),
-    )
-    with pytest.raises(ValueError, match="Failed to access GCS PDF"):
-        PDF.from_gs_url("gs://reports/missing.pdf")
 
 
 def test_pdf_url_errors_and_serialization(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -641,3 +487,211 @@ def test_convert_messages_keeps_a_single_detected_image() -> None:
             ],
         }
     ]
+
+
+@pytest.mark.parametrize(
+    ("cls", "label", "media_type", "folder"),
+    [
+        (Image, "image", "image/png", "pictures"),
+        (Audio, "audio", "audio/wav", "sounds"),
+        (PDF, "PDF", "application/pdf", "reports"),
+    ],
+    ids=["image", "audio", "pdf"],
+)
+def test_gcs_loading_rejects_invalid_sources_and_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    cls: Any,
+    label: str,
+    media_type: str,
+    folder: str,
+) -> None:
+    with pytest.raises(ValueError, match="URL must start with gs://"):
+        cls.from_gs_url(f"https://example.test/{folder}/file")
+
+    monkeypatch.setattr(
+        requests, "get", lambda *_args, **_kwargs: response(b"text", "text/plain")
+    )
+    with pytest.raises(ValueError, match=f"Unsupported {label} format: text/plain"):
+        cls.from_gs_url(f"gs://{folder}/readme.txt")
+
+    monkeypatch.setattr(
+        requests,
+        "get",
+        lambda *_args, **_kwargs: response(b"missing", media_type, status=404),
+    )
+    with pytest.raises(ValueError, match=f"Failed to access GCS {label}"):
+        cls.from_gs_url(f"gs://{folder}/missing")
+
+
+# --- data URI media types ----------------------------------------------------
+
+
+def _wav_bytes() -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as output:
+        output.setnchannels(1)
+        output.setsampwidth(2)
+        output.setframerate(8000)
+        output.writeframes(b"\x00\x00" * 80)
+    return buffer.getvalue()
+
+
+WAV = base64.b64encode(_wav_bytes()).decode()
+IMAGE_PARAMS_URI = "data:image/png;charset=utf-8;name=photo.png;base64,aW1hZ2U="
+PDF_PARAMS_URI = "data:APPLICATION/Pdf;name=report.pdf;base64,JVBERi0="
+DATA_URI_CASES: list[tuple[Any, str, str]] = [
+    # (class, data URI, normalized media type). Media types are case
+    # insensitive and RFC 2397 parameters may precede ;base64.
+    (Image, "data:image/png;base64,aW1hZ2U=", "image/png"),
+    (Image, IMAGE_PARAMS_URI, "image/png"),
+    (Image, "data:image/PNG;charset=utf-8;base64,aW1hZ2U=", "image/png"),
+    (Image, "data:IMAGE/PNG;base64,aW1hZ2U=", "image/png"),
+    (Image, "data:Image/Png;base64,aW1hZ2U=", "image/png"),
+    (PDF, "data:application/pdf;base64,JVBERi0=", "application/pdf"),
+    (PDF, "data:application/PDF;base64,JVBERi0=", "application/pdf"),
+    (PDF, PDF_PARAMS_URI, "application/pdf"),
+    (Audio, f"data:audio/wav;base64,{WAV}", "audio/wav"),
+    (Audio, f"data:audio/x-wav;base64,{WAV}", "audio/wav"),
+    (Audio, f"data:AUDIO/X-WAV;charset=utf-8;base64,{WAV}", "audio/wav"),
+    (Audio, "data:audio/vnd.dlna.adts;base64,AA==", "audio/aac"),
+    (Audio, "data:audio/x-flac;base64,YWJj", "audio/flac"),
+    (Audio, "data:audio/x-aac;base64,YWJj", "audio/aac"),
+    (Audio, "data:audio/x-m4a;base64,YWJj", "audio/m4a"),
+    (Audio, "data:audio/mp4a-latm;base64,YWJj", "audio/m4a"),
+]
+
+
+@pytest.mark.parametrize(
+    ("cls", "uri", "media_type"),
+    DATA_URI_CASES,
+    ids=[c[1][:40] for c in DATA_URI_CASES],
+)
+def test_data_uri_media_types_are_normalized(
+    cls: Any, uri: str, media_type: str
+) -> None:
+    assert cls.is_base64(uri)
+    media = cls.from_base64(uri)
+
+    assert media.media_type == media_type
+    assert media.data == uri.rsplit(",", 1)[1]
+    assert media.source == uri
+    assert cls.autodetect(uri) == media
+    assert autodetect_media(uri) == media
+
+
+@pytest.mark.parametrize(
+    ("cls", "uri", "error", "match"),
+    [
+        (
+            Image,
+            "data:image/tiff;base64,aW1hZ2U=",
+            MultimodalError,
+            "image format: image/tiff",
+        ),
+        (
+            Image,
+            "data:image/TIFF;base64,aW1hZ2U=",
+            MultimodalError,
+            "image format: image/tiff",
+        ),
+        (PDF, "data:image/PNG;base64,JVBERi0=", ValueError, "PDF format: image/png"),
+        (Audio, f"data:video/mp4;base64,{WAV}", ValueError, "audio format"),
+    ],
+)
+def test_data_uri_rejects_unsupported_media_types(
+    cls: Any, uri: str, error: type[Exception], match: str
+) -> None:
+    with pytest.raises(error, match=f"Unsupported {match}"):
+        cls.from_base64(uri)
+
+
+@pytest.mark.parametrize(
+    ("cls", "uri"),
+    [
+        (Image, "data:image/png;charset=utf-8,aW1hZ2U="),
+        (PDF, "data:application/json;base64,e30="),
+    ],
+)
+def test_is_base64_rejects_non_base64_or_wrong_type(cls: Any, uri: str) -> None:
+    assert not cls.is_base64(uri)
+
+
+def test_convert_messages_autodetects_parameterized_data_uris() -> None:
+    wav_alias = f"data:audio/x-wav;base64,{WAV}"
+    messages: list[dict[str, Any]] = [
+        {"role": "user", "content": [IMAGE_PARAMS_URI, PDF_PARAMS_URI, wav_alias]}
+    ]
+
+    converted = convert_messages(messages, Mode.TOOLS, autodetect_images=True)
+
+    assert converted[0]["content"] == [
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,aW1hZ2U="}},
+        {
+            "type": "file",
+            "file": {
+                "filename": PDF_PARAMS_URI,
+                "file_data": "data:application/pdf;base64,JVBERi0=",
+            },
+        },
+        {"type": "input_audio", "input_audio": {"data": WAV, "format": "wav"}},
+    ]
+
+
+def test_wav_data_uri_alias_matches_file_audio(tmp_path: Path) -> None:
+    path = tmp_path / "clip.wav"
+    path.write_bytes(_wav_bytes())
+    from_data = Audio.from_base64(f"data:audio/x-wav;base64,{WAV}")
+    from_file = Audio.from_path(path)
+
+    assert (from_data.media_type, from_data.data) == (from_file.media_type, WAV)
+    assert from_data.to_openai(Mode.TOOLS) == from_file.to_openai(Mode.TOOLS)
+
+
+def test_wav_alias_preserves_bytes_in_genai_content() -> None:
+    pytest.importorskip("google.genai")
+    part = Audio.from_base64(f"data:audio/x-wav;base64,{WAV}").to_genai()
+
+    assert part.inline_data.mime_type == "audio/wav"
+    assert part.inline_data.data == _wav_bytes()
+
+
+def test_aac_audio_is_rejected_by_openai_encoder() -> None:
+    audio = Audio.from_base64("data:audio/vnd.dlna.adts;base64,AA==")
+    with pytest.raises(ValueError, match="Expected WAV or MP3"):
+        audio.to_openai(Mode.TOOLS)
+
+
+def test_audio_path_with_unknown_media_type(tmp_path: Path) -> None:
+    path = tmp_path / "clip.instructor-no-mime"
+    path.write_bytes(_wav_bytes())
+    with pytest.raises(ValueError, match="Unsupported audio format"):
+        Audio.from_path(path)
+
+
+@pytest.mark.parametrize("platform_db", [True, False], ids=["platform", "fallback"])
+@pytest.mark.parametrize(
+    ("suffix", "media_types"),
+    # Linux maps .m4a to audio/mp4; other platforms report an m4a alias.
+    [
+        (".flac", {"audio/flac"}),
+        (".m4a", {"audio/m4a", "audio/mp4"}),
+        (".aac", {"audio/aac"}),
+    ],
+)
+def test_audio_from_path_accepts_platform_aliases(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    suffix: str,
+    media_types: set[str],
+    platform_db: bool,
+) -> None:
+    if not platform_db:
+        # Simulate a mimetypes database with no entry for the suffix.
+        monkeypatch.setattr("mimetypes.guess_type", lambda _path: (None, None))
+    path = tmp_path / f"clip{suffix}"
+    path.write_bytes(b"audio-bytes")
+
+    audio = Audio.from_path(path)
+
+    assert audio.media_type in media_types
+    assert audio.data == base64.b64encode(b"audio-bytes").decode()

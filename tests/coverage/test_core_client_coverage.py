@@ -21,6 +21,7 @@ from instructor.v2.core.client import (
 )
 from instructor.v2.core.hooks import HookName, Hooks
 from instructor.v2.core.mode import Mode
+from tests._streams import async_items
 
 
 class User(BaseModel):
@@ -133,157 +134,121 @@ def test_shallow_copy_preserves_client_state(
         _ = copied.missing_attribute
 
 
-@pytest.mark.parametrize(
-    "mode", [Mode.RESPONSES_TOOLS, Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS]
+sync_and_async = pytest.mark.parametrize(
+    "is_async", [False, True], ids=["sync", "async"]
 )
-def test_shallow_copy_rebinds_sync_response_facade(mode: Mode) -> None:
-    received: list[dict[str, Any]] = []
 
-    def create(**kwargs: Any) -> User:
+
+def recording_create(
+    received: list[dict[str, Any]], raw: object, is_async: bool, name: str = "Ada"
+) -> Any:
+    """Create function returning a model, or a stream when `stream=True`."""
+
+    def respond(kwargs: dict[str, Any]) -> Any:
         received.append(kwargs)
-        return User(name="Original")
-
-    def copied_create(**kwargs: Any) -> User:
-        received.append(kwargs)
-        return User(name="Copied")
-
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(503, request=request)
-    )
-    with openai.OpenAI(
-        api_key="offline-key",
-        base_url="https://offline.invalid/v1",
-        http_client=httpx.Client(transport=transport),
-    ) as native_client:
-        client = Instructor(
-            client=native_client,
-            create=create,
-            mode=mode,
-            model="original-model",
-        )
-        copied = copy(client)
-        copied.create_fn = copied_create
-        copied.kwargs = {"model": "copied-model"}
-        copied.hooks = Hooks()
-
-        assert isinstance(copied.responses, Response)
-        assert isinstance(client.responses, Response)
-        assert copied.responses.create(input="Return a user", response_model=User) == (
-            User(name="Copied")
-        )
-        assert client.responses.create(input="Return a user", response_model=User) == (
-            User(name="Original")
-        )
-        assert copied.responses is not client.responses
-        assert copied.responses.client is copied
-        assert client.responses.client is client
-        assert copied.client is native_client
-        assert [call["model"] for call in received] == [
-            "copied-model",
-            "original-model",
-        ]
-        assert received[0]["hooks"] is copied.hooks
-        assert received[1]["hooks"] is client.hooks
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "mode", [Mode.RESPONSES_TOOLS, Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS]
-)
-async def test_shallow_copy_rebinds_async_response_facade(mode: Mode) -> None:
-    received: list[dict[str, Any]] = []
-
-    async def create(**kwargs: Any) -> User:
-        received.append(kwargs)
-        return User(name="Original")
-
-    async def copied_create(**kwargs: Any) -> User:
-        received.append(kwargs)
-        return User(name="Copied")
-
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(503, request=request)
-    )
-    async with openai.AsyncOpenAI(
-        api_key="offline-key",
-        base_url="https://offline.invalid/v1",
-        http_client=httpx.AsyncClient(transport=transport),
-    ) as native_client:
-        client = AsyncInstructor(
-            client=native_client,
-            create=create,
-            mode=mode,
-            model="original-model",
-        )
-        copied = copy(client)
-        copied.create_fn = copied_create
-        copied.kwargs = {"model": "copied-model"}
-        copied.hooks = Hooks()
-
-        assert isinstance(copied.responses, AsyncResponse)
-        assert isinstance(client.responses, AsyncResponse)
-        assert await copied.responses.create(
-            input="Return a user", response_model=User
-        ) == User(name="Copied")
-        assert await client.responses.create(
-            input="Return a user", response_model=User
-        ) == User(name="Original")
-        assert copied.responses is not client.responses
-        assert copied.responses.client is copied
-        assert client.responses.client is client
-        assert copied.client is native_client
-        assert [call["model"] for call in received] == [
-            "copied-model",
-            "original-model",
-        ]
-        assert received[0]["hooks"] is copied.hooks
-        assert received[1]["hooks"] is client.hooks
-
-
-def test_sync_streaming_and_completion_helpers_preserve_models_and_hooks() -> None:
-    events: list[str] = []
-    client_hooks = hooks_with_handler("client", events)
-    call_hooks = hooks_with_handler("call", events)
-    received: list[dict[str, Any]] = []
-    raw = object()
-
-    def create(**kwargs: Any) -> Any:
-        received.append(kwargs)
-        response_model = kwargs["response_model"]
         if kwargs.get("stream"):
-            if get_origin(response_model) is Iterable:
-                return iter([User(name="Ada"), User(name="Grace")])
-            return iter([User.model_construct(name=None), User(name="Ada")])
-        result = User(name="Ada")
+            items = (
+                [User(name="Ada"), User(name="Grace")]
+                if get_origin(kwargs["response_model"]) is Iterable
+                else [User.model_construct(name=None), User(name="Ada")]
+            )
+            return async_items(items) if is_async else iter(items)
+        result = User(name=name)
         result._raw_response = raw
         return result
 
-    client = Instructor(
+    if is_async:
+
+        async def acreate(**kwargs: Any) -> Any:
+            return respond(kwargs)
+
+        return acreate
+    return lambda **kwargs: respond(kwargs)
+
+
+async def resolve(value: Any, is_async: bool) -> Any:
+    return await value if is_async else value
+
+
+async def drain(stream: Any, is_async: bool) -> list[Any]:
+    if not is_async:
+        return list(stream)
+    if inspect.isawaitable(stream):
+        stream = await stream
+    return [item async for item in stream]
+
+
+@pytest.mark.asyncio
+@sync_and_async
+@pytest.mark.parametrize(
+    "mode", [Mode.RESPONSES_TOOLS, Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS]
+)
+async def test_shallow_copy_rebinds_response_facade(mode: Mode, is_async: bool) -> None:
+    received: list[dict[str, Any]] = []
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(503, request=request)
+    )
+    sdk: Any = openai.AsyncOpenAI if is_async else openai.OpenAI
+    http: Any = httpx.AsyncClient if is_async else httpx.Client
+    native_client = sdk(
+        api_key="offline-key",
+        base_url="https://offline.invalid/v1",
+        http_client=http(transport=transport),
+    )
+    client_class: Any = AsyncInstructor if is_async else Instructor
+    facade = AsyncResponse if is_async else Response
+    client = client_class(
+        client=native_client,
+        create=recording_create(received, None, is_async, "Original"),
+        mode=mode,
+        model="original-model",
+    )
+    copied = copy(client)
+    copied.create_fn = recording_create(received, None, is_async, "Copied")
+    copied.kwargs = {"model": "copied-model"}
+    copied.hooks = Hooks()
+
+    assert isinstance(copied.responses, facade)
+    assert isinstance(client.responses, facade)
+    for target, name in [(copied, "Copied"), (client, "Original")]:
+        result = target.responses.create(input="Return a user", response_model=User)
+        assert await resolve(result, is_async) == User(name=name)
+    assert copied.responses is not client.responses
+    assert copied.responses.client is copied
+    assert client.responses.client is client
+    assert copied.client is native_client
+    assert [call["model"] for call in received] == ["copied-model", "original-model"]
+    assert received[0]["hooks"] is copied.hooks
+    assert received[1]["hooks"] is client.hooks
+    await resolve(native_client.close(), is_async)
+
+
+@pytest.mark.asyncio
+@sync_and_async
+async def test_streaming_and_completion_helpers_preserve_models_and_hooks(
+    is_async: bool,
+) -> None:
+    events: list[str] = []
+    call_hooks = hooks_with_handler("call", events)
+    received: list[dict[str, Any]] = []
+    raw = object()
+    client_class: Any = AsyncInstructor if is_async else Instructor
+    client = client_class(
         client=None,
-        create=create,
-        hooks=client_hooks,
+        create=recording_create(received, raw, is_async),
+        hooks=hooks_with_handler("client", events),
         model="default-model",
     )
+    options: dict[str, Any] = {"response_model": User, "messages": MESSAGES}
 
-    partial = list(
-        client.create_partial(
-            response_model=User,
-            messages=MESSAGES,
-            hooks=call_hooks,
-            strict=False,
-        )
+    partial = await drain(
+        client.create_partial(**options, hooks=call_hooks, strict=False), is_async
     )
-    iterable = list(
-        client.create_iterable(
-            response_model=User,
-            messages=MESSAGES,
-            hooks=call_hooks,
-        )
+    iterable = await drain(
+        client.create_iterable(**options, hooks=call_hooks), is_async
     )
-    parsed, completion = client.create_with_completion(
-        response_model=User,
-        messages=MESSAGES,
-        hooks=call_hooks,
+    parsed, completion = await resolve(
+        client.create_with_completion(**options, hooks=call_hooks), is_async
     )
 
     assert partial[0].name is None
@@ -300,6 +265,70 @@ def test_sync_streaming_and_completion_helpers_preserve_models_and_hooks() -> No
     assert all(call["model"] == "default-model" for call in received)
     for call in received:
         assert_combined_hooks(call["hooks"], events)
+
+
+@pytest.mark.asyncio
+@sync_and_async
+async def test_response_facade_normalizes_input_and_forwards_each_helper(
+    is_async: bool,
+) -> None:
+    received: list[dict[str, Any]] = []
+    raw = object()
+    client_class: Any = AsyncInstructor if is_async else Instructor
+    client = client_class(
+        client=None,
+        create=recording_create(received, raw, is_async),
+        model="offline-model",
+    )
+    response: Any = (AsyncResponse if is_async else Response)(client)
+
+    parsed = await resolve(
+        response.create(
+            input="Return Ada",
+            response_model=User,
+            max_retries=1,
+            strict=False,
+            context={"source": "test"},
+        ),
+        is_async,
+    )
+    with_completion, completion = await resolve(
+        response.create_with_completion(
+            input="Return Ada and the raw response", response_model=User, max_retries=2
+        ),
+        is_async,
+    )
+    iterable = await drain(
+        response.create_iterable(
+            input="Return two users", response_model=User, max_retries=3
+        ),
+        is_async,
+    )
+    partial = await drain(
+        response.create_partial(
+            input="Stream two users", response_model=User, max_retries=4
+        ),
+        is_async,
+    )
+
+    assert parsed.model_dump() == {"name": "Ada"}
+    assert with_completion.model_dump() == {"name": "Ada"}
+    assert completion is raw
+    assert iterable == [User(name="Ada"), User(name="Grace")]
+    assert [item.name for item in partial] == [None, "Ada"]
+    assert [call["messages"][0]["content"] for call in received] == [
+        "Return Ada",
+        "Return Ada and the raw response",
+        "Return two users",
+        "Stream two users",
+    ]
+    assert [call["max_retries"] for call in received] == [1, 2, 3, 4]
+    assert received[0]["strict"] is False
+    assert received[0]["context"] == {"source": "test"}
+    assert received[2]["stream"] is True
+    assert received[3]["stream"] is True
+    assert all(call["hooks"] is client.hooks for call in received)
+    assert all(call["model"] == "offline-model" for call in received)
 
 
 @pytest.mark.asyncio
@@ -353,203 +382,6 @@ async def test_async_client_forwards_defaults_and_dispatches_iterable_response()
         assert_combined_hooks(call["hooks"], events)
 
 
-@pytest.mark.asyncio
-async def test_async_streaming_and_completion_helpers_preserve_models_and_hooks() -> (
-    None
-):
-    events: list[str] = []
-    client_hooks = hooks_with_handler("client", events)
-    call_hooks = hooks_with_handler("call", events)
-    received: list[dict[str, Any]] = []
-    raw = object()
-
-    async def create(**kwargs: Any) -> Any:
-        received.append(kwargs)
-        if kwargs.get("stream"):
-
-            async def stream() -> Any:
-                yield User(name="Ada")
-
-            return stream()
-        result = User(name="Ada")
-        result._raw_response = raw
-        return result
-
-    client = AsyncInstructor(
-        client=None,
-        create=create,
-        hooks=client_hooks,
-        model="default-model",
-    )
-
-    partial = [
-        item
-        async for item in client.create_partial(
-            response_model=User,
-            messages=MESSAGES,
-            hooks=call_hooks,
-        )
-    ]
-    iterable = [
-        item
-        async for item in client.create_iterable(
-            response_model=User,
-            messages=MESSAGES,
-            hooks=call_hooks,
-        )
-    ]
-    parsed, completion = await client.create_with_completion(
-        response_model=User,
-        messages=MESSAGES,
-        hooks=call_hooks,
-    )
-
-    assert partial == [User(name="Ada")]
-    assert received[0]["response_model"]._original_model is User
-    assert received[0]["stream"] is True
-    assert iterable == [User(name="Ada")]
-    assert get_origin(received[1]["response_model"]) is Iterable
-    assert get_args(received[1]["response_model"]) == (User,)
-    assert received[1]["stream"] is True
-    assert parsed.model_dump() == {"name": "Ada"}
-    assert completion is raw
-    assert all(call["model"] == "default-model" for call in received)
-    for call in received:
-        assert_combined_hooks(call["hooks"], events)
-
-
-def test_sync_response_facade_normalizes_input_and_forwards_each_helper() -> None:
-    received: list[dict[str, Any]] = []
-    raw = object()
-
-    def create(**kwargs: Any) -> Any:
-        received.append(kwargs)
-        if kwargs.get("stream"):
-            return iter([User(name="Ada"), User(name="Grace")])
-        result = User(name="Ada")
-        result._raw_response = raw
-        return result
-
-    client = Instructor(client=None, create=create, model="offline-model")
-    response = Response(client)
-
-    parsed = response.create(
-        input="Return Ada",
-        response_model=User,
-        max_retries=1,
-        strict=False,
-        context={"source": "sync"},
-    )
-    with_completion, completion = response.create_with_completion(
-        input="Return Ada and the raw response",
-        response_model=User,
-        max_retries=2,
-    )
-    iterable = list(
-        response.create_iterable(
-            input="Return two users",
-            response_model=User,
-            max_retries=3,
-        )
-    )
-    partial = list(
-        response.create_partial(
-            input="Stream two users",
-            response_model=User,
-            max_retries=4,
-        )
-    )
-
-    assert parsed.model_dump() == {"name": "Ada"}
-    assert with_completion.model_dump() == {"name": "Ada"}
-    assert completion is raw
-    assert iterable == [User(name="Ada"), User(name="Grace")]
-    assert partial == [User(name="Ada"), User(name="Grace")]
-    assert [call["messages"][0]["content"] for call in received] == [
-        "Return Ada",
-        "Return Ada and the raw response",
-        "Return two users",
-        "Stream two users",
-    ]
-    assert [call["max_retries"] for call in received] == [1, 2, 3, 4]
-    assert received[0]["strict"] is False
-    assert received[0]["context"] == {"source": "sync"}
-    assert received[2]["stream"] is True
-    assert received[3]["stream"] is True
-    assert all(call["hooks"] is client.hooks for call in received)
-    assert all(call["model"] == "offline-model" for call in received)
-
-
-@pytest.mark.asyncio
-async def test_async_response_facade_normalizes_input_and_forwards_each_helper() -> (
-    None
-):
-    received: list[dict[str, Any]] = []
-    raw = object()
-
-    async def create(**kwargs: Any) -> Any:
-        received.append(kwargs)
-        if kwargs.get("stream"):
-
-            async def stream() -> Any:
-                yield User(name="Ada")
-                yield User(name="Grace")
-
-            return stream()
-        result = User(name="Ada")
-        result._raw_response = raw
-        return result
-
-    client = AsyncInstructor(client=None, create=create, model="offline-model")
-    response = AsyncResponse(client)
-
-    parsed = await response.create(
-        input="Return Ada",
-        response_model=User,
-        max_retries=1,
-        strict=False,
-        context={"source": "async"},
-    )
-    with_completion, completion = await response.create_with_completion(
-        input="Return Ada and the raw response",
-        response_model=User,
-        max_retries=2,
-    )
-    iterable_stream = await response.create_iterable(
-        input="Return two users",
-        response_model=User,
-        max_retries=3,
-    )
-    iterable = [item async for item in iterable_stream]
-    partial = [
-        item
-        async for item in response.create_partial(
-            input="Stream two users",
-            response_model=User,
-            max_retries=4,
-        )
-    ]
-
-    assert parsed.model_dump() == {"name": "Ada"}
-    assert with_completion.model_dump() == {"name": "Ada"}
-    assert completion is raw
-    assert iterable == [User(name="Ada"), User(name="Grace")]
-    assert partial == [User(name="Ada"), User(name="Grace")]
-    assert [call["messages"][0]["content"] for call in received] == [
-        "Return Ada",
-        "Return Ada and the raw response",
-        "Return two users",
-        "Stream two users",
-    ]
-    assert [call["max_retries"] for call in received] == [1, 2, 3, 4]
-    assert received[0]["strict"] is False
-    assert received[0]["context"] == {"source": "async"}
-    assert received[2]["stream"] is True
-    assert received[3]["stream"] is True
-    assert all(call["hooks"] is client.hooks for call in received)
-    assert all(call["model"] == "offline-model" for call in received)
-
-
 def test_client_hook_helpers_register_remove_and_clear_handlers() -> None:
     events: list[str] = []
 
@@ -577,47 +409,6 @@ def test_client_hook_helpers_register_remove_and_clear_handlers() -> None:
     client.clear()
     client.hooks.emit_completion_error(RuntimeError("another failure"))
     assert events == ["response", "error"]
-
-
-def test_response_mode_attaches_a_sync_response_facade_without_network() -> None:
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(503, request=request)
-    )
-    with openai.OpenAI(
-        api_key="offline-key",
-        base_url="https://offline.invalid/v1",
-        http_client=httpx.Client(transport=transport),
-    ) as native_client:
-        client = Instructor(
-            client=native_client,
-            create=lambda **_kwargs: User(name="Ada"),
-            mode=Mode.RESPONSES_TOOLS,
-        )
-
-        assert isinstance(client.responses, Response)
-        assert client.responses.client is client
-
-
-@pytest.mark.asyncio
-async def test_response_mode_attaches_an_async_response_facade_without_network() -> (
-    None
-):
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(503, request=request)
-    )
-    async with openai.AsyncOpenAI(
-        api_key="offline-key",
-        base_url="https://offline.invalid/v1",
-        http_client=httpx.AsyncClient(transport=transport),
-    ) as native_client:
-        client = AsyncInstructor(
-            client=native_client,
-            create=lambda **_kwargs: User(name="Ada"),
-            mode=Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS,
-        )
-
-        assert isinstance(client.responses, AsyncResponse)
-        assert client.responses.client is client
 
 
 def test_openai_compat_wrapper_delegates_and_keeps_its_sync_async_overloads(

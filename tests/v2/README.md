@@ -15,11 +15,9 @@ These tests use parametrization to test common behavior across all providers:
   - Error handling tests (unsupported modes)
   - SDK availability tests
 
-- **`test_handler_registration_unified.py`** - Unified handler registration tests
-  - Mode registration verification
-  - Handler method existence checks
-  - Provider-mode mapping tests
-  - Handler inheritance tests (OpenAI-compatible providers)
+- **`test_handler_registration_unified.py`** - Registry lookups not covered above
+  - `get_providers_for_mode` lists every provider for its modes
+  - OpenAI-compatible providers (Groq, Fireworks, Cerebras) reuse OpenAI handlers
 
 - **`test_handlers_parametrized.py`** - Unified handler method tests
   - `prepare_request` tests
@@ -27,12 +25,12 @@ These tests use parametrization to test common behavior across all providers:
   - `handle_reask` tests
   - Tests handler methods across all providers and modes
 
-- **`test_token_limit_contract.py`** - Token-limit stops raise `IncompleteOutputException`
-  - Streaming Iterable/Partial cases across OpenAI, Responses, Anthropic, GenAI, Cohere, Mistral
-  - Non-streaming JSON/tools cases across Anthropic, Bedrock, Writer, Responses, GenAI
+- **`test_content_blocks_contract.py`** - Text-block joining and reasoning/thinking content skipping across providers
 
-- **`test_reasoning_content_contract.py`** - Reasoning/thinking content is skipped
-  - Mistral thinking chunks, GenAI thought parts, Responses commentary messages
+- Cross-provider contracts that live in `tests/coverage/` (the "focused" shard, run on every supported Python version):
+  - **`test_token_limit_contract.py`** - Token-limit stops raise `IncompleteOutputException` (streaming and non-streaming, all providers)
+  - **`test_reask_contract.py`** - Reask handling for missing/streamed/empty responses across providers and modes
+  - **`test_usage_contract.py`** - `update_total_usage` accounting across provider usage types
 
 - **`test_system_instruction_injection.py`** - JSON/MD_JSON schema injection into system messages across providers
 
@@ -45,6 +43,46 @@ These tests use parametrization to test common behavior across all providers:
   - Legacy mode deprecation warnings
   - Mode normalization mappings
   - Backwards compatibility tests
+
+### Wire Contracts (Loopback HTTP)
+
+These tests drive real provider SDKs against a local HTTP server. Use the
+shared helper in `tests/_http.py` instead of hand-rolling a server:
+
+```python
+from tests._http import JSONHandler, serve
+
+
+class Handler(JSONHandler):
+    def do_POST(self) -> None:
+        calls.append(self.read_json())
+        self.send_json({"id": "local", ...})
+
+
+with serve(Handler) as url:  # http://127.0.0.1:<port>
+    ...
+```
+
+`serve()` polls every 10ms so shutdown is immediate. For a reply that must
+hang (timeouts, cancellation), wait on a `threading.Event` in the handler and
+set it in fixture teardown; never `time.sleep` in a handler. Sync and async
+variants of one contract share a test via an `is_async` parameter.
+
+- **`test_responses_sdk_contract.py`** - Responses API wire shape, SDK errors, incomplete/cached responses
+- **`test_iterable_stream_cleanup.py`** - Iterable/Partial streams close SDK responses
+- **`test_retry_isolation_contract.py`** - Retries never mutate caller history
+- **`test_security_regressions.py`** - Cache identity and validator markers over HTTP
+- **`test_gateway_clients.py`** - OpenAI-compatible gateway factories
+- **`test_parallel_contracts.py`** - Parallel tools: tool naming rules
+  (schema title vs. Vertex class name, duplicate rejection) for every
+  factory, call routing for every parse path, context/strict validation, and
+  unknown-call retries over HTTP and gRPC
+- **`decisions/conftest.py`** - `decision_endpoint` fixture
+
+Related files outside `tests/v2`: `tests/core/test_retry_http_semantics.py`
+(SDK vs. instructor retries), `tests/test_imports.py` (lazy imports in one
+subprocess, missing optional SDKs), and `tests/examples/` (tests for code in
+`examples/`).
 
 ### Provider-Specific Tests
 
