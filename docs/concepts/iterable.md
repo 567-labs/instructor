@@ -7,6 +7,12 @@ description: Use Iterable types to extract and stream multiple structured object
 
 Using an `Iterable` lets you extract multiple structured objects from a single LLM call, streaming them as they arrive. This is useful for entity extraction, multi-task outputs, and more.
 
+If a stream ends inside an item or leaves an array or `tasks` wrapper open,
+iteration raises `IncompleteOutputException`. This also applies when the last
+item is complete, or the provider reports a normal finish. Items already yielded
+remain available, but do not treat them as a complete extraction. Catch the
+exception around the iteration, not just the call that creates the iterator.
+
 **We recommend using the `create_iterable` method for most use cases.** It's simpler and less error-prone than manually specifying `Iterable[...]` and `stream=True`.
 
 Here's a simple example showing how to extract multiple users from a single sentence. You can use either the recommended `create_iterable` method or the `create` method with `Iterable[User]`:

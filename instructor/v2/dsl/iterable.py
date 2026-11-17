@@ -82,11 +82,11 @@ class _TaskObjects:
                         self.wrapper_depth = 1
 
     def finish(self) -> None:
-        if self.depth:
+        if self.depth or self.in_array or self.wrapper_depth:
             from instructor.v2.core.errors import IncompleteOutputException
 
             raise IncompleteOutputException(
-                message="The stream ended inside an unfinished item; the output is incomplete."
+                message="The stream ended inside an unfinished item or container; the output is incomplete."
             )
 
 
