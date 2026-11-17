@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import AsyncGenerator, Generator, Iterable
 
 
 MAX_JSON_EXTRACTION_CHARS = 1024 * 1024
 MAX_JSON_DEPTH = 128
+# Text between an opening code fence and its body. The pattern is unambiguous,
+# so a long whitespace run is rejected in linear time.
+_FENCE_INFO = re.compile(r"[ \t]*(?:json[ \t]*)?\r?\n\s*", re.IGNORECASE)
+_FENCE_CLOSE = re.compile(r"\s*```")
 
 
 def extract_json_from_codeblock(content: str) -> str:
@@ -18,6 +23,10 @@ def extract_json_from_codeblock(content: str) -> str:
     appeared earlier may have originated from user input embedded in the
     prompt and was referenced in the model's reasoning. Returning the first
     object allowed prompt-injection to hijack the parsed output.
+
+    One exception: citation-like spans (``[1]``, ``[12]``, ``[]``, ``{}``)
+    after a closed code fence do not replace the JSON inside that fence, so
+    ``Sources: [1]`` after a fenced answer keeps the answer.
     """
     return _last_json_span(content) or content
 
@@ -27,6 +36,8 @@ def _last_json_span(content: str) -> str | None:
         raise ValueError("JSON extraction input exceeds the 1 MiB character limit")
     decoder = json.JSONDecoder()
     last_valid: str | None = None
+    # Span of the last value that is not citation-like, as (start, end).
+    last_answer: tuple[int, int] | None = None
     consumed = 0
     # A failed decode may inspect the entire remaining suffix (including an
     # unterminated string). Charge that upper bound, not the error position.
@@ -57,8 +68,38 @@ def _last_json_span(content: str) -> str | None:
                 pending.extend((child, depth + 1) for child in children)
         remaining_work -= end - index
         last_valid = content[index:end]
+        if not _is_citation_like(value):
+            last_answer = (index, end)
         consumed = end
+    if last_answer is not None and last_answer[1] < consumed:
+        # Only citation-like spans follow the last answer. Keep the answer
+        # when it is the whole body of a closed code fence.
+        start, end = last_answer
+        if _is_fenced(content, start, end):
+            return content[start:end]
     return last_valid
+
+
+def _is_citation_like(value: object) -> bool:
+    """True for ``[1]``, ``[12]``, ``[]`` and ``{}``: citations or placeholders."""
+    if value == {} or value == []:
+        return True
+    return (
+        isinstance(value, list)
+        and len(value) == 1
+        and type(value[0]) is int
+        and value[0] >= 0
+    )
+
+
+def _is_fenced(content: str, start: int, end: int) -> bool:
+    """True when ``content[start:end]`` is the whole body of a closed code fence."""
+    opening = content.rfind("```", 0, start)
+    return (
+        opening >= 0
+        and _FENCE_INFO.fullmatch(content, opening + 3, start) is not None
+        and _FENCE_CLOSE.match(content, end) is not None
+    )
 
 
 class _SingleModelStream:
