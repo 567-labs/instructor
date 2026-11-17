@@ -6,6 +6,7 @@ import base64
 from typing import Any
 
 from instructor.v2.core.mode import Mode
+from instructor.v2.core.multimodal import audio_base64_payload
 from instructor.v2.core.remote import MAX_PDF_BYTES, fetch_remote_content
 
 RESPONSES_MODES = {Mode.RESPONSES_TOOLS, Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS}
@@ -58,7 +59,7 @@ def audio_to_openai(audio: Any, mode: Mode) -> dict[str, Any]:
     return {
         "type": "input_audio",
         "input_audio": {
-            "data": audio.data,
+            "data": audio_base64_payload(audio),
             "format": format_by_media_type[media_type],
         },
     }

@@ -28,6 +28,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Iterable**: Streams ignore sibling keys after a `tasks` wrapper array closes.
 - **Errors**: Instructor exceptions survive pickling.
 - **Multimodal**: `Audio.from_path` accepts platform FLAC, M4A and AAC MIME aliases. `convert_messages` keeps legacy assistant `function_call` turns.
+- **Multimodal**: A directly constructed `Audio` with a data-URI `source` keeps its payload through the OpenAI and GenAI encoders instead of sending `null` or decoding `None`; a missing or empty payload raises `ValueError`. ([#3068](https://github.com/567-labs/instructor/issues/3068))
 - **Ollama**: `from_provider("ollama/...")` forwards a caller `api_key`.
 - Anthropic Iterable streams report a `max_tokens` stop between complete items as `IncompleteOutputException` instead of returning a silently truncated list.
 - Gemini and Vertex AI reject completions stopped at the token limit. Google and Mistral streaming handlers skip empty metadata chunks, and GenAI JSON mode aliases are classified consistently.

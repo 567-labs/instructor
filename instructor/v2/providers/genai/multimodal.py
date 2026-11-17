@@ -5,7 +5,13 @@ from __future__ import annotations
 import base64
 from typing import Any
 
-from instructor.v2.core.multimodal import Audio, Image, PDF, autodetect_media
+from instructor.v2.core.multimodal import (
+    Audio,
+    Image,
+    PDF,
+    audio_base64_payload,
+    autodetect_media,
+)
 from instructor.v2.core.remote import (
     MAX_IMAGE_BYTES,
     MAX_PDF_BYTES,
@@ -46,7 +52,7 @@ def image_to_genai(image: Any) -> Any:
 def audio_to_genai(audio: Any) -> Any:
     types = _types()
     return types.Part.from_bytes(
-        data=base64.b64decode(audio.data),
+        data=base64.b64decode(audio_base64_payload(audio)),
         mime_type=audio.media_type,
     )
 

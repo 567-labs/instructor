@@ -461,6 +461,25 @@ class Audio(BaseModel):
         return audio_to_genai(self)
 
 
+def audio_base64_payload(audio: object) -> str:
+    """Return the base64 payload for an audio object.
+
+    ``Audio.from_base64`` keeps both the data URI and the decoded payload, but a
+    directly constructed ``Audio`` may carry only the data URI. Prefer explicit
+    ``data`` and otherwise recover the payload from a data-URI ``source``, the
+    way the image encoders do.
+    """
+    data = getattr(audio, "data", None)
+    if isinstance(data, str) and data.strip():
+        return data
+    source = getattr(audio, "source", None)
+    if isinstance(source, str) and Audio.is_base64(source):
+        _, _, encoded = source.partition(",")
+        if encoded.strip():
+            return encoded
+    raise ValueError("Audio data is missing for base64 encoding.")
+
+
 class ImageWithCacheControl(Image):
     """Image with Anthropic prompt caching support."""
 
