@@ -64,6 +64,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - OpenAI-compatible and Cohere JSON modes join text blocks while ignoring reasoning blocks. Responses API token counts contribute to retry totals, and fenced JSON validates through the compatibility parser.
 - Reserved TypedDict keys survive schema and cache round trips. Collection response types and Iterable scalar items return native values. Response-schema wrappers are reused without keeping dynamic input models alive.
 - Update provider SDKs and developer tooling, with Python 3.9-compatible core and example pins and separate OpenAI 2.x and 3.x installation coverage.
+- **Distil**: Logged `MESSAGES` fine-tuning examples name the assistant `function_call` after the declared function (the schema title), so models with a custom `title` no longer produce a mismatched call.
 
 ### Changed
 
