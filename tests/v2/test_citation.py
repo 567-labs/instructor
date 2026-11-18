@@ -161,6 +161,19 @@ def test_short_quotes_do_not_match_unrelated_text(quote: str, context: str) -> N
     assert answer.substring_quotes == []
 
 
+def test_overlapping_sources_do_not_duplicate_verified_quotes() -> None:
+    answer = Answer.model_validate(
+        {"substring_quotes": ["signed in March", "signed in March", "paid in June"]},
+        context={
+            "context": [
+                "The contract was signed in March.",
+                "signed in March. The invoice was paid in June.",
+            ]
+        },
+    )
+    assert answer.substring_quotes == ["signed in March", "paid in June"]
+
+
 def test_empty_string_context_drops_quotes() -> None:
     """Empty string context should not produce empty matches for non-matching quotes."""
     answer = Answer.model_validate(
