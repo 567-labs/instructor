@@ -10,12 +10,18 @@ from instructor.v2.core.remote import MAX_PDF_BYTES, fetch_remote_content
 
 
 def image_to_anthropic(image: Any) -> dict[str, Any]:
-    if (
-        isinstance(image.source, str)
-        and image.source.startswith(("http://", "https://"))
-        and not image.data
-    ):
-        image.data = image.url_to_base64(image.source)
+    if not image.data:
+        source = image.source
+        if isinstance(source, str) and source.lower().startswith(
+            ("http://", "https://")
+        ):
+            image.data = image.url_to_base64(source)
+        elif isinstance(source, str) and image.is_base64(source):
+            # A data URI already carries the bytes: take the payload instead of sending
+            # ``data: None`` to the API (the OpenAI encoder does the same).
+            image.data = source.split(",", 1)[1]
+        else:
+            raise ValueError("Image data is missing for base64 encoding.")
     return {
         "type": "image",
         "source": {
