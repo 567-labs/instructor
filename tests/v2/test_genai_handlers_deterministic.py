@@ -13,6 +13,7 @@ from instructor.v2.providers.genai.handlers import (
     reask_genai_structured_outputs,
     reask_genai_tools,
 )
+from instructor.v2.providers.genai.request import update_genai_kwargs
 from tests.v2._fake_genai import FakeContent, FakePart, install_fake_genai
 
 
@@ -263,3 +264,239 @@ def test_raw_request_keeps_generation_options(mode: Mode, case: str) -> None:
     assert isinstance(config, types.GenerateContentConfig)
     assert {key: getattr(config, key) for key in expected} == expected
     assert not (set(extra) - {"config"}) & set(request)
+
+
+class StructuredAnswer(BaseModel):
+    answer: int
+
+
+@pytest.mark.parametrize("config_kind", ["model", "dict"])
+@pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.JSON])
+def test_structured_request_keeps_config_options(mode: Mode, config_kind: str) -> None:
+    types = pytest.importorskip("google.genai.types")
+    handler_cls = (
+        GenAIToolsHandler if mode == Mode.TOOLS else GenAIStructuredOutputsHandler
+    )
+    harassment = types.HarmCategory.HARM_CATEGORY_HARASSMENT
+    only_high = types.HarmBlockThreshold.BLOCK_ONLY_HIGH
+    safety = [types.SafetySetting(category=harassment, threshold=only_high)]
+    thinking = types.ThinkingConfig(thinking_budget=512)
+
+    config_fields: dict[str, Any] = {
+        "temperature": 0.4,
+        "max_output_tokens": 128,
+        "top_p": 0.85,
+        "top_k": 20,
+        "seed": 7,
+        "stop_sequences": ["END"],
+        "safety_settings": safety,
+        "system_instruction": "Be concise.",
+        "thinking_config": thinking,
+    }
+    if mode == Mode.TOOLS:
+        config_fields["tools"] = [
+            types.Tool(
+                function_declarations=[types.FunctionDeclaration(name="OtherTool")]
+            )
+        ]
+        config_fields["tool_config"] = types.ToolConfig(
+            function_calling_config=types.FunctionCallingConfig(
+                mode=types.FunctionCallingConfigMode.NONE
+            )
+        )
+    else:
+        config_fields["response_mime_type"] = "text/plain"
+        config_fields["response_schema"] = {"type": "string"}
+
+    user_config = (
+        types.GenerateContentConfig(**config_fields)
+        if config_kind == "model"
+        else config_fields
+    )
+
+    prepared_model, request = handler_cls(mode=mode).prepare_request(
+        StructuredAnswer,
+        {
+            "messages": [{"role": "user", "content": "Say hello"}],
+            "config": user_config,
+        },
+    )
+
+    config = request["config"]
+    assert isinstance(config, types.GenerateContentConfig)
+    assert config.temperature == 0.4
+    assert config.max_output_tokens == 128
+    assert config.top_p == 0.85
+    assert config.top_k == 20
+    assert config.seed == 7
+    assert config.stop_sequences == ["END"]
+    assert config.safety_settings == safety
+    assert config.system_instruction == "Be concise."
+    assert config.thinking_config == thinking
+    if mode == Mode.TOOLS:
+        assert config.tools is not None
+        assert config.tools[0].function_declarations is not None
+        assert config.tools[0].function_declarations[0].name == "StructuredAnswer"
+        assert config.tool_config is not None
+        assert config.tool_config.function_calling_config is not None
+        assert config.tool_config.function_calling_config.allowed_function_names == [
+            "StructuredAnswer"
+        ]
+    else:
+        assert config.response_mime_type == "application/json"
+        assert config.response_schema is prepared_model
+
+
+@pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.JSON])
+def test_structured_request_config_precedence_and_fallbacks(mode: Mode) -> None:
+    types = pytest.importorskip("google.genai.types")
+    handler_cls = (
+        GenAIToolsHandler if mode == Mode.TOOLS else GenAIStructuredOutputsHandler
+    )
+    top_thinking = types.ThinkingConfig(thinking_budget=1024)
+    config_thinking = types.ThinkingConfig(thinking_budget=64)
+
+    _, request = handler_cls(mode=mode).prepare_request(
+        StructuredAnswer,
+        {
+            "messages": [{"role": "user", "content": "Say hello"}],
+            "system": "Explicit system prompt.",
+            "generation_config": {
+                "max_tokens": 8,
+                "temperature": 0.3,
+                "top_p": 0.6,
+                "seed": 1,
+            },
+            "temperature": 0.9,
+            "seed": 5,
+            "thinking_config": top_thinking,
+            "config": types.GenerateContentConfig(
+                max_output_tokens=32,
+                temperature=0.2,
+                system_instruction="Ignored fallback.",
+                thinking_config=config_thinking,
+            ),
+        },
+    )
+
+    config = request["config"]
+    assert isinstance(config, types.GenerateContentConfig)
+    assert config.max_output_tokens == 32
+    assert config.temperature == 0.2
+    assert config.top_p == 0.6
+    assert config.seed == 5
+    assert config.system_instruction == "Explicit system prompt."
+    assert config.thinking_config == top_thinking
+
+
+def test_update_genai_kwargs_preserves_caller_generation_config_and_handles_none() -> (
+    None
+):
+    pytest.importorskip("google.genai.types")
+    caller_generation_config = {"max_tokens": 100, "temperature": 0.7}
+    kwargs = {"generation_config": caller_generation_config}
+
+    result = update_genai_kwargs(kwargs, {})
+
+    assert result["max_output_tokens"] == 100
+    assert result["temperature"] == 0.7
+    assert caller_generation_config == {"max_tokens": 100, "temperature": 0.7}
+
+    none_result = update_genai_kwargs({"generation_config": None}, {})
+    assert "safety_settings" in none_result
+
+    ns_result = update_genai_kwargs(
+        {
+            "config": SimpleNamespace(
+                temperature=0.0, labels={"env": "test"}, tools=None
+            )
+        },
+        {},
+    )
+    assert ns_result["temperature"] == 0.0
+    assert ns_result["labels"] == {"env": "test"}
+    assert "tools" not in ns_result
+
+
+def test_update_genai_kwargs_merges_config_fields_and_respects_owned_base_keys() -> (
+    None
+):
+    types = pytest.importorskip("google.genai.types")
+
+    harassment = types.HarmCategory.HARM_CATEGORY_HARASSMENT
+    only_high = types.HarmBlockThreshold.BLOCK_ONLY_HIGH
+    safety_list = [types.SafetySetting(category=harassment, threshold=only_high)]
+    http_options = types.HttpOptions(timeout=5000)
+
+    user_config = types.GenerateContentConfig(
+        temperature=0.35,
+        max_output_tokens=256,
+        top_p=0.9,
+        top_k=40,
+        candidate_count=1,
+        stop_sequences=["STOP"],
+        seed=11,
+        presence_penalty=0.1,
+        frequency_penalty=0.2,
+        safety_settings=safety_list,
+        system_instruction="Fallback system instruction",
+        http_options=http_options,
+        media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
+        tools=[
+            types.Tool(function_declarations=[types.FunctionDeclaration(name="User")])
+        ],
+    )
+    owned_tools = [
+        types.Tool(function_declarations=[types.FunctionDeclaration(name="Owned")])
+    ]
+    base_config = {
+        "tools": owned_tools,
+        "system_instruction": None,
+    }
+
+    result = update_genai_kwargs({"config": user_config}, base_config)
+
+    assert result["temperature"] == 0.35
+    assert result["max_output_tokens"] == 256
+    assert result["top_p"] == 0.9
+    assert result["top_k"] == 40
+    assert result["candidate_count"] == 1
+    assert result["stop_sequences"] == ["STOP"]
+    assert result["seed"] == 11
+    assert result["presence_penalty"] == 0.1
+    assert result["frequency_penalty"] == 0.2
+    assert result["safety_settings"] == safety_list
+    assert result["system_instruction"] == "Fallback system instruction"
+    assert result["http_options"] is http_options
+    assert result["media_resolution"] == types.MediaResolution.MEDIA_RESOLUTION_LOW
+    assert result["tools"] is owned_tools
+
+
+def test_update_genai_kwargs_safety_settings_priority_with_config() -> None:
+    types = pytest.importorskip("google.genai.types")
+
+    harassment = types.HarmCategory.HARM_CATEGORY_HARASSMENT
+    hate = types.HarmCategory.HARM_CATEGORY_HATE_SPEECH
+    only_high = types.HarmBlockThreshold.BLOCK_ONLY_HIGH
+    block_low = types.HarmBlockThreshold.BLOCK_LOW_AND_ABOVE
+
+    from_dict_config = update_genai_kwargs(
+        {"config": {"safety_settings": {harassment: only_high}}},
+        {},
+    )
+    by_cat = {
+        entry["category"]: entry["threshold"]
+        for entry in from_dict_config["safety_settings"]
+    }
+    assert by_cat[harassment] == only_high
+    assert by_cat[hate] == types.HarmBlockThreshold.OFF
+
+    top_list = [types.SafetySetting(category=hate, threshold=block_low)]
+    top_wins = update_genai_kwargs(
+        {
+            "safety_settings": top_list,
+            "config": {"safety_settings": {harassment: only_high}},
+        },
+        {},
+    )
+    assert top_wins["safety_settings"] == top_list
