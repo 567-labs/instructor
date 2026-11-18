@@ -165,7 +165,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import instructor
 app = FastAPI()
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class UserInfo(BaseModel):
     name: str
@@ -174,7 +174,7 @@ class UserInfo(BaseModel):
 @app.post("/extract")
 async def extract_user_info(text: str) -> UserInfo:
     return client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         response_model=UserInfo,
         messages=[{"role": "user", "content": text}]
     )
@@ -187,7 +187,7 @@ Use the async client:
 ```python
 import instructor
 import asyncio
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 async def extract_data():
     result = await client.create(

@@ -17,7 +17,7 @@ import openai
 import instructor
 from pydantic import BaseModel
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Response(BaseModel):
@@ -26,7 +26,7 @@ class Response(BaseModel):
 
 def role_prompting(query, role):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Response,
         messages=[
             {

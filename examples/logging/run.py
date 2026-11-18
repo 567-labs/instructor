@@ -18,7 +18,7 @@ class UserDetail(BaseModel):
 
 
 user = client.chat.completions.create(
-    model="gpt-3.5-turbo",
+    model="gpt-6-luna",
     response_model=UserDetail,
     messages=[
         {"role": "user", "content": "Extract Jason is 25 years old"},

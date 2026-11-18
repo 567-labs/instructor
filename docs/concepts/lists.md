@@ -66,11 +66,12 @@ class User(BaseModel):
 
 
 client = instructor.from_provider(
-    "openai/gpt-4.1-mini-1106",
+    "openai/gpt-6-luna",
     mode=instructor.Mode.JSON,
 )
 
 users = client.create(
+    reasoning_effort="none",
     temperature=0.1,
     response_model=Iterable[User],
     stream=False,
@@ -109,7 +110,7 @@ class User(BaseModel):
 
 
 client = instructor.from_provider(
-    "openai/gpt-4.1-mini",
+    "openai/gpt-6-luna",
     mode=instructor.Mode.TOOLS,
 )
 
@@ -121,7 +122,7 @@ users = client.create(
         {"role": "system", "content": "You are a perfect entity extraction system"},
         {"role": "user", "content": "Extract `Jason is 10 and John is 10`"},
     ],
-    max_tokens=1000,
+    max_completion_tokens=1000,
 )
 
 for user in users:
@@ -147,7 +148,7 @@ class UserExtract(BaseModel):
 
 async def print_iterable_results():
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         async_client=True,
         mode=instructor.Mode.TOOLS,
     )

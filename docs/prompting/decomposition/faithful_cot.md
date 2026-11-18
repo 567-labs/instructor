@@ -22,7 +22,7 @@ We can implement it in `instructor` as seen below
 ```python hl_lines="30-45"
 import instructor
 from pydantic import BaseModel, Field
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class ReasoningStep(BaseModel):
@@ -67,7 +67,7 @@ def generate_reasoning_steps(query: str) -> list[ReasoningStep]:
             },
             {"role": "user", "content": query},
         ],
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=list[ReasoningStep],
     )
 

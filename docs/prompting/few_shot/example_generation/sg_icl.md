@@ -25,12 +25,12 @@ class SentimentPrediction(BaseModel):
     sentiment: Literal["positive", "negative"]
 
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def generate_sample(input_review, sentiment):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=GeneratedReview,
         messages=[
             {
@@ -46,7 +46,7 @@ def generate_sample(input_review, sentiment):
 
 def predict_sentiment(input_review, in_context_samples):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=SentimentPrediction,
         messages=[
             {

@@ -9,7 +9,7 @@ Diverse Verifier On Reasoning Step (DiVeRSe)<sup><a href="https://aclanthology.o
 
 In the paper itself, they also train a step-wise verifier that is able to score each individual reasoning step. This enables much more fine-grained predictions but is challenging to obtain training data for.
 
-We can implement this in `instructor`. However, instead of using a `deberta-v3-large` model, we'll be using gpt-4o to score its own outputs and generate a quality score.
+We can implement this in `instructor`. However, instead of using a `deberta-v3-large` model, we'll be using GPT-6 Luna to score its own outputs and generate a quality score.
 
 ```python
 import instructor
@@ -18,7 +18,7 @@ from typing import Literal
 from textwrap import dedent
 import asyncio
 from collections import defaultdict
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 class Response(BaseModel):
@@ -42,7 +42,7 @@ class Grading(BaseModel):
 async def generate_response(query: str, examples: list[str]):
     formatted_examples = "\n".join(examples)
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "user",
@@ -70,7 +70,7 @@ async def score_response(query: str, response: Response) -> tuple[Response, Grad
     return (
         response,
         await client.create(
-            model="gpt-4o",
+            model="gpt-6-luna",
             messages=[
                 {
                     "role": "user",

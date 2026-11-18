@@ -1,12 +1,12 @@
 import asyncio
 from typing import Annotated
 from pydantic import BaseModel, BeforeValidator
-from instructor import llm_validator, patch
-from openai import AsyncOpenAI
+import instructor
+from instructor import llm_validator
+from openai import AsyncOpenAI, OpenAI
 
-aclient = AsyncOpenAI()
-
-patch()
+aclient = instructor.from_openai(AsyncOpenAI())
+validator_client = instructor.from_openai(OpenAI())
 
 
 class QuestionAnswerNoEvil(BaseModel):
@@ -14,7 +14,11 @@ class QuestionAnswerNoEvil(BaseModel):
     answer: Annotated[
         str,
         BeforeValidator(
-            llm_validator("don't say objectionable things", allow_override=True)
+            llm_validator(
+                "don't say objectionable things",
+                client=validator_client,
+                allow_override=True,
+            )
         ),
     ]
 
@@ -25,7 +29,7 @@ async def main():
 
     try:
         qa: QuestionAnswerNoEvil = await aclient.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-6-luna",
             response_model=QuestionAnswerNoEvil,
             max_retries=2,
             messages=[

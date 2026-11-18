@@ -5,7 +5,7 @@ description: Complete installation guide for Instructor with support for OpenAI,
 
 # Instructor Installation Guide: Setup for LLM Structured Outputs
 
-Learn how to install Instructor, the leading Python library for extracting structured data from LLMs like GPT-4, Claude, and Gemini. This comprehensive installation tutorial covers all major LLM providers and gets you ready for production use.
+Learn how to install Instructor, the leading Python library for extracting structured data from LLMs like GPT-6 Luna, Claude, and Gemini. This comprehensive installation tutorial covers all major LLM providers and gets you ready for production use.
 
 ## Quick Start: Install Instructor for LLM Development
 
@@ -27,9 +27,9 @@ pip install pydantic
 
 Instructor supports 15+ LLM providers. Here's how to install and configure each:
 
-### OpenAI (GPT-4, GPT-3.5)
+### OpenAI (GPT-6 Luna)
 
-OpenAI is the default LLM provider for Instructor. Perfect for GPT-4 and GPT-3.5-turbo structured outputs:
+Install the OpenAI SDK to use GPT-6 Luna:
 
 ```shell
 pip install instructor
@@ -43,7 +43,7 @@ export OPENAI_API_KEY=your_openai_key
 
 ### Anthropic Claude LLM Setup
 
-Extract structured data from Claude 3 models (Opus, Sonnet, Haiku) with native tool support:
+Install the Anthropic SDK to use Claude Haiku 5.5:
 
 ```shell
 pip install "instructor[anthropic]"
@@ -118,9 +118,9 @@ class Person(BaseModel):
     name: str
     age: int
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 person = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=Person,
     messages=[
         {"role": "user", "content": "John Doe is 30 years old"}

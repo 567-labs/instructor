@@ -40,7 +40,7 @@ for other API/SDK limitations and local response-cache behavior.
 ```python
 import instructor
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def record_usage(usage, *, attempt_number: int):
@@ -59,7 +59,7 @@ use the hook because they cannot carry response metadata.
 ```python
 import instructor
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def log_kwargs(**kwargs):
@@ -106,7 +106,7 @@ client.on("completion:kwargs", log_kwargs)  # Using string
 ```python
 import instructor
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def on_error(
@@ -142,7 +142,7 @@ class ErrorCounter:
         print(f"Error #{self.count}: {type(error).__name__}: {error}")
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 counter = ErrorCounter()
 
 client.on("completion:error", counter.handle_error)
@@ -196,7 +196,7 @@ def handle_error(error: Exception):
         logger.error(f"Unexpected error: {error}")
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 client.on("completion:error", handle_error)
 client.on("parse:error", handle_error)
 ```
@@ -222,7 +222,7 @@ combined = logging_hooks + metrics_hooks
 # Or combine multiple at once
 all_hooks = Hooks.combine(logging_hooks, metrics_hooks)
 
-client = instructor.from_provider("openai/gpt-4.1-mini", hooks=combined)
+client = instructor.from_provider("openai/gpt-6-luna", hooks=combined)
 ```
 
 ## Per-Call Hooks
@@ -244,7 +244,7 @@ class User(BaseModel):
 client_hooks = Hooks()
 client_hooks.on("completion:kwargs", lambda **_kw: print("Standard logging"))
 
-client = instructor.from_provider("openai/gpt-4.1-mini", hooks=client_hooks)
+client = instructor.from_provider("openai/gpt-6-luna", hooks=client_hooks)
 
 # Debug hooks for specific calls
 debug_hooks = Hooks()
@@ -270,7 +270,7 @@ import instructor
 
 class TestMyApp(unittest.TestCase):
     def test_completion(self):
-        client = instructor.from_provider("openai/gpt-4.1-mini")
+        client = instructor.from_provider("openai/gpt-6-luna")
         mock_handler = Mock()
 
         client.on("completion:response", mock_handler)
@@ -282,7 +282,7 @@ class TestMyApp(unittest.TestCase):
 
         mock_handler.assert_called_once()
         response = mock_handler.call_args[0][0]
-        self.assertEqual(response.model, "gpt-4.1-mini")
+        self.assertEqual(response.model, "gpt-6-luna")
 ```
 
 ## Custom Hooks

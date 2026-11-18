@@ -25,7 +25,7 @@ import instructor
 from pydantic import BaseModel
 from typing import Iterable, Literal
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Stepback(BaseModel):
@@ -46,7 +46,7 @@ class Response(BaseModel):
 
 def generate_stepback_question():
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Stepback,
         messages=[
             {
@@ -80,7 +80,7 @@ def generate_stepback_question():
 
 def ask_stepback_question(stepback):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Iterable[Education],
         messages=[
             {"role": "user", "content": stepback.abstract_question},
@@ -90,7 +90,7 @@ def ask_stepback_question(stepback):
 
 def get_final_response(stepback, stepback_response):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Response,
         messages=[
             {

@@ -14,7 +14,7 @@ import instructor
 from pydantic import BaseModel
 from typing import List
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 text_block = """
 In our recent online meeting, participants from various backgrounds joined to discuss the upcoming tech conference. The names and contact details of the participants were as follows:
@@ -45,7 +45,7 @@ PartialMeetingInfo = instructor.Partial[MeetingInfo]
 
 
 extraction_stream = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=PartialMeetingInfo,
     messages=[
         {

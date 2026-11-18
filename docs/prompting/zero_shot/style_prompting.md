@@ -27,12 +27,12 @@ class Email(BaseModel):
     message: str
 
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def generate_email(subject, to, sender, tone):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "user",

@@ -22,7 +22,7 @@ We can implement this using `instructor` as seen below with some slight modifica
 from pydantic import BaseModel, Field
 import instructor
 from textwrap import dedent
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class RelevantProblem(BaseModel):
@@ -57,7 +57,7 @@ def analogical_prompting(query: str):
                 ),
             }
         ],
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Response,
     )
 

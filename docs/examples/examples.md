@@ -12,7 +12,7 @@ import instructor
 from typing import Iterable
 from pydantic import BaseModel, ConfigDict
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class SyntheticQA(BaseModel):
@@ -42,7 +42,7 @@ class SyntheticQA(BaseModel):
 
 def get_synthetic_data() -> Iterable[SyntheticQA]:
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         messages=[
             {"role": "system", "content": "Generate synthetic examples"},
             {

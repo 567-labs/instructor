@@ -18,7 +18,7 @@ class User(BaseModel):
 
 
 # 从自然语言中直接提取
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 user = client.chat.completions.create(
     response_model=User,
     messages=[{"role": "user", "content": "John is 25 years old"}],
@@ -59,7 +59,8 @@ print(user)  # User(name='John', age=25)
 
 ```python
 response = openai.chat.completions.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
+    reasoning_effort="none",
     messages=[{"role": "user", "content": "..."}],
     tools=[
         {
@@ -92,7 +93,7 @@ if "name" not in user_data:
 <td>
 
 ```python
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 user = client.chat.completions.create(
     response_model=User,
@@ -126,10 +127,10 @@ poetry add instructor
 import os
 
 # OpenAI
-client = instructor.from_provider("openai/gpt-4o")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Anthropic
-client = instructor.from_provider("anthropic/claude-sonnet-5")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 
 # Google
 client = instructor.from_provider("google/gemini-3.8-flash")
@@ -138,8 +139,10 @@ client = instructor.from_provider("google/gemini-3.8-flash")
 client = instructor.from_provider("ollama/llama3.2")
 
 # 直接传入 API 密钥（无需配置环境变量）
-client = instructor.from_provider("openai/gpt-4o", api_key=os.environ["OPENAI_API_KEY"])
-client = instructor.from_provider("anthropic/claude-sonnet-5", api_key=os.environ["ANTHROPIC_API_KEY"])
+client = instructor.from_provider(
+    "openai/gpt-6-luna", api_key=os.environ["OPENAI_API_KEY"]
+)
+client = instructor.from_provider("anthropic/claude-haiku-5-5", api_key=os.environ["ANTHROPIC_API_KEY"])
 client = instructor.from_provider("groq/llama-3.1-8b-instant", api_key="gsk_...")
 
 # 所有提供商均使用完全一致的 API！
@@ -243,7 +246,7 @@ user = client.chat.completions.create(
 from pydantic import BaseModel
 import instructor
 
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Product(BaseModel):

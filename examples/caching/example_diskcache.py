@@ -15,8 +15,8 @@ class UserDetail(BaseModel):
 
 async def main() -> None:
     cache = DiskCache("./my_cache_directory")
-    client = from_provider("openai/gpt-4.1-mini", cache=cache)
-    async_client = from_provider("openai/gpt-4.1-mini", async_client=True, cache=cache)
+    client = from_provider("openai/gpt-6-luna", cache=cache)
+    async_client = from_provider("openai/gpt-6-luna", async_client=True, cache=cache)
     messages = [{"role": "user", "content": "Extract Jason is 25 years old."}]
 
     namespace = "example-account:api.openai.com"

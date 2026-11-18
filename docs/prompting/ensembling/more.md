@@ -24,7 +24,7 @@ We can implement a simplified version of MoRE with `instructor` with a few modif
 from pydantic import BaseModel, Field
 import instructor
 from textwrap import dedent
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class MultihopExpert(BaseModel):
@@ -43,7 +43,7 @@ class ModelScore(BaseModel):
 def query_factual_expert(query: str, evidence: list[str]):
     formatted_evidence = "\n-".join(evidence)
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=FactualExpert,
         messages=[
             {
@@ -66,7 +66,7 @@ def query_factual_expert(query: str, evidence: list[str]):
 
 def query_multihop_expert(query: str):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=MultihopExpert,
         messages=[
             {
@@ -85,7 +85,7 @@ def query_multihop_expert(query: str):
 
 def score_answer(query: str, answer: str):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=ModelScore,
         messages=[
             {

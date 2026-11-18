@@ -8,7 +8,7 @@ into the Instructor client via the ``cache=...`` keyword::
     from instructor.cache import AutoCache
 
     cache = AutoCache(maxsize=10_000)
-    client = from_provider("openai/gpt-4o", cache=cache)
+    client = from_provider("openai/gpt-6-luna", cache=cache)
 
 The cache object must implement :class:`BaseCache`.  A minimal
 requirement is to expose synchronous ``get`` / ``set`` methods (async

@@ -2,11 +2,11 @@ import instructor
 from pydantic import BaseModel
 
 
-# Noticed thhat we use JSON not TOOLS mode
+# JSON mode keeps the web search tool available to Claude.
 client = instructor.from_provider(
-    "anthropic/claude-3-7-sonnet-latest",
+    "anthropic/claude-haiku-5-5",
     mode=instructor.Mode.JSON,
-    async_client=False,
+    max_tokens=4096,
 )
 
 

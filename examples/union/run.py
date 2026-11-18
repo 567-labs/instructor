@@ -47,7 +47,7 @@ try:
     # Enables `response_model`
     client = instructor.from_openai(OpenAI())
     action = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         response_model=TakeAction,
         messages=[
             {"role": "user", "content": "Please choose one action"},

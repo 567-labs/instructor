@@ -51,7 +51,7 @@ console = Console()
 
 def yield_action_items(transcript: str, state: ActionItemResponse):
     action_items = client.chat.completions.create(
-        model="gpt-4-turbo-preview",
+        model="gpt-6-luna",
         temperature=0,
         seed=42,
         response_model=Iterable[ActionItem],

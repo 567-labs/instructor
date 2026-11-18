@@ -40,7 +40,7 @@ from pydantic import BaseModel, BeforeValidator
 from instructor import llm_validator
 
 # Initialize client
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class UserComment(BaseModel):
@@ -107,7 +107,7 @@ import instructor
 from instructor import llm_validator
 
 # Initialize client
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class ProductDescription(BaseModel):
@@ -210,7 +210,7 @@ from typing import Annotated
 from pydantic import BaseModel, BeforeValidator
 from instructor import llm_validator
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Comment(BaseModel):
@@ -243,7 +243,7 @@ from typing import Annotated
 from pydantic import BaseModel, BeforeValidator
 from instructor import llm_validator
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class ForumPost(BaseModel):
@@ -297,7 +297,7 @@ import instructor
 from typing import List
 from pydantic import BaseModel, Field
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class FactCheckedClaim(BaseModel):
@@ -338,7 +338,7 @@ from typing import List
 from pydantic import BaseModel, model_validator
 from instructor.validation import Validator  # For response type
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Report(BaseModel):
@@ -409,15 +409,16 @@ from instructor import llm_validator
 from pydantic import BaseModel, BeforeValidator
 from typing import Annotated
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Configure the validator with options
 validator = llm_validator(
     statement="Must be a professional, concise product description",
     client=client,  # Required Instructor client
     allow_override=True,  # Allow LLM to fix invalid values
-    model="gpt-4o",  # Specify model to use for validation
-    temperature=0.2,  # Add variability (default is 0)
+    model="gpt-6-luna",  # Specify model to use for validation
+    reasoning_effort="none",
+    temperature=0.2,  # Add variability
 )
 
 

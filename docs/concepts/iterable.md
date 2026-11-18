@@ -16,7 +16,7 @@ Here's a simple example showing how to extract multiple users from a single sent
     import instructor
     from pydantic import BaseModel
 
-    client = instructor.from_provider("openai/gpt-4.1-mini")
+    client = instructor.from_provider("openai/gpt-6-luna")
 
 
     class User(BaseModel):
@@ -49,7 +49,7 @@ Here's a simple example showing how to extract multiple users from a single sent
     from pydantic import BaseModel
     from typing import Iterable
 
-    client = instructor.from_provider("openai/gpt-4.1-mini")
+    client = instructor.from_provider("openai/gpt-6-luna")
 
 
     class User(BaseModel):
@@ -104,7 +104,7 @@ We also support more complex extraction patterns such as Unions as you'll see be
         query: str
 
 
-    client = instructor.from_provider("openai/gpt-4.1-mini", mode=instructor.Mode.TOOLS)
+    client = instructor.from_provider("openai/gpt-6-luna", mode=instructor.Mode.TOOLS)
 
     results = client.create(
         messages=[
@@ -142,7 +142,7 @@ We also support more complex extraction patterns such as Unions as you'll see be
         query: str
 
 
-    client = instructor.from_provider("openai/gpt-4.1-mini", mode=instructor.Mode.TOOLS)
+    client = instructor.from_provider("openai/gpt-6-luna", mode=instructor.Mode.TOOLS)
 
     results = client.create_iterable(
         messages=[
@@ -205,7 +205,7 @@ own iterable parsers.
 
 
     aclient = instructor.from_provider(
-        "openai/gpt-4.1-mini", async_client=True, mode=instructor.Mode.TOOLS
+        "openai/gpt-6-luna", async_client=True, mode=instructor.Mode.TOOLS
     )
 
 
@@ -251,7 +251,7 @@ own iterable parsers.
 
 
     aclient = instructor.from_provider(
-        "openai/gpt-4.1-mini", async_client=True, mode=instructor.Mode.TOOLS
+        "openai/gpt-6-luna", async_client=True, mode=instructor.Mode.TOOLS
     )
 
 

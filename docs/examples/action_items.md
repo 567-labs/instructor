@@ -59,12 +59,12 @@ class Ticket(BaseModel):
 
 # Apply the patch to the OpenAI client
 # enables response_model keyword
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def generate(data: str) -> Iterable[Ticket]:
     return client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         response_model=Iterable[Ticket],
         messages=[
             {

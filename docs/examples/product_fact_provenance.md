@@ -78,7 +78,7 @@ from examples.product_fact_provenance import ProductExtraction
 
 
 def extract_product_facts(sources: Mapping[str, str]) -> ProductExtraction:
-    client = instructor.from_provider("openai/gpt-5-nano")
+    client = instructor.from_provider("openai/gpt-6-luna")
     return client.create(
         response_model=ProductExtraction,
         messages=[

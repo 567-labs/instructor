@@ -68,7 +68,16 @@ def extract_model_name(content: str, match_start: int, match_end: int) -> str:
         return model_match.group(1)
 
     # Default model names by provider
-    return "gpt-4o"  # Will need manual review for accuracy
+    return "gpt-6-luna"  # Will need manual review for accuracy
+
+
+def format_provider_call(provider: str, model_name: str) -> str:
+    options = (
+        ', reasoning_effort="none"'
+        if provider == "openai" and model_name == "gpt-6-luna"
+        else ""
+    )
+    return f'instructor.from_provider("{provider}/{model_name}"{options})'
 
 
 def replace_from_pattern(
@@ -96,12 +105,10 @@ def replace_from_pattern(
             model_name = model_match.group(1)
         else:
             # Default model - may need manual review
-            model_name = (
-                "gpt-4o" if provider == "openai" else "claude-3-5-sonnet-20241022"
-            )
+            model_name = "gpt-6-luna" if provider == "openai" else "claude-haiku-5-5"
 
         replacements += 1
-        return f'instructor.from_provider("{provider}/{model_name}")'
+        return format_provider_call(provider, model_name)
 
     new_content = re.sub(pattern, replacer, content, flags=re.IGNORECASE)
     return new_content, replacements
@@ -163,14 +170,14 @@ def replace_patch_pattern(content: str, dry_run: bool = False) -> Tuple[str, int
         else:
             # Default models
             defaults = {
-                "openai": "gpt-4o",
-                "anthropic": "claude-3-5-sonnet-20241022",
+                "openai": "gpt-6-luna",
+                "anthropic": "claude-haiku-5-5",
                 "google": "gemini-1.5-pro",
             }
             model_name = defaults.get(provider, "gpt-4o")
 
         replacements += 1
-        return f'instructor.from_provider("{provider}/{model_name}")'
+        return format_provider_call(provider, model_name)
 
     new_content = re.sub(pattern, replacer, content)
     return new_content, replacements

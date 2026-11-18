@@ -13,7 +13,7 @@ Chain Of Verification ( CoVe )<sup><a href="https://arxiv.org/pdf/2309.11495">1<
 import instructor
 from pydantic import BaseModel, Field
 import asyncio
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 class QueryResponse(BaseModel):
@@ -37,7 +37,7 @@ class FinalResponse(BaseModel):
 
 async def generate_initial_response(query: str):
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=QueryResponse,
         messages=[
             {
@@ -51,7 +51,7 @@ async def generate_initial_response(query: str):
 
 async def generate_verification_questions(llm_response: str):
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=ValidationQuestions,
         messages=[
             {
@@ -70,7 +70,7 @@ async def generate_verification_response(questions: list[str]):
     async def verify_question(question: str) -> tuple[ValidationAnswer, str]:
         return (
             await client.create(
-                model="gpt-4o",
+                model="gpt-6-luna",
                 response_model=ValidationAnswer,
                 messages=[
                     {
@@ -97,7 +97,7 @@ async def generate_final_response(
         [f"Q: {question}\nA: {answer.answer}" for answer, question in answers]
     )
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=FinalResponse,
         messages=[
             {

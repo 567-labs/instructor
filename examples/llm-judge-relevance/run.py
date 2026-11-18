@@ -39,7 +39,7 @@ Before giving your final judgment, provide a justification for your decision. Ex
 
 def judge_relevance(question: str, text: str) -> Judgment:
     return client.chat.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         messages=[
             {"role": "system", "content": prompt},
             {

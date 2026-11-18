@@ -15,7 +15,7 @@ We can implement this using `instructor` as seen below.
 ```python hl_lines="54-59 76-83 98-107 127-140 155-167"
 import instructor
 from pydantic import BaseModel, Field
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class ReconstructedPrompt(BaseModel):
@@ -59,7 +59,7 @@ class ModelResponse(BaseModel):
 
 def generate_response(query: str):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",
@@ -80,7 +80,7 @@ def generate_response(query: str):
 
 def reconstruct_prompt(model_response: ModelResponse):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=ReconstructedPrompt,
         messages=[
             {
@@ -102,7 +102,7 @@ def reconstruct_prompt(model_response: ModelResponse):
 
 def deconstruct_prompt_into_condition_list(prompt: str):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=ConditionList,
         messages=[
             {
@@ -131,7 +131,7 @@ def generate_feedback(
     formatted_original_conditions = "\n- ".join(original_condition_list)
     formatted_final_conditions = "\n- ".join(final_condition_list)
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=ModelFeedback,
         messages=[
             {
@@ -160,7 +160,7 @@ def generate_feedback(
 def revise_response(response: ModelResponse, feedback: ModelFeedback):
     formatted_inconsistencies = "\n- ".join(feedback.detected_inconsistencies)
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",

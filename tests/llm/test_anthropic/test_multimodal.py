@@ -7,10 +7,6 @@ from .util import models, modes
 import os
 import base64
 
-# Models that support PDF input (Claude 3.5+ only)
-_PDF_CAPABLE = ["claude-3-5", "claude-3-7", "claude-haiku-4", "claude-sonnet-4"]
-pdf_supported = any(cap in m for cap in _PDF_CAPABLE for m in models)
-
 
 class ImageDescription(BaseModel):
     objects: list[str] = Field(..., description="The objects in the image")
@@ -171,7 +167,6 @@ class Receipt(BaseModel):
     items: list[str]
 
 
-@pytest.mark.skipif(not pdf_supported, reason="PDF input requires Claude 3.5+ models")
 @pytest.mark.parametrize("pdf_source", [pdf_path, pdf_url, pdf_base64_string])
 @pytest.mark.parametrize("model, mode", product(models, modes))
 def test_multimodal_pdf_file(model, mode, pdf_source):
@@ -207,7 +202,6 @@ def test_multimodal_pdf_file(model, mode, pdf_source):
     assert len(response.items) == 2
 
 
-@pytest.mark.skipif(not pdf_supported, reason="PDF input requires Claude 3.5+ models")
 @pytest.mark.parametrize("pdf_source", [pdf_path, pdf_url, pdf_base64_string])
 @pytest.mark.parametrize("model, mode", product(models, modes))
 def test_multimodal_pdf_file_with_cache_control(model, mode, pdf_source):

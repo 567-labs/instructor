@@ -19,7 +19,7 @@ Self-Ask is a technique which use a single prompt to:
 ```python hl_lines="26-29"
 import instructor
 from pydantic import BaseModel, Field
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class FollowUp(BaseModel):
@@ -35,7 +35,7 @@ class Response(BaseModel):
 
 def self_ask(query):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Response,
         messages=[
             {

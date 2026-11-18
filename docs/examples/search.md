@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 # Apply the patch to the OpenAI client
 # enables response_model keyword
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Search(BaseModel):
@@ -37,7 +37,7 @@ class Search(BaseModel):
 
 def segment(data: str) -> Search:
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=Iterable[Search],
         messages=[
             {
@@ -45,7 +45,7 @@ def segment(data: str) -> Search:
                 "content": f"Consider the data below: '\n{data}' and segment it into multiple search queries",
             },
         ],
-        max_tokens=1000,
+        max_completion_tokens=1000,
     )
 
 

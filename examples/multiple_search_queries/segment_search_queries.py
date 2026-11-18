@@ -54,7 +54,7 @@ class MultiSearch(BaseModel):
 
 def segment(data: str) -> MultiSearch:
     """
-    Convert a string into multiple search queries using OpenAI's GPT-3 model.
+    Convert a string into multiple search queries using GPT-6 Luna.
 
     Args:
         data (str): The string to convert into search queries.
@@ -63,8 +63,8 @@ def segment(data: str) -> MultiSearch:
         MultiSearch: An object representing the multiple search queries.
     """
 
-    completion = client.chat.completions.create(
-        model="gpt-4-0613",
+    return client.chat.completions.create(
+        model="gpt-6-luna",
         temperature=0.1,
         response_model=MultiSearch,
         messages=[
@@ -77,9 +77,8 @@ def segment(data: str) -> MultiSearch:
                 "content": f"Consider the data below:\n{data} and segment it into multiple search queries",
             },
         ],
-        max_tokens=1000,
+        max_completion_tokens=1000,
     )
-    return MultiSearch.from_response(completion)
 
 
 if __name__ == "__main__":

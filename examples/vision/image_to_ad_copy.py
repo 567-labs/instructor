@@ -116,9 +116,9 @@ def read_images(image_urls: list[str]) -> IdentifiedProduct:
     logger.info(f"Identifying products in images... {len(image_urls)} images")
 
     return client_image.chat.completions.create(
-        model="gpt-4-vision-preview",
+        model="gpt-6-luna",
         response_model=IdentifiedProduct,
-        max_tokens=1024,
+        max_completion_tokens=1024,
         temperature=0,
         messages=[
             {
@@ -146,7 +146,7 @@ def generate_ad_copy(product: Product) -> AdCopy:
     logger.info(f"Generating ad copy for product: {product.name}")
 
     return client_copy.chat.completions.create(
-        model="gpt-4-1106-preview",
+        model="gpt-6-luna",
         response_model=AdCopy,
         temperature=0.3,
         messages=[

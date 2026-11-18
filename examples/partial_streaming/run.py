@@ -14,7 +14,7 @@ class User(BaseModel):
 
 
 extraction_stream = client.chat.completions.create_partial(
-    model="gpt-4",
+    model="gpt-6-luna",
     response_model=User,
     messages=[
         {

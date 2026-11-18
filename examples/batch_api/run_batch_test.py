@@ -5,8 +5,8 @@ Test script to verify the unified BatchProcessor works correctly with all suppor
 Creates a batch job to extract User(name: str, age: int) data from text examples.
 
 Supports:
-- OpenAI: openai/gpt-4o-mini, openai/gpt-4o, etc.
-- Anthropic: anthropic/claude-3-5-sonnet-20241022, anthropic/claude-3-opus-20240229, etc.
+- OpenAI: openai/gpt-6-luna
+- Anthropic: anthropic/claude-haiku-5-5
 - Google: google/gemini-2.5-flash, google/gemini-pro, etc.
 
 Usage:
@@ -16,11 +16,11 @@ Usage:
 
     # OpenAI
     export OPENAI_API_KEY="your-key"
-    python run_batch_test.py --model "openai/gpt-4o-mini"
+    python run_batch_test.py --model "openai/gpt-6-luna"
 
     # Anthropic
     export ANTHROPIC_API_KEY="your-key"
-    python run_batch_test.py --model "anthropic/claude-3-5-sonnet-20241022"
+    python run_batch_test.py --model "anthropic/claude-haiku-5-5"
 
     # Google with specific model
     export GOOGLE_API_KEY="your-key"
@@ -145,7 +145,6 @@ def create_anthropic_batch(
         file_path=batch_filename,
         messages_list=messages_list,
         max_tokens=200,
-        temperature=0.1,
     )
 
     try:
@@ -178,8 +177,8 @@ def create_google_batch(model: str, messages_list: list[list[dict]]) -> Optional
 @app.command()
 def create(
     model: str = typer.Option(
-        "openai/gpt-4o-mini",
-        help="Model in format 'provider/model-name' (e.g., 'google/gemini-2.5-flash', 'openai/gpt-4o-mini', 'anthropic/claude-3-5-sonnet-20241022')",
+        "openai/gpt-6-luna",
+        help="Model in format 'provider/model-name' (e.g., 'google/gemini-2.5-flash', 'openai/gpt-6-luna', 'anthropic/claude-haiku-5-5')",
     ),
     save_id: bool = typer.Option(True, help="Save batch ID to file"),
 ):
@@ -194,7 +193,7 @@ def create(
     except ValueError:
         typer.echo("Error: Model must be in format 'provider/model-name'", err=True)
         typer.echo(
-            "Examples: 'openai/gpt-4o-mini', 'anthropic/claude-3-5-sonnet-20241022'",
+            "Examples: 'openai/gpt-6-luna', 'anthropic/claude-haiku-5-5'",
             err=True,
         )
         raise typer.Exit(1) from None
@@ -386,9 +385,9 @@ def show_results(
     try:
         # Get results using BatchProcessor
         if provider == "openai":
-            processor = BatchProcessor("openai/gpt-4o-mini", User)
+            processor = BatchProcessor("openai/gpt-6-luna", User)
         elif provider == "anthropic":
-            processor = BatchProcessor("anthropic/claude-3-5-sonnet-20241022", User)
+            processor = BatchProcessor("anthropic/claude-haiku-5-5", User)
 
         # Get batch info using list_batches to find our batch
         all_batches = processor.list_batches(limit=100)
@@ -528,7 +527,7 @@ def fetch_openai_results_with_status(
     batch_id: str, validate: bool
 ) -> tuple[str, list[User]]:
     """Fetch OpenAI batch results and return status"""
-    processor = BatchProcessor("openai/gpt-4o-mini", User)
+    processor = BatchProcessor("openai/gpt-6-luna", User)
 
     # Get batch info
     all_batches = processor.list_batches(limit=100)
@@ -568,7 +567,7 @@ def fetch_anthropic_results_with_status(
     batch_id: str, validate: bool
 ) -> tuple[str, list[User]]:
     """Fetch Anthropic batch results and return status"""
-    processor = BatchProcessor("anthropic/claude-3-5-sonnet-20241022", User)
+    processor = BatchProcessor("anthropic/claude-haiku-5-5", User)
 
     # Get batch info
     all_batches = processor.list_batches(limit=100)
@@ -614,7 +613,7 @@ def fetch_anthropic_results_with_status(
 
 def fetch_openai_results(batch_id: str, validate: bool) -> list[User]:
     """Fetch OpenAI batch results using BatchProcessor"""
-    processor = BatchProcessor("openai/gpt-4o-mini", User)
+    processor = BatchProcessor("openai/gpt-6-luna", User)
 
     # Get batch info
     all_batches = processor.list_batches(limit=100)
@@ -658,7 +657,7 @@ def fetch_openai_results(batch_id: str, validate: bool) -> list[User]:
 
 def fetch_anthropic_results(batch_id: str, validate: bool) -> list[User]:
     """Fetch Anthropic batch results using BatchProcessor"""
-    processor = BatchProcessor("anthropic/claude-3-5-sonnet-20241022", User)
+    processor = BatchProcessor("anthropic/claude-haiku-5-5", User)
 
     # Get batch info
     all_batches = processor.list_batches(limit=100)
@@ -799,7 +798,7 @@ def help():
     typer.echo("  python run_batch_test.py create")
     typer.echo()
     typer.echo("  # Create batch job with specific model")
-    typer.echo("  python run_batch_test.py create --model 'openai/gpt-4o-mini'")
+    typer.echo("  python run_batch_test.py create --model 'openai/gpt-6-luna'")
     typer.echo()
     typer.echo("  # List saved batch IDs")
     typer.echo("  python run_batch_test.py list-batches")
@@ -827,15 +826,11 @@ def list_models():
     typer.echo()
 
     typer.echo("OpenAI:")
-    typer.echo("  • openai/gpt-4o-mini")
-    typer.echo("  • openai/gpt-4o")
-    typer.echo("  • openai/gpt-4-turbo")
+    typer.echo("  • openai/gpt-6-luna")
     typer.echo()
 
     typer.echo("Anthropic:")
-    typer.echo("  • anthropic/claude-3-5-sonnet-20241022")
-    typer.echo("  • anthropic/claude-3-opus-20240229")
-    typer.echo("  • anthropic/claude-3-haiku-20240307")
+    typer.echo("  • anthropic/claude-haiku-5-5")
     typer.echo()
 
     typer.echo("Google:")

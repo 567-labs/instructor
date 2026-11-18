@@ -10,7 +10,7 @@ We can implement this using `instructor` as a response object as seen below to e
 import instructor
 from pydantic import BaseModel, Field
 from textwrap import dedent
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class ReasoningStep(BaseModel):
@@ -33,7 +33,7 @@ class Response(BaseModel):
 
 def generate_structured_reasoning_response(query: str, context: str):
     response = client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Response,
         messages=[
             {

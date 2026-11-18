@@ -33,8 +33,8 @@ class Receipt(BaseModel):
 
 def extract(url: str) -> Receipt:
     return client.chat.completions.create(
-        model="gpt-4o",
-        max_tokens=4000,
+        model="gpt-6-luna",
+        max_completion_tokens=4000,
         response_model=Receipt,
         messages=[
             {

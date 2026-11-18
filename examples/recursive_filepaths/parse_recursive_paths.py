@@ -80,7 +80,7 @@ DirectoryTree.model_rebuild()
 def parse_tree_to_filesystem(data: str) -> DirectoryTree:
     """
     Convert a string representing a directory tree into a filesystem structure
-    using OpenAI's GPT-3 model.
+    using GPT-6 Luna.
 
     Args:
         data (str): The string to convert into a filesystem.
@@ -89,8 +89,8 @@ def parse_tree_to_filesystem(data: str) -> DirectoryTree:
         DirectoryTree: The directory tree representing the filesystem.
     """
 
-    completion = client.chat.completions.create(
-        model="gpt-4o-mini",
+    return client.chat.completions.create(
+        model="gpt-6-luna",
         response_model=DirectoryTree,
         messages=[
             {
@@ -102,10 +102,8 @@ def parse_tree_to_filesystem(data: str) -> DirectoryTree:
                 "content": f"Consider the data below:\n{data} and return the correctly labeled filesystem",
             },
         ],
-        max_tokens=1000,
+        max_completion_tokens=1000,
     )
-    root = DirectoryTree.from_response(completion)
-    return root
 
 
 if __name__ == "__main__":

@@ -54,7 +54,7 @@ print(model.model_json_schema())
 ```python
 import instructor
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Response model with simple types like str, int, float, bool
 resp = client.create(
@@ -80,7 +80,7 @@ import instructor
 from typing import Annotated
 from pydantic import Field
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 UpperCaseStr = Annotated[str, Field(description="string must be upper case")]
 
@@ -107,7 +107,7 @@ When doing simple classification Literals go quite well, they support literal of
 import instructor
 from typing import Literal
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 resp = client.create(
     response_model=Literal["BILLING", "SHIPPING"],
@@ -137,7 +137,7 @@ class Label(str, Enum):
     SHIPPING = "SHIPPING"
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 resp = client.create(
     response_model=Label,
@@ -159,7 +159,7 @@ print(resp)
 import instructor
 from typing import List
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 resp = client.create(
     response_model=List[int],
@@ -185,7 +185,7 @@ import instructor
 from pydantic import BaseModel
 from typing import Union
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Add(BaseModel):
@@ -270,7 +270,7 @@ MarkdownDataFrame = Annotated[
 ]
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 resp = client.create(
     response_model=MarkdownDataFrame,
@@ -302,7 +302,7 @@ import instructor
 from pydantic import BaseModel
 from typing import Union, List
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Weather(BaseModel, frozen=True):

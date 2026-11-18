@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 # Initialize the client
 client = instructor.from_provider(
-    "openai/gpt-4.1-mini", mode=instructor.Mode.RESPONSES_TOOLS
+    "openai/gpt-6-luna", mode=instructor.Mode.RESPONSES_TOOLS
 )
 
 
@@ -45,7 +45,7 @@ The Responses API supports two main modes:
 ```python
 # Initialize the client
 client = instructor.from_provider(
-    "openai/gpt-4.1-mini", mode=instructor.Mode.RESPONSES_TOOLS
+    "openai/gpt-6-luna", mode=instructor.Mode.RESPONSES_TOOLS
 )
 ```
 
@@ -68,7 +68,7 @@ The `create` method is the simplest way to get a structured output:
         age: int
 
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         mode=instructor.Mode.RESPONSES_TOOLS
     )
 
@@ -91,7 +91,7 @@ The `create` method is the simplest way to get a structured output:
         age: int
 
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         mode=instructor.Mode.RESPONSES_TOOLS,
         async_client=True
     )
@@ -121,7 +121,7 @@ If you need the original completion object from OpenAI, you can do so with the `
         age: int
 
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         mode=instructor.Mode.RESPONSES_TOOLS
     )
 
@@ -145,7 +145,7 @@ If you need the original completion object from OpenAI, you can do so with the `
         age: int
 
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         mode=instructor.Mode.RESPONSES_TOOLS,
         async_client=True
     )
@@ -177,7 +177,7 @@ If you're interested in extracting multiple instances of the same object, we pro
         age: int
 
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         mode=instructor.Mode.RESPONSES_TOOLS
     )
 
@@ -204,7 +204,7 @@ If you're interested in extracting multiple instances of the same object, we pro
         age: int
 
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         mode=instructor.Mode.RESPONSES_TOOLS,
         async_client=True
     )
@@ -236,7 +236,7 @@ We also provide validated outputs that you can stream in real time. This is incr
         age: int
 
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         mode=instructor.Mode.RESPONSES_TOOLS
     )
 
@@ -261,7 +261,7 @@ We also provide validated outputs that you can stream in real time. This is incr
         age: int
 
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         mode=instructor.Mode.RESPONSES_TOOLS,
         async_client=True
     )
@@ -317,7 +317,7 @@ In addition to this, the url_citation annotation object will contain the URL, ti
 
 
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         mode=instructor.Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS,
         async_client=False,
     )
@@ -352,7 +352,7 @@ In addition to this, the url_citation annotation object will contain the URL, ti
 
 
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         mode=instructor.Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS,
         async_client=True,
     )
@@ -411,7 +411,7 @@ This makes it easy to build RAG applications out of the box
         response: str
 
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         mode=instructor.Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS
     )
 
@@ -442,7 +442,7 @@ This makes it easy to build RAG applications out of the box
         response: str
 
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         mode=instructor.Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS,
         async_client=True
     )

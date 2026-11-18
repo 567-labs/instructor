@@ -1,23 +1,20 @@
-# Part of this code is adapted from the following examples from OpenAI Cookbook:
-# https://cookbook.openai.com/examples/how_to_stream_completions
-# https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
+# Adapted from https://cookbook.openai.com/examples/how_to_stream_completions
 import time
-import tiktoken
+
 import instructor
+from instructor.v2.providers.openai.schema import make_strict_schema
 from openai import OpenAI
 from pydantic import BaseModel
 
-client = instructor.from_openai(OpenAI(), mode=instructor.Mode.MD_JSON)
-
-
-def num_tokens_from_string(string: str, model_name: str) -> int:
-    """Returns the number of tokens in a text string."""
-    encoding = tiktoken.encoding_for_model(model_name)
-
-    num_tokens = len(encoding.encode(string))
-    num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
-
-    return num_tokens
+MODEL = "gpt-6-luna"
+MESSAGES = [
+    {
+        "role": "user",
+        "content": "Describe a Harry Potter character with their name, role, and age.",
+    }
+]
+openai_client = OpenAI()
+client = instructor.from_openai(openai_client, mode=instructor.Mode.JSON_SCHEMA)
 
 
 class User(BaseModel):
@@ -26,78 +23,57 @@ class User(BaseModel):
     age: int
 
 
-def benchmark_raw_stream(model="gpt-4"):
-    content = f"""Respond only in JSON that would validate to this schema and include nothing extra.
-    Otherwise something bad will happen:\n {User.model_json_schema()}"""
-
-    start_time = time.time()
-    extraction_stream = client.chat.completions.create_fn(
-        model=model,
-        messages=[
-            {"role": "system", "content": content},
-            {
-                "role": "user",
-                "content": "give me a harry pottery character in json, name, role, age",
-            },
-        ],
+def benchmark_raw_stream() -> float:
+    # Use the same structured output schema as create_partial.
+    response_model = instructor.Partial[User]
+    response_format = {
+        "type": "json_schema",
+        "json_schema": {
+            "name": response_model.__name__,
+            "schema": make_strict_schema(response_model.model_json_schema()),
+            "strict": True,
+        },
+    }
+    start = time.perf_counter()
+    with openai_client.chat.completions.create(
+        model=MODEL,
+        reasoning_effort="none",
+        messages=MESSAGES,
+        response_format=response_format,
         stream=True,
-    )
-
-    collected_messages = [chunk.choices[0].delta.content for chunk in extraction_stream]
-    collected_messages = [m for m in collected_messages if m is not None]
-    collected_messages = "".join(collected_messages)
-    User.model_validate_json(collected_messages)
-    end_time = time.time() - start_time
-
-    output_tokens = num_tokens_from_string(collected_messages, model)
-    char_per_sec = output_tokens / end_time
-    return char_per_sec
+    ) as stream:
+        output = "".join(
+            chunk.choices[0].delta.content or "" for chunk in stream if chunk.choices
+        )
+    result = User.model_validate_json(output)
+    return len(result.model_dump_json()) / (time.perf_counter() - start)
 
 
-def benchmark_partial_streaming(model="gpt-4"):
-    start_time = time.time()
-    extraction_stream = client.chat.completions.create_partial(
-        model=model,
+def benchmark_partial_streaming() -> float:
+    start = time.perf_counter()
+    result = None
+    for snapshot in client.create_partial(
+        model=MODEL,
+        reasoning_effort="none",
         response_model=User,
-        messages=[
-            {
-                "role": "user",
-                "content": "give me a harry pottery character in json, name, role, age",
-            }
-        ],
-        stream=True,
-    )
-
-    for chunk in extraction_stream:  # noqa: B007
-        pass
-    end_time = time.time() - start_time
-
-    output_tokens = num_tokens_from_string(chunk.model_dump_json(), model)
-    char_per_sec = output_tokens / end_time
-    return char_per_sec
+        messages=MESSAGES,
+    ):
+        result = snapshot
+    if result is None:
+        raise RuntimeError("The stream produced no snapshots")
+    result = User.model_validate(result.model_dump())
+    return len(result.model_dump_json()) / (time.perf_counter() - start)
 
 
 if __name__ == "__main__":
-    partial_times = [
-        benchmark_partial_streaming(model="gpt-3.5-turbo-1106") for _ in range(10)
-    ]
-    avg_partial_time = sum(partial_times) / len(partial_times)
+    raw_rates = [benchmark_raw_stream() for _ in range(10)]
+    partial_rates = [benchmark_partial_streaming() for _ in range(10)]
+    avg_raw_rate = sum(raw_rates) / len(raw_rates)
+    avg_partial_rate = sum(partial_rates) / len(partial_rates)
+    print(f"Raw streaming: {avg_raw_rate:.2f} JSON characters/sec")
+    print(f"Partial streaming: {avg_partial_rate:.2f} JSON characters/sec")
+    print(f"Partial throughput: {avg_partial_rate / avg_raw_rate:.2f}x raw")
 
-    raw_times = [benchmark_raw_stream(model="gpt-3.5-turbo") for _ in range(10)]
-    avg_raw_time = sum(raw_times) / len(raw_times)
-    print(f"Raw streaming: {avg_raw_time:.2f} tokens/sec")
-
-    print(f"Partial streaming: {avg_partial_time:.2f} token/sec")
-    print(f"Overhead: {avg_partial_time / avg_raw_time:.2f}x")
-
-    """OLD IMPLEMENTATION
-    Raw streaming: 35.73 tokens/sec
-    Partial streaming: 24.42 token/sec
-    Overhead: 0.68x
-    """
-
-    """NEW IMPLEMENTATION
-    Raw streaming: 35.77 tokens/sec
-    Partial streaming: 31.58 token/sec
-    Overhead: 0.88x
-    """
+    # Historical GPT-3.5 measurements used tokens/sec. Before the earlier
+    # optimization, raw and partial streaming measured 35.73 and 24.42.
+    # Afterward they measured 35.77 and 31.58.

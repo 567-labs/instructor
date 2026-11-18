@@ -27,7 +27,7 @@ class User(CitationMixin, BaseModel):
     role: str = Field(description="The role of the person")
 
 
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 context = "Betty was a student. Jason was a student. Jason is 20 years old"
 
@@ -83,7 +83,7 @@ class Fact(CitationMixin, BaseModel):
     # substring_quotes is added automatically by CitationMixin
 
 
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 source_text = """
 The Eiffel Tower was completed in 1889 and stands 330 meters tall.
@@ -136,7 +136,7 @@ class Answer(CitationMixin, BaseModel):
     facts: List[Fact] = Field(description="List of facts that answer the question")
 
 
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 source_text = """
 Jason Liu grew up in Toronto, Canada but was born in China.

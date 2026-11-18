@@ -38,7 +38,7 @@ import instructor
 
 # Apply the patch to the OpenAI client
 # enables response_model keyword
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class ClassificationResponse(BaseModel):
@@ -98,14 +98,14 @@ class ClassificationResponse(BaseModel):
 
 # Apply the patch to the OpenAI client
 # enables response_model keyword
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 # <%hide%>
 def classify(data: str) -> ClassificationResponse:
     """Perform single-label classification on the input text."""
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=ClassificationResponse,
         messages=[
             {
@@ -126,7 +126,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 import instructor
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class ClassificationResponse(BaseModel):
@@ -154,7 +154,7 @@ class ClassificationResponse(BaseModel):
 def classify(data: str) -> ClassificationResponse:
     """Perform single-label classification on the input text."""
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=ClassificationResponse,
         messages=[
             {
@@ -248,13 +248,13 @@ class MultiClassPrediction(BaseModel):
 # <%hide%>
 import instructor
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def multi_classify(data: str) -> MultiClassPrediction:
     """Perform multi-label classification on the input text."""
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=MultiClassPrediction,
         messages=[
             {
@@ -299,13 +299,13 @@ class MultiClassPrediction(BaseModel):
     )
 
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def multi_classify(data: str) -> MultiClassPrediction:
     """Perform multi-label classification on the input text."""
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=MultiClassPrediction,
         messages=[
             {

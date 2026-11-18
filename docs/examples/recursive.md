@@ -54,13 +54,13 @@ Let's see how to use this recursive schema with Instructor:
 ```python
 import instructor
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def parse_hierarchy(text: str) -> RecursiveNode:
     """Parse text into a hierarchical structure."""
     return client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",

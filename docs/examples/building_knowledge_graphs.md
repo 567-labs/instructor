@@ -39,13 +39,13 @@ class KnowledgeGraph(BaseModel):
 
 
 # Patch the OpenAI client to add response_model support
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def generate_graph(input_text: str) -> KnowledgeGraph:
     """Generates a knowledge graph from the input text."""
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "user",

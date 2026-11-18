@@ -23,7 +23,7 @@ We can implement Contrastive Chain Of Thought using `instructor` as seen below.
 import instructor
 from pydantic import BaseModel, Field
 from textwrap import dedent
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class ChainOfThought(BaseModel):
@@ -49,7 +49,7 @@ def contrastive_chain_of_thought(
     )
     ""
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=ChainOfThought,
         messages=[
             {

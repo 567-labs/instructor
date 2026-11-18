@@ -99,9 +99,9 @@ class UserInfo(BaseModel):
     age: int
 
 # Initialize any provider with a simple string
-client = instructor.from_provider("openai/gpt-5.4-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 # Or use async client
-async_client = instructor.from_provider("anthropic/claude-3-sonnet", async_client=True)
+async_client = instructor.from_provider("anthropic/claude-haiku-5-5", async_client=True)
 
 # Use the same interface for all providers
 response = client.create(
@@ -130,15 +130,15 @@ Supported provider strings:
 
 Use these example strings with `from_provider` to quickly get started:
 
-- [x] `instructor.from_provider("openai/gpt-5-nano")`
-- [x] `instructor.from_provider("anthropic/claude-3-sonnet")`
+- [x] `instructor.from_provider("openai/gpt-6-luna")`
+- [x] `instructor.from_provider("anthropic/claude-haiku-5-5")`
 - [x] `instructor.from_provider("google/gemini-2.5-flash")`
 - [x] `instructor.from_provider("mistral/mistral-large-latest")`
 - [x] `instructor.from_provider("cohere/command-r")`
 - [x] `instructor.from_provider("perplexity/sonar-small")`
 - [x] `instructor.from_provider("groq/llama3-8b-8192")`
 - [x] `instructor.from_provider("writer/palmyra-x-004")`
-- [x] `instructor.from_provider("bedrock/anthropic.claude-3-sonnet-20240229-v1:0")`
+- [x] `instructor.from_provider("bedrock/global.anthropic.claude-haiku-5-5")`
 - [x] `instructor.from_provider("cerebras/llama3.1-70b")`
 - [x] `instructor.from_provider("fireworks/llama-v3-70b-instruct")`
 - [x] `instructor.from_provider("vertexai/gemini-3-flash")`

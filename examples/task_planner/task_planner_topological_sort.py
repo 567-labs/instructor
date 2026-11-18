@@ -156,16 +156,13 @@ def task_planner(question: str) -> TaskPlan:
         },
     ]
 
-    completion = client.chat.completions.create(
-        model="gpt-4-0613",
+    return client.chat.completions.create(
+        model="gpt-6-luna",
         temperature=0,
         response_model=TaskPlan,
         messages=messages,
-        max_tokens=1000,
+        max_completion_tokens=1000,
     )
-    root = TaskPlan.from_response(completion)
-
-    return root
 
 
 if __name__ == "__main__":

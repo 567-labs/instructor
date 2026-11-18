@@ -82,7 +82,7 @@ class QuestionAnswer(instructor.ResponseSchema):
 
 def ask_ai(question: str, context: str) -> QuestionAnswer:
     return client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         temperature=0,
         response_model=QuestionAnswer,
         messages=[

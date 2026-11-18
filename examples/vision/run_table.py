@@ -57,9 +57,10 @@ class Table(BaseModel):
 
 def extract_table(url: str):
     return client.chat.completions.create_iterable(
-        model="gpt-4-vision-preview",
+        model="gpt-6-luna",
+        reasoning_effort="none",
         response_model=Table,
-        max_tokens=1800,
+        max_completion_tokens=1800,
         messages=[
             {
                 "role": "user",

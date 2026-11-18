@@ -17,8 +17,8 @@ class ExtractedNumber(BaseModel):
 @pytest.mark.parametrize(
     "model,credential",
     [
-        ("openai/gpt-5.6-luna", "OPENAI_API_KEY"),
-        ("anthropic/claude-sonnet-5", "ANTHROPIC_API_KEY"),
+        ("openai/gpt-6-luna", "OPENAI_API_KEY"),
+        ("anthropic/claude-haiku-5-5", "ANTHROPIC_API_KEY"),
         ("google/gemini-3.8-flash", "GOOGLE_API_KEY"),
         ("cohere/command-a-03-2025", "COHERE_API_KEY"),
         ("groq/llama-3.3-70b-versatile", "GROQ_API_KEY"),

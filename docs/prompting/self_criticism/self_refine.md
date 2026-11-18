@@ -53,12 +53,12 @@ class History(BaseModel):
         )
 
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def generate_feedback(response):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Feedback,
         messages=[
             {
@@ -81,7 +81,7 @@ def generate_feedback(response):
 
 def refine(response, feedback):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Response,
         messages=[
             {
@@ -110,7 +110,7 @@ def stop_condition(feedback, history):
 
 if __name__ == "__main__":
     response = client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Response,
         messages=[
             {

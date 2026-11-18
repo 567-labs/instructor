@@ -36,8 +36,8 @@ class User(BaseModel):
 
 
 # Create a client for any provider
-client = instructor.from_provider("openai/gpt-4o-mini")
-# Or: instructor.from_provider("anthropic/claude-3-5-sonnet")
+client = instructor.from_provider("openai/gpt-6-luna")
+# Or: instructor.from_provider("anthropic/claude-haiku-5-5")
 # Or: instructor.from_provider("google/gemini-2.5-flash")
 
 # Use the client as usual
@@ -53,11 +53,11 @@ user = client.create(
 
 ### Cloud Providers
 
-- OpenAI: `"openai/gpt-4o"`, `"openai/gpt-4o-mini"`, `"openai/gpt-5.4-mini"`
-- Anthropic: `"anthropic/claude-3-5-sonnet"`, `"anthropic/claude-3-opus"`
+- OpenAI: `"openai/gpt-6-luna"`
+- Anthropic: `"anthropic/claude-haiku-5-5"`
 - Google: `"google/gemini-2.5-flash"`, `"google/gemini-pro"`
 - Azure OpenAI: `"azure_openai/gpt-4o"`
-- AWS Bedrock: `"bedrock/claude-3-5-sonnet"`
+- AWS Bedrock: `"bedrock/global.anthropic.claude-haiku-5-5"`
 - Vertex AI: `"vertexai/gemini-pro"` (or use `"google/gemini-pro"` with `vertexai=True`)
 
 ### Fast Inference Providers
@@ -89,17 +89,17 @@ A valid format does not guarantee that a model is available from the provider.
 
 ```python
 # Correct formats
-"openai/gpt-4o"
+"openai/gpt-6-luna"
 
-"anthropic/claude-3-5-sonnet-20241022"
+"anthropic/claude-haiku-5-5"
 "google/gemini-2.5-flash"
 "together/meta-llama/Llama-3-70b"
 "openrouter/meta-llama/llama-3.1-70b"
 
 # Incorrect formats (will raise errors)
-"gpt-4o"  # Missing provider prefix
+"gpt-6-luna"  # Missing provider prefix
 "openai/"  # Empty model name
-"/gpt-4o"  # Empty provider
+"/gpt-6-luna"  # Empty provider
 ```
 
 ## Async Clients
@@ -119,7 +119,7 @@ class User(BaseModel):
 
 async def main() -> None:
     # Create async client
-    async_client = instructor.from_provider("openai/gpt-4o-mini", async_client=True)
+    async_client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
     # Use with await
     await async_client.create(
@@ -141,11 +141,11 @@ Pass API keys directly or use environment variables:
 import instructor
 
 # Pass API key directly
-client = instructor.from_provider("openai/gpt-4o-mini", api_key="sk-your-key-here")
+client = instructor.from_provider("openai/gpt-6-luna", api_key="sk-your-key-here")
 
 # Or use environment variables (recommended)
 # export OPENAI_API_KEY=sk-your-key-here
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 ```
 
 ### Mode Overrides
@@ -157,7 +157,7 @@ import instructor
 
 # OpenAI defaults to TOOLS mode, but you can override
 client = instructor.from_provider(
-    "openai/gpt-4o-mini", mode=instructor.Mode.JSON  # Use JSON mode instead
+    "openai/gpt-6-luna", mode=instructor.Mode.JSON  # Use JSON mode instead
 )
 ```
 
@@ -171,7 +171,7 @@ import instructor
 
 cache = AutoCache(maxsize=1000)
 
-client = instructor.from_provider("openai/gpt-4o-mini", cache=cache)
+client = instructor.from_provider("openai/gpt-6-luna", cache=cache)
 ```
 
 ### Provider-Specific Options
@@ -184,19 +184,19 @@ import instructor
 
 # For OpenAI
 client = instructor.from_provider(
-    "openai/gpt-4o-mini", organization="org-your-org-id", timeout=30.0
+    "openai/gpt-6-luna", organization="org-your-org-id", timeout=30.0
 )
 
 # OpenAI-compatible multi-model gateways (same client pattern via base_url)
 # Example: DaoXE at https://api.daoxe.com/v1
 client = instructor.from_provider(
-    "openai/gpt-4o-mini",
+    "openai/gpt-6-luna",
     api_key="YOUR_GATEWAY_KEY",
     base_url="https://api.daoxe.com/v1",
 )
 
 # For Anthropic
-client = instructor.from_provider("anthropic/claude-3-5-sonnet", max_tokens=4096)
+client = instructor.from_provider("anthropic/claude-haiku-5-5", max_tokens=4096)
 
 # For Google with Vertex AI
 google_api_key = os.environ.pop("GOOGLE_API_KEY", None)
@@ -240,7 +240,7 @@ try:
 except ConfigurationError as e:
     print(f"Configuration error: {e}")
     """
-    Configuration error: Model string must be in format "provider/model-name" (e.g. "openai/gpt-5.4-mini" or "anthropic/claude-3-sonnet")
+    Configuration error: Model string must be in format "provider/model-name" (e.g. "openai/gpt-6-luna" or "anthropic/claude-haiku-5-5")
     """
 
 try:
@@ -254,7 +254,7 @@ except ConfigurationError as e:
 
 try:
     # Missing required package
-    client = instructor.from_provider("anthropic/claude-3")
+    client = instructor.from_provider("anthropic/claude-haiku-5-5")
 except ImportError as e:
     print(f"Missing package: {e}")
     # Install with: pip install anthropic
@@ -306,8 +306,8 @@ class User(BaseModel):
 
 
 # Easy to switch providers
-PROVIDER = "openai/gpt-4o-mini"  # Change this to switch
-# PROVIDER = "anthropic/claude-3-5-sonnet"
+PROVIDER = "openai/gpt-6-luna"  # Change this to switch
+# PROVIDER = "anthropic/claude-haiku-5-5"
 # PROVIDER = "google/gemini-2.5-flash"
 
 client = instructor.from_provider(PROVIDER)
@@ -340,7 +340,7 @@ openai_client = openai.OpenAI()
 client = instructor.patch(openai_client)
 
 # New way (recommended)
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 ```
 
 ### from_provider vs. Provider-Specific Functions
@@ -350,8 +350,8 @@ Provider-specific helpers were removed. Use `from_provider` for all clients:
 ```python
 import instructor
 
-openai_client = instructor.from_provider("openai/gpt-4o-mini")
-anthropic_client = instructor.from_provider("anthropic/claude-3-5-sonnet")
+openai_client = instructor.from_provider("openai/gpt-6-luna")
+anthropic_client = instructor.from_provider("anthropic/claude-haiku-5-5")
 ```
 
 ## Troubleshooting
@@ -385,10 +385,10 @@ The model string must be in format `"provider/model-name"`:
 
 ```python
 # Correct
-"openai/gpt-4o"
+"openai/gpt-6-luna"
 
 # Incorrect
-"gpt-4o"  # Missing provider
+"gpt-6-luna"  # Missing provider
 "openai"  # Missing model
 ```
 

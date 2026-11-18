@@ -85,5 +85,6 @@ def extract_report(transcript: str, model: str) -> AdherenceReport:
 
 
 if __name__ == "__main__":
-    report = extract_report(SAMPLE_TRANSCRIPT, os.environ["ANTHROPIC_MODEL"])
+    model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-5-5")
+    report = extract_report(SAMPLE_TRANSCRIPT, model)
     print(report.model_dump_json(indent=2))

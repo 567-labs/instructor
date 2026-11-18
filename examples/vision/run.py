@@ -43,8 +43,9 @@ draw_circle((1024, 1024), 1, img_path)
 base64_image = encode_image(img_path)
 
 response = client.chat.completions.create(
-    model="gpt-4-vision-preview",
-    max_tokens=1800,
+    model="gpt-6-luna",
+    reasoning_effort="none",
+    max_completion_tokens=1800,
     response_model=Circle,
     messages=[
         {

@@ -17,13 +17,13 @@ GOOGLE_GENAI_MODEL = os.getenv("GOOGLE_GENAI_MODEL", "")
 # Provider configurations: (model_string, mode, required_env_var, required_package)
 PROVIDER_CONFIGS = [
     (
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         instructor.Mode.TOOLS,
         "OPENAI_API_KEY",
         "openai",
     ),
     (
-        "anthropic/claude-haiku-4-5-20251001",
+        "anthropic/claude-haiku-5-5",
         instructor.Mode.ANTHROPIC_TOOLS,
         "ANTHROPIC_API_KEY",
         "anthropic",

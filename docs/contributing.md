@@ -373,11 +373,11 @@ class Person(BaseModel):
     age: int
 
 # Create the patched client
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Use the model
 person = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=Person,
     messages=[
         {"role": "user", "content": "Extract: John Doe is 25 years old"}

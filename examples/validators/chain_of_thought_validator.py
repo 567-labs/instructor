@@ -22,7 +22,7 @@ def validator(values):
     chain_of_thought = values["chain_of_thought"]
     answer = values["answer"]
     resp = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",

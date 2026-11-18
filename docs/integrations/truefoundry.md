@@ -47,7 +47,7 @@ client = OpenAI(
 )
 
 # Patch the client with Instructor
-instructor_client = instructor.from_provider("openai/gpt-4o")
+instructor_client = instructor.from_openai(client)
 
 # Define your Pydantic model for structured output
 class User(BaseModel):
@@ -83,7 +83,7 @@ client = OpenAI(
     api_key="your-truefoundry-api-key",
     base_url="your-truefoundry-base-url",
 )
-instructor_client = instructor.from_provider("openai/gpt-4o")
+instructor_client = instructor.from_openai(client)
 
 # Define response structure
 class ProductInfo(BaseModel):
@@ -120,7 +120,7 @@ client = OpenAI(
     api_key="your-truefoundry-api-key",
     base_url="your-truefoundry-base-url",
 )
-instructor_client = instructor.from_provider("openai/gpt-4o")
+instructor_client = instructor.from_openai(client)
 
 class Task(BaseModel):
     title: str

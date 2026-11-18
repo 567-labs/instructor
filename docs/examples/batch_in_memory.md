@@ -41,7 +41,7 @@ class User(BaseModel):
 
 def main():
     # Initialize batch processor
-    processor = BatchProcessor("openai/gpt-5-nano", User)
+    processor = BatchProcessor("openai/gpt-6-luna", User)
 
     # Sample messages for batch processing
     messages_list = [
@@ -139,7 +139,7 @@ if __name__ == "__main__":
 
 ```python
 # File-based approach
-processor = BatchProcessor("openai/gpt-5-nano", User)
+processor = BatchProcessor("openai/gpt-6-luna", User)
 
 # Creates file on disk
 file_path = processor.create_batch_from_messages(
@@ -163,7 +163,7 @@ if os.path.exists(file_path):
 
 ```python
 # In-memory approach
-processor = BatchProcessor("openai/gpt-5-nano", User)
+processor = BatchProcessor("openai/gpt-6-luna", User)
 
 # Creates BytesIO buffer in memory
 buffer = processor.create_batch_from_messages(
@@ -195,7 +195,7 @@ def lambda_handler(event, _context):
     messages_list = event.get("messages", [])
 
     # Process in memory - no disk I/O
-    processor = BatchProcessor("openai/gpt-5-nano", User)
+    processor = BatchProcessor("openai/gpt-6-luna", User)
     buffer = processor.create_batch_from_messages(
         messages_list,
         file_path=None,  # Essential for Lambda
@@ -238,7 +238,7 @@ batch_id = processor.submit_batch(buffer)
 # No cleanup required
 # Buffer is automatically garbage collected
 
-processor = BatchProcessor("openai/gpt-5-nano", User)
+processor = BatchProcessor("openai/gpt-6-luna", User)
 
 # This approach leaves no trace on the file system
 buffer = processor.create_batch_from_messages(
@@ -280,14 +280,14 @@ but not by `BatchProcessor`.
 
 ### OpenAI
 ```python
-processor = BatchProcessor("openai/gpt-5-nano", User)
+processor = BatchProcessor("openai/gpt-6-luna", User)
 buffer = processor.create_batch_from_messages(messages_list, file_path=None)
 batch_id = processor.submit_batch(buffer)
 ```
 
 ### Anthropic
 ```python
-processor = BatchProcessor("anthropic/claude-3-5-sonnet-20241022", User)
+processor = BatchProcessor("anthropic/claude-haiku-5-5", User)
 buffer = processor.create_batch_from_messages(messages_list, file_path=None)
 batch_id = processor.submit_batch(buffer)
 ```
@@ -316,7 +316,7 @@ batch_id = processor.submit_batch(buffer)
 
 1. **Always set `file_path=None`** to enable in-memory mode
 2. **Monitor buffer size** for large batches to avoid memory issues
-3. **Use appropriate models** that support JSON schema (e.g., gpt-4o-mini)
+3. **Use appropriate models** that support JSON schema (e.g., `gpt-6-luna`)
 4. **Handle errors gracefully** - no file cleanup needed
 5. **Consider memory limits** in serverless environments
 

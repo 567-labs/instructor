@@ -46,7 +46,7 @@ class SystemQuery(BaseModel):
 Query = Union[UserQuery, SystemQuery]
 
 # Usage with Instructor
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 response = client.create(
     response_model=Query,
@@ -181,7 +181,7 @@ class Action(BaseModel):
         return self.action.execute()
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Let the LLM decide what action to take
 result = client.create(
@@ -220,7 +220,7 @@ class ErrorResponse(BaseModel):
 
 Response = Union[SuccessResponse, ErrorResponse]
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 result = client.create(
     response_model=Response,
@@ -355,7 +355,7 @@ class MakePayment(BaseModel):
 Action = Union[SendMessage, MakePayment]
 
 # Usage with Instructor
-client = instructor.from_provider("openai/gpt-4o")
+client = instructor.from_provider("openai/gpt-6-luna")
 response = client.create(
     response_model=Action,
     messages=[{"role": "user", "content": "Send a payment of $50 to John."}],
@@ -383,7 +383,7 @@ class EmailAction(BaseModel):
 Action = Union[SearchAction, EmailAction]
 
 # The model can choose which action to take
-client = instructor.from_provider("openai/gpt-4o")
+client = instructor.from_provider("openai/gpt-6-luna")
 response = client.create(
     response_model=Action,
     messages=[{"role": "user", "content": "Find me information about climate change."}],
@@ -410,7 +410,7 @@ class ImageResponse(BaseModel):
 Response = Union[TextResponse, ImageResponse]
 
 # Patched client
-client = instructor.from_provider("openai/gpt-4o")
+client = instructor.from_provider("openai/gpt-6-luna")
 response = client.create(
     response_model=Response,
     messages=[{"role": "user", "content": "Tell me a joke about programming."}],

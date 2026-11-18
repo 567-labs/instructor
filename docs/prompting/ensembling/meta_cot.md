@@ -11,7 +11,7 @@ import instructor
 from pydantic import BaseModel, Field
 import asyncio
 from typing import Optional
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 class ReasoningAndResponse(BaseModel):
@@ -41,7 +41,7 @@ class QueryDecomposition(BaseModel):
 
 async def generate_queries(query: str):
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",
@@ -56,7 +56,7 @@ async def generate_queries(query: str):
 
 async def generate_reasoning_chain(query: str) -> MaybeResponse:
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",
@@ -95,7 +95,7 @@ async def generate_response(query: str, context: list[MaybeResponse]):
     )
 
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",

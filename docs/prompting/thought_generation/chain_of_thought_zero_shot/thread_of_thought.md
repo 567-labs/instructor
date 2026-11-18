@@ -18,7 +18,7 @@ We can implement this using `instructor` as seen below.
 import instructor
 from pydantic import BaseModel, Field
 from textwrap import dedent
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class ThreadOfThoughtResponse(BaseModel):
@@ -31,7 +31,7 @@ class ThreadOfThoughtResponse(BaseModel):
 
 def analyze_context_and_generate_response(query: str, context: list[str]):
     return client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=ThreadOfThoughtResponse,
         messages=[
             {

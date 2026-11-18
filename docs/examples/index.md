@@ -77,7 +77,7 @@ Our cookbooks demonstrate how to use Instructor to solve real-world problems wit
 | Example | Description | Use Case |
 |---------|-------------|----------|
 | [Table Extraction](tables_from_vision.md) | Convert image tables to structured data | Data entry automation |
-| [Table Extraction with GPT-4](extracting_tables.md) | Advanced table extraction | Complex table processing |
+| [Table Extraction with GPT-6 Luna](extracting_tables.md) | Advanced table extraction | Complex table processing |
 | [Receipt Information](extracting_receipts.md) | Extract data from receipt images | Expense management |
 | [Slide Content Extraction](extract_slides.md) | Convert slides to structured text | Presentation analysis |
 | [Image to Ad Copy](image_to_ad_copy.md) | Generate ad text from images | Marketing automation |

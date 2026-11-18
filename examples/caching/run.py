@@ -127,7 +127,7 @@ def extract_functools(data: str) -> UserDetail:
     start_time = time.perf_counter()
 
     result = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model="gpt-6-luna",
         response_model=UserDetail,
         messages=[
             {"role": "user", "content": data},
@@ -173,7 +173,7 @@ def monitored_functools_cache(func: F) -> F:
 def extract_functools_monitored(data: str) -> UserDetail:
     """functools.cache with monitoring"""
     return client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model="gpt-6-luna",
         response_model=UserDetail,
         messages=[
             {"role": "user", "content": data},
@@ -234,7 +234,7 @@ def create_diskcache_decorator(
 def extract_diskcache(data: str) -> UserDetail:
     """Persistent disk-based caching with TTL"""
     return client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model="gpt-6-luna",
         response_model=UserDetail,
         messages=[
             {"role": "user", "content": data},
@@ -310,7 +310,7 @@ def create_redis_decorator(
 def extract_redis(data: str) -> UserDetail:
     """Distributed Redis caching with error handling"""
     return client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model="gpt-6-luna",
         response_model=UserDetail,
         messages=[
             {"role": "user", "content": data},
@@ -323,7 +323,7 @@ def extract_no_cache(data: str) -> UserDetail:
     """Baseline function without caching"""
     metrics.record_miss("extract_no_cache")
     return client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model="gpt-6-luna",
         response_model=UserDetail,
         messages=[
             {"role": "user", "content": data},
@@ -345,7 +345,7 @@ def extract_l2(data: str) -> UserDetail:
 @create_redis_decorator()  # L3: Shared distributed
 def extract_l3(data: str) -> UserDetail:
     return client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model="gpt-6-luna",
         response_model=UserDetail,
         messages=[
             {"role": "user", "content": data},
@@ -454,7 +454,7 @@ async def run_async_example():
     async def extract_async(data: str) -> UserDetail:
         metrics.record_miss("extract_async")
         return await aclient.chat.completions.create(
-            model="gpt-4.1-mini",
+            model="gpt-6-luna",
             response_model=UserDetail,
             messages=[
                 {"role": "user", "content": data},

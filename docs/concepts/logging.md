@@ -15,7 +15,7 @@ from pydantic import BaseModel
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("instructor").setLevel(logging.DEBUG)
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class UserDetail(BaseModel):
@@ -50,12 +50,12 @@ import instructor
 
 logging.basicConfig(level=logging.INFO)
 
-instructor.from_provider("openai/gpt-4.1-mini")
+instructor.from_provider("openai/gpt-6-luna")
 ```
 
 Example output:
 
 ```
-INFO:instructor.auto_client:Initializing openai provider with model gpt-4.1-mini
+INFO:instructor.auto_client:Initializing openai provider with model gpt-6-luna
 INFO:instructor.auto_client:Client initialized
 ```

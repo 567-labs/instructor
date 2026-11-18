@@ -68,7 +68,7 @@ import instructor
 
 # Apply the patch to the OpenAI client
 # enables response_model keyword
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 # <%hide%>
 from pydantic import BaseModel, Field
 from typing import List
@@ -111,7 +111,7 @@ class DocumentExtraction(BaseModel):
 
 def ask_ai(content) -> DocumentExtraction:
     return client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         response_model=DocumentExtraction,
         messages=[
             {
@@ -207,7 +207,7 @@ import instructor
 
 # Apply the patch to the OpenAI client
 # enables response_model keyword
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Property(BaseModel):
@@ -244,7 +244,7 @@ class DocumentExtraction(BaseModel):
 
 def ask_ai(content) -> DocumentExtraction:
     return client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         response_model=DocumentExtraction,
         messages=[
             {

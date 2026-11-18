@@ -100,7 +100,7 @@ def main():
     try:
         print("\n--- Example 1: Successful Extraction ---")
         user = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-6-luna",
             messages=[{"role": "user", "content": "Extract: John is 30 years old."}],
             response_model=User,
         )
@@ -112,7 +112,7 @@ def main():
     try:
         print("\n--- Example 2: Parse Error (Age Validation) ---")
         user = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-6-luna",
             messages=[{"role": "user", "content": "Extract: Alice is -5 years old."}],
             response_model=User,
         )
@@ -137,7 +137,7 @@ def main():
 
     try:
         user = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-6-luna",
             messages=[{"role": "user", "content": "Extract: Bob is 25 years old."}],
             response_model=User,
         )

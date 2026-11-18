@@ -45,7 +45,7 @@ openai_client = openai.OpenAI()
 client = instructor.patch(openai_client)
 
 user = client.chat.completions.create(
-    model="gpt-4o-mini",
+    model="gpt-6-luna",
     response_model=User,
     messages=[{"role": "user", "content": "Extract: John is 30"}],
 )
@@ -63,7 +63,7 @@ class User(BaseModel):
     age: int
 
 
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 user = client.create(
     response_model=User,
@@ -90,7 +90,7 @@ user = await client.chat.completions.create(...)
 ```python
 import instructor
 
-client = instructor.from_provider("openai/gpt-4o-mini", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 user = await client.create(...)
 ```
@@ -105,10 +105,10 @@ import anthropic
 from instructor import from_anthropic
 
 client = from_anthropic(anthropic.Anthropic())
-user = client.messages.create(..., model="claude-3-5-sonnet")
+user = client.messages.create(..., model="claude-haiku-5-5")
 
 # After
-client = instructor.from_provider("anthropic/claude-3-5-sonnet")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 user = client.create(...)
 ```
 
@@ -135,11 +135,11 @@ Pass configuration directly to `from_provider`:
 import instructor
 
 # Mode configuration
-client = instructor.from_provider("openai/gpt-4o-mini", mode=instructor.Mode.JSON)
+client = instructor.from_provider("openai/gpt-6-luna", mode=instructor.Mode.JSON)
 
 # Custom API settings
 client = instructor.from_provider(
-    "openai/gpt-4o-mini",
+    "openai/gpt-6-luna",
     api_key="custom-key",
     organization="org-id",
     timeout=30.0,
@@ -165,14 +165,14 @@ anthropic_client = from_anthropic(anthropic.Anthropic())
 ```python
 import instructor
 
-openai_client = instructor.from_provider("openai/gpt-4o-mini")
-anthropic_client = instructor.from_provider("anthropic/claude-3-5-sonnet")
+openai_client = instructor.from_provider("openai/gpt-6-luna")
+anthropic_client = instructor.from_provider("anthropic/claude-haiku-5-5")
 ```
 
 ## Migration Checklist
 
 1. **Identify your current pattern**: `patch()`, `apatch()`, or `from_*()` functions
-2. **Find your model name**: e.g., `gpt-4o-mini`, `claude-3-5-sonnet`
+2. **Find your model name**: e.g., `gpt-6-luna`, `claude-haiku-5-5`
 3. **Replace client creation**: Use `from_provider("provider/model")`
 4. **Update method calls**: Change to `client.create(...)`
 5. **Use standard message format**: `[{"role": "user", "content": "..."}]`

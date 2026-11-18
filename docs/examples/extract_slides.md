@@ -59,7 +59,7 @@ import instructor
 
 # Apply the patch to the OpenAI client
 # enables response_model keyword
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 # <%hide%>
 from pydantic import BaseModel, Field
 from typing import Optional, List
@@ -102,9 +102,9 @@ def read_images(image_urls: List[str]) -> Competition:
     Given a list of image URLs, identify the competitors in the images.
     """
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=Competition,
-        max_tokens=2048,
+        max_completion_tokens=2048,
         temperature=0,
         messages=[
             {
@@ -136,7 +136,7 @@ import instructor
 
 # Apply the patch to the OpenAI client
 # enables response_model keyword
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
@@ -175,9 +175,9 @@ def read_images(image_urls: List[str]) -> Competition:
     Given a list of image URLs, identify the competitors in the images.
     """
     return client.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=Competition,
-        max_tokens=2048,
+        max_completion_tokens=2048,
         temperature=0,
         messages=[
             {

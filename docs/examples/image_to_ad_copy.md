@@ -1,11 +1,11 @@
 ---
-title: Automatically Generate Advertising Copy from Product Images Using GPT-4 Vision
-description: Learn how to use GPT-4 Vision API to create engaging advertising copy from product images, ideal for e-commerce and marketing teams.
+title: Automatically Generate Advertising Copy from Product Images Using GPT-6 Luna
+description: Learn how to use GPT-6 Luna to create engaging advertising copy from product images, ideal for e-commerce and marketing teams.
 ---
 
 # Use Vision API to detect products and generate advertising copy
 
-This post demonstrates how to use GPT-4 Vision API and the Chat API to automatically generate advertising copy from product images. This method can be useful for marketing and advertising teams, as well as for e-commerce platforms.
+This post demonstrates how to use GPT-6 Luna to automatically generate advertising copy from product images. This method can be useful for marketing and advertising teams, as well as for e-commerce platforms.
 
 The full code is available on [GitHub](https://www.github.com/jxnl/instructor/tree/main/examples/vision/image_to_ad_copy.py).
 
@@ -215,7 +215,7 @@ def read_images(image_urls: list[str]) -> IdentifiedProduct:
 
     return client_image.create(
         response_model=IdentifiedProduct,
-        max_tokens=1024,  # can be changed
+        max_completion_tokens=1024,  # can be changed
         temperature=0,
         messages=[
             {
@@ -241,7 +241,7 @@ This gives us a list of products identified in all the images.
 
 Then, we can use the `generate_ad_copy` function to generate advertising copy for each of the products identified in the images.
 
-Two clients are defined for the two different models. This is because the `gpt-5.4-mini` model is not compatible with the `gpt-5.4-mini` model in terms of their response format.
+Both the image analysis and copywriting steps use GPT-6 Luna.
 
 ```python
 # <%hide%>

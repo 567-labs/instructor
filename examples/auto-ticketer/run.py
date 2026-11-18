@@ -51,7 +51,7 @@ class ActionItems(BaseModel):
 
 def generate(data: str):
     return client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=ActionItems,
         messages=[
             {

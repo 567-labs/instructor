@@ -5,7 +5,7 @@ description: Learn to build custom validators for LLM outputs using rule-based a
 
 # Custom LLM Validators Tutorial: Advanced Data Quality Control
 
-Learn how to build custom validators for LLM outputs in this advanced tutorial. Master both rule-based and semantic validation techniques to ensure GPT-4, Claude, and other language models produce data that meets your exact requirements.
+Learn how to build custom validators for LLM outputs in this advanced tutorial. Master both rule-based and semantic validation techniques to ensure GPT-6 Luna, Claude, and other language models produce data that meets your exact requirements.
 
 ## Basic Custom Validator
 
@@ -16,7 +16,7 @@ from pydantic import BaseModel, field_validator
 import instructor
 
 # Initialize the client
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Person(BaseModel):
     name: str
@@ -31,7 +31,7 @@ class Person(BaseModel):
 
 # Extract data with validation
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": "The person's name is John and they are 150 years old."}
     ],
@@ -52,7 +52,7 @@ from pydantic import BaseModel, field_validator, model_validator
 import instructor
 from typing import List, Optional
 from datetime import date
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Employee(BaseModel):
     name: str
@@ -84,7 +84,7 @@ Custom validators can also process more complex data types and perform transform
 from pydantic import BaseModel, field_validator
 import instructor
 import re
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Contact(BaseModel):
     name: str
@@ -119,7 +119,7 @@ You can also use external services or APIs for validation:
 from pydantic import BaseModel, field_validator
 import instructor
 import requests
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Address(BaseModel):
     street: str
@@ -147,7 +147,7 @@ from pydantic import BaseModel, BeforeValidator
 import instructor
 from instructor import llm_validator
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class ProductDescription(BaseModel):
     product_name: str

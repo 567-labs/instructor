@@ -1,11 +1,11 @@
 ---
-title: Receipt Data Extraction with GPT-4 Vision - Expense Tracking
-description: Extract and validate receipt data from images using GPT-4 Vision and Instructor. Automate expense tracking with structured receipt parsing.
+title: Receipt Data Extraction with GPT-6 Luna - Expense Tracking
+description: Extract and validate receipt data from images using GPT-6 Luna and Instructor. Automate expense tracking with structured receipt parsing.
 ---
 
-# Extracting Receipt Data using GPT-4 and Python
+# Extracting Receipt Data using GPT-6 Luna and Python
 
-This post demonstrates how to use Python's Pydantic library and OpenAI's GPT-4 model to extract receipt data from images and validate the total amount. This method is particularly useful for automating expense tracking and financial analysis tasks.
+This post demonstrates how to use Python's Pydantic library and OpenAI's GPT-6 Luna model to extract receipt data from images and validate the total amount. This method is particularly useful for automating expense tracking and financial analysis tasks.
 
 ## Defining the Item and Receipt Classes
 
@@ -48,7 +48,7 @@ def check_total(self):
 
 ## Extracting Receipt Data from Images
 
-The `extract_receipt` function uses OpenAI's GPT-4 model to process an image URL and extract receipt data. We utilize the `instructor` library to configure the OpenAI client for this purpose.
+The `extract_receipt` function uses OpenAI's GPT-6 Luna model to process an image URL and extract receipt data. We utilize the `instructor` library to configure the OpenAI client for this purpose.
 
 ```python
 import instructor
@@ -81,13 +81,13 @@ class Receipt(BaseModel):
 
 # <%hide%>
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def extract(url: str) -> Receipt:
     return client.create(
-        model="gpt-5.4-mini",
-        max_tokens=4000,
+        model="gpt-6-luna",
+        max_completion_tokens=4000,
         response_model=Receipt,
         messages=[
             {
@@ -139,13 +139,13 @@ class Receipt(BaseModel):
         return values
 
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def extract(url: str) -> Receipt:
     return client.create(
-        model="gpt-4o",
-        max_tokens=4000,
+        model="gpt-6-luna",
+        max_completion_tokens=4000,
         response_model=Receipt,
         messages=[
             {
@@ -176,4 +176,4 @@ items=[Item(name='Lorem ipsum', price=9.2, quantity=1), Item(name='Lorem ipsum d
 """
 ```
 
-By combining the power of GPT-4 and Python's Pydantic library, we can accurately extract and validate receipt data from images, streamlining expense tracking and financial analysis tasks.
+By combining the power of GPT-6 Luna and Python's Pydantic library, we can accurately extract and validate receipt data from images, streamlining expense tracking and financial analysis tasks.

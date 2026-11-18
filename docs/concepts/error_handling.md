@@ -42,13 +42,13 @@ class Report(BaseModel):
     content: str
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini", mode=instructor.Mode.JSON)
+client = instructor.from_provider("openai/gpt-6-luna", mode=instructor.Mode.JSON)
 
 try:
     response = client.create(
         response_model=Report,
         messages=[{"role": "user", "content": "Write a long report..."}],
-        max_tokens=50,
+        max_completion_tokens=50,
         max_retries=0,
     )
 except (IncompleteOutputException, InstructorRetryException) as e:
@@ -71,7 +71,7 @@ class User(BaseModel):
     age: int
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 try:
     response = client.create(
@@ -106,7 +106,7 @@ class StrictModel(BaseModel):
         return v
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 try:
     response = client.create(
@@ -134,7 +134,7 @@ except ConfigurationError as e:
 # Wrong mode for provider
 try:
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         mode=instructor.Mode.TOOLS,
     )
 except ModeError as e:
@@ -163,7 +163,7 @@ class User(BaseModel):
     age: int
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 try:
     response = client.create(
@@ -175,7 +175,7 @@ except IncompleteOutputException:
     response = client.create(
         response_model=User,
         messages=[{"role": "user", "content": "Extract: Sam is 34"}],
-        max_tokens=2000,
+        max_completion_tokens=2000,
     )
 except InstructorRetryException as e:
     logger.error(f"Failed after {e.n_attempts} attempts")
@@ -197,7 +197,7 @@ class Data(BaseModel):
     value: str
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 try:
     response = client.create(
@@ -232,7 +232,7 @@ class RelaxedData(BaseModel):
     value: str
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def extract_with_fallback(content: str):
@@ -266,7 +266,7 @@ class User(BaseModel):
     age: int
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Old code still works
 try:
@@ -301,7 +301,7 @@ def on_parse_error(error: Exception):
         print(f"Validation error: {error}")
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 client.hooks.on("parse:error", on_parse_error)
 ```
 

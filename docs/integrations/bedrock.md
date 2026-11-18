@@ -29,13 +29,13 @@ AWS Bedrock is a fully managed service that offers a choice of high-performing f
 
 ## Auto Client Setup
 
-For simplified setup, you can use the auto client pattern:
+These examples use the Claude Haiku 5.5 global inference profile. Check the [AWS model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-5-5.html) for supported source regions and geographic profiles.
 
 ```python
 import instructor
 
 # Auto client with model specification
-client = instructor.from_provider("bedrock/anthropic.claude-sonnet-5")
+client = instructor.from_provider("bedrock/global.anthropic.claude-haiku-5-5")
 
 # The auto client automatically handles:
 # - AWS credential detection from environment
@@ -75,7 +75,7 @@ import os
 import instructor
 
 client = instructor.from_provider(
-    "bedrock/us.anthropic.claude-opus-5-5",
+    "bedrock/us.anthropic.claude-haiku-5-5",
     api_key=os.environ["BEDROCK_API_KEY"],
 )
 ```
@@ -90,7 +90,7 @@ import instructor
 from pydantic import BaseModel
 
 bedrock_client = boto3.client('bedrock-runtime')
-client = instructor.from_provider("bedrock/anthropic.claude-sonnet-5")
+client = instructor.from_provider("bedrock/global.anthropic.claude-haiku-5-5")
 
 
 class User(BaseModel):
@@ -99,7 +99,7 @@ class User(BaseModel):
 
 
 user = client.create(
-    modelId="anthropic.claude-sonnet-5",
+    modelId="global.anthropic.claude-haiku-5-5",
     messages=[
         {"role": "user", "content": "Extract: Jason is 25 years old"},
     ],
@@ -120,7 +120,7 @@ import instructor
 from pydantic import BaseModel
 import asyncio
 
-client = instructor.from_provider("bedrock/anthropic.claude-sonnet-5")
+client = instructor.from_provider("bedrock/global.anthropic.claude-haiku-5-5")
 
 
 class User(BaseModel):
@@ -130,7 +130,7 @@ class User(BaseModel):
 
 def get_user():
     return client.create(
-        modelId="anthropic.claude-sonnet-5",
+        modelId="global.anthropic.claude-haiku-5-5",
         messages=[{"role": "user", "content": "Extract Jason is 25 years old"}],
         response_model=User,
     )
@@ -171,7 +171,7 @@ class User(BaseModel):
     age: int
 
 
-model_id = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+model_id = "global.anthropic.claude-haiku-5-5"
 bedrock_client = boto3.client("bedrock-runtime", region_name="us-east-1")
 client = instructor.from_bedrock(
     bedrock_client,
@@ -223,18 +223,17 @@ messages = [
         "role": "user",
         "content": [{"text": "Extract: Jason is 25 years old"}],
     },  # Bedrock-native
-    {"role": "assistant", "content": "Sure! Jason is 25."},  # OpenAI-style
 ]
 
 # Both of these are valid:
 user = client.create(
-    model="anthropic.claude-sonnet-5",  # OpenAI-style
+    model="global.anthropic.claude-haiku-5-5",  # OpenAI-style
     messages=messages,
     response_model=User,
 )
 
 user = client.create(
-    modelId="anthropic.claude-sonnet-5",  # Bedrock-native
+    modelId="global.anthropic.claude-haiku-5-5",  # Bedrock-native
     messages=messages,
     response_model=User,
 )
@@ -250,14 +249,14 @@ Instructor will convert OpenAI-style image parts into Bedrock image blocks autom
 import instructor
 from instructor.processing.multimodal import PDF
 
-client = instructor.from_provider("bedrock/anthropic.claude-sonnet-5")
+client = instructor.from_provider("bedrock/global.anthropic.claude-haiku-5-5")
 
 pdf = PDF.from_url(
     "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/invoice.pdf"
 )
 
 response = client.create(
-    modelId="anthropic.claude-sonnet-5",
+    modelId="global.anthropic.claude-haiku-5-5",
     messages=[
         {
             "role": "user",
@@ -283,7 +282,7 @@ from pydantic import BaseModel
 bedrock_client = boto3.client('bedrock-runtime')
 
 # Enable instructor patches for Bedrock client
-client = instructor.from_provider("bedrock/anthropic.claude-sonnet-5")
+client = instructor.from_provider("bedrock/global.anthropic.claude-haiku-5-5")
 
 
 class Address(BaseModel):
@@ -300,7 +299,7 @@ class User(BaseModel):
 
 # Create structured output with nested objects
 user = client.create(
-    modelId="anthropic.claude-sonnet-5",
+    modelId="global.anthropic.claude-haiku-5-5",
     messages=[
         {
             "role": "user",
@@ -334,10 +333,8 @@ AWS Bedrock supports many modern foundation models:
 ```python
 import instructor
 
-# Claude 3.5 models (latest)
-client = instructor.from_provider("bedrock/anthropic.claude-sonnet-5")
-# or
-client = instructor.from_provider("bedrock/anthropic.claude-3-5-haiku-20241022-v1:0")
+# Claude Haiku 5.5
+client = instructor.from_provider("bedrock/global.anthropic.claude-haiku-5-5")
 
 # Amazon Nova models (multimodal)
 client = instructor.from_provider("bedrock/amazon.nova-micro-v1:0")
@@ -365,21 +362,18 @@ bedrock_client = boto3.client(
 
 # Use from_provider with custom client
 client = instructor.from_provider(
-    "bedrock/anthropic.claude-sonnet-5",
+    "bedrock/global.anthropic.claude-haiku-5-5",
     client=bedrock_client,
     mode=instructor.Mode.TOOLS,
 )
 
 # Advanced inference configuration
 user = client.create(
-    modelId="anthropic.claude-sonnet-5",
+    modelId="global.anthropic.claude-haiku-5-5",
     messages=[{"role": "user", "content": "Extract user info"}],
     response_model=User,
     inferenceConfig={
         "maxTokens": 2048,
-        "temperature": 0.1,
-        "topP": 0.9,
-        "stopSequences": ["STOP"],
     },
 )
 ```

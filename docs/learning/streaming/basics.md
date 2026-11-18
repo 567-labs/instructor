@@ -41,11 +41,11 @@ class UserProfile(BaseModel):
     interests: list[str]
 
 # Set up client
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 # Enable streaming
 for partial in client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": "Generate a profile for Alex Chen"}
     ],
@@ -81,7 +81,7 @@ Here's a simple way to track progress:
 ```python
 import instructor
 from pydantic import BaseModel
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 class Report(BaseModel):
     title: str
@@ -93,7 +93,7 @@ completed = set()
 total_fields = 3  # Number of fields in our model
 
 for partial in client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": "Generate a report on climate change"}
     ],

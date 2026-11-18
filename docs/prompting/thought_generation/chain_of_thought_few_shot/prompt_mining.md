@@ -36,7 +36,7 @@ class PromptTemplate(BaseModel):
     )
 
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def generate_prompt_templates(prompt: str):
@@ -57,7 +57,7 @@ def generate_prompt_templates(prompt: str):
         response_model=list[PromptTemplate],
         temperature=0,
         max_retries=3,
-        model="gpt-4o",
+        model="gpt-6-luna",
     )
 
 

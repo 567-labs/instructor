@@ -20,13 +20,13 @@ class DemonstrationResponse(BaseModel):
     correct_answer: Literal["Positive", "Negative", "Neutral"]
 
 
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 async def generate_self_consistent_response(prompt: str, examples: list[str]):
     concetenated_examples = "\n".join(examples)
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",

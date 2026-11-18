@@ -57,11 +57,10 @@ class SQL(BaseModel):
 
 
 def create_query(data: str) -> SQL:
-    completion = client.chat.completions.create(
-        model="gpt-4o-mini",
+    return client.chat.completions.create(
+        model="gpt-6-luna",
         temperature=0,
-        functions=[SQL.openai_schema],
-        function_call={"name": SQL.openai_schema["name"]},
+        response_model=SQL,
         messages=[
             {
                 "role": "system",
@@ -80,9 +79,8 @@ def create_query(data: str) -> SQL:
             Make sure it uses query parameters whenever possible.""",
             },
         ],
-        max_tokens=1000,
+        max_completion_tokens=1000,
     )
-    return SQL.from_response(completion)
 
 
 if __name__ == "__main__":

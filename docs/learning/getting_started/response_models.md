@@ -144,10 +144,10 @@ Once you've defined your model, you can use it for extraction:
 
 ```python
 import instructor
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 forecast = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     response_model=WeatherForecast,
     messages=[
         {"role": "user", "content": "What's the weather in New York today?"}

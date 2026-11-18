@@ -28,7 +28,7 @@ class KnowledgeGraph(BaseModel):
 
 def generate_graph(input) -> KnowledgeGraph:
     return client.chat.completions.create(
-        model="gpt-3.5-turbo-16k",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "user",

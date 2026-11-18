@@ -57,12 +57,12 @@ MarkdownDataFrame = Annotated[
     ),
 ]
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def extract_df(data: str) -> pd.DataFrame:
     return client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         response_model=MarkdownDataFrame,
         messages=[
             {
@@ -84,7 +84,7 @@ class Table(BaseModel):
 
 def extract_table(data: str) -> Table:
     return client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         response_model=Table,
         messages=[
             {

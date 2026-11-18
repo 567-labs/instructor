@@ -72,7 +72,8 @@ class ImageDescription(BaseModel):
 def test_multimodal_image_description(model, mode, client):
     client = instructor.from_openai(client, mode=mode)
     response = client.chat.completions.create(
-        model=model,  # Ensure this is a vision-capable model
+        model=model,
+        reasoning_effort="none",
         response_model=ImageDescription,
         messages=[
             {
@@ -102,7 +103,8 @@ def test_multimodal_image_description(model, mode, client):
 def test_multimodal_image_description_autodetect(model, mode, client):
     client = instructor.from_openai(client, mode=mode)
     response = client.chat.completions.create(
-        model=model,  # Ensure this is a vision-capable model
+        model=model,
+        reasoning_effort="none",
         response_model=ImageDescription,
         messages=[
             {
@@ -134,7 +136,8 @@ def test_multimodal_image_description_autodetect_no_response_model(model, mode, 
     client = instructor.from_openai(client, mode=mode)
     response = client.chat.completions.create(
         response_model=None,
-        model=model,  # Ensure this is a vision-capable model
+        model=model,
+        reasoning_effort="none",
         messages=[
             {
                 "role": "system",
@@ -146,7 +149,7 @@ def test_multimodal_image_description_autodetect_no_response_model(model, mode, 
                 "content": image_url,
             },
         ],
-        max_tokens=1000,
+        max_completion_tokens=1000,
         temperature=1,
         autodetect_images=True,
     )
@@ -169,7 +172,8 @@ def test_multimodal_pdf_file(model, mode, client, pdf_source):
     max_retries = 3
     for attempt in range(max_retries):
         response = client.chat.completions.create(
-            model=model,  # Ensure this is a vision-capable model
+            model=model,
+            reasoning_effort="none",
             messages=[
                 {
                     "role": "system",

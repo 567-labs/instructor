@@ -63,9 +63,9 @@ def read_images(image_urls: list[str]) -> Competition:
     logger.info(f"Identifying competitors in images... {len(image_urls)} images")
 
     return client_image.chat.completions.create(
-        model="gpt-4-vision-preview",
+        model="gpt-6-luna",
         response_model=Competition,
-        max_tokens=2048,
+        max_completion_tokens=2048,
         temperature=0,
         messages=[
             {

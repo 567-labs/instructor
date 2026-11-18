@@ -31,7 +31,7 @@ client = instructor.from_openai(openai_client)
 def classify(data: str) -> SinglePrediction:
     """Perform single-label classification on the input text."""
     return client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=SinglePrediction,
         messages=[
             {

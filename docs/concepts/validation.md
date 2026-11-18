@@ -120,7 +120,7 @@ async def main() -> None:
     async with AsyncOpenAI() as sdk:
         client = instructor.from_openai(sdk)
         answer = await client.create(
-            model="gpt-4.1-mini",
+            model="gpt-6-luna",
             response_model=Answer,
             messages=[{"role": "user", "content": "Return the number 42"}],
         )
@@ -158,7 +158,7 @@ from pydantic import BaseModel, BeforeValidator
 import instructor
 from instructor import llm_validator
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class ContentReview(BaseModel):
@@ -216,7 +216,7 @@ class User(BaseModel):
         return v
 
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 try:
     user = client.create(

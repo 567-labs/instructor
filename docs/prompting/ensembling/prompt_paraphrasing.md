@@ -12,7 +12,7 @@ We can implement this using `instructor` as seen below.
 import instructor
 from pydantic import BaseModel
 import random
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 class TranslatedPrompt(BaseModel):
@@ -21,7 +21,7 @@ class TranslatedPrompt(BaseModel):
 
 async def translate_prompt(prompt: str, from_language: str, to_language: str):
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "system",

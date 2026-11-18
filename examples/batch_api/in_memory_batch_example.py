@@ -23,8 +23,7 @@ def main():
     print("===================================\n")
 
     # Initialize batch processor
-    # Note: Use gpt-4o-mini for JSON schema support in batch API
-    processor = BatchProcessor("openai/gpt-4o-mini", User)
+    processor = BatchProcessor("openai/gpt-6-luna", User)
 
     # Sample messages for batch processing
     messages_list = [
@@ -167,7 +166,7 @@ def compare_file_vs_memory():
     print("\nComparing File-based vs In-Memory Batching")
     print("===========================================\n")
 
-    processor = BatchProcessor("openai/gpt-4o-mini", User)
+    processor = BatchProcessor("openai/gpt-6-luna", User)
 
     messages_list = [
         [{"role": "user", "content": "Extract: John, 25, john@example.com"}],

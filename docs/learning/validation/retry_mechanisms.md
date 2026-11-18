@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field, field_validator
 
 # Initialize the client with max_retries
 client = instructor.from_provider(
-    "openai/gpt-4o",
+    "openai/gpt-6-luna",
     max_retries=2  # Will try up to 3 times (initial + 2 retries)
 )
 
@@ -40,7 +40,7 @@ class Product(BaseModel):
 
 # This will automatically retry if validation fails
 response = client.create(
-    model="gpt-5.4-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "user", "content": "Product: Pen, Price: -5"}
     ],
@@ -63,7 +63,7 @@ import instructor
 
 # Customize retry behavior
 client = instructor.from_provider(
-    "openai/gpt-4o",
+    "openai/gpt-6-luna",
     max_retries=3,                   # Maximum number of retries
     retry_if_parsing_fails=True,     # Retry on JSON parsing failures
     throw_error=True                 # Throw an error if all retries fail
@@ -87,7 +87,7 @@ from instructor.core.exceptions import InstructorRetryException
 
 try:
     response = client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         messages=[{"role": "user", "content": "Product: Invalid data"}],
         response_model=Product,
         max_retries=3
@@ -153,7 +153,7 @@ from pydantic import BaseModel, Field
 
 # Initialize with moderate retries
 client = instructor.from_provider(
-    "openai/gpt-4o",
+    "openai/gpt-6-luna",
     max_retries=2
 )
 
@@ -172,7 +172,7 @@ class DetailedProduct(BasicProduct):
 try:
     # First get basic fields
     basic = client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         messages=[
             {"role": "user", "content": "Product: Mini Pen, Price: $2.50"}
         ],
@@ -181,7 +181,7 @@ try:
 
     # Then get full details with context from the first step
     detailed = client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         messages=[
             {"role": "user", "content": f"Provide more details about {basic.name} which costs ${basic.price}"}
         ],

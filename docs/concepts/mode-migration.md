@@ -60,7 +60,7 @@ import instructor
 from instructor import Mode
 
 client = instructor.from_provider(
-    "anthropic/claude-3-5-haiku-latest",
+    "anthropic/claude-haiku-5-5",
     mode=Mode.ANTHROPIC_TOOLS,
 )
 ```
@@ -72,7 +72,7 @@ import instructor
 from instructor import Mode
 
 client = instructor.from_provider(
-    "anthropic/claude-3-5-haiku-latest",
+    "anthropic/claude-haiku-5-5",
     mode=Mode.TOOLS,
 )
 ```
@@ -86,7 +86,7 @@ import instructor
 from instructor import Mode
 
 client = instructor.from_provider(
-    "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
+    "bedrock/global.anthropic.claude-haiku-5-5",
     mode=Mode.BEDROCK_TOOLS,
 )
 ```
@@ -98,7 +98,7 @@ import instructor
 from instructor import Mode
 
 client = instructor.from_provider(
-    "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
+    "bedrock/global.anthropic.claude-haiku-5-5",
     mode=Mode.BEDROCK_TOOLS,
 )
 ```

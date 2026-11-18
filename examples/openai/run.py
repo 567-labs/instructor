@@ -20,7 +20,7 @@ class UserInfo(BaseModel):
     age: int = Field(description="The user's age in years")
 
 
-client = instructor.from_provider("openai/gpt-4o-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 user = client.chat.completions.create(
     response_model=UserInfo,

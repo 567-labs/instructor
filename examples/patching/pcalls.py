@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
     start = time.perf_counter()
     resp = client.chat.completions.create(
-        model="gpt-4-turbo-preview",
+        model="gpt-6-luna",
         messages=[
             {"role": "system", "content": "You must always use tools"},
             {
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     start = time.perf_counter()
     resp = client.chat.completions.create(
-        model="gpt-4-turbo-preview",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "user",
@@ -67,7 +67,7 @@ if __name__ == "__main__":
 
     start = time.perf_counter()
     resp = client.chat.completions.create(
-        model="gpt-4-turbo-preview",
+        model="gpt-6-luna",
         messages=[
             {
                 "role": "user",

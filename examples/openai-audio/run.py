@@ -16,7 +16,7 @@ with open("./output.wav", "rb") as f:
     encoded_string = base64.b64encode(f.read()).decode("utf-8")
 
 resp = client.chat.completions.create(
-    model="gpt-4o-audio-preview",
+    model="gpt-audio-1.5",
     response_model=Person,
     modalities=["text"],
     audio={"voice": "alloy", "format": "wav"},

@@ -39,13 +39,13 @@ class Response(BaseModel):
     content: str = Field(description="The model's response to the prompt")
     confidence: float = Field(description="Confidence score between 0 and 1")
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 def generate_responses(prompt: str, n: int = 3) -> List[Response]:
     responses = []
     for _ in range(n):
         response = client.create(
-            model="gpt-5.4-mini",
+            model="gpt-6-luna",
             messages=[{"role": "user", "content": prompt}],
             response_model=Response
         )
@@ -96,13 +96,13 @@ class Example(BaseModel):
 
 class COSPSelector:
     def __init__(self, client: OpenAI, n_samples: int = 3):
-        self.client = instructor.from_provider("openai/gpt-4o")
+        self.client = instructor.from_provider("openai/gpt-6-luna")
         self.n_samples = n_samples
 
     def generate_responses(self, prompt: str) -> List[Response]:
         return [
             self.client.create(
-                model="gpt-5.4-mini",
+                model="gpt-6-luna",
                 messages=[{"role": "user", "content": prompt}],
                 response_model=Response
             )

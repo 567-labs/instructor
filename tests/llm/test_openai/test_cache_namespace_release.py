@@ -37,7 +37,8 @@ class CountingCache(AutoCache):
 
 def request(cache: CountingCache) -> dict[str, Any]:
     return {
-        "model": "gpt-4.1-mini",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "none",
         "messages": [{"role": "user", "content": "Return the integer 42."}],
         "response_model": Answer,
         "cache": cache,

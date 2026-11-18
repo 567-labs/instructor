@@ -15,7 +15,7 @@ class UserDetail(BaseModel):
 
 def get_user_detail(string) -> UserDetail:
     return client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=UserDetail,
         messages=[
             {

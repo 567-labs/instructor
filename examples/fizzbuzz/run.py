@@ -8,7 +8,7 @@ client = instructor.from_openai(OpenAI())
 
 def fizzbuzz_gpt(n) -> list[int | str]:
     return client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-6-luna",
         response_model=list[int | str],
         messages=[
             {

@@ -43,7 +43,7 @@ Parallel Function Calling helps you to significantly reduce the latency of your 
 
 
     client = instructor.from_provider(
-        "openai/gpt-4.1-mini",
+        "openai/gpt-6-luna",
         mode=instructor.Mode.PARALLEL_TOOLS,
     )
     function_calls = client.create(
@@ -132,7 +132,7 @@ Parallel Function Calling helps you to significantly reduce the latency of your 
 
 
     client = instructor.from_provider(
-        "anthropic/claude-3-7-sonnet-latest",
+        "anthropic/claude-haiku-5-5",
         mode=instructor.Mode.PARALLEL_TOOLS,
     )
     function_calls = client.create(

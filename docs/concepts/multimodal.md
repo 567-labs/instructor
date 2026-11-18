@@ -5,7 +5,7 @@ description: Learn how the Image, PDF and Audio class in Instructor enables seam
 
 ---
 title: Multimodal Processing with Instructor - Vision and Audio
-description: Process images, audio, and video with Instructor for multimodal structured outputs. Extract data from visual content using GPT-4 Vision and Gemini models.
+description: Process images, audio, and video with Instructor for multimodal structured outputs. Extract data from visual content using GPT-6 Luna and Gemini models.
 ---
 
 # Multimodal
@@ -57,7 +57,7 @@ class ImageDescription(BaseModel):
 # Use our sample image provided above.
 url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/image.jpg"
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 response = client.create(
     response_model=ImageDescription,
@@ -96,7 +96,7 @@ class ImageDescription(BaseModel):
 # Load image from GCS URL (must be publicly accessible)
 gs_url = "gs://my-bucket/path/to/image.jpg"
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 response = client.create(
     response_model=ImageDescription,
@@ -136,7 +136,7 @@ class ImageDescription(BaseModel):
 # Download a sample image for demonstration
 url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/image.jpg"
 
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 response = client.create(
     response_model=ImageDescription,
@@ -171,7 +171,7 @@ class ImageDescription(BaseModel):
 # Download a sample image for demonstration
 url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/image.jpg"
 
-client = instructor.from_provider("anthropic/claude-3-5-sonnet-20240620")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 
 response, completion = client.create_with_completion(
     response_model=ImageDescription,
@@ -230,7 +230,7 @@ import instructor
 from instructor.processing.multimodal import Audio
 
 # Initialize the client
-client = instructor.from_provider("openai/gpt-4o-audio-preview")
+client = instructor.from_provider("openai/gpt-audio-1.5")
 
 
 # Define our response model
@@ -273,7 +273,7 @@ import instructor
 from instructor.processing.multimodal import Audio
 
 # Initialize the client
-client = instructor.from_provider("openai/gpt-4o-audio-preview")
+client = instructor.from_provider("openai/gpt-audio-1.5")
 
 
 # Define our response model
@@ -342,7 +342,7 @@ from instructor.processing.multimodal import PDF
 
 # Set up the client
 url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/invoice.pdf"
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 # Create a model for analyzing PDFs
@@ -382,7 +382,7 @@ from instructor.processing.multimodal import PDF
 
 # Set up the client
 gs_url = "gs://my-bucket/path/to/document.pdf"
-client = instructor.from_provider("openai/gpt-4.1-mini")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 # Create a model for analyzing PDFs
@@ -420,7 +420,7 @@ from instructor.processing.multimodal import PDFWithCacheControl
 
 # Set up the client
 url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/invoice.pdf"
-client = instructor.from_provider("anthropic/claude-3-5-sonnet-20240620")
+client = instructor.from_provider("anthropic/claude-haiku-5-5")
 
 
 # Create a model for analyzing PDFs

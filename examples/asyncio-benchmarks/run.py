@@ -58,7 +58,7 @@ dataset = [
 async def extract_person(text: str) -> Person:
     """Extract person information from text using LLM."""
     return await client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=Person,
         messages=[{"role": "user", "content": f"Extract person info: {text}"}],
     )
@@ -367,7 +367,7 @@ def sync_example():
 
     for text in dataset[:3]:  # Just first 3 for demo
         person = sync_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-6-luna",
             response_model=Person,
             messages=[{"role": "user", "content": f"Extract person info: {text}"}],
         )

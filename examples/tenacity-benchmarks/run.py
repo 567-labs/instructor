@@ -123,7 +123,7 @@ def extract_user_info_with_mock_errors(text: str) -> UserInfo:
         return UserInfo(name="Mock User", age=30, email="mock@example.com")
 
     return client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=UserInfo,
         messages=[{"role": "user", "content": f"Extract user info: {text}"}],
     )
@@ -142,7 +142,7 @@ def extract_user_info(text: str) -> UserInfo:
         return UserInfo(name="Test User", age=25, email="test@example.com")
 
     return client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=UserInfo,
         messages=[{"role": "user", "content": f"Extract user info: {text}"}],
     )

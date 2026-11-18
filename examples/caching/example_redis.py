@@ -27,7 +27,7 @@ class UserDetail(BaseModel):
 
 if __name__ == "__main__":
     with Redis(host="localhost", decode_responses=True) as store:
-        client = from_provider("openai/gpt-4.1-mini", cache=RedisCache(store))
+        client = from_provider("openai/gpt-6-luna", cache=RedisCache(store))
         messages = [{"role": "user", "content": "Extract Jason is 25 years old."}]
         first = client.create(
             response_model=UserDetail, messages=messages, cache_ttl=3600

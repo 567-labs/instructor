@@ -79,8 +79,9 @@ example = MultipleTables(
 @traceable(name="extract-table")
 def extract(url: str) -> MultipleTables:
     tables = client.chat.completions.create(
-        model="gpt-4-vision-preview",
-        max_tokens=4000,
+        model="gpt-6-luna",
+        reasoning_effort="none",
+        max_completion_tokens=4000,
         response_model=MultipleTables,
         messages=[
             {

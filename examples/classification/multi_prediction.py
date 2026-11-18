@@ -22,7 +22,7 @@ class MultiClassPrediction(BaseModel):
 # Modify the classify function
 def multi_classify(data: str) -> MultiClassPrediction:
     return client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-6-luna",
         response_model=MultiClassPrediction,
         messages=[
             {

@@ -28,9 +28,9 @@ USER_EXTRACTION_PROMPT: ChatCompletionUserMessageParam = {
 
 # --- Providers to test (from main.py) ---
 PROVIDERS = [
-    "anthropic/claude-sonnet-4-6",
+    "anthropic/claude-haiku-5-5",
     "google/gemini-2.5-flash",
-    "openai/gpt-4o-mini",
+    "openai/gpt-6-luna",
     "azure_openai/gpt-4o-mini",
     "mistral/ministral-8b-latest",
     "cohere/command-a-03-2025",
@@ -74,7 +74,7 @@ def should_skip_provider(provider_string: str) -> bool:
         return provider_string not in [
             "cohere/command-a-03-2025",
             "google/gemini-2.5-flash",
-            "openai/gpt-4o-mini",
+            "openai/gpt-6-luna",
         ]
     return False
 
@@ -282,7 +282,7 @@ def test_additional_kwargs_passed():
     if os.getenv("INSTRUCTOR_ENV") == "CI" or not os.getenv("ANTHROPIC_API_KEY"):
         raise pytest.skip.Exception("Skipping live Anthropic test without credentials")
 
-    client = instructor.from_provider("anthropic/claude-sonnet-4-6", max_tokens=10)
+    client = instructor.from_provider("anthropic/claude-haiku-5-5", max_tokens=10)
 
     try:
         with pytest.raises(InstructorRetryException) as excinfo:

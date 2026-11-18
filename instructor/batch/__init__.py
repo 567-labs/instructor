@@ -23,7 +23,7 @@ Example usage:
         name: str
         age: int
 
-    processor = BatchProcessor("openai/gpt-4o-mini", User)
+    processor = BatchProcessor("openai/gpt-6-luna", User)
     batch_id = processor.submit_batch("requests.jsonl")
 
     # Results are BatchSuccess[T] | BatchError union types

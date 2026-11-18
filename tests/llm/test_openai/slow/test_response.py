@@ -117,11 +117,11 @@ def test_create_partial(client: OpenAI, mode, model):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("model, mode", product(models, response_modes))
-async def test_basic_response_methods_async(client: AsyncOpenAI, mode, model):
-    instructor_client = instructor.from_openai(client, mode=mode)
+async def test_basic_response_methods_async(aclient: AsyncOpenAI, mode, model):
+    instructor_client = instructor.from_openai(aclient, mode=mode)
 
     # Test create
-    profile = instructor_client.responses.create(
+    profile = await instructor_client.responses.create(
         model=model,
         input="Generate a profile for a user named John who is 30 years old",
         response_model=UserProfile,

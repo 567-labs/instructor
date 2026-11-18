@@ -39,12 +39,12 @@ class Lead(BaseModel):
     # Can define some function here to send Lead information to a database using an API
 
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def parse_lead_from_message(user_message: str):
     return client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         response_model=Iterable[Lead],
         messages=[
             {

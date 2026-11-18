@@ -82,13 +82,13 @@ class Classification(BaseModel):
         return confidence_order[self.confidence]
 
 
-client = instructor.from_provider("openai/gpt-4o-mini", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 async def generate_prediction(query: str):
     return (
         await client.create(
-            model="gpt-5.4-mini",
+            model="gpt-6-luna",
             messages=[
                 {
                     "role": "user",
@@ -131,7 +131,7 @@ def get_balanced_sample(predictions: list[tuple[Classification, str]], k: int):
 async def generate_response_with_examples(query: str, examples: list[str]):
     formatted_examples = "\n".join(examples)
     return await client.create(
-        model="gpt-4o",
+        model="gpt-6-luna",
         response_model=Classification,
         messages=[
             {

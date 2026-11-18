@@ -32,7 +32,7 @@ from pydantic.json_schema import SkipJsonSchema
 from sqlmodel import Field, SQLModel, create_engine, Session
 
 # Initialize the Instructor client
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Hero(SQLModel, instructor.OpenAISchema, table=True):
@@ -46,7 +46,7 @@ class Hero(SQLModel, instructor.OpenAISchema, table=True):
 # Generate AI-powered data
 def create_hero() -> Hero:
     return client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         response_model=Hero,
         messages=[
             {
@@ -135,7 +135,7 @@ from typing import List, Optional
 from sqlmodel import Field, SQLModel, Relationship
 import instructor
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 class Team(SQLModel, table=True):
@@ -160,7 +160,7 @@ class Hero(SQLModel, instructor.OpenAISchema, table=True):
 
 def create_hero_for_team(team_name: str) -> Hero:
     return client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         response_model=Hero,
         messages=[
             {"role": "user", "content": f"Create a superhero for the {team_name} team"},
@@ -177,12 +177,12 @@ from typing import List
 import instructor
 from sqlmodel import Session
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def create_hero_team(team_size: int = 5) -> List[Hero]:
     return client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         response_model=List[Hero],
         messages=[
             {
@@ -215,7 +215,7 @@ from typing import List
 import instructor
 
 app = FastAPI(title="Hero Management API")
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 def get_session():
@@ -230,7 +230,7 @@ session_dep = Depends(get_session)
 @app.post("/heroes/", response_model=Hero)
 async def create_hero_endpoint(prompt: str, session: Session = session_dep):
     hero = await client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         response_model=Hero,
         messages=[
             {"role": "user", "content": f"Create a superhero: {prompt}"},
@@ -325,7 +325,7 @@ import asyncio
 from typing import List
 import instructor
 
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 async def create_heroes_batch(prompts: List[str]) -> List[Hero]:
@@ -333,7 +333,7 @@ async def create_heroes_batch(prompts: List[str]) -> List[Hero]:
     tasks = []
     for prompt in prompts:
         task = client.create(
-            model="gpt-5.4-mini",
+            model="gpt-6-luna",
             response_model=Hero,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -454,13 +454,13 @@ from fastapi import HTTPException
 import instructor
 
 logger = logging.getLogger(__name__)
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 async def safe_create_hero(prompt: str) -> Hero:
     try:
         hero = await client.create(
-            model="gpt-5.4-mini",
+            model="gpt-6-luna",
             response_model=Hero,
             messages=[{"role": "user", "content": prompt}],
             max_retries=3,
@@ -484,7 +484,7 @@ Use AI to generate realistic seed data:
 from sqlmodel import Session
 import instructor
 
-client = instructor.from_provider("openai/gpt-5-nano")
+client = instructor.from_provider("openai/gpt-6-luna")
 
 
 def seed_database():
@@ -505,7 +505,7 @@ def seed_database():
         for hero_type in hero_types:
             for _ in range(5):  # 5 heroes of each type
                 hero = client.create(
-                    model="gpt-5.4-mini",
+                    model="gpt-6-luna",
                     response_model=Hero,
                     messages=[
                         {"role": "user", "content": f"Create a unique {hero_type}"}
@@ -532,7 +532,7 @@ import instructor
 import json
 
 app = FastAPI()
-client = instructor.from_provider("openai/gpt-5-nano", async_client=True)
+client = instructor.from_provider("openai/gpt-6-luna", async_client=True)
 
 
 @app.post("/heroes/stream")
@@ -541,7 +541,7 @@ async def stream_hero_creation(prompts: List[str]):
         for prompt in prompts:
             try:
                 hero = await client.create(
-                    model="gpt-5.4-mini",
+                    model="gpt-6-luna",
                     response_model=Hero,
                     messages=[{"role": "user", "content": prompt}],
                 )
@@ -615,7 +615,7 @@ def monitor_ai_calls(func):
 @monitor_ai_calls
 async def create_hero(prompt: str) -> Hero:
     return await client.create(
-        model="gpt-5.4-mini",
+        model="gpt-6-luna",
         response_model=Hero,
         messages=[{"role": "user", "content": prompt}],
     )

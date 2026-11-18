@@ -1,5 +1,6 @@
 import asyncio
 import enum
+from pprint import pprint
 import instructor
 
 from openai import OpenAI
@@ -110,9 +111,6 @@ QueryPlan.model_rebuild()
 
 
 def query_planner(question: str, plan=False) -> QueryPlan:
-    PLANNING_MODEL = "gpt-4"
-    ANSWERING_MODEL = "gpt-4o-mini"
-
     messages = [
         {
             "role": "system",
@@ -132,10 +130,13 @@ def query_planner(question: str, plan=False) -> QueryPlan:
             },
         )
         completion = client.chat.completions.create(
-            model=PLANNING_MODEL, temperature=0, messages=messages, max_tokens=1000
+            model="gpt-6-luna",
+            temperature=0,
+            messages=messages,
+            max_completion_tokens=1000,
         )
 
-        messages.append(completion["choices"][0]["message"])
+        messages.append(completion.choices[0].message.model_dump(exclude_none=True))
 
         messages.append(
             {
@@ -144,21 +145,16 @@ def query_planner(question: str, plan=False) -> QueryPlan:
             }
         )
 
-    completion = client.chat.completions.create(
-        model=ANSWERING_MODEL,
+    return client.chat.completions.create(
+        model="gpt-6-luna",
         temperature=0,
-        functions=[QueryPlan.openai_schema],
-        function_call={"name": QueryPlan.openai_schema["name"]},
+        response_model=QueryPlan,
         messages=messages,
-        max_tokens=1000,
+        max_completion_tokens=1000,
     )
-    root = QueryPlan.from_response(completion)
-    return root
 
 
 if __name__ == "__main__":
-    from pprint import pprint
-
     plan = query_planner(
         "What is the difference in populations of Canada and the Jason's home country?",
         plan=False,

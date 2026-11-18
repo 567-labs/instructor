@@ -1,12 +1,12 @@
 # Citation with Extraction
 
-This repository contains a FastAPI application that uses GPT-4 to answer questions based on a given context and extract relevant facts with correct and exact citations. The extracted facts are returned as JSON events using Server-Sent Events (SSE).
+This repository contains a FastAPI application that uses GPT-6 Luna to answer questions based on a given context and extract relevant facts with correct and exact citations. The extracted facts are returned as JSON events using Server-Sent Events (SSE).
 
 ## How it Works
 
 The FastAPI app defines an endpoint `/extract` that accepts a POST request with JSON data containing a `context` and a `query`. The `context` represents the text from which the question is being asked, and the `query` is the question itself.
 
-The app leverages GPT-4, an advanced language model, to generate answers to the questions and extract relevant facts. It ensures that the extracted facts include direct quotes from the given context.
+The app leverages GPT-6 Luna to generate answers to the questions and extract relevant facts. It ensures that the extracted facts include direct quotes from the given context.
 
 ## Example Usage
 
@@ -64,7 +64,7 @@ This will start the server, and the `/extract` endpoint will be available at `ht
 
 ## Note
 
-Ensure that you have a valid API key for GPT-4 from OpenAI. If you don't have one, you can obtain it from the OpenAI website.
+Ensure that you have an OpenAI API key with access to GPT-6 Luna. If you don't have one, you can obtain it from the OpenAI website.
 
 Please use this application responsibly and be mindful of any usage limits or restrictions from OpenAI's API usage policy.
 
