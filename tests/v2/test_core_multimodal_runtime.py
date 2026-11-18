@@ -360,6 +360,69 @@ def test_audio_to_openai_format_follows_media_type() -> None:
         audio_to_openai(aac, Mode.TOOLS)
 
 
+def test_audio_to_openai_recovers_data_uri_payload() -> None:
+    from instructor.v2.providers.openai.multimodal import audio_to_openai
+
+    encoded = base64.b64encode(b"wav-bytes").decode("ascii")
+    audio = Audio(source=f"data:audio/wav;base64,{encoded}", media_type="audio/wav")
+
+    payload = audio_to_openai(audio, Mode.TOOLS)
+
+    assert payload["input_audio"] == {"data": encoded, "format": "wav"}
+
+
+def test_audio_to_openai_prefers_explicit_data_over_data_uri() -> None:
+    from instructor.v2.providers.openai.multimodal import audio_to_openai
+
+    audio = Audio(
+        source="data:audio/wav;base64,dXJpLXBheWxvYWQ=",
+        media_type="audio/wav",
+        data="ZXhwbGljaXQ=",
+    )
+
+    payload = audio_to_openai(audio, Mode.TOOLS)
+
+    assert payload["input_audio"]["data"] == "ZXhwbGljaXQ="
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["clip.wav", "data:audio/wav;base64,", "data:audio/wav;base64, "],
+)
+def test_audio_to_openai_rejects_missing_payload(source: str) -> None:
+    from instructor.v2.providers.openai.multimodal import audio_to_openai
+
+    audio = Audio(source=source, media_type="audio/wav")
+
+    with pytest.raises(ValueError, match="Audio data is missing"):
+        audio_to_openai(audio, Mode.TOOLS)
+
+
+def test_audio_to_genai_recovers_data_uri_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from instructor.v2.providers.genai.multimodal import audio_to_genai
+    from tests.v2._fake_genai import install_fake_genai
+
+    install_fake_genai(monkeypatch)
+    encoded = base64.b64encode(b"wav-bytes").decode("ascii")
+    audio = Audio(source=f"data:audio/wav;base64,{encoded}", media_type="audio/wav")
+
+    part = audio_to_genai(audio)
+
+    assert part.data == b"wav-bytes"
+    assert part.mime_type == "audio/wav"
+
+
+def test_convert_messages_recovers_audio_data_uri_payload() -> None:
+    encoded = base64.b64encode(b"wav-bytes").decode("ascii")
+    audio = Audio(source=f"data:audio/wav;base64,{encoded}", media_type="audio/wav")
+
+    messages = convert_messages([{"role": "user", "content": [audio]}], Mode.TOOLS)
+
+    assert messages[0]["content"][0]["input_audio"]["data"] == encoded
+
+
 @pytest.mark.parametrize("padding", [0, 1024, 8192])
 def test_pdf_autodetect_accepts_raw_base64(padding: int) -> None:
     body = b"%PDF-1.7\n" + b" " * padding + b"\n%%EOF"
