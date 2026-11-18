@@ -8,7 +8,7 @@ from typing import Any, Literal, cast, get_args
 
 import pytest
 from openai import OpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from instructor.distil import (
     FinetuneFormat,
@@ -184,6 +184,33 @@ def test_distil_decorator_tracks_message_and_raw_training_examples(
     assert raw["kwargs"] == {}
     assert raw["resp"] == {"name": "us-3", "age": 3}
     assert raw["schema"]["properties"]["name"]["type"] == "string"
+
+
+class TitledUserRecord(BaseModel):
+    model_config = ConfigDict(title="UserProfile")
+
+    name: str
+
+
+def lookup_titled_user(name: str) -> TitledUserRecord:
+    return TitledUserRecord(name=name)
+
+
+def test_distil_message_function_call_name_matches_declared_function() -> None:
+    handler = RecordingHandler()
+    instructions = Instructions(
+        name="coverage.distil.messages",
+        log_handlers=[handler],
+        openai_client=cast(OpenAI, RecordingClient()),
+    )
+    instructions.logger.setLevel(logging.INFO)
+    instructions.logger.propagate = False
+
+    instructions.distil(lookup_titled_user)("Ann")
+
+    logged = json.loads(handler.messages[-1])
+    assert logged["functions"][0]["name"] == "UserProfile"
+    assert logged["messages"][2]["function_call"]["name"] == "UserProfile"
 
 
 @pytest.mark.parametrize("fetch", [fetch_user, fetch_user_with_forward_ref])

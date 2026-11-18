@@ -275,7 +275,8 @@ class Instructions:
                 {
                     "role": "assistant",
                     "function_call": {
-                        "name": base_model.__name__,
+                        # Must match the declared function, which uses the schema title.
+                        "name": openai_function_call["name"],
                         "arguments": resp.model_dump_json(indent=self.indent),
                     },
                 }
