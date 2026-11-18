@@ -619,5 +619,5 @@ def test_markdown_request_preserves_multimodal_system_text_and_handles_empty_mes
     assert multimodal["messages"][-1]["role"] == "user"
     assert "```json codeblock" in multimodal["messages"][-1]["content"]
     assert empty["messages"][0]["role"] == "system"
-    assert empty_system["messages"][0]["role"] == "system"
-    assert "json_schema" in empty_system["messages"][0]["content"]
+    assert [m["role"] for m in empty_system["messages"]].count("system") == 1
+    assert "json_schema" in empty_system["messages"][0]["content"][0]["text"]

@@ -183,3 +183,83 @@ def test_structured_outputs_parse_response_unwraps_adapter(
     )
 
     assert result == "done"
+
+
+def _raw_request_case(name: str, types: Any) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return (extra request kwargs, expected config fields) for a raw request."""
+    harassment = types.HarmCategory.HARM_CATEGORY_HARASSMENT
+    only_high = types.HarmBlockThreshold.BLOCK_ONLY_HIGH
+    safety = [types.SafetySetting(category=harassment, threshold=only_high)]
+    return {
+        "openai_options": (
+            {
+                "max_tokens": 16,
+                "temperature": 0,
+                "top_p": 0.5,
+                "n": 1,
+                "stop": ["END"],
+                "seed": 3,
+                "presence_penalty": 0.1,
+                "frequency_penalty": 0.2,
+            },
+            {
+                "max_output_tokens": 16,
+                "temperature": 0,
+                "top_p": 0.5,
+                "candidate_count": 1,
+                "stop_sequences": ["END"],
+                "seed": 3,
+                "presence_penalty": 0.1,
+                "frequency_penalty": 0.2,
+                # No default safety settings or schema on the raw path.
+                "safety_settings": None,
+                "tools": None,
+                "response_schema": None,
+            },
+        ),
+        # Top-level options beat generation_config; explicit config beats both.
+        "precedence": (
+            {
+                "generation_config": {"max_tokens": 8, "temperature": 0.3},
+                "temperature": 0.9,
+                "config": types.GenerateContentConfig(max_output_tokens=32),
+            },
+            {"max_output_tokens": 32, "temperature": 0.9},
+        ),
+        "thinking_and_safety_list": (
+            {
+                "thinking_config": types.ThinkingConfig(thinking_budget=0),
+                "safety_settings": safety,
+            },
+            {
+                "thinking_config": types.ThinkingConfig(thinking_budget=0),
+                "safety_settings": safety,
+            },
+        ),
+        "safety_mapping": (
+            {"safety_settings": {harassment: only_high}},
+            {"safety_settings": safety},
+        ),
+    }[name]
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["openai_options", "precedence", "thinking_and_safety_list", "safety_mapping"],
+)
+@pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.JSON])
+def test_raw_request_keeps_generation_options(mode: Mode, case: str) -> None:
+    types = pytest.importorskip("google.genai.types")
+    handler_cls = (
+        GenAIToolsHandler if mode == Mode.TOOLS else GenAIStructuredOutputsHandler
+    )
+    extra, expected = _raw_request_case(case, types)
+
+    _, request = handler_cls(mode=mode).prepare_request(
+        None, {"messages": [{"role": "user", "content": "Say hello"}], **extra}
+    )
+
+    config = request["config"]
+    assert isinstance(config, types.GenerateContentConfig)
+    assert {key: getattr(config, key) for key in expected} == expected
+    assert not (set(extra) - {"config"}) & set(request)

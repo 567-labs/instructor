@@ -538,3 +538,55 @@ def test_interrupted_download_preserves_existing_file(monkeypatch, tmp_path):
         AnthropicProvider().download_results("batch_123", str(path))
     assert path.read_text(encoding="utf-8") == "previous result"
     assert list(tmp_path.iterdir()) == [path]
+
+
+class FailingResults(RecordingBatches):
+    """Yield one record, then fail like a dropped results stream."""
+
+    def results(self, batch_id):
+        self.result_ids.append(batch_id)
+
+        def stream():
+            yield make_result("one", '{"name": "Ada"}')
+            raise ConnectionError("stream dropped")
+
+        return stream()
+
+
+@pytest.mark.parametrize("command", ["download_file", "results"])
+@pytest.mark.parametrize("stream_fails", [False, True])
+def test_cli_anthropic_export_replaces_file_only_after_every_result(
+    monkeypatch, tmp_path, command, stream_fails
+):
+    from instructor.cli import batch as batch_cli
+
+    batches = (
+        FailingResults()
+        if stream_fails
+        else RecordingBatches(
+            results=[make_result("one", "a"), make_result("two", "b")]
+        )
+    )
+    install_client(monkeypatch, batches)
+    destination = tmp_path / "results.jsonl"
+    destination.write_text("previous\n", encoding="utf-8")
+
+    if command == "download_file":
+        batch_cli.download_file(
+            batch_id="batch_123",
+            download_file_path=str(destination),
+            provider="anthropic",
+        )
+    else:
+        batch_cli.results(
+            batch_id="batch_123",
+            output_file=str(destination),
+            model="anthropic/claude-sonnet-4-5",
+        )
+
+    lines = destination.read_text(encoding="utf-8").splitlines()
+    if stream_fails:
+        assert lines == ["previous"]
+    else:
+        assert [json.loads(line)["custom_id"] for line in lines] == ["one", "two"]
+    assert list(tmp_path.iterdir()) == [destination]

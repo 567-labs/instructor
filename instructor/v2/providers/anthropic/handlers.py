@@ -150,20 +150,45 @@ def serialize_message_content(content: Any) -> Any:
     return content
 
 
-def _anthropic_supports_output_format() -> bool:
-    """Detect if the installed anthropic SDK supports output_format parameter."""
+def _anthropic_messages_create_params() -> set[str]:
+    """Return the parameter names accepted by the installed SDK's Messages.create."""
 
     try:
         from anthropic.resources.messages import Messages
     except (ImportError, AttributeError):
-        return False
+        return set()
 
     try:
         signature = inspect.signature(Messages.create)
     except (ValueError, TypeError):
-        return False
+        return set()
 
-    return "output_format" in signature.parameters
+    return set(signature.parameters)
+
+
+def _anthropic_supports_output_config() -> bool:
+    """Detect if the installed anthropic SDK supports the GA output_config parameter."""
+
+    return "output_config" in _anthropic_messages_create_params()
+
+
+def _anthropic_supports_output_format() -> bool:
+    """Detect if the installed anthropic SDK supports the beta output_format parameter."""
+
+    return "output_format" in _anthropic_messages_create_params()
+
+
+def _is_anthropic_message(response: Any) -> bool:
+    """Return True for both stable ``Message`` and beta ``BetaMessage`` responses."""
+
+    from anthropic.types import Message
+
+    try:
+        from anthropic.types.beta import BetaMessage
+    except ImportError:  # pragma: no cover - older SDKs
+        return isinstance(response, Message)
+
+    return isinstance(response, (Message, BetaMessage))
 
 
 def process_messages_for_anthropic(
@@ -395,7 +420,9 @@ class AnthropicToolsHandler(AnthropicHandlerBase):
             else:
                 new_kwargs["tool_choice"] = {
                     "type": "tool",
-                    "name": getattr(response_model, "__name__", "response"),
+                    # Match the declared tool name, which comes from the
+                    # schema title and may differ from the class __name__.
+                    "name": new_kwargs["tools"][0]["name"],
                     # Without this, Anthropic may still emit multiple tool_use
                     # blocks for the same forced tool, which the single-model
                     # parser then rejects even though the model's response was
@@ -497,9 +524,7 @@ class AnthropicToolsHandler(AnthropicHandlerBase):
         validation_context: dict[str, Any] | None,
         strict: bool | None,
     ) -> Any:
-        from anthropic.types import Message
-
-        if isinstance(response, Message) and response.stop_reason == "max_tokens":
+        if _is_anthropic_message(response) and response.stop_reason == "max_tokens":
             raise IncompleteOutputException(last_completion=response)
 
         origin = get_origin(response_model)
@@ -688,7 +713,6 @@ class AnthropicJSONHandler(AnthropicHandlerBase):
         validation_context: dict[str, Any] | None,
         strict: bool | None,
     ) -> BaseModel:
-        from anthropic.types import Message
         from instructor.v2.core.errors import ResponseParsingError
 
         if hasattr(response, "choices"):
@@ -697,7 +721,7 @@ class AnthropicJSONHandler(AnthropicHandlerBase):
                 raise IncompleteOutputException(last_completion=completion)
             text = completion.message.content
         else:
-            if not isinstance(response, Message):
+            if not _is_anthropic_message(response):
                 raise ResponseParsingError(
                     "Response must be an Anthropic Message",
                     mode="JSON",
@@ -735,8 +759,12 @@ class AnthropicJSONHandler(AnthropicHandlerBase):
 class AnthropicStructuredOutputsHandler(AnthropicHandlerBase):
     """Handler for Anthropic structured outputs mode.
 
-    Uses Claude's native structured output enforcement via the output_format parameter.
-    Requires Anthropic SDK >=0.71.0 and the structured-outputs-2025-11-13 beta.
+    Uses Claude's native structured output enforcement. When the installed SDK's
+    ``Messages.create`` accepts ``output_config`` (GA structured outputs), the
+    schema is sent as ``output_config.format``. Older SDKs that only expose the
+    beta ``output_format`` parameter use it with the
+    structured-outputs-2025-11-13 beta. SDKs with neither fall back to JSON mode
+    instructions.
     """
 
     mode = Mode.JSON_SCHEMA
@@ -755,9 +783,10 @@ class AnthropicStructuredOutputsHandler(AnthropicHandlerBase):
                 "Mode.JSON_SCHEMA (Anthropic structured outputs) requires a `response_model`."
             )
 
-        if not _anthropic_supports_output_format():
+        supports_output_config = _anthropic_supports_output_config()
+        if not supports_output_config and not _anthropic_supports_output_format():
             warnings.warn(
-                "Anthropic client does not support `output_format`; falling back to JSON mode instructions.",
+                "Anthropic client does not support `output_config` or `output_format`; falling back to JSON mode instructions.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -789,10 +818,24 @@ class AnthropicStructuredOutputsHandler(AnthropicHandlerBase):
             def transform_schema(model: type[BaseModel]) -> dict[str, Any]:
                 return model.model_json_schema()
 
-        new_kwargs["output_format"] = {
+        output_format = {
             "type": "json_schema",
             "schema": transform_schema(response_model),
         }
+
+        # Ensure legacy tool kwargs are cleared
+        new_kwargs.pop("tools", None)
+        new_kwargs.pop("tool_choice", None)
+
+        if supports_output_config:
+            existing_config = new_kwargs.get("output_config")
+            if not isinstance(existing_config, dict):
+                # None or the SDK's Omit/NOT_GIVEN sentinels mean "not set".
+                existing_config = {}
+            new_kwargs["output_config"] = {**existing_config, "format": output_format}
+            return response_model, new_kwargs
+
+        new_kwargs["output_format"] = output_format
 
         required_beta = "structured-outputs-2025-11-13"
         betas = new_kwargs.get("betas")
@@ -806,10 +849,6 @@ class AnthropicStructuredOutputsHandler(AnthropicHandlerBase):
             if required_beta not in betas:
                 betas.append(required_beta)
             new_kwargs["betas"] = betas
-
-        # Ensure legacy tool kwargs are cleared
-        new_kwargs.pop("tools", None)
-        new_kwargs.pop("tool_choice", None)
 
         return response_model, new_kwargs
 
@@ -861,10 +900,9 @@ class AnthropicStructuredOutputsHandler(AnthropicHandlerBase):
         validation_context: dict[str, Any] | None,
         strict: bool | None,
     ) -> BaseModel:
-        from anthropic.types import Message
         from instructor.v2.core.errors import ResponseParsingError
 
-        if not isinstance(response, Message):
+        if not _is_anthropic_message(response):
             raise ResponseParsingError(
                 "Response must be an Anthropic Message",
                 mode="JSON_SCHEMA",

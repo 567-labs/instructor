@@ -1,4 +1,4 @@
-"""Iterable streaming releases real SDK responses on early exit and errors."""
+"""Iterable and Partial streaming release real SDK responses on early exit and errors."""
 
 from __future__ import annotations
 
@@ -217,28 +217,132 @@ async def test_async_iterable_closes_sdk_response(
         await client.client.close()
 
 
+class _Source:
+    """Async chunk source without any close hook."""
+
+    def __init__(self, chunks: list[str]) -> None:
+        self._chunks = iter(chunks)
+
+    def __aiter__(self) -> _Source:
+        return self
+
+    async def __anext__(self) -> str:
+        try:
+            return next(self._chunks)
+        except StopIteration:
+            raise StopAsyncIteration from None
+
+
+class _SyncClosingSource(_Source):
+    """Async chunk source whose only close hook is synchronous."""
+
+    closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+async def _passthrough(chunks: Any) -> AsyncGenerator[str, None]:
+    async for chunk in chunks:
+        yield chunk
+
+
 @pytest.mark.asyncio
-async def test_iterable_closes_async_generator_source() -> None:
+@pytest.mark.parametrize("source_kind", ["async-generator", "sync-close", "no-close"])
+@pytest.mark.parametrize(
+    ("dsl", "chunks"),
+    [
+        ("partial", ['{"value":1', "}"]),
+        ("iterable", ['{"tasks":[{"value":1}', ',{"value":2}]}']),
+    ],
+)
+async def test_async_dsl_stream_closes_source_on_early_exit(
+    dsl: str, chunks: list[str], source_kind: str
+) -> None:
     from instructor.v2.dsl.iterable import IterableModel
+    from instructor.v2.dsl.partial import Partial
 
     finalized: list[bool] = []
 
-    async def source() -> AsyncGenerator[str, None]:
+    async def generator() -> AsyncGenerator[str, None]:
         try:
-            yield '{"tasks":[{"value":1}'
-            yield ',{"value":2}]}'
+            for chunk in chunks:
+                yield chunk
         finally:
             finalized.append(True)
 
-    async def extract(chunks: AsyncGenerator[str, None]) -> AsyncGenerator[str, None]:
-        async for chunk in chunks:
-            yield chunk
+    source: Any = {
+        "async-generator": generator,
+        "sync-close": lambda: _SyncClosingSource(chunks),
+        "no-close": lambda: _Source(chunks),
+    }[source_kind]()
+    model = cast(Any, Partial[Item] if dsl == "partial" else IterableModel(Item))
+    items = model.from_streaming_response_async(source, stream_extractor=_passthrough)
 
-    model = cast(Any, IterableModel(Item))
-    items = model.from_streaming_response_async(source(), stream_extractor=extract)
-    assert await items.__anext__() == Item(value=1)
+    assert (await items.__anext__()).value == 1
     await items.aclose()
-    assert finalized == [True]
+
+    if source_kind == "async-generator":
+        assert finalized == [True]
+    elif source_kind == "sync-close":
+        assert source.closed
+
+
+async def _partial_sse_body() -> AsyncGenerator[bytes, None]:
+    # A lazy body keeps the response open until the SDK stream is closed.
+    for fragment in ['{"value": 1', "}"]:
+        event = {
+            "id": "chatcmpl-local",
+            "object": "chat.completion.chunk",
+            "created": 1,
+            "model": "local",
+            "choices": [
+                {"index": 0, "delta": {"content": fragment}, "finish_reason": None}
+            ],
+        }
+        yield ("data: " + json.dumps(event) + "\n\n").encode()
+    yield b"data: [DONE]\n\n"
+
+
+@pytest.mark.asyncio
+async def test_async_create_partial_closes_sdk_stream_on_early_exit() -> None:
+    from openai import AsyncOpenAI
+
+    from tests import openai_http
+
+    requests: list[Any] = []
+
+    def transport(request: openai_http.Request) -> openai_http.Response:
+        requests.append(request)
+        return openai_http.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            content=_partial_sse_body(),
+        )
+
+    sdk = AsyncOpenAI(
+        api_key="local-only",
+        http_client=openai_http.AsyncClient(
+            transport=openai_http.MockTransport(transport)
+        ),
+    )
+    client = instructor.from_openai(sdk, mode=Mode.JSON)
+    raw: list[Any] = []
+    client.on("completion:response", raw.append)
+
+    items = client.create_partial(
+        response_model=Item,
+        model="local",
+        messages=[{"role": "user", "content": "extract"}],
+        max_retries=0,
+    )
+    assert (await items.__anext__()).value == 1
+    assert not raw[0].response.is_closed
+    await items.aclose()
+
+    assert raw[0].response.is_closed
+    assert len(requests) == 1
+    await sdk.close()
 
 
 @pytest.mark.parametrize("mode", [Mode.TOOLS])

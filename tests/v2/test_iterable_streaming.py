@@ -229,3 +229,30 @@ def test_tasks_from_chunks_complete_stream_does_not_raise(
 ) -> None:
     model = cast(Any, IterableModel(User))
     assert list(model.tasks_from_chunks(chunks)) == expected
+
+
+# One task object; wrapper siblings must never add tasks.
+A = '{"name":"a","bio":"x"}'
+
+
+@pytest.mark.parametrize("split", [False, True], ids=["whole", "per-char"])
+@pytest.mark.parametrize(
+    ("payload", "names"),
+    [
+        (f'{{"tasks":[{A}],"meta":{{"name":"zz","bio":"y"}}}}', ["a"]),
+        (f'{{"tasks":[{A}],"meta":[{{"name":"]}}","bio":"["}},{A}]}}', ["a"]),
+        (
+            f'{{"tasks":[{A}],"meta":{{"name":"zz"}}}}{{"name":"b","bio":"z"}}',
+            ["a", "b"],
+        ),
+        (f"[{A},{A}]", ["a", "a"]),
+    ],
+    ids=["sibling-object", "brackets-in-strings", "object-after-wrapper", "bare"],
+)
+def test_tasks_wrapper_sibling_keys_are_ignored(
+    payload: str, names: list[str], split: bool
+) -> None:
+    model = cast(Any, IterableModel(User))
+    chunks = list(payload) if split else [payload]
+
+    assert [user.name for user in model.tasks_from_chunks(chunks)] == names

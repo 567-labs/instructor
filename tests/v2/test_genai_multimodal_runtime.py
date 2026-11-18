@@ -20,7 +20,7 @@ def _install_fake_genai(
     install_fake_genai(
         monkeypatch,
         extra_types={
-            "FileState": SimpleNamespace(ACTIVE="ACTIVE"),
+            "FileState": SimpleNamespace(ACTIVE="ACTIVE", FAILED="FAILED"),
             "FileSource": SimpleNamespace(UPLOADED="UPLOADED"),
         },
         client_factory=client_factory,
@@ -56,12 +56,19 @@ def test_image_to_genai_fetches_url_bytes(monkeypatch: pytest.MonkeyPatch) -> No
     assert requests == [("https://example.com/image.png", 30)]
 
 
-def test_image_to_genai_decodes_inline_data(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    "source", ["data:image/png;base64,QQ==", "gs://bucket/image.png"]
+)
+def test_image_to_genai_decodes_inline_data(
+    monkeypatch: pytest.MonkeyPatch, source: str
+) -> None:
+    # The fake Part.from_bytes stores data verbatim, so this proves instructor
+    # decodes base64 itself (newer google-genai releases would hide the bug).
     _install_fake_genai(monkeypatch)
     multimodal = importlib.import_module("instructor.v2.providers.genai.multimodal")
 
     image = Image(
-        source="data:image/png;base64,QQ==",
+        source=source,
         media_type="image/png",
         data="QQ==",
     )
@@ -168,8 +175,9 @@ def test_uploaded_pdf_to_genai_falls_back_to_pdf_encoder(
     assert multimodal.uploaded_pdf_to_genai(pdf) is sentinel
 
 
-def test_upload_new_pdf_file_waits_until_active(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("final_state", ["ACTIVE", "FAILED"])
+def test_upload_new_pdf_file_polls_until_active_or_failed(
+    monkeypatch: pytest.MonkeyPatch, final_state: str
 ) -> None:
     file_states = iter(
         [
@@ -180,7 +188,7 @@ def test_upload_new_pdf_file_waits_until_active(
                 mime_type="application/pdf",
             ),
             SimpleNamespace(
-                state="ACTIVE",
+                state=final_state,
                 name="files/1",
                 uri="gs://file",
                 mime_type="application/pdf",
@@ -205,6 +213,13 @@ def test_upload_new_pdf_file_waits_until_active(
     multimodal = importlib.import_module("instructor.v2.providers.genai.multimodal")
     sleeps: list[int] = []
     monkeypatch.setitem(sys.modules, "time", SimpleNamespace(sleep=sleeps.append))
+
+    if final_state == "FAILED":
+        # PENDING -> FAILED must stop polling instead of waiting out retries.
+        with pytest.raises(ValueError, match="processing failed"):
+            multimodal.upload_new_pdf_file(PDFWithGenaiFile, "/tmp/demo.pdf", 1, 5)
+        assert sleeps == [1]
+        return
 
     result = multimodal.upload_new_pdf_file(PDFWithGenaiFile, "/tmp/demo.pdf", 1, 2)
 

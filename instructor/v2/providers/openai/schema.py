@@ -10,6 +10,35 @@ from docstring_parser import parse
 from pydantic import BaseModel
 
 
+_JSON_SCALAR_TYPE_IDS = frozenset(map(id, (str, int, float, bool, type(None))))
+_MISSING = object()
+
+
+def _copy_schema_value(value: Any, memo: dict[int, Any]) -> Any:
+    """Copy plain JSON containers quickly while preserving shared references."""
+    identity = id(value)
+    if (copied := memo.get(identity, _MISSING)) is not _MISSING:
+        return copied
+    kind = type(value)
+    if id(kind) in _JSON_SCALAR_TYPE_IDS:
+        return value
+    if kind is dict:
+        mapping: dict[Any, Any] = {}
+        memo[identity] = mapping
+        for key, item in value.items():
+            copied_item = _copy_schema_value(item, memo)
+            mapping[_copy_schema_value(key, memo)] = copied_item
+        return mapping
+    if kind is list:
+        items: list[Any] = []
+        memo[identity] = items
+        for item in value:
+            items.append(_copy_schema_value(item, memo))
+        return items
+    # Custom Pydantic schema metadata can contain non-JSON Python objects.
+    return deepcopy(value, memo)
+
+
 @functools.lru_cache(maxsize=256)
 def generate_openai_schema(model: type[BaseModel]) -> dict[str, Any]:
     """Generate an OpenAI function schema from a Pydantic model."""
@@ -49,7 +78,7 @@ def make_strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
     """Return a copied OpenAI strict schema, preserving recursive references."""
     from openai.lib._pydantic import resolve_ref
 
-    strict_schema = deepcopy(schema)
+    strict_schema = _copy_schema_value(schema, {})
 
     def normalize(
         schema: dict[str, Any] | bool,
@@ -110,7 +139,7 @@ def make_strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
             resolved = cast(dict[str, Any], resolve_ref(root=strict_schema, ref=ref))
             # Copy the referenced node, and retain recursive back-references
             # with their metadata instead of expanding indefinitely.
-            schema.update({**deepcopy(resolved), **schema})
+            schema.update({**_copy_schema_value(resolved, {}), **schema})
             del schema["$ref"]
             normalize(schema, active_refs | {ref})
 

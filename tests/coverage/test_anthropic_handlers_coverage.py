@@ -710,12 +710,14 @@ def test_structured_prepare_falls_back_for_old_sdk_and_requires_a_model(
         handler.prepare_request(None, {"messages": []})
 
     monkeypatch.setattr(handlers, "_anthropic_supports_output_format", lambda: False)
+    monkeypatch.setattr(handlers, "_anthropic_supports_output_config", lambda: False)
     with pytest.warns(UserWarning, match="falling back to JSON mode instructions"):
         returned, request = handler.prepare_request(
             User, {"messages": [{"role": "user", "content": "extract"}]}
         )
     assert returned is User
     assert "output_format" not in request
+    assert "output_config" not in request
     assert "json_schema" in request["system"][0]["text"]
 
 
@@ -735,6 +737,7 @@ def test_structured_prepare_builds_schema_normalizes_betas_and_clears_tools(
     monkeypatch: pytest.MonkeyPatch, betas: Any, expected: list[str]
 ) -> None:
     monkeypatch.setattr(handlers, "_anthropic_supports_output_format", lambda: True)
+    monkeypatch.setattr(handlers, "_anthropic_supports_output_config", lambda: False)
     monkeypatch.setattr(
         anthropic,
         "transform_schema",
@@ -780,6 +783,7 @@ def test_structured_prepare_uses_pydantic_schema_when_transform_is_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(handlers, "_anthropic_supports_output_format", lambda: True)
+    monkeypatch.setattr(handlers, "_anthropic_supports_output_config", lambda: False)
     monkeypatch.delattr(anthropic, "transform_schema", raising=False)
 
     with pytest.warns(

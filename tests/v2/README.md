@@ -27,6 +27,15 @@ These tests use parametrization to test common behavior across all providers:
   - `handle_reask` tests
   - Tests handler methods across all providers and modes
 
+- **`test_token_limit_contract.py`** - Token-limit stops raise `IncompleteOutputException`
+  - Streaming Iterable/Partial cases across OpenAI, Responses, Anthropic, GenAI, Cohere, Mistral
+  - Non-streaming JSON/tools cases across Anthropic, Bedrock, Writer, Responses, GenAI
+
+- **`test_reasoning_content_contract.py`** - Reasoning/thinking content is skipped
+  - Mistral thinking chunks, GenAI thought parts, Responses commentary messages
+
+- **`test_system_instruction_injection.py`** - JSON/MD_JSON schema injection into system messages across providers
+
 - **`test_provider_modes.py`** - Integration tests with actual API calls
   - Mode registration verification
   - Basic extraction tests (sync and async)

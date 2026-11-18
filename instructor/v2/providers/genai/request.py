@@ -5,6 +5,30 @@ from __future__ import annotations
 from typing import Any
 
 
+OPENAI_TO_GEMINI_MAP = {
+    "max_tokens": "max_output_tokens",
+    "temperature": "temperature",
+    "n": "candidate_count",
+    "top_p": "top_p",
+    "stop": "stop_sequences",
+    "seed": "seed",
+    "presence_penalty": "presence_penalty",
+    "frequency_penalty": "frequency_penalty",
+}
+
+
+def apply_openai_generation_config(
+    generation_config: dict[str, Any], base_config: dict[str, Any]
+) -> dict[str, Any]:
+    """Move OpenAI-style generation options into GenAI config keys."""
+    for openai_key, gemini_key in OPENAI_TO_GEMINI_MAP.items():
+        if openai_key in generation_config:
+            val = generation_config.pop(openai_key)
+            if val is not None:
+                base_config[gemini_key] = val
+    return base_config
+
+
 def update_genai_kwargs(
     kwargs: dict[str, Any], base_config: dict[str, Any]
 ) -> dict[str, Any]:
@@ -13,24 +37,8 @@ def update_genai_kwargs(
 
     new_kwargs = kwargs.copy()
 
-    OPENAI_TO_GEMINI_MAP = {
-        "max_tokens": "max_output_tokens",
-        "temperature": "temperature",
-        "n": "candidate_count",
-        "top_p": "top_p",
-        "stop": "stop_sequences",
-        "seed": "seed",
-        "presence_penalty": "presence_penalty",
-        "frequency_penalty": "frequency_penalty",
-    }
-
     generation_config = new_kwargs.pop("generation_config", {})
-
-    for openai_key, gemini_key in OPENAI_TO_GEMINI_MAP.items():
-        if openai_key in generation_config:
-            val = generation_config.pop(openai_key)
-            if val is not None:
-                base_config[gemini_key] = val
+    apply_openai_generation_config(generation_config, base_config)
 
     safety_settings = new_kwargs.pop("safety_settings", {})
     base_config["safety_settings"] = []
