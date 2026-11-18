@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import BaseModel
 
 OPENAI_TO_GEMINI_MAP = {
     "max_tokens": "max_output_tokens",
@@ -29,6 +30,22 @@ def apply_openai_generation_config(
     return base_config
 
 
+def _extract_user_config_fields(user_config: Any) -> dict[str, Any]:
+    """Extract non-None fields from a user config dict, model, or object."""
+    if user_config is None:
+        return {}
+    if isinstance(user_config, dict):
+        items = user_config.items()
+    elif isinstance(user_config, BaseModel):
+        items = (
+            (field, getattr(user_config, field))
+            for field in type(user_config).model_fields
+        )
+    else:
+        items = vars(user_config).items()
+    return {key: value for key, value in items if value is not None}
+
+
 def update_genai_kwargs(
     kwargs: dict[str, Any], base_config: dict[str, Any]
 ) -> dict[str, Any]:
@@ -36,11 +53,25 @@ def update_genai_kwargs(
     from google.genai.types import HarmBlockThreshold, HarmCategory
 
     new_kwargs = kwargs.copy()
+    owned_keys = {
+        k
+        for k, v in base_config.items()
+        if v is not None and not (k == "system_instruction" and v == "")
+    }
 
-    generation_config = new_kwargs.pop("generation_config", {})
+    raw_generation_config = new_kwargs.pop("generation_config", None)
+    generation_config = (
+        dict(raw_generation_config) if isinstance(raw_generation_config, dict) else {}
+    )
     apply_openai_generation_config(generation_config, base_config)
 
-    safety_settings = new_kwargs.pop("safety_settings", {})
+    user_fields = _extract_user_config_fields(new_kwargs.get("config"))
+
+    safety_settings = new_kwargs.pop("safety_settings", None)
+    if safety_settings is None:
+        safety_settings = user_fields.get("safety_settings")
+    if safety_settings is None:
+        safety_settings = {}
     base_config["safety_settings"] = []
 
     if isinstance(safety_settings, list):
@@ -72,36 +103,18 @@ def update_genai_kwargs(
                 }
             )
 
-    user_config = new_kwargs.get("config")
-    user_thinking_config = None
-    if isinstance(user_config, dict):
-        user_thinking_config = user_config.get("thinking_config")
-    elif user_config is not None and hasattr(user_config, "thinking_config"):
-        user_thinking_config = user_config.thinking_config
-
     thinking_config = new_kwargs.pop("thinking_config", None)
     if thinking_config is None:
-        thinking_config = user_thinking_config
+        thinking_config = user_fields.get("thinking_config")
 
     if thinking_config is not None:
         base_config["thinking_config"] = thinking_config
 
-    if user_config is not None:
-        config_fields_to_merge = [
-            "automatic_function_calling",
-            "labels",
-            "cached_content",
-        ]
-        for field in config_fields_to_merge:
-            if isinstance(user_config, dict):
-                field_value = user_config.get(field)
-            elif hasattr(user_config, field):
-                field_value = getattr(user_config, field)
-            else:
-                field_value = None
-
-            if field_value is not None and field not in base_config:
-                base_config[field] = field_value
+    for field, field_value in user_fields.items():
+        if field in ("safety_settings", "thinking_config"):
+            continue
+        if field not in owned_keys:
+            base_config[field] = field_value
 
     cached_content = new_kwargs.pop("cached_content", None)
     if cached_content is not None and "cached_content" not in base_config:
