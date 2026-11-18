@@ -121,7 +121,7 @@ def _copy_message_for_templating(message: Any) -> Any:
 
 def handle_templating(
     kwargs: dict[str, Any],
-    mode: Mode,  # noqa: ARG001
+    mode: Mode,
     provider: Provider | dict[str, Any] | None = None,
     context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -153,6 +153,13 @@ def handle_templating(
         provider = provider_from_mode(mode, Provider.OPENAI)
 
     new_kwargs = kwargs.copy()
+
+    if (
+        mode in (Mode.RESPONSES_TOOLS, Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS)
+        and provider in (Provider.OPENAI, Provider.AZURE_OPENAI)
+        and isinstance(new_kwargs.get("instructions"), str)
+    ):
+        new_kwargs["instructions"] = apply_template(new_kwargs["instructions"], context)
 
     # Handle Cohere's message field
     if "message" in new_kwargs:
