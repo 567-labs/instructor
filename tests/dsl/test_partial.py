@@ -3,7 +3,7 @@ import json
 from collections.abc import Callable, AsyncGenerator, Generator, Iterable
 from copy import deepcopy
 from enum import Enum
-from typing import Any, Literal, Optional, Protocol, TypeVar, Union, cast
+from typing import Annotated, Any, Literal, Optional, Protocol, TypeVar, Union, cast
 
 import pytest
 from jiter import from_json
@@ -1434,6 +1434,31 @@ class TestOptionalNestedBaseModelDuringPartialStreaming:
         # Would be a raw dict before the fix, raising AttributeError on .name
         assert isinstance(obj.items[-1], Item)
         assert obj.items[-1].name == "banana"
+
+    def test_partial_annotated_submodel_hydrates_in_incomplete_snapshot(self):
+        """Annotated[SubModel, ...] inside list/Optional/dict must hydrate into
+        model instances, not raw dicts, in intermediate streaming snapshots."""
+
+        class Step(BaseModel):
+            val: int
+
+        class Plan(BaseModel):
+            items: list[Annotated[Step, Field(description="A step")]]
+            opt_step: Optional[Annotated[Step, Field(description="Optional")]] = None
+            by_key: dict[str, Annotated[Step, Field(description="Keyed")]] = {}
+            summary: str
+
+        chunks = [
+            '{"items": [{"val": 7}], "opt_step": {"val": 9}, '
+            '"by_key": {"a": {"val": 1}}, "summary": "in prog'
+        ]
+
+        last = list(_partial_api(Partial[Plan]).model_from_chunks(chunks))[-1]
+
+        assert isinstance(last.items[0], Step)
+        assert isinstance(last.opt_step, Step)
+        assert isinstance(last.by_key["a"], Step)
+        assert last.opt_step.val == 9
 
 
 class TestAliasPathDuringPartialStreaming:
