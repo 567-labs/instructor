@@ -81,9 +81,10 @@ class CitationMixin(BaseModel):
             )
 
         # Search each source independently; joined chunks can invent cross-source quotes.
-        self.substring_quotes = [
+        verified = (
             chunk[start:end] for chunk in chunks for start, end in self.get_spans(chunk)
-        ]
+        )
+        self.substring_quotes = list(dict.fromkeys(verified))
         return self
 
     def _get_span(
