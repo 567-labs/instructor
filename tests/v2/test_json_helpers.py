@@ -258,3 +258,50 @@ def test_extract_json_from_codeblock_depth_exceeds_128_rejected() -> None:
     content = '{"a": ' * 128 + '{"a": 1}' + "}" * 129
     with pytest.raises(ValueError, match="128 level limit"):
         extract_json_from_codeblock(content)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        '```json\n{"name": "Ada", "age": 36}\n```\nSources: [1]',
+        '```json\n{"name": "Ada", "age": 36}\n```\n[1] https://example.org/ada',
+        '```json\n{"name": "Ada", "age": 36}\n```\nSee [12] and [3][4].',
+        '```json\n{"name": "Ada", "age": 36}\n```\nIf unsure I would return {} or [].',
+        '```\n{"name": "Ada", "age": 36}\n```\nSources: [1]',
+    ],
+)
+def test_extract_json_from_codeblock_ignores_citation_after_fence(content: str) -> None:
+    assert extract_json_from_codeblock(content) == '{"name": "Ada", "age": 36}'
+
+
+def test_extract_json_from_codeblock_array_of_objects_fence_beats_citation() -> None:
+    content = '```json\n[{"id": 1}]\n```\nsee [2]'
+    assert extract_json_from_codeblock(content) == '[{"id": 1}]'
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        # The last answer still wins: a final scalar array is an answer.
+        ('Example: {"note":"ignore"}\nAnswer: [1, 2, 3]', "[1, 2, 3]"),
+        # Without a fence the last span wins, even when it looks like a citation.
+        ('Example: {"note":"ignore"}\nAnswer: [1]', "[1]"),
+        ('{"name": "Ada", "age": 36}\nReferences: [1]', "[1]"),
+        # Only citation-like spans are skipped after a fence; [2, 3] is not one.
+        ('```json\n{"name": "Ada"}\n```\nReferences: [2, 3]', "[2, 3]"),
+        # A later object after the fence is the answer, as before.
+        ('```json\n{"value": 1}\n```\nfinal {"value": 2}', '{"value": 2}'),
+        ("Answer: [1, 2, 3]", "[1, 2, 3]"),
+        ("{}", "{}"),
+    ],
+)
+def test_extract_json_from_codeblock_keeps_last_answer(
+    content: str, expected: str
+) -> None:
+    assert extract_json_from_codeblock(content) == expected
+
+
+def test_extract_json_from_codeblock_fence_check_is_linear() -> None:
+    # A long whitespace run after a fence marker must not trigger backtracking.
+    content = "```" + " " * 200_000 + 'x {"a": 1} [1]'
+    assert extract_json_from_codeblock(content) == "[1]"
