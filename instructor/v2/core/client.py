@@ -26,11 +26,47 @@ from tenacity import (
 from collections.abc import Generator, Iterable, Awaitable, AsyncGenerator, Coroutine
 from typing_extensions import Self, TypeVar, overload
 from pydantic_core import PydanticUndefined, PydanticUndefinedType
+from pydantic import create_model
 from instructor.v2.dsl.partial import Partial
 from instructor.v2.core.hooks import Hooks, HookName
 
 
 T = TypeVar("T")
+
+
+def _completion_model(
+    response_model: type[T] | None,
+) -> tuple[type[Any] | None, bool]:
+    if response_model is None:
+        return None, False
+    from instructor.v2.dsl.simple_type import is_simple_type
+
+    if get_origin(response_model) is list or not is_simple_type(response_model):
+        return response_model, False
+    from instructor.v2.core.function_calls import ResponseSchema
+
+    # Keep the adapter's wire schema, but defer unwrapping until its raw
+    # completion has been collected. Native values cannot carry attributes.
+    return create_model(
+        "Response",
+        content=(response_model, ...),
+        __doc__="Correctly Formatted and Extracted Response.",
+        __base__=ResponseSchema,
+    ), True
+
+
+def _completion_result(model: Any, unwrap: bool) -> tuple[Any, Any]:
+    raw = model._raw_response
+    if not unwrap:
+        return model, raw
+    value = model.content
+    if isinstance(value, list):
+        from instructor.v2.dsl.response_list import ListResponse
+
+        value = ListResponse.from_list(
+            value, raw_response=raw, total_usage=getattr(model, "_total_usage", None)
+        )
+    return value, raw
 
 
 def _strict_kwargs(
@@ -764,6 +800,8 @@ class Instructor(Generic[_ResponseT]):
         reject_async_validators(response_model)
         kwargs = self.handle_kwargs(kwargs)
 
+        completion_model, unwrap = _completion_model(response_model)
+
         # Combine client hooks with per-call hooks
         combined_hooks = self.hooks
         if hooks is not None:
@@ -771,7 +809,7 @@ class Instructor(Generic[_ResponseT]):
 
         model = self.create_fn(
             messages=messages,
-            response_model=response_model,
+            response_model=completion_model,
             max_retries=max_retries,
             context=context,
             **_strict_kwargs(strict, self.create_fn),
@@ -781,7 +819,7 @@ class Instructor(Generic[_ResponseT]):
         if response_model is None:
             # No response model: create_fn returns the raw provider completion.
             return model, model
-        return model, model._raw_response
+        return _completion_result(model, unwrap)
 
     def handle_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         """
@@ -996,13 +1034,15 @@ class AsyncInstructor(Instructor[AsyncResponse]):
         reject_async_validators(response_model)
         kwargs = self.handle_kwargs(kwargs)
 
+        completion_model, unwrap = _completion_model(response_model)
+
         # Combine client hooks with per-call hooks
         combined_hooks = self.hooks
         if hooks is not None:
             combined_hooks = self.hooks + hooks
 
         response = await self.create_fn(
-            response_model=response_model,
+            response_model=completion_model,
             context=context,
             max_retries=max_retries,
             messages=messages,
@@ -1013,7 +1053,7 @@ class AsyncInstructor(Instructor[AsyncResponse]):
         if response_model is None:
             # No response model: create_fn returns the raw provider completion.
             return response, response
-        return response, response._raw_response
+        return _completion_result(response, unwrap)
 
 
 @overload
