@@ -10,12 +10,21 @@ from instructor.v2.core.remote import MAX_PDF_BYTES, fetch_remote_content
 
 
 def image_to_anthropic(image: Any) -> dict[str, Any]:
-    if (
-        isinstance(image.source, str)
-        and image.source.startswith(("http://", "https://"))
-        and not image.data
-    ):
-        image.data = image.url_to_base64(image.source)
+    if not image.data:
+        source = image.source
+        if isinstance(source, str) and source.lower().startswith(("http://", "https://")):
+            image.data = image.url_to_base64(source)
+        else:
+            is_base64 = getattr(type(image), "is_base64", None)
+            if (
+                isinstance(source, str)
+                and callable(is_base64)
+                and is_base64(source)
+                and "," in source
+            ):
+                image.data = source.split(",", 1)[1]
+            else:
+                raise ValueError("Image data is missing for base64 encoding.")
     return {
         "type": "image",
         "source": {
