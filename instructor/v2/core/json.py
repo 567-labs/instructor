@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import AsyncGenerator, Generator, Iterable
 
 
 MAX_JSON_EXTRACTION_CHARS = 1024 * 1024
 MAX_JSON_DEPTH = 128
+
+# Trailing search citations and empty shells that often follow a fenced answer.
+_CITATION_LIKE = re.compile(r"^(?:\[\d*\]|\{\})$")
 
 
 def extract_json_from_codeblock(content: str) -> str:
@@ -18,13 +22,47 @@ def extract_json_from_codeblock(content: str) -> str:
     appeared earlier may have originated from user input embedded in the
     prompt and was referenced in the model's reasoning. Returning the first
     object allowed prompt-injection to hijack the parsed output.
+
+    Citation-like spans such as ``[1]`` or ``{}`` that appear after a closed
+    Markdown fence whose body is valid JSON are skipped so search-grounded
+    replies do not replace the fenced answer (#3067).
     """
     return _last_json_span(content) or content
+
+
+def _is_citation_like(span: str) -> bool:
+    return _CITATION_LIKE.fullmatch(span.strip()) is not None
+
+
+def _closed_json_fence_ends(content: str) -> list[int]:
+    """End offsets of closed ``` fences whose stripped body is valid JSON."""
+    ends: list[int] = []
+    cursor = 0
+    while True:
+        open_ticks = content.find("```", cursor)
+        if open_ticks < 0:
+            break
+        line_end = content.find("\n", open_ticks + 3)
+        if line_end < 0:
+            break
+        close_ticks = content.find("```", line_end + 1)
+        if close_ticks < 0:
+            break
+        body = content[line_end + 1 : close_ticks].strip()
+        try:
+            json.loads(body)
+        except ValueError:
+            cursor = close_ticks + 3
+            continue
+        ends.append(close_ticks + 3)
+        cursor = close_ticks + 3
+    return ends
 
 
 def _last_json_span(content: str) -> str | None:
     if len(content) > MAX_JSON_EXTRACTION_CHARS:
         raise ValueError("JSON extraction input exceeds the 1 MiB character limit")
+    fence_ends = _closed_json_fence_ends(content)
     decoder = json.JSONDecoder()
     last_valid: str | None = None
     consumed = 0
@@ -56,7 +94,17 @@ def _last_json_span(content: str) -> str | None:
                 children = node.values() if isinstance(node, dict) else node
                 pending.extend((child, depth + 1) for child in children)
         remaining_work -= end - index
-        last_valid = content[index:end]
+        span = content[index:end]
+        # Keep "last JSON wins", but do not let citation shells after a fenced
+        # answer replace that answer (search-grounded models append [n] / {}).
+        if (
+            _is_citation_like(span)
+            and fence_ends
+            and any(index >= fence_end for fence_end in fence_ends)
+        ):
+            consumed = end
+            continue
+        last_valid = span
         consumed = end
     return last_valid
 
