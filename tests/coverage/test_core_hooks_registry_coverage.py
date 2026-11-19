@@ -413,6 +413,25 @@ def test_unknown_provider_url_does_not_guess_a_provider() -> None:
     assert get_provider("https://api.example.invalid/v1") is Provider.UNKNOWN
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://api.example.invalid/v1?provider=anthropic",
+        "https://api.example.invalid/v1/openrouter",
+        "https://api.example.invalid/v1?engine=groq",
+    ],
+)
+def test_provider_detection_ignores_url_path_and_query(url: str) -> None:
+    assert get_provider(url) is Provider.UNKNOWN
+
+
+def test_provider_detection_preserves_known_hosts_and_ollama_port() -> None:
+    assert get_provider("https://api.openai.com/v1") is Provider.OPENAI
+    assert get_provider("https://api.deepseek.com/v1") is Provider.DEEPSEEK
+    assert get_provider("http://localhost:11434/v1") is Provider.OLLAMA
+    assert get_provider("ollama") is Provider.OLLAMA
+
+
 def test_provider_helpers_detect_known_urls_and_normalize_legacy_modes() -> None:
     assert get_provider("https://api.openai.com/v1") is Provider.OPENAI
     assert provider_from_mode(Mode.ANTHROPIC_TOOLS) is Provider.ANTHROPIC
