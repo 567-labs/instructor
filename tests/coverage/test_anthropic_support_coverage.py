@@ -520,3 +520,31 @@ def test_anthropic_usage_accumulates_legacy_dictionary_details(
             "thinking_tokens": expected,
             "metadata": "current",
         }
+
+def test_image_to_anthropic_reads_data_uri_payload() -> None:
+    from instructor.v2.core.multimodal import Image
+
+    payload = "iVBORw0KGgo="
+    image = Image(
+        source=f"data:image/png;base64,{payload}",
+        media_type="image/png",
+        data=None,
+    )
+    assert multimodal.image_to_anthropic(image) == {
+        "type": "image",
+        "source": {
+            "type": "base64",
+            "media_type": "image/png",
+            "data": payload,
+        },
+    }
+    assert image.data == payload
+
+
+def test_image_to_anthropic_rejects_bare_path_without_data() -> None:
+    from instructor.v2.core.multimodal import Image
+
+    image = Image(source="photo.png", media_type="image/png", data=None)
+    with pytest.raises(ValueError, match="Image data is missing"):
+        multimodal.image_to_anthropic(image)
+
