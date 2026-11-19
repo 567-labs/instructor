@@ -111,9 +111,11 @@ def get_provider(base_url: str) -> Provider:
 
     normalized = str(base_url).lower()
     try:
-        hostname = urlsplit(normalized).hostname
+        url = urlsplit(normalized)
+        hostname = url.hostname
+        port = url.port
     except ValueError:
-        hostname = None
+        return Provider.UNKNOWN
     if hostname in ENDPOINT_HOSTS:
         return ENDPOINT_HOSTS[hostname]
     providers = (
@@ -144,7 +146,12 @@ def get_provider(base_url: str) -> Provider:
         ("x.ai", Provider.XAI),
         ("xai", Provider.XAI),
     )
+    # Paths and query strings can contain unrelated provider names on API gateways.
+    # Use the hostname for full URLs, preserving bare provider-name inputs.
+    host_hint = hostname or normalized
+    if hostname == "localhost" and port == 11434:
+        return Provider.OLLAMA
     for token, provider in providers:
-        if token in normalized:
+        if token in host_hint:
             return provider
     return Provider.UNKNOWN
