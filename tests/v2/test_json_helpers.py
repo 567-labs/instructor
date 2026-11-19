@@ -258,3 +258,34 @@ def test_extract_json_from_codeblock_depth_exceeds_128_rejected() -> None:
     content = '{"a": ' * 128 + '{"a": 1}' + "}" * 129
     with pytest.raises(ValueError, match="128 level limit"):
         extract_json_from_codeblock(content)
+
+def test_extract_json_from_codeblock_skips_trailing_citation_after_fence() -> None:
+    content = '''```json
+{"name": "Ada", "age": 36}
+```
+Sources: [1]'''
+    assert extract_json_from_codeblock(content) == '{"name": "Ada", "age": 36}'
+
+
+def test_extract_json_from_codeblock_skips_empty_object_after_fence() -> None:
+    content = '''```json
+{"passing": true, "reason": "..."}
+```
+If unsure I would have returned {} instead.'''
+    assert (
+        extract_json_from_codeblock(content)
+        == '{"passing": true, "reason": "..."}'
+    )
+
+
+def test_extract_json_from_codeblock_keeps_last_non_citation_after_fence() -> None:
+    content = (
+        'example {"wrong":true}\n```json\n{"value":1}\n```\n'
+        'final {"value":2}'
+    )
+    assert extract_json_from_codeblock(content) == '{"value":2}'
+
+
+def test_extract_json_from_codeblock_keeps_unfenced_array_answer() -> None:
+    content = 'Example: {"note":"ignore"}\nAnswer: [1, 2, 3]'
+    assert extract_json_from_codeblock(content) == "[1, 2, 3]"
