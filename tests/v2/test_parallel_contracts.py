@@ -20,7 +20,11 @@ from pydantic import (
 )
 
 from instructor import Mode
-from instructor.v2.core.errors import InstructorRetryException, ResponseParsingError
+from instructor.v2.core.errors import (
+    IncompleteOutputException,
+    InstructorRetryException,
+    ResponseParsingError,
+)
 from instructor.v2.core.providers import Provider
 from instructor.v2.core.registry import mode_registry
 from instructor.v2.dsl.parallel import VertexAIParallelModel
@@ -397,6 +401,67 @@ def test_unknown_call_retries_inside_sdk_http_boundary(
         else tools[0]["function"]["name"]
     ) == "extract_contract"
     assert len(requests[1]["messages"]) > len(requests[0]["messages"])
+
+
+@pytest.mark.parametrize("beta", [False, True])
+@pytest.mark.parametrize("stop_reason", ["max_tokens", "tool_use", "end_turn"])
+def test_anthropic_parallel_token_limit(beta: bool, stop_reason: str) -> None:
+    types = pytest.importorskip("anthropic.types.beta" if beta else "anthropic.types")
+    message_type = types.BetaMessage if beta else types.Message
+    payload = response_payload(Provider.ANTHROPIC, [("extract_contract", True)])
+    payload["stop_reason"] = stop_reason
+    response = message_type.model_validate(payload)
+
+    def parse_response() -> Any:
+        return parse(Provider.ANTHROPIC, Mode.PARALLEL_TOOLS, response, Contract, True)
+
+    if stop_reason == "max_tokens":
+        with pytest.raises(IncompleteOutputException) as error:
+            list(parse_response())
+        assert error.value.last_completion is response
+    else:
+        assert list(parse_response()) == [Contract(value=False)]
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("stop_reason", ["max_tokens", "tool_use"])
+def test_anthropic_parallel_token_limit_over_http(
+    local_http: Any, asynchronous: bool, stop_reason: str
+) -> None:
+    url, replies, requests = local_http
+    payload = response_payload(Provider.ANTHROPIC, [("extract_contract", True)])
+    payload["stop_reason"] = stop_reason
+    replies.append(payload)
+    wrapped, sdk = http_client(
+        Provider.ANTHROPIC, Mode.PARALLEL_TOOLS, url, asynchronous
+    )
+    kwargs = dict(
+        response_model=Iterable[Contract],
+        messages=[{"role": "user", "content": "Extract all contracts"}],
+        model="local-model",
+        max_tokens=64,
+        max_retries=0,
+    )
+
+    async def call_async() -> Any:
+        try:
+            return await wrapped.create(**kwargs)
+        finally:
+            await sdk.close()
+
+    def call() -> Any:
+        return asyncio.run(call_async()) if asynchronous else wrapped.create(**kwargs)
+
+    try:
+        if stop_reason == "max_tokens":
+            with pytest.raises(IncompleteOutputException):
+                list(call())
+        else:
+            assert list(call()) == [Contract(value=True)]
+    finally:
+        if not asynchronous:
+            sdk.close()
+    assert len(requests) == 1
 
 
 def xai_response(calls: list[tuple[str, Any]]) -> Any:
