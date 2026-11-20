@@ -1533,3 +1533,74 @@ def test_partial_model_builds_models_inside_mapping_values():
     assert obj.nested[0]["c"].name == "cherry"
     assert isinstance(obj.nested[0]["d"], Item)
     assert obj.nested[0]["d"].name == "dam"
+
+
+def test_partial_model_hydrates_annotated_nested_models():
+    """Nested BaseModel instances wrapped in typing.Annotated inside container or
+    optional annotations (such as list[Annotated[SubModel, ...]],
+    Optional[Annotated[SubModel, ...]], or dict[str, Annotated[SubModel, ...]])
+    must hydrate into model instances during streaming rather than staying plain dicts (#3058).
+    """
+    from typing import Annotated
+
+    class Step(BaseModel):
+        val: int
+        label: Optional[str] = None
+
+    class Plan(BaseModel):
+        items: list[Annotated[Step, Field(description="A step")]]
+        opt_step: Optional[Annotated[Step, Field(description="Optional step")]] = None
+        dict_step: dict[str, Annotated[Step, Field(description="Dict step")]] = {}
+        summary: str
+
+    chunks = [
+        '{"items": [{"val": 7, "label": "first"}, {"val": 8, "label": "sec',
+        'ond"}], "opt_step": {"val": 9, "label": "opt"}, "dict_step": {"a": {"val": 10}}, "summary": "in prog',
+    ]
+
+    results = list(_partial_api(Partial[Plan]).model_from_chunks(chunks))
+    obj = results[-1]
+
+    assert isinstance(obj.items[0], Step)
+    assert obj.items[0].val == 7
+    assert obj.items[0].label == "first"
+
+    assert isinstance(obj.items[1], Step)
+    assert obj.items[1].val == 8
+    assert obj.items[1].label == "second"
+
+    assert isinstance(obj.opt_step, Step)
+    assert obj.opt_step.val == 9
+    assert obj.opt_step.label == "opt"
+
+    assert isinstance(obj.dict_step["a"], Step)
+    assert obj.dict_step["a"].val == 10
+
+
+def test_partial_model_hydrates_annotated_nested_models_async():
+    from typing import Annotated
+
+    class Step(BaseModel):
+        val: int
+
+    class Plan(BaseModel):
+        items: list[Annotated[Step, Field(description="A step")]]
+        opt_step: Optional[Annotated[Step, Field(description="Optional step")]] = None
+
+    async def collect():
+        async def chunks():
+            yield '{"items": [{"val": 42}], "opt_step": {"val": 99}'
+
+        return [
+            item
+            async for item in _partial_api(Partial[Plan]).model_from_chunks_async(
+                chunks()
+            )
+        ]
+
+    snapshots = asyncio.run(collect())
+    obj = snapshots[-1]
+    assert isinstance(obj.items[0], Step)
+    assert obj.items[0].val == 42
+    assert isinstance(obj.opt_step, Step)
+    assert obj.opt_step.val == 99
