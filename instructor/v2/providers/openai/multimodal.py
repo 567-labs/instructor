@@ -55,13 +55,19 @@ def audio_to_openai(audio: Any, mode: Mode) -> dict[str, Any]:
             "Expected WAV or MP3."
         )
 
-    return {
-        "type": "input_audio",
-        "input_audio": {
-            "data": audio.data,
-            "format": format_by_media_type[media_type],
-        },
-    }
+    if audio.data or audio.is_base64(str(audio.source)):
+        data = audio.data or str(audio.source).split(",", 1)[1]
+        if not data:
+            raise ValueError("Audio data is missing for base64 encoding.")
+        return {
+            "type": "input_audio",
+            "input_audio": {
+                "data": data,
+                "format": format_by_media_type[media_type],
+            },
+        }
+
+    raise ValueError("Audio data is missing for base64 encoding.")
 
 
 def pdf_to_openai(pdf: Any, mode: Mode) -> dict[str, Any]:
