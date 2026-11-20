@@ -15,7 +15,11 @@ from tenacity import (
 )
 
 from instructor import Mode, Provider
-from instructor.v2.core.errors import InstructorRetryException, ResponseParsingError
+from instructor.v2.core.errors import (
+    IncompleteOutputException,
+    InstructorRetryException,
+    ResponseParsingError,
+)
 from instructor.v2.core.hooks import Hooks
 from instructor.v2.core.retry import (
     _finalize_parsed_response,
@@ -1228,3 +1232,92 @@ async def test_retry_async_v2_reports_an_empty_retry_policy_without_losing_conte
     assert "Unexpected code path in retry_async_v2" in [
         record.getMessage() for record in caplog.records
     ]
+
+
+def _truncation_hooks() -> tuple[Hooks, dict[str, list[Any]]]:
+    emitted: dict[str, list[Any]] = {"completion_errors": [], "last_attempts": []}
+    hooks = Hooks()
+    hooks.on(
+        "completion:error",
+        lambda error, **kwargs: emitted["completion_errors"].append((error, kwargs)),
+    )
+    hooks.on(
+        "completion:last_attempt",
+        lambda error, **kwargs: emitted["last_attempts"].append((error, kwargs)),
+    )
+    return hooks, emitted
+
+
+def _patch_truncating_parser(monkeypatch: pytest.MonkeyPatch) -> None:
+    def raise_incomplete(**kwargs: Any) -> Answer:
+        raise IncompleteOutputException(last_completion=kwargs["response"])
+
+    monkeypatch.setattr(
+        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
+        lambda _provider, _mode: None,
+    )
+    monkeypatch.setattr(
+        "instructor.v2.core.retry.mode_registry.get_handlers",
+        lambda _provider, _mode: SimpleNamespace(
+            response_parser=raise_incomplete,
+            reask_handler=lambda **kwargs: kwargs,
+        ),
+    )
+
+
+def _assert_truncation_reported(
+    emitted: dict[str, list[Any]], error: IncompleteOutputException
+) -> None:
+    metadata = {"attempt_number": 1, "max_attempts": 4, "is_last_attempt": True}
+    assert emitted["completion_errors"] == [(error, metadata)]
+    assert emitted["last_attempts"] == [(error, metadata)]
+
+
+def test_retry_sync_v2_reports_incomplete_output_to_error_hooks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_truncating_parser(monkeypatch)
+    hooks, emitted = _truncation_hooks()
+
+    with pytest.raises(IncompleteOutputException) as exc_info:
+        retry_sync_v2(
+            func=lambda **_kwargs: {"finish_reason": "length"},
+            response_model=Answer,
+            provider=Provider.OPENAI,
+            mode=Mode.TOOLS,
+            context=None,
+            max_retries=3,
+            args=(),
+            kwargs={"messages": [{"role": "user", "content": "first"}]},
+            strict=True,
+            hooks=hooks,
+        )
+
+    _assert_truncation_reported(emitted, exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_retry_async_v2_reports_incomplete_output_to_error_hooks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_truncating_parser(monkeypatch)
+    hooks, emitted = _truncation_hooks()
+
+    async def fake_func(**_kwargs: Any) -> dict[str, Any]:
+        return {"finish_reason": "length"}
+
+    with pytest.raises(IncompleteOutputException) as exc_info:
+        await retry_async_v2(
+            func=fake_func,
+            response_model=Answer,
+            provider=Provider.OPENAI,
+            mode=Mode.TOOLS,
+            context=None,
+            max_retries=3,
+            args=(),
+            kwargs={"messages": [{"role": "user", "content": "first"}]},
+            strict=True,
+            hooks=hooks,
+        )
+
+    _assert_truncation_reported(emitted, exc_info.value)
