@@ -45,10 +45,15 @@ def image_to_genai(image: Any) -> Any:
 
 def audio_to_genai(audio: Any) -> Any:
     types = _types()
-    return types.Part.from_bytes(
-        data=base64.b64decode(audio.data),
-        mime_type=audio.media_type,
-    )
+    if audio.data or audio.is_base64(str(audio.source)):
+        data = audio.data or str(audio.source).split(",", 1)[1]
+        if not data:
+            raise ValueError("Audio data is missing for base64 encoding.")
+        return types.Part.from_bytes(
+            data=base64.b64decode(data),
+            mime_type=audio.media_type,
+        )
+    raise ValueError("Audio data is missing for base64 encoding.")
 
 
 def pdf_to_genai(pdf: Any) -> Any:

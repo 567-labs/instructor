@@ -135,3 +135,39 @@ def test_audio_from_path_accepts_platform_aliases(
 )
 def test_audio_data_uri_aliases_are_normalized(alias: str, media_type: str) -> None:
     assert Audio.from_base64(f"data:{alias};base64,YWJj").media_type == media_type
+
+
+def test_audio_direct_construction_with_data_uri_encodes_for_openai(
+    wav_bytes: bytes,
+) -> None:
+    encoded = base64.b64encode(wav_bytes).decode()
+    source = f"data:audio/wav;base64,{encoded}"
+    audio = Audio(source=source, media_type="audio/wav")
+
+    result = audio.to_openai(Mode.TOOLS)
+    assert result == {
+        "type": "input_audio",
+        "input_audio": {
+            "data": encoded,
+            "format": "wav",
+        },
+    }
+
+
+def test_audio_missing_data_raises_value_error() -> None:
+    audio = Audio(source="http://example.com/audio.wav", media_type="audio/wav")
+    with pytest.raises(ValueError, match="Audio data is missing for base64 encoding"):
+        audio.to_openai(Mode.TOOLS)
+
+
+def test_audio_direct_construction_with_data_uri_encodes_for_genai(
+    wav_bytes: bytes,
+) -> None:
+    pytest.importorskip("google.genai")
+    encoded = base64.b64encode(wav_bytes).decode()
+    source = f"data:audio/wav;base64,{encoded}"
+    audio = Audio(source=source, media_type="audio/wav")
+
+    part = audio.to_genai()
+    assert part.inline_data.mime_type == "audio/wav"
+    assert part.inline_data.data == wav_bytes
