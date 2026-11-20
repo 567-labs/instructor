@@ -13,6 +13,7 @@ import pytest
 from pydantic import BaseModel
 
 from instructor import Mode, Provider
+from instructor.v2.core.errors import ResponseParsingError
 from instructor.v2.core.registry import mode_registry
 
 
@@ -146,8 +147,13 @@ class TestXAIToolsHandler:
         """Test parsing raises error when no content available."""
         response = MockResponse()
 
-        with pytest.raises(ValueError, match="No tool calls returned"):
+        with pytest.raises(
+            ResponseParsingError, match="No tool calls returned"
+        ) as exc_info:
             handler.response_parser(response, Answer)
+        assert isinstance(exc_info.value, ValueError)
+        assert exc_info.value.mode == Mode.TOOLS
+        assert exc_info.value.raw_response == response
 
     def test_handle_reask_adds_messages(self, handler):
         """Test handle_reask adds assistant and user messages."""
@@ -244,8 +250,11 @@ class TestXAIJSONSchemaHandler:
         """Test parsing raises error when no content available."""
         response = MockResponse()
 
-        with pytest.raises(ValueError, match="Could not parse"):
+        with pytest.raises(ResponseParsingError, match="Could not parse") as exc_info:
             handler.response_parser(response, Answer)
+        assert isinstance(exc_info.value, ValueError)
+        assert exc_info.value.mode == Mode.JSON_SCHEMA
+        assert exc_info.value.raw_response == response
 
     def test_handle_reask_adds_message(self, handler):
         """Test handle_reask adds user message with error."""
@@ -347,8 +356,13 @@ class TestXAIMDJSONHandler:
         """Test parsing raises error when no content available."""
         response = MockResponse()
 
-        with pytest.raises(ValueError, match="Could not extract JSON"):
+        with pytest.raises(
+            ResponseParsingError, match="Could not extract JSON"
+        ) as exc_info:
             handler.response_parser(response, Answer)
+        assert isinstance(exc_info.value, ValueError)
+        assert exc_info.value.mode == Mode.MD_JSON
+        assert exc_info.value.raw_response == response
 
     def test_handle_reask_adds_message(self, handler):
         """Test handle_reask adds user message with error."""
@@ -440,3 +454,14 @@ class TestXAIHandlerEdgeCases:
 
         assert result_kwargs["max_tokens"] == 500
         assert result_kwargs["temperature"] == 0.7
+
+    def test_xai_unparseable_errors_are_retryable(self):
+        """Test that errors raised by xAI on unparseable responses match _RETRYABLE_PARSE_ERRORS."""
+        from instructor.v2.core.retry import _RETRYABLE_PARSE_ERRORS
+
+        response = MockResponse()
+        for mode in (Mode.TOOLS, Mode.JSON_SCHEMA, Mode.MD_JSON):
+            handler = mode_registry.get_handlers(Provider.XAI, mode)
+            with pytest.raises(ResponseParsingError) as exc_info:
+                handler.response_parser(response, Answer)
+            assert isinstance(exc_info.value, _RETRYABLE_PARSE_ERRORS)

@@ -34,6 +34,7 @@ else:
     except ImportError:
         xchat = None
 
+from instructor.v2.core.errors import ResponseParsingError
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
 from instructor.v2.dsl.iterable import IterableBase
@@ -442,9 +443,11 @@ class XAIToolsHandler(XAIHandlerBase):
             )
             return self._finalize_parsed_result(response_model, response, parsed)
 
-        raise ValueError(
+        raise ResponseParsingError(
             f"No tool calls returned from xAI and no text content available. "
-            f"Response: {response}"
+            f"Response: {response}",
+            mode=self.mode,
+            raw_response=response,
         )
 
 
@@ -611,7 +614,11 @@ class XAIJSONSchemaHandler(XAIHandlerBase):
             )
             return self._finalize_parsed_result(response_model, response, parsed)
 
-        raise ValueError(f"Could not parse xAI response: {response}")
+        raise ResponseParsingError(
+            f"Could not parse xAI response: {response}",
+            mode=self.mode,
+            raw_response=response,
+        )
 
 
 @register_mode_handler(Provider.XAI, Mode.MD_JSON)
@@ -714,7 +721,11 @@ class XAIMDJSONHandler(XAIHandlerBase):
             )
             return self._finalize_parsed_result(response_model, response, parsed)
 
-        raise ValueError(f"Could not extract JSON from xAI response: {response}")
+        raise ResponseParsingError(
+            f"Could not extract JSON from xAI response: {response}",
+            mode=self.mode,
+            raw_response=response,
+        )
 
 
 __all__ = [
