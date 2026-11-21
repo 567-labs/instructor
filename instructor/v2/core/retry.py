@@ -367,7 +367,17 @@ def retry_sync_v2(
                     # Will retry with modified kwargs
                     raise
 
-    except (IncompleteOutputException, TokenBudgetError):
+    except IncompleteOutputException as e:
+        if hooks:
+            meta = _attempt_metadata(
+                attempt_number=last_attempt_number or len(failed_attempts),
+                max_attempts=max_attempts,
+                is_last_attempt=True,
+            )
+            hooks.emit_completion_error(e, **meta)
+            hooks.emit_completion_last_attempt(e, **meta)
+        raise
+    except TokenBudgetError:
         raise
     except Exception as e:
         # Max retries exceeded or non-validation error occurred
@@ -671,7 +681,17 @@ async def retry_async_v2(
                     # Will retry with modified kwargs
                     raise
 
-    except (IncompleteOutputException, TokenBudgetError):
+    except IncompleteOutputException as e:
+        if hooks:
+            meta = _attempt_metadata(
+                attempt_number=last_attempt_number or len(failed_attempts),
+                max_attempts=max_attempts,
+                is_last_attempt=True,
+            )
+            hooks.emit_completion_error(e, **meta)
+            hooks.emit_completion_last_attempt(e, **meta)
+        raise
+    except TokenBudgetError:
         raise
     except Exception as e:
         # Max retries exceeded or non-validation error occurred
