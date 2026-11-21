@@ -45,6 +45,35 @@ def _field_name_schema(node: Any, *, by_alias: bool) -> Any:
     return result
 
 
+def _restore_fields_set(value: Any, explicit: Any) -> None:
+    """Reapply explicit-set metadata captured by an ``exclude_unset`` dump.
+
+    The stored document is a full dump, so re-validation marks every declared
+    field as explicitly set. Without this, ``model_dump(exclude_unset=True)``
+    on a cache hit reports declared defaults that the first response omitted,
+    including inside nested models and sequences of models.
+    """
+    if isinstance(value, BaseModel):
+        if not isinstance(explicit, dict):
+            return
+        declared = type(value).model_fields
+        object.__setattr__(
+            value,
+            "__pydantic_fields_set__",
+            {name for name in explicit if name in declared},
+        )
+        for name in explicit:
+            if name in declared:
+                _restore_fields_set(getattr(value, name), explicit[name])
+    elif isinstance(value, list) and isinstance(explicit, list):
+        for item, item_explicit in zip(value, explicit):
+            _restore_fields_set(item, item_explicit)
+    elif isinstance(value, dict) and isinstance(explicit, dict):
+        for name, item in value.items():
+            if name in explicit:
+                _restore_fields_set(item, explicit[name])
+
+
 def load_cached_response(
     cache: BaseCache,
     key: str,
@@ -105,7 +134,7 @@ def load_cached_response(
         isinstance(data, dict) and data.get("$instructor_cache") == "field-names-v2"
     )
     envelope_keys = (
-        {"model", "raw", "$instructor_cache"} if tagged else {"model", "raw"}
+        {"model", "raw", "$instructor_cache", "set"} if tagged else {"model", "raw"}
     )
     if (
         isinstance(data, dict)
@@ -129,6 +158,8 @@ def load_cached_response(
                 raise exc from None
         else:
             raw_json = data.get("raw")
+            if tagged:
+                _restore_fields_set(obj, data.get("set"))
     else:
         obj = validate_document(cached, by_alias=True)
     if raw_json is not None:
@@ -200,6 +231,16 @@ def store_cached_response(
             round_trip=True, by_alias=False, context=_CACHE_FIELD_NAMES_CONTEXT
         ),
         "raw": raw_json,
+        # Recorded so a cache hit reports the same explicitly-set fields as the
+        # response that produced the entry.
+        "set": json.loads(
+            model.model_dump_json(
+                round_trip=True,
+                by_alias=False,
+                exclude_unset=True,
+                context=_CACHE_FIELD_NAMES_CONTEXT,
+            )
+        ),
     }
     cache.set(key, json.dumps(payload), ttl=ttl)
     logger.debug("cache store: %s", key)
