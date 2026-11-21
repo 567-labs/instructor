@@ -144,10 +144,18 @@ class TestXAIToolsHandler:
 
     def test_parse_response_raises_on_no_content(self, handler):
         """Test parsing raises error when no content available."""
+        from instructor.v2.core.errors import ResponseParsingError
+
         response = MockResponse()
 
-        with pytest.raises(ValueError, match="No tool calls returned"):
+        with pytest.raises(
+            ResponseParsingError, match="No tool calls returned"
+        ) as exc_info:
             handler.response_parser(response, Answer)
+
+        assert exc_info.value.mode == Mode.TOOLS.value
+        assert exc_info.value.raw_response is response
+        assert isinstance(exc_info.value, ValueError)
 
     def test_handle_reask_adds_messages(self, handler):
         """Test handle_reask adds assistant and user messages."""
@@ -242,10 +250,16 @@ class TestXAIJSONSchemaHandler:
 
     def test_parse_response_raises_on_no_content(self, handler):
         """Test parsing raises error when no content available."""
+        from instructor.v2.core.errors import ResponseParsingError
+
         response = MockResponse()
 
-        with pytest.raises(ValueError, match="Could not parse"):
+        with pytest.raises(ResponseParsingError, match="Could not parse") as exc_info:
             handler.response_parser(response, Answer)
+
+        assert exc_info.value.mode == Mode.JSON_SCHEMA.value
+        assert exc_info.value.raw_response is response
+        assert isinstance(exc_info.value, ValueError)
 
     def test_handle_reask_adds_message(self, handler):
         """Test handle_reask adds user message with error."""
@@ -345,10 +359,18 @@ class TestXAIMDJSONHandler:
 
     def test_parse_response_raises_on_no_content(self, handler):
         """Test parsing raises error when no content available."""
+        from instructor.v2.core.errors import ResponseParsingError
+
         response = MockResponse()
 
-        with pytest.raises(ValueError, match="Could not extract JSON"):
+        with pytest.raises(
+            ResponseParsingError, match="Could not extract JSON"
+        ) as exc_info:
             handler.response_parser(response, Answer)
+
+        assert exc_info.value.mode == Mode.MD_JSON.value
+        assert exc_info.value.raw_response is response
+        assert isinstance(exc_info.value, ValueError)
 
     def test_handle_reask_adds_message(self, handler):
         """Test handle_reask adds user message with error."""
@@ -440,3 +462,25 @@ class TestXAIHandlerEdgeCases:
 
         assert result_kwargs["max_tokens"] == 500
         assert result_kwargs["temperature"] == 0.7
+
+    @pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.JSON_SCHEMA, Mode.MD_JSON])
+    def test_xai_empty_response_raises_retryable_response_parsing_error(self, mode):
+        """Test that unparseable xAI responses raise ResponseParsingError for retries (#3083)."""
+        from types import SimpleNamespace
+        from instructor.v2.core.errors import ResponseParsingError
+        from instructor.v2.core.retry import _RETRYABLE_PARSE_ERRORS
+
+        empty_resp = SimpleNamespace(tool_calls=[], text="", content="")
+        handlers = mode_registry.get_handlers(Provider.XAI, mode)
+
+        with pytest.raises(ResponseParsingError) as exc_info:
+            handlers.response_parser(
+                response=empty_resp, response_model=Answer, stream=False
+            )
+
+        # Verify ResponseParsingError is part of retryable errors tuple
+        assert issubclass(ResponseParsingError, _RETRYABLE_PARSE_ERRORS)
+        # Verify ResponseParsingError preserves backwards compatibility with ValueError
+        assert isinstance(exc_info.value, ValueError)
+        assert exc_info.value.mode == str(mode.value)
+        assert exc_info.value.raw_response is empty_resp
