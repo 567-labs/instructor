@@ -11,7 +11,14 @@ from __future__ import annotations
 import re
 import types
 import warnings
-from collections.abc import AsyncGenerator, Callable, Generator, Iterable, Mapping
+from collections.abc import (
+    AsyncGenerator,
+    Callable,
+    Generator,
+    Iterable,
+    Mapping,
+    Sequence,
+)
 from contextvars import ContextVar
 from copy import deepcopy
 from functools import cache
@@ -314,7 +321,7 @@ def _build_partial_value(
         if len(non_none) == 1:
             annotation = non_none[0]
             origin, args = get_origin(annotation), get_args(annotation)
-    if origin is list and args and isinstance(value, list):
+    if origin in {list, Sequence} and args and isinstance(value, list):
         return [
             _build_partial_value(item, args[0], tracker, f"{path}[{index}]", **kwargs)
             for index, item in enumerate(value)
