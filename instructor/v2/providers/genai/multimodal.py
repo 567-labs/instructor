@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import base64
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import Any
 
 from instructor.v2.core.multimodal import Audio, Image, PDF, autodetect_media
@@ -103,23 +105,35 @@ def _wait_for_active_file(
     return file
 
 
-def upload_new_pdf_file(
-    cls: type[Any], file_path: str, retry_delay: int = 10, max_retries: int = 20
-) -> Any:
+@contextmanager
+def _owned_genai_client() -> Generator[Any, None, None]:
+    """Close owned clients when supported, including SDKs without context managers."""
     from google.genai import Client
 
     client = Client()
-    file = client.files.upload(file=file_path)
-    file = _wait_for_active_file(file, client.files.get, retry_delay, max_retries)
+    try:
+        yield client
+    finally:
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
+
+
+def upload_new_pdf_file(
+    cls: type[Any], file_path: str, retry_delay: int = 10, max_retries: int = 20
+) -> Any:
+    with _owned_genai_client() as client:
+        file = client.files.upload(file=file_path)
+        file = _wait_for_active_file(file, client.files.get, retry_delay, max_retries)
     return cls(source=file.uri, media_type=file.mime_type, data=None)
 
 
 def load_existing_pdf_file(cls: type[Any], file_name: str) -> Any:
-    from google.genai import Client, types
+    from google.genai import types
     from google.genai.types import FileState
 
-    client = Client()
-    file = client.files.get(name=file_name)
+    with _owned_genai_client() as client:
+        file = client.files.get(name=file_name)
     if file.source == types.FileSource.UPLOADED and file.state == FileState.ACTIVE:
         return cls(source=file.uri, media_type=file.mime_type, data=None)
     raise ValueError("We only support uploaded PDFs for now")
