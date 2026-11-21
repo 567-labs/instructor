@@ -13,6 +13,9 @@ def process_message(
     """Apply templates to GenAI Content parts."""
     from google.genai import types
 
+    if isinstance(message, types.File):
+        return message
+
     return types.Content(
         role=message.role,
         parts=[
