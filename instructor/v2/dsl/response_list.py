@@ -53,6 +53,14 @@ class ListResponse(list[T], Generic[T]):
     def get_total_usage(self) -> Any | None:
         return self._total_usage
 
+    def copy(self) -> ListResponse[T]:
+        """Return a shallow copy that keeps the attached provider response."""
+        return type(self)(
+            self,
+            _raw_response=self._raw_response,
+            _total_usage=self._total_usage,
+        )
+
     def __getitem__(self, key):  # type: ignore[no-untyped-def]
         value = super().__getitem__(key)
         if isinstance(key, slice):

@@ -101,3 +101,15 @@ def test_prepare_response_model_treats_list_as_iterable_model():
     prepared = prepare_response_model(list[User])
     assert prepared is not None
     assert issubclass(prepared, IterableBase)
+
+
+def test_copy_keeps_attached_response_metadata():
+    raw = DummyCompletion()
+    original = ListResponse([1, 2, 3], _raw_response=raw, _total_usage=7)
+
+    copied = original.copy()
+
+    assert isinstance(copied, ListResponse)
+    assert copied == [1, 2, 3]
+    assert copied.get_raw_response() is raw
+    assert copied.get_total_usage() == 7
