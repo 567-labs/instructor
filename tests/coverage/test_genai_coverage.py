@@ -752,3 +752,27 @@ def test_extract_multimodal_content_preserves_uploaded_files() -> None:
 
     assert result == [uploaded]
     assert result[0] is uploaded
+
+
+@pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.JSON])
+def test_handle_templating_preserves_files(mode: Mode) -> None:
+    from instructor.v2.core.registry import mode_registry
+    from instructor.v2.core.templating import handle_templating
+
+    handlers = mode_registry.get_handlers(Provider.GENAI, mode)
+    uploaded = types.File(
+        name="files/example",
+        uri="https://generativelanguage.googleapis.com/v1beta/files/example",
+        mime_type="application/pdf",
+    )
+
+    messages = ["Summarize for {{ name }}", uploaded]
+    _, prepared = handlers.request_handler(
+        response_model=Answer, kwargs={"messages": messages}
+    )
+
+    rendered = handle_templating(prepared, mode, Provider.GENAI, {"name": "Ada"})
+
+    assert rendered["contents"][0].parts[0].text == "Summarize for Ada"
+    assert rendered["contents"][1] is uploaded
+    assert messages == ["Summarize for {{ name }}", uploaded]
