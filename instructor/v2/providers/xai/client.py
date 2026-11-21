@@ -21,6 +21,7 @@ from instructor.v2.dsl.parallel import get_types_array
 from instructor.v2.dsl.partial import PartialBase
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.core.response_model import prepare_response_model
+from instructor.v2.core.errors import ResponseParsingError
 
 # Ensure handlers are registered (decorators auto-register on import)
 from instructor.v2.providers.xai import handlers
@@ -334,9 +335,11 @@ def from_xai(
                     )
                     return _finalize_parsed_response(parsed, resp)
 
-                raise ValueError(
+                raise ResponseParsingError(
                     f"No tool calls returned from xAI and no text content available. "
-                    f"Response: {resp}"
+                    f"Response: {resp}",
+                    mode=str(mode.value),
+                    raw_response=resp,
                 )
 
             args = resp.tool_calls[0].function.arguments  # type: ignore[index,attr-defined]
@@ -400,7 +403,11 @@ def from_xai(
             )
             return _finalize_parsed_response(parsed, resp)
 
-        raise ValueError(f"Could not extract JSON from xAI response: {resp}")
+        raise ResponseParsingError(
+            f"Could not extract JSON from xAI response: {resp}",
+            mode=str(mode.value),
+            raw_response=resp,
+        )
 
     # Create sync wrapper for xAI's unique API
     def create(
@@ -502,9 +509,11 @@ def from_xai(
                     )
                     return _finalize_parsed_response(parsed, resp)
 
-                raise ValueError(
+                raise ResponseParsingError(
                     f"No tool calls returned from xAI and no text content available. "
-                    f"Response: {resp}"
+                    f"Response: {resp}",
+                    mode=str(mode.value),
+                    raw_response=resp,
                 )
 
             args = resp.tool_calls[0].function.arguments  # type: ignore[index,attr-defined]
@@ -568,7 +577,11 @@ def from_xai(
             )
             return _finalize_parsed_response(parsed, resp)
 
-        raise ValueError(f"Could not extract JSON from xAI response: {resp}")
+        raise ResponseParsingError(
+            f"Could not extract JSON from xAI response: {resp}",
+            mode=str(mode.value),
+            raw_response=resp,
+        )
 
     # Return sync or async instructor
     if isinstance(client, AsyncClient):
