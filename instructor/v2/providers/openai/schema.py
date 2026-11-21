@@ -39,19 +39,45 @@ def _copy_schema_value(value: Any, memo: dict[int, Any]) -> Any:
     return deepcopy(value, memo)
 
 
+def _resolve_root_ref(schema: dict[str, Any]) -> dict[str, Any]:
+    """Inline a top-level ``$ref`` that Pydantic emits for self-referential models.
+
+    A model that references itself is serialized with the model body under
+    ``$defs`` and a single ``$ref`` at the root, so the root carries no
+    ``title`` or ``properties``. Only the root is inlined; nested references
+    still point into ``$defs`` so recursion stays finite.
+    """
+    ref = schema.get("$ref")
+    if not isinstance(ref, str):
+        return schema
+    definitions = schema.get("$defs")
+    if not isinstance(definitions, dict):
+        return schema
+    target = definitions.get(ref.rsplit("/", 1)[-1])
+    if not isinstance(target, dict):
+        return schema
+    # Keep sibling definitions for nested references; the definition body wins
+    # so ``properties`` and ``required`` come from the resolved model.
+    resolved = {key: value for key, value in schema.items() if key != "$ref"}
+    resolved.update(target)
+    return resolved
+
+
 @functools.lru_cache(maxsize=256)
 def generate_openai_schema(model: type[BaseModel]) -> dict[str, Any]:
     """Generate an OpenAI function schema from a Pydantic model."""
-    schema = model.model_json_schema()
+    schema = _resolve_root_ref(model.model_json_schema())
     docstring = parse(model.__doc__ or "")
     parameters = {k: v for k, v in schema.items() if k not in ("title", "description")}
 
-    for param in docstring.params:
-        if (name := param.arg_name) in parameters["properties"] and (
-            description := param.description
-        ):
-            if "description" not in parameters["properties"][name]:
-                parameters["properties"][name]["description"] = description
+    properties = parameters.get("properties")
+    if isinstance(properties, dict):
+        for param in docstring.params:
+            if (name := param.arg_name) in properties and (
+                description := param.description
+            ):
+                if "description" not in properties[name]:
+                    properties[name]["description"] = description
 
     # Reuse Pydantic's own required set, which excludes any field that has a
     # default -- whether that default is a plain value (``default=``) or a
@@ -60,16 +86,12 @@ def generate_openai_schema(model: type[BaseModel]) -> dict[str, Any]:
     # never emitted into the JSON schema) and wrongly marked them required.
     parameters["required"] = sorted(schema.get("required", []))
 
-    if "description" not in schema:
-        schema["description"] = (
-            docstring.short_description
-            or f"Correctly extracted `{model.__name__}` with all "
-            "the required parameters with correct types"
-        )
-
     return {
-        "name": schema["title"],
-        "description": schema["description"],
+        "name": schema.get("title") or model.__name__,
+        "description": schema.get("description")
+        or docstring.short_description
+        or f"Correctly extracted `{model.__name__}` with all "
+        "the required parameters with correct types",
         "parameters": parameters,
     }
 
