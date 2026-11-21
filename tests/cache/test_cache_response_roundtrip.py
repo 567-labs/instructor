@@ -33,6 +33,23 @@ class PlainAnswer(BaseModel):
     value: int
 
 
+class DefaultedAnswer(BaseModel):
+    title: str
+    summary: str | None = None
+    word_count: int = 0
+
+
+class NestedAuthor(BaseModel):
+    name: str
+    country: str = "unknown"
+
+
+class NestedDefaultedAnswer(BaseModel):
+    title: str
+    author: NestedAuthor
+    related: list[NestedAuthor] = []
+
+
 @pytest.mark.parametrize("strict", [False, True])
 @pytest.mark.parametrize(
     "original",
@@ -83,6 +100,59 @@ def test_cached_typed_dict_preserves_underscore_keys_and_omission(
 
     assert restored == original
     assert restored.model_dump(by_alias=True, exclude_unset=True) == data
+
+
+def test_cached_response_keeps_explicit_fields_and_omits_defaults() -> None:
+    original = DefaultedAnswer.model_validate({"title": "Hello"})
+    assert original.model_dump(exclude_unset=True) == {"title": "Hello"}
+
+    cache = AutoCache()
+    store_cached_response(cache, "defaulted", original)
+    restored = load_cached_response(cache, "defaulted", DefaultedAnswer)
+
+    assert restored == original
+    assert restored.model_fields_set == {"title"}
+    assert restored.model_dump(exclude_unset=True) == {"title": "Hello"}
+
+
+def test_cached_response_keeps_explicit_fields_of_nested_models() -> None:
+    original = NestedDefaultedAnswer.model_validate(
+        {"title": "Hello", "author": {"name": "Ada"}, "related": [{"name": "Bob"}]}
+    )
+    expected = {
+        "title": "Hello",
+        "author": {"name": "Ada"},
+        "related": [{"name": "Bob"}],
+    }
+    assert original.model_dump(exclude_unset=True) == expected
+
+    cache = AutoCache()
+    store_cached_response(cache, "nested-defaulted", original)
+    restored = load_cached_response(cache, "nested-defaulted", NestedDefaultedAnswer)
+
+    assert restored == original
+    assert restored.author.model_fields_set == {"name"}
+    assert restored.related[0].model_fields_set == {"name"}
+    assert restored.model_dump(exclude_unset=True) == expected
+
+
+def test_tagged_cache_entry_without_field_set_still_loads() -> None:
+    original = DefaultedAnswer(title="Hello", summary="s")
+    cache = AutoCache()
+    cache.set(
+        "tagged-without-set",
+        json.dumps(
+            {
+                "$instructor_cache": "field-names-v2",
+                "model": original.model_dump_json(round_trip=True, by_alias=False),
+                "raw": None,
+            }
+        ),
+    )
+
+    restored = load_cached_response(cache, "tagged-without-set", DefaultedAnswer)
+
+    assert restored == original
 
 
 def test_legacy_nested_typed_dict_envelope_retains_wire_keys() -> None:
