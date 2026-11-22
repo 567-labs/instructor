@@ -7,7 +7,7 @@ from typing import Any, cast
 from pydantic import BaseModel
 
 from instructor.v2.core.decorators import register_mode_handler
-from instructor.v2.core.errors import IncompleteOutputException
+from instructor.v2.core.errors import IncompleteOutputException, ResponseParsingError
 from instructor.v2.core.handler import ModeHandler
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.multimodal import extract_genai_multimodal_content
@@ -151,17 +151,48 @@ def parse_genai_tools(
     from google.genai import types
 
     assert isinstance(completion, types.GenerateContentResponse)
-    assert len(completion.candidates) == 1
-    parts = completion.candidates[0].content.parts
+    candidates = completion.candidates
+    if not candidates:
+        raise ResponseParsingError(
+            "No candidates found in GenAI response. "
+            "The response may have been blocked or empty.",
+            mode="TOOLS",
+            raw_response=completion,
+        )
+    assert len(candidates) == 1
+    content = candidates[0].content
+    parts = (content.parts if content is not None else None) or []
     non_thought_parts = [
         part for part in parts if not (hasattr(part, "thought") and part.thought)
     ]
-    assert len(non_thought_parts) == 1, (
-        "Instructor does not support multiple function calls, use List[Model] instead"
-    )
+    if not non_thought_parts:
+        raise ResponseParsingError(
+            "No function call found in GenAI response",
+            mode="TOOLS",
+            raw_response=completion,
+        )
+    if len(non_thought_parts) > 1:
+        raise ResponseParsingError(
+            "Instructor does not support multiple function calls, "
+            "use List[Model] instead",
+            mode="TOOLS",
+            raw_response=completion,
+        )
     function_call = non_thought_parts[0].function_call
-    assert function_call is not None, "Please return your response as a function call"
-    assert function_call.name == gemini_utils._get_model_name(response_model)
+    if function_call is None:
+        raise ResponseParsingError(
+            "Please return your response as a function call",
+            mode="TOOLS",
+            raw_response=completion,
+        )
+    expected_name = gemini_utils._get_model_name(response_model)
+    if function_call.name != expected_name:
+        raise ResponseParsingError(
+            f"Expected a function call to {expected_name!r}, "
+            f"got {function_call.name!r}",
+            mode="TOOLS",
+            raw_response=completion,
+        )
     return response_model.model_validate(
         obj=function_call.args,
         context=validation_context,

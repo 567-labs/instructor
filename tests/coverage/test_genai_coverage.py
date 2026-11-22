@@ -14,9 +14,10 @@ import pytest
 from google.genai import Client, types
 from pydantic import BaseModel
 
-from instructor.v2.core.errors import ClientError, ModeError
+from instructor.v2.core.errors import ClientError, ModeError, ResponseParsingError
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
+from instructor.v2.core.retry import retry_sync_v2
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import ParallelBase
 from instructor.v2.dsl.partial import Partial, PartialBase
@@ -305,6 +306,97 @@ def test_parse_genai_tools_ignores_thought_parts_and_validates_function_call() -
     assert parsed == Answer(answer=7)
     assert handled == Answer(answer=7)
     assert cast(Any, handled)._raw_response is completion
+
+
+def _tools_response(*parts: types.Part) -> types.GenerateContentResponse:
+    return types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(content=types.Content(role="model", parts=list(parts)))
+        ]
+    )
+
+
+def _answer_call(answer: int = 7, name: str = "Answer") -> types.Part:
+    return types.Part.from_function_call(name=name, args={"answer": answer})
+
+
+@pytest.mark.parametrize(
+    ("completion", "message"),
+    [
+        pytest.param(
+            types.GenerateContentResponse(candidates=[]),
+            "No candidates found",
+            id="blocked-no-candidates",
+        ),
+        pytest.param(
+            types.GenerateContentResponse(candidates=[types.Candidate(content=None)]),
+            "No function call found",
+            id="candidate-without-content",
+        ),
+        pytest.param(
+            _tools_response(),
+            "No function call found",
+            id="empty-parts",
+        ),
+        pytest.param(
+            _tools_response(types.Part(text="Let me think", thought=True)),
+            "No function call found",
+            id="only-thought-parts",
+        ),
+        pytest.param(
+            _tools_response(types.Part(text="I cannot do that")),
+            "Please return your response as a function call",
+            id="text-only",
+        ),
+        pytest.param(
+            _tools_response(_answer_call(1), _answer_call(2)),
+            "multiple function calls",
+            id="multiple-function-calls",
+        ),
+        pytest.param(
+            _tools_response(_answer_call(name="Other")),
+            "Expected a function call to 'Answer', got 'Other'",
+            id="wrong-function-name",
+        ),
+    ],
+)
+def test_parse_genai_tools_raises_response_parsing_error(
+    completion: types.GenerateContentResponse, message: str
+) -> None:
+    with pytest.raises(ResponseParsingError, match=message) as exc_info:
+        handlers.parse_genai_tools(Answer, completion)
+
+    assert exc_info.value.raw_response is completion
+    # Stays a ValueError so existing `except ValueError` callers keep working.
+    assert isinstance(exc_info.value, ValueError)
+
+
+def test_genai_tools_reasks_when_response_has_no_function_call() -> None:
+    blocked = types.GenerateContentResponse(candidates=[])
+    text_only = _tools_response(types.Part(text="I cannot do that"))
+    good = _tools_response(_answer_call(7))
+    responses = iter([blocked, text_only, good])
+    seen_contents: list[int] = []
+
+    def create(**kwargs: Any) -> types.GenerateContentResponse:
+        seen_contents.append(len(kwargs["contents"]))
+        return next(responses)
+
+    result = retry_sync_v2(
+        func=create,
+        response_model=Answer,
+        provider=Provider.GENAI,
+        mode=Mode.TOOLS,
+        context=None,
+        max_retries=2,
+        args=(),
+        kwargs={"contents": []},
+        strict=False,
+    )
+
+    assert result == Answer(answer=7)
+    # Each failed attempt adds a reask message to the next request.
+    assert seen_contents == [0, 1, 3]
 
 
 class MissingTextChunk:
