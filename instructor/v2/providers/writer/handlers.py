@@ -121,6 +121,17 @@ def handle_writer_json(
 class WriterHandlerBase(OpenAIHandlerBase):
     """Shared Writer helpers for OpenAI-compatible streaming responses."""
 
+    def _first_choice(self, response: Any) -> Any:
+        """Return the first choice, or raise a retryable parsing error."""
+        choices = getattr(response, "choices", None)
+        if not choices:
+            raise ResponseParsingError(
+                "No choices in Writer response",
+                mode=str(self.mode.value),
+                raw_response=response,
+            )
+        return choices[0]
+
 
 @register_mode_handler(Provider.WRITER, Mode.TOOLS)
 class WriterToolsHandler(WriterHandlerBase):
@@ -292,9 +303,10 @@ class WriterMDJSONHandler(WriterHandlerBase):
                 validation_context,
                 strict,
             )
-        if response.choices[0].finish_reason == "length":
+        choice = self._first_choice(response)
+        if choice.finish_reason == "length":
             raise IncompleteOutputException(last_completion=response)
-        text = response.choices[0].message.content or ""
+        text = choice.message.content or ""
         json_str = extract_json_from_codeblock(text)
 
         return response_model.model_validate_json(
@@ -352,9 +364,10 @@ class WriterJSONSchemaHandler(WriterHandlerBase):
                 validation_context,
                 strict,
             )
-        if response.choices[0].finish_reason == "length":
+        choice = self._first_choice(response)
+        if choice.finish_reason == "length":
             raise IncompleteOutputException(last_completion=response)
-        text = response.choices[0].message.content or ""
+        text = choice.message.content or ""
         return response_model.model_validate_json(
             text,
             context=validation_context,
