@@ -330,7 +330,7 @@ def from_xai(
                     json_str = extract_json_from_codeblock(text_content)
                     model_for_validation = cast(type[Any], prepared_model)
                     parsed = _validate_model_from_json(
-                        model_for_validation, json_str, None, strict
+                        model_for_validation, json_str, validation_context, strict
                     )
                     return _finalize_parsed_response(parsed, resp)
 
@@ -345,7 +345,9 @@ def from_xai(
             )
 
             model_for_validation = cast(type[Any], prepared_model)
-            parsed = _validate_model_from_json(model_for_validation, args, None, strict)
+            parsed = _validate_model_from_json(
+                model_for_validation, args, validation_context, strict
+            )
             return _finalize_parsed_response(parsed, resp)
         if mode == Mode.PARALLEL_TOOLS:
             for model_type in get_types_array(response_model):  # type: ignore[arg-type]
@@ -396,7 +398,7 @@ def from_xai(
             json_str = extract_json_from_codeblock(text_content)
             model_for_validation = cast(type[Any], prepared_model)
             parsed = _validate_model_from_json(
-                model_for_validation, json_str, None, strict
+                model_for_validation, json_str, validation_context, strict
             )
             return _finalize_parsed_response(parsed, resp)
 
@@ -498,7 +500,7 @@ def from_xai(
                     json_str = extract_json_from_codeblock(text_content)
                     model_for_validation = cast(type[Any], prepared_model)
                     parsed = _validate_model_from_json(
-                        model_for_validation, json_str, None, strict
+                        model_for_validation, json_str, validation_context, strict
                     )
                     return _finalize_parsed_response(parsed, resp)
 
@@ -513,7 +515,9 @@ def from_xai(
             )
 
             model_for_validation = cast(type[Any], prepared_model)
-            parsed = _validate_model_from_json(model_for_validation, args, None, strict)
+            parsed = _validate_model_from_json(
+                model_for_validation, args, validation_context, strict
+            )
             return _finalize_parsed_response(parsed, resp)
         if mode == Mode.PARALLEL_TOOLS:
             for model_type in get_types_array(response_model):  # type: ignore[arg-type]
@@ -564,7 +568,7 @@ def from_xai(
             json_str = extract_json_from_codeblock(text_content)
             model_for_validation = cast(type[Any], prepared_model)
             parsed = _validate_model_from_json(
-                model_for_validation, json_str, None, strict
+                model_for_validation, json_str, validation_context, strict
             )
             return _finalize_parsed_response(parsed, resp)
 
