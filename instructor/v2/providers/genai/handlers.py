@@ -364,18 +364,25 @@ class GenAIHandlerBase(ModeHandler):
             and issubclass(response_model, (IterableBase, PartialBase))
         ):
             require_complete = issubclass(response_model, IterableBase)
+            parse_kwargs: dict[str, Any] = {}
+            if validation_context is not None:
+                parse_kwargs["context"] = validation_context
+            if strict is not None:
+                parse_kwargs["strict"] = strict
             if is_async:
                 return response_model.from_streaming_response_async(  # type: ignore
                     response,
                     stream_extractor=lambda chunks: self.extract_streaming_json_async(
                         chunks, require_complete=require_complete
                     ),
+                    **parse_kwargs,
                 )
             generator = response_model.from_streaming_response(  # type: ignore
                 response,
                 stream_extractor=lambda chunks: self.extract_streaming_json(
                     chunks, require_complete=require_complete
                 ),
+                **parse_kwargs,
             )
             if issubclass(response_model, IterableBase):
                 return generator

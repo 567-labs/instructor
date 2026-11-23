@@ -10,6 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- **GenAI**: Streaming `Partial` and `Iterable` responses pass `context` and `strict` to validation, so validators that read `info.context` work with `stream=True`. ([#3110](https://github.com/567-labs/instructor/pull/3110))
 - **CLI**: `instructor files download` uses `files.content` and writes raw bytes; `files list` reads every page; `files delete` and `jobs cancel` exit nonzero on failure. ([#2979](https://github.com/567-labs/instructor/issues/2979), [#2984](https://github.com/567-labs/instructor/issues/2984))
 - **CLI (Anthropic batch)**: `batch download-file` and `batch results` keep the existing file when the result stream fails.
 - **Batch (OpenAI)**: Result downloads replace the destination atomically, in-memory uploads are named `batch.jsonl`, cancelled batches return partial results, and stopped batches with no finished requests return immediately. ([#3008](https://github.com/567-labs/instructor/issues/3008), [#2996](https://github.com/567-labs/instructor/issues/2996))

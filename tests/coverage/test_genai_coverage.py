@@ -12,11 +12,12 @@ from typing import Any, ClassVar, cast
 
 import pytest
 from google.genai import Client, types
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationInfo, field_validator
 
 from instructor.v2.core.errors import ClientError, ModeError
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
+from instructor.v2.core.response_model import prepare_response_model
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import ParallelBase
 from instructor.v2.dsl.partial import Partial, PartialBase
@@ -752,3 +753,63 @@ def test_extract_multimodal_content_preserves_uploaded_files() -> None:
 
     assert result == [uploaded]
     assert result[0] is uploaded
+
+
+class ContextAnswer(BaseModel):
+    answer: int
+
+    @field_validator("answer")
+    @classmethod
+    def check_expected(cls, value: int, info: ValidationInfo) -> int:
+        if not info.context or info.context.get("expected") != value:
+            raise ValueError(f"expected context, got {info.context!r}")
+        return value
+
+
+def _context_stream_cases() -> list[Any]:
+    return [
+        pytest.param(
+            Partial[ContextAnswer],
+            [SimpleNamespace(text='{"answer": 7}')],
+            id="partial",
+        ),
+        pytest.param(
+            prepare_response_model(list[ContextAnswer]),
+            [SimpleNamespace(text='{"tasks": [{"answer": 7}]}')],
+            id="iterable",
+        ),
+    ]
+
+
+@pytest.mark.parametrize(("response_model", "chunks"), _context_stream_cases())
+def test_streaming_parse_forwards_validation_context(
+    response_model: Any, chunks: list[Any]
+) -> None:
+    handler = handlers.GenAIStructuredOutputsHandler(mode=Mode.JSON)
+
+    parsed = handler.parse_response(
+        iter(chunks),
+        response_model,
+        validation_context={"expected": 7},
+        stream=True,
+    )
+
+    assert [item.answer for item in parsed][-1] == 7
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("response_model", "chunks"), _context_stream_cases())
+async def test_async_streaming_parse_forwards_validation_context(
+    response_model: Any, chunks: list[Any]
+) -> None:
+    handler = handlers.GenAIStructuredOutputsHandler(mode=Mode.JSON)
+
+    parsed = handler.parse_response(
+        async_items(chunks),
+        response_model,
+        validation_context={"expected": 7},
+        stream=True,
+        is_async=True,
+    )
+
+    assert [item.answer async for item in parsed][-1] == 7
