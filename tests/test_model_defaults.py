@@ -164,7 +164,8 @@ def test_luna_reasoning_default_excluded_for_responses_modes(
         instructor.Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS,
     )
     with OpenAI(
-        api_key="local", http_client=httpx.Client(transport=httpx.MockTransport(respond))
+        api_key="local",
+        http_client=httpx.Client(transport=httpx.MockTransport(respond)),
     ) as sdk:
         create = (
             partial(map_chat_completion_to_response, client=sdk)
