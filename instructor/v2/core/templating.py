@@ -146,7 +146,9 @@ def handle_templating(
         context = provider
         provider = None
 
-    if not context:
+    if context is None:
+        # An explicit empty mapping is still a request to render; only the
+        # documented None default means "no templating".
         return kwargs
 
     if not isinstance(provider, Provider):
