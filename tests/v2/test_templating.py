@@ -41,3 +41,14 @@ def test_raw_block_round_trips_literal_braces():
         result["messages"][0]["content"]
         == "Here is a literal example: {{ jinja_example }}, greet Ada."
     )
+
+
+def test_explicit_empty_context_still_renders():
+    """An explicit empty context renders; only None means "no templating"."""
+    kwargs = {"messages": [{"role": "user", "content": "{{ 6 * 7 }}"}]}
+
+    rendered = handle_templating(kwargs, Mode.TOOLS, context={})
+    untemplated = handle_templating(kwargs, Mode.TOOLS, context=None)
+
+    assert rendered["messages"][0]["content"] == "42"
+    assert untemplated["messages"][0]["content"] == "{{ 6 * 7 }}"
