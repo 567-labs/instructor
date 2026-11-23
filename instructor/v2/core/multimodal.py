@@ -888,7 +888,12 @@ def convert_messages(
         ):
             converted_messages.append(dict(message))
             continue
-        content = message["content"] or []
+        # Keep an explicit empty/absent string content as a string: coercing it
+        # to a content-part list changes the request shape ("" -> []) and raised
+        # KeyError for messages that carry no "content" key at all.
+        content = message.get("content")
+        if content is None:
+            content = []
         if autodetect_images:
             if isinstance(content, list):
                 new_content: list[str | dict[str, Any] | Image | Audio | PDF] = []  # noqa: UP007

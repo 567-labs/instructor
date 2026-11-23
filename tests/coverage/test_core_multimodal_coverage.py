@@ -622,6 +622,17 @@ def test_convert_messages_keeps_typed_and_mixed_content_and_detects_single_image
     }
 
 
+def test_convert_messages_preserves_empty_and_missing_string_content() -> None:
+    # An explicit empty string stays a string; a message without "content"
+    # is treated as empty instead of raising KeyError.
+    assert convert_messages([{"role": "user", "content": ""}], Mode.TOOLS) == [
+        {"role": "user", "content": ""}
+    ]
+    assert convert_messages([{"role": "user"}], Mode.TOOLS) == [
+        {"role": "user", "content": []}
+    ]
+
+
 def test_convert_messages_keeps_a_single_detected_image() -> None:
     image = Image(
         source="data:image/png;base64,iVBORw0KGgo=",
