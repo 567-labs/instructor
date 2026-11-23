@@ -372,8 +372,8 @@ def test_cohere_v1_conversion_and_invalid_response_shapes() -> None:
     assert converted == {
         "message": "Third",
         "chat_history": [
-            {"role": "user", "message": "First"},
-            {"role": "assistant", "message": "Second"},
+            {"role": "USER", "message": "First"},
+            {"role": "CHATBOT", "message": "Second"},
         ],
         "model": "command-r",
     }
@@ -457,19 +457,19 @@ def test_cohere_json_handlers_reask_v1_and_reject_streaming(handler: Any) -> Non
     with_history = handler.handle_reask(
         {
             "message": "Original question",
-            "chat_history": [{"role": "assistant", "message": "Earlier"}],
+            "chat_history": [{"role": "CHATBOT", "message": "Earlier"}],
         },
         _v1_response('{"answer":"wrong"}'),
         ValueError("invalid field"),
     )
 
     assert without_history["chat_history"] == [
-        {"role": "user", "message": "Original question"}
+        {"role": "USER", "message": "Original question"}
     ]
     assert "invalid field" in without_history["message"]
     assert "object object" in without_history["message"]
     assert with_history["chat_history"][-1] == {
-        "role": "user",
+        "role": "USER",
         "message": "Original question",
     }
     assert 'JSON:\n{"answer":"wrong"}' in with_history["message"]
