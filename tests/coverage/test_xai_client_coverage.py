@@ -12,7 +12,7 @@ import pytest
 pytest.importorskip("xai_sdk")
 
 from openai.types.chat import ChatCompletionMessageParam
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationInfo, field_validator
 from xai_sdk import chat as xchat
 from xai_sdk.aio.client import Client as XAIAsyncClient
 from xai_sdk.sync.client import Client as XAISyncClient
@@ -914,3 +914,70 @@ def test_deprecated_xai_modes_warn_and_normalize(
         wrapped, _ = sync_client(SyncChat(), mode=deprecated_mode)
 
     assert wrapped.mode is replacement
+
+
+class ContextAnswer(BaseModel):
+    """An answer checked against the caller's validation context."""
+
+    answer: int
+
+    @field_validator("answer")
+    @classmethod
+    def check_expected(cls, value: int, info: ValidationInfo) -> int:
+        if not info.context or info.context.get("expected") != value:
+            raise ValueError(f"expected context, got {info.context!r}")
+        return value
+
+
+CONTEXT_RESPONSES = [
+    pytest.param(
+        Mode.TOOLS,
+        SimpleNamespace(tool_calls=[tool_call("ContextAnswer", '{"answer":7}')]),
+        id="tool-call",
+    ),
+    pytest.param(
+        Mode.TOOLS,
+        SimpleNamespace(tool_calls=[], text='{"answer":7}'),
+        id="tool-text-fallback",
+    ),
+    pytest.param(
+        Mode.MD_JSON,
+        SimpleNamespace(text='```json\n{"answer":7}\n```'),
+        id="md-json",
+    ),
+]
+
+
+@pytest.mark.parametrize(("mode", "response"), CONTEXT_RESPONSES)
+@pytest.mark.parametrize("context_kwarg", ["context", "validation_context"])
+def test_sync_validation_context_reaches_validators(
+    mode: Mode, response: Any, context_kwarg: str
+) -> None:
+    wrapped, _ = sync_client(SyncChat(sampled=response), mode=mode)
+
+    result = wrapped.create(
+        response_model=ContextAnswer,
+        messages=MESSAGES,
+        model="grok",
+        **{context_kwarg: {"expected": 7}},
+    )
+
+    assert result.answer == 7
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("mode", "response"), CONTEXT_RESPONSES)
+@pytest.mark.parametrize("context_kwarg", ["context", "validation_context"])
+async def test_async_validation_context_reaches_validators(
+    mode: Mode, response: Any, context_kwarg: str
+) -> None:
+    wrapped, _ = async_client(AsyncChat(sampled=response), mode=mode)
+
+    result = await wrapped.create(
+        response_model=ContextAnswer,
+        messages=MESSAGES,
+        model="grok",
+        **{context_kwarg: {"expected": 7}},
+    )
+
+    assert result.answer == 7
