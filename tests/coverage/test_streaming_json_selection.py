@@ -81,8 +81,16 @@ async def test_single_model_waits_for_the_last_valid_object(handler: Any) -> Non
         AnthropicJSONHandler(),
     ],
 )
-async def test_single_model_keeps_fenced_answer_before_citation(handler: Any) -> None:
-    chunks = ['```json\n{"value":', "1}\n```\n", "Sources: [1]"]
+@pytest.mark.parametrize(
+    "chunks",
+    [
+        ['```json\n{"value":', "1}\n```\n", "Sources: [1]"],
+        ['```javascript\n{"value":', "1}\n```\n", "Sources: [1, 2]"],
+    ],
+)
+async def test_single_model_keeps_fenced_answer_before_citation(
+    handler: Any, chunks: list[str]
+) -> None:
     assert extract_json_from_codeblock("".join(chunks)) == '{"value":1}'
     events = [event(chunk) for chunk in chunks]
     sync_results = list(
