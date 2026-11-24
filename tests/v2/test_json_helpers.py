@@ -258,3 +258,77 @@ def test_extract_json_from_codeblock_depth_exceeds_128_rejected() -> None:
     content = '{"a": ' * 128 + '{"a": 1}' + "}" * 129
     with pytest.raises(ValueError, match="128 level limit"):
         extract_json_from_codeblock(content)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        '```json\n{"name": "Ada", "age": 36}\n```\nSources: [1]',
+        '```json\n{"name": "Ada", "age": 36}\n```\n[1] https://example.org/ada',
+        '```json\n{"name": "Ada", "age": 36}\n```\nSee [12] and [3][4].',
+        '```json\n{"name": "Ada", "age": 36}\n```\nIf unsure I would return {} or [].',
+        '```\n{"name": "Ada", "age": 36}\n```\nSources: [1]',
+        # Several sources in one bracket, and inner spaces.
+        '```json\n{"name": "Ada", "age": 36}\n```\nSources: [1, 2]',
+        '```json\n{"name": "Ada", "age": 36}\n```\nSources: [ 1 ] and [1, 2, 3][4]',
+        # Any fence info string counts, and CRLF line endings.
+        '```javascript\n{"name": "Ada", "age": 36}\n```\nSources: [1]',
+        '```json5 title="answer"\n{"name": "Ada", "age": 36}\n```\nSources: [1]',
+        '```json\r\n{"name": "Ada", "age": 36}\r\n```\r\nSources: [1]',
+    ],
+)
+def test_extract_json_from_codeblock_ignores_citation_after_fence(content: str) -> None:
+    assert extract_json_from_codeblock(content) == '{"name": "Ada", "age": 36}'
+
+
+def test_extract_json_from_codeblock_array_of_objects_fence_beats_citation() -> None:
+    content = '```json\n[{"id": 1}]\n```\nsee [2]'
+    assert extract_json_from_codeblock(content) == '[{"id": 1}]'
+
+
+@pytest.mark.parametrize("answer", ["[]", "[3]", "[1, 2]", "{}"])
+def test_extract_json_from_codeblock_keeps_citation_like_fenced_answer(
+    answer: str,
+) -> None:
+    # A fenced answer that itself looks like a citation still beats a trailing one.
+    content = f"```json\n{answer}\n```\nSources: [1]"
+    assert extract_json_from_codeblock(content) == answer
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        # The last answer still wins: a final scalar array is an answer.
+        ('Example: {"note":"ignore"}\nAnswer: [1, 2, 3]', "[1, 2, 3]"),
+        # Without a fence the last span wins, even when it looks like a citation.
+        ('Example: {"note":"ignore"}\nAnswer: [1]', "[1]"),
+        ('{"name": "Ada", "age": 36}\nReferences: [1]', "[1]"),
+        # Only lists of non-negative ints and {} are skipped after a fence.
+        ('```json\n{"name": "Ada"}\n```\nAnswer: [-1, 2]', "[-1, 2]"),
+        ('```json\n{"name": "Ada"}\n```\nAnswer: [1.5]', "[1.5]"),
+        ('```json\n{"name": "Ada"}\n```\nAnswer: [true]', "[true]"),
+        ('```json\n{"name": "Ada"}\n```\nAnswer: ["a"]', '["a"]'),
+        # Text after a closing fence on the same line is not an info string.
+        ('```python\nx = 1\n``` then {"a": 1}\n```\n[1]', "[1]"),
+        # A later object after the fence is the answer, as before.
+        ('```json\n{"value": 1}\n```\nfinal {"value": 2}', '{"value": 2}'),
+        ("Answer: [1, 2, 3]", "[1, 2, 3]"),
+        ("{}", "{}"),
+    ],
+)
+def test_extract_json_from_codeblock_keeps_last_answer(
+    content: str, expected: str
+) -> None:
+    assert extract_json_from_codeblock(content) == expected
+
+
+def test_extract_json_from_codeblock_fence_check_is_linear() -> None:
+    # A long whitespace run after a fence marker must not trigger backtracking.
+    content = "```" + " " * 200_000 + 'x {"a": 1} [1]'
+    assert extract_json_from_codeblock(content) == "[1]"
+    # Long info string and body indentation that fail at the last character.
+    content = "```" + " " * 200_000 + "\n" + " " * 200_000 + 'x {"a": 1}\n```\n[1]'
+    assert extract_json_from_codeblock(content) == "[1]"
+    # Many citations right before a fence marker after a long fence-free prefix.
+    content = "x" * 400_000 + " [1]```" * 50_000
+    assert extract_json_from_codeblock(content) == "[1]"

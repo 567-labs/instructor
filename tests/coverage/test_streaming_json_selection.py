@@ -71,6 +71,42 @@ async def test_single_model_waits_for_the_last_valid_object(handler: Any) -> Non
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "handler",
+    [
+        OpenAIMDJSONHandler(),
+        MistralMDJSONHandler(),
+        XAIMDJSONHandler(),
+        GeminiJSONHandler(),
+        AnthropicJSONHandler(),
+    ],
+)
+@pytest.mark.parametrize(
+    "chunks",
+    [
+        ['```json\n{"value":', "1}\n```\n", "Sources: [1]"],
+        ['```javascript\n{"value":', "1}\n```\n", "Sources: [1, 2]"],
+    ],
+)
+async def test_single_model_keeps_fenced_answer_before_citation(
+    handler: Any, chunks: list[str]
+) -> None:
+    assert extract_json_from_codeblock("".join(chunks)) == '{"value":1}'
+    events = [event(chunk) for chunk in chunks]
+    sync_results = list(
+        handler.parse_response(iter(events), Partial[Answer], stream=True)
+    )
+    async_results = [
+        item
+        async for item in handler.parse_response(
+            async_items(events), Partial[Answer], stream=True
+        )
+    ]
+    assert [item.value for item in sync_results] == [1]
+    assert [item.value for item in async_results] == [1]
+
+
+@pytest.mark.asyncio
 async def test_invalid_final_answer_triggers_validation_and_iterables_keep_all_items() -> (
     None
 ):
