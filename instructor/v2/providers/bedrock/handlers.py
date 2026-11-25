@@ -543,14 +543,22 @@ def _extract_bedrock_text(response: Any) -> str:
     """Extract text from Bedrock response formats."""
     if isinstance(response, dict):
         content = response.get("output", {}).get("message", {}).get("content", [])
-        text_block = next((block for block in content if "text" in block), None)
-        if not text_block:
-            raise ResponseParsingError(
-                "Unexpected Bedrock response format: No text content found.",
-                mode="BEDROCK_JSON",
-                raw_response=response,
-            )
-        return text_block["text"]
+        for block in content:
+            if "text" in block:
+                return block["text"]
+            if "citationsContent" in block:
+                text = "".join(
+                    part["text"]
+                    for part in block["citationsContent"].get("content", [])
+                    if "text" in part
+                )
+                if text:
+                    return text
+        raise ResponseParsingError(
+            "Unexpected Bedrock response format: No text content found.",
+            mode="BEDROCK_JSON",
+            raw_response=response,
+        )
     if hasattr(response, "text"):
         return response.text
     raise ResponseParsingError(
