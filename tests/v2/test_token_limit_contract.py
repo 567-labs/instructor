@@ -3,8 +3,9 @@
 Streams: Iterable streams flush every complete item, then raise
 ``IncompleteOutputException`` when the provider stopped for its token limit.
 Partial streams stay best-effort. Non-streaming JSON/tool modes raise on the
-token-limit stop reason. All chunks/responses are real SDK objects fed straight
-into the registered response parser.
+token-limit stop reason. Most cases use real SDK objects fed straight into the
+registered response parser; the Google-style cases use duck-typed chunks, and
+one Gemini case calls the handler directly.
 """
 
 from __future__ import annotations
@@ -203,6 +204,28 @@ def _mistral(mode: Mode) -> Callable[[bool], list[Any]]:
 def _gemini_like() -> Callable[[bool], list[Any]]:
     """Duck-typed Google-style chunks with both text and parts accessors."""
 
+    def build(limit: bool) -> list[Any]:
+        reason = SimpleNamespace(name="MAX_TOKENS" if limit else "STOP")
+
+        def chunk(text: str, finish: Any = None) -> Any:
+            part = SimpleNamespace(text=text)
+            return SimpleNamespace(
+                text=text,
+                candidates=[
+                    SimpleNamespace(
+                        content=SimpleNamespace(parts=[part]), finish_reason=finish
+                    )
+                ],
+            )
+
+        tail = ", " if limit else "]}"
+        return [chunk(ITEMS_JSON), chunk(tail), chunk("", reason)]
+
+    return build
+
+
+def _gemini_like() -> Callable[[bool], list[Any]]:
+    """Duck-typed Google-style chunks with both text and parts accessors."""
     def build(limit: bool) -> list[Any]:
         reason = SimpleNamespace(name="MAX_TOKENS" if limit else "STOP")
 
