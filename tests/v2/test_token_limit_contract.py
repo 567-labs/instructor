@@ -494,3 +494,32 @@ def test_gemini_iterable_stream_raises_on_max_tokens_after_complete_item() -> No
     with pytest.raises(IncompleteOutputException) as exc_info:
         next(generator)
     assert exc_info.value.last_completion is terminal
+
+
+def test_gemini_extractor_skips_textless_chunks() -> None:
+    """Usage-only chunks must not yield None into the JSON scanner."""
+    from instructor.v2.providers.gemini.handlers import GeminiJSONHandler
+
+    chunks = [
+        SimpleNamespace(text=ITEMS_JSON, candidates=[]),
+        SimpleNamespace(text="", candidates=[]),
+        SimpleNamespace(candidates=[]),  # no text, no candidates -> both guards
+    ]
+
+    assert list(GeminiJSONHandler().extract_streaming_json(chunks)) == [ITEMS_JSON]
+
+
+@pytest.mark.asyncio
+async def test_gemini_async_extractor_skips_textless_chunks() -> None:
+    from instructor.v2.providers.gemini.handlers import GeminiJSONHandler
+
+    async def chunks() -> AsyncGenerator[Any, None]:
+        yield SimpleNamespace(text=ITEMS_JSON, candidates=[])
+        yield SimpleNamespace(text="", candidates=[])
+        yield SimpleNamespace(candidates=[])
+
+    collected = [
+        text
+        async for text in GeminiJSONHandler().extract_streaming_json_async(chunks())
+    ]
+    assert collected == [ITEMS_JSON]
