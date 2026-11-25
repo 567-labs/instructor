@@ -7,7 +7,7 @@ from typing import Any, cast
 from pydantic import BaseModel
 
 from instructor.v2.core.decorators import register_mode_handler
-from instructor.v2.core.errors import IncompleteOutputException
+from instructor.v2.core.errors import IncompleteOutputException, ResponseParsingError
 from instructor.v2.core.handler import ModeHandler
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.multimodal import extract_genai_multimodal_content
@@ -134,8 +134,16 @@ def parse_genai_structured_outputs(
     strict: bool | None = None,
 ) -> BaseModel:
     """Parse GenAI native structured-output responses."""
+    text = getattr(completion, "text", None)
+    if not text:
+        raise ResponseParsingError(
+            "No text content in GenAI structured output response. "
+            "The response may have been blocked or empty.",
+            mode="GENAI_JSON",
+            raw_response=completion,
+        )
     return response_model.model_validate_json(
-        completion.text,
+        text,
         context=validation_context,
         strict=strict,
     )
