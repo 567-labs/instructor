@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import TypeVar
+
 import pytest
 from openai import AsyncOpenAI, OpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationInfo
+from typing_extensions import TypeAliasType
 
 import instructor
-
+from instructor.v2.core.errors import AsyncValidationError
+from instructor.v2.dsl.parallel import ParallelModel
 from instructor.v2.validation.async_validators import (
     async_field_validator,
     async_model_validator,
-    run_async_validators,
     model_declares_async_validators,
+    reject_async_validators,
+    run_async_validators,
 )
 
 
@@ -152,3 +158,103 @@ async def test_unsupported_async_workflows_fail_before_request(workflow: str) ->
                 messages=[{"role": "user", "content": "unused"}],
                 stream=workflow == "stream",
             )
+
+
+@pytest.mark.asyncio
+async def test_classmethod_and_staticmethod_async_field_validators_are_detected_and_run() -> (
+    None
+):
+    class ClassmethodOuter(BaseModel):
+        value: str
+
+        @classmethod
+        @async_field_validator("value")
+        async def normalize(cls, value: str, info: ValidationInfo) -> str:
+            assert cls is ClassmethodOuter
+            if value == "bad":
+                raise ValueError("rejected outer classmethod")
+            suffix = (info.context or {}).get("suffix", "")
+            return f"{value.upper()}{suffix}"
+
+    class ClassmethodInner(BaseModel):
+        value: str
+
+        @async_field_validator("value")
+        @classmethod
+        async def normalize(cls, value: str, info: ValidationInfo) -> str:
+            assert cls is ClassmethodInner
+            if value == "bad":
+                raise ValueError("rejected inner classmethod")
+            suffix = (info.context or {}).get("suffix", "")
+            return f"{value.upper()}{suffix}"
+
+    class StaticmethodOuter(BaseModel):
+        value: str
+
+        @staticmethod
+        @async_field_validator("value")
+        async def normalize(value: str, info: ValidationInfo) -> str:
+            if value == "bad":
+                raise ValueError("rejected outer staticmethod")
+            suffix = (info.context or {}).get("suffix", "")
+            return f"{value.upper()}{suffix}"
+
+    class StaticmethodInner(BaseModel):
+        value: str
+
+        @async_field_validator("value")
+        @staticmethod
+        async def normalize(value: str) -> str:
+            if value == "bad":
+                raise ValueError("rejected inner staticmethod")
+            return value.upper()
+
+    for model_cls, expected in [
+        (ClassmethodOuter, "OK!"),
+        (ClassmethodInner, "OK!"),
+        (StaticmethodOuter, "OK!"),
+        (StaticmethodInner, "OK"),
+    ]:
+        assert model_declares_async_validators(model_cls)
+        with pytest.raises(ValueError, match="async validators are not supported"):
+            reject_async_validators(model_cls)
+        validated = await run_async_validators(
+            model_cls(value="ok"), context={"suffix": "!"}
+        )
+        assert validated.value == expected
+        with pytest.raises(AsyncValidationError, match="rejected"):
+            await run_async_validators(model_cls(value="bad"), context={"suffix": "!"})
+
+    with pytest.raises(ValueError, match="optional info parameter"):
+
+        @async_field_validator("value")
+        @staticmethod
+        async def bad_static_name(value: str, _other: ValidationInfo) -> str:
+            return value
+
+    with pytest.raises(ValueError, match="must be of type ValidationInfo"):
+
+        @async_field_validator("value")
+        @staticmethod
+        async def bad_static_type(value: str, info: dict[str, str]) -> str:
+            return value + info.get("suffix", "")
+
+
+def test_model_declares_async_validators_supports_type_aliases_and_parallel_models() -> (
+    None
+):
+    T = TypeVar("T")
+    DirectAlias = TypeAliasType("DirectAlias", Ordered)
+    GenericAlias = TypeAliasType("GenericAlias", list[Ordered], type_params=(T,))
+    PlainAlias = TypeAliasType("PlainAlias", list[int])
+
+    class Plain(BaseModel):
+        value: int
+
+    assert model_declares_async_validators(DirectAlias)
+    assert model_declares_async_validators(GenericAlias)
+    assert model_declares_async_validators(GenericAlias[int])
+    assert model_declares_async_validators(ParallelModel(Iterable[Ordered]))
+    assert not model_declares_async_validators(PlainAlias)
+    assert not model_declares_async_validators(ParallelModel(Iterable[Plain]))
+    assert not model_declares_async_validators(None)

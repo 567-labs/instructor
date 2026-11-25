@@ -13,6 +13,7 @@ from instructor.v2.core.errors import AsyncValidationError
 ASYNC_VALIDATOR_KEY = "__async_validator__"
 ASYNC_MODEL_VALIDATOR_KEY = "__async_model_validator__"
 T = TypeVar("T", bound=Callable[..., Any])
+F = TypeVar("F")
 
 
 class AsyncValidationContext:
@@ -24,14 +25,29 @@ class AsyncValidationContext:
         self.context = context
 
 
-def async_field_validator(field: str, *fields: str) -> Callable[[T], T]:
+def async_field_validator(field: str, *fields: str) -> Callable[[F], F]:
     """Mark a callable as an async field validator."""
     field_names = field, *fields
 
-    def decorator(func: T) -> T:
-        params = signature(func).parameters
+    def decorator(func: F) -> F:
+        is_staticmethod = isinstance(func, staticmethod)
+        target: Any = (
+            func.__func__ if isinstance(func, (classmethod, staticmethod)) else func
+        )
+        params = signature(target).parameters
         requires_validation_context = False
-        if len(params) == 3:
+        if is_staticmethod:
+            if len(params) == 2:
+                if "info" not in params:
+                    raise ValueError(
+                        "Async validator can only have a value parameter and an optional info parameter"
+                    )
+                if params["info"].annotation not in (ValidationInfo, "ValidationInfo"):
+                    raise ValueError(
+                        "Async validator info parameter must be of type ValidationInfo"
+                    )
+                requires_validation_context = True
+        elif len(params) == 3:
             if "info" not in params:
                 raise ValueError(
                     "Async validator can only have a value parameter and an optional info parameter"
@@ -41,9 +57,18 @@ def async_field_validator(field: str, *fields: str) -> Callable[[T], T]:
                     "Async validator info parameter must be of type ValidationInfo"
                 )
             requires_validation_context = True
+        elif (
+            len(params) == 2
+            and "info" in params
+            and params["info"].annotation in (ValidationInfo, "ValidationInfo")
+        ):
+            # Support `@staticmethod` placed above `@async_field_validator(...)`.
+            requires_validation_context = True
 
         setattr(
-            func, ASYNC_VALIDATOR_KEY, (field_names, func, requires_validation_context)
+            target,
+            ASYNC_VALIDATOR_KEY,
+            (field_names, target, requires_validation_context),
         )
         return func
 
@@ -80,18 +105,21 @@ def async_model_validator() -> Callable[[T], T]:
     return decorator
 
 
-def _collect_markers(model_cls: type[BaseModel], key: str) -> list[Any]:
+def _collect_markers(model_cls: type[BaseModel], key: str) -> list[tuple[Any, bool]]:
     """Walk the MRO (base classes first) collecting distinct decorator markers.
 
     A subclass redefining a validator under the same attribute name overrides
     the base class's version, matching normal Python method-override semantics.
     """
-    markers: dict[str, Any] = {}
+    markers: dict[str, tuple[Any, bool]] = {}
     for klass in reversed(model_cls.__mro__):
         for name, member in vars(klass).items():
+            is_staticmethod = isinstance(member, staticmethod)
+            if isinstance(member, (classmethod, staticmethod)):
+                member = member.__func__
             marker = getattr(member, key, None)
             if marker is not None:
-                markers[name] = marker
+                markers[name] = (marker, is_staticmethod)
             else:
                 markers.pop(name, None)
     return list(markers.values())
@@ -99,18 +127,27 @@ def _collect_markers(model_cls: type[BaseModel], key: str) -> list[Any]:
 
 def model_declares_async_validators(model_cls: Any) -> bool:
     """Detect validators on a model or any nested model, including containers."""
-    visited: set[type[BaseModel]] = set()
+    if model_cls is None:
+        return False
+
+    seen: set[int] = set()
 
     def declares(annotation: Any) -> bool:
+        if id(annotation) in seen:
+            return False
+        seen.add(id(annotation))
+        if isinstance(annotation, TypeAliasType):
+            return declares(annotation.__value__)
         origin = get_origin(annotation)
         if origin is not None and origin is not annotation:
             return any(declares(arg) for arg in get_args(annotation)) or declares(
                 origin
             )
-        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-            if annotation in visited:
-                return False
-            visited.add(annotation)
+        if not isinstance(annotation, type):
+            return any(
+                declares(child) for child in getattr(annotation, "models", ())
+            ) or any(declares(arg) for arg in get_args(annotation))
+        if issubclass(annotation, BaseModel):
             if _collect_markers(annotation, ASYNC_VALIDATOR_KEY) or _collect_markers(
                 annotation, ASYNC_MODEL_VALIDATOR_KEY
             ):
@@ -118,7 +155,9 @@ def model_declares_async_validators(model_cls: Any) -> bool:
             return any(
                 declares(field.annotation) for field in annotation.model_fields.values()
             )
-        return any(declares(arg) for arg in get_args(annotation))
+        return any(declares(arg) for arg in get_args(annotation)) or any(
+            declares(ann) for ann in getattr(annotation, "__annotations__", {}).values()
+        )
 
     return declares(model_cls)
 
@@ -180,7 +219,7 @@ async def _run_on_model(
         model = model.model_copy(update=updates)
         updates = {}
 
-    for field_names, validator, needs_info in _collect_markers(
+    for (field_names, validator, needs_info), is_staticmethod in _collect_markers(
         model_cls, ASYNC_VALIDATOR_KEY
     ):
         for field_name in field_names:
@@ -188,11 +227,18 @@ async def _run_on_model(
                 continue
             current = updates.get(field_name, getattr(model, field_name))
             try:
-                new_value = (
-                    await validator(model_cls, current, info)
-                    if needs_info
-                    else await validator(model_cls, current)
-                )
+                if is_staticmethod:
+                    new_value = (
+                        await validator(current, info)
+                        if needs_info
+                        else await validator(current)
+                    )
+                else:
+                    new_value = (
+                        await validator(model_cls, current, info)
+                        if needs_info
+                        else await validator(model_cls, current)
+                    )
             except ValueError as exc:
                 errors.append(exc)
                 continue
@@ -201,7 +247,9 @@ async def _run_on_model(
     if updates:
         model = model.model_copy(update=updates)
 
-    for validator, needs_info in _collect_markers(model_cls, ASYNC_MODEL_VALIDATOR_KEY):
+    for (validator, needs_info), _ in _collect_markers(
+        model_cls, ASYNC_MODEL_VALIDATOR_KEY
+    ):
         try:
             result = (
                 await validator(model, info) if needs_info else await validator(model)
