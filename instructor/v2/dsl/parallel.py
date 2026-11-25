@@ -1,4 +1,5 @@
 from typing import (
+    Annotated,
     Any,
     Generic,
     Optional,
@@ -80,8 +81,27 @@ class ParallelBase(Generic[T]):
         return (result for result in results)
 
 
+def _unwrap_annotated(typehint: object) -> object:
+    while get_origin(typehint) is Annotated:
+        typehint = get_args(typehint)[0]
+    return typehint
+
+
+def _flatten_union(typehint: object) -> tuple[type[Any], ...]:
+    unwrapped = _unwrap_annotated(typehint)
+    if get_origin(unwrapped) in UNION_ORIGINS:
+        members: list[type[Any]] = []
+        for arg in get_args(unwrapped):
+            members.extend(_flatten_union(arg))
+        return tuple(members)
+    return (cast(type[Any], unwrapped),)
+
+
 def is_union_type(typehint: object) -> bool:
-    return get_origin(get_args(typehint)[0]) in UNION_ORIGINS
+    args = get_args(_unwrap_annotated(typehint))
+    if not args:
+        return False
+    return get_origin(_unwrap_annotated(args[0])) in UNION_ORIGINS
 
 
 def model_for_tool_name(
@@ -107,17 +127,24 @@ def model_for_tool_name(
 
 
 def get_types_array(typehint: object) -> tuple[type[Any], ...]:
-    should_be_iterable = get_origin(typehint)
+    unwrapped = _unwrap_annotated(typehint)
+    should_be_iterable = get_origin(unwrapped)
 
     if should_be_iterable is not Iterable:
         raise TypeError(f"Model should be with Iterable instead of {typehint}")
 
-    if is_union_type(typehint):
-        # works for Iterable[Union[int, str]], Iterable[int | str]
-        return get_args(get_args(typehint)[0])
+    args = get_args(unwrapped)
+    if not args:
+        raise TypeError(
+            f"Iterable response_model must specify at least one model type, got {typehint}"
+        )
 
-    # works for Iterable[int]
-    return get_args(typehint)
+    if is_union_type(unwrapped):
+        # works for Iterable[Union[int, str]], Iterable[int | str], and Annotated wrappers
+        return _flatten_union(args[0])
+
+    # works for Iterable[int] and Iterable[Annotated[int, ...]]
+    return tuple(cast(type[Any], _unwrap_annotated(arg)) for arg in args)
 
 
 def handle_parallel_model(typehint: object) -> list[dict[str, Any]]:

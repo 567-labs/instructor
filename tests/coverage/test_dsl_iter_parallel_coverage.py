@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import typing
 from collections.abc import AsyncGenerator, Callable, Generator, Iterable
-from typing import Any, Union, cast
+from typing import Annotated, Any, Union, cast
 
 import pytest
 from openai.types.chat import ChatCompletion
-from pydantic import BaseModel, ValidationError, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, ValidationError, ValidationInfo, field_validator
 
 from instructor.v2.core.errors import ResponseParsingError
 from instructor.v2.core.mode import Mode
@@ -335,3 +336,49 @@ def test_parallel_schema_and_provider_factories_register_all_models() -> None:
     assert set(ParallelModel(typehint).registry) == {"EmailJob", "SmsJob"}
     assert set(VertexAIParallelModel(typehint).registry) == {"EmailJob", "SmsJob"}
     assert set(AnthropicParallelModel(typehint).registry) == {"EmailJob", "SmsJob"}
+
+
+def test_parallel_type_helpers_unwrap_annotated_and_reject_unparameterized_iterable() -> (
+    None
+):
+    annotated_single = Iterable[Annotated[EmailJob, Field(description="email")]]
+    annotated_members = Iterable[
+        Union[
+            Annotated[EmailJob, Field(description="email")],
+            Annotated[SmsJob, Field(description="sms")],
+        ]
+    ]
+    annotated_union = Iterable[
+        Annotated[Union[EmailJob, SmsJob], Field(description="job")]
+    ]
+    annotated_outer = Annotated[
+        Iterable[Union[EmailJob, SmsJob]], Field(description="jobs")
+    ]
+
+    assert get_types_array(annotated_single) == (EmailJob,)
+    assert get_types_array(annotated_members) == (EmailJob, SmsJob)
+    assert get_types_array(annotated_union) == (EmailJob, SmsJob)
+    assert get_types_array(annotated_outer) == (EmailJob, SmsJob)
+
+    assert is_union_type(annotated_single) is False
+    assert is_union_type(annotated_members) is True
+    assert is_union_type(annotated_union) is True
+    assert is_union_type(annotated_outer) is True
+    assert is_union_type(typing.Iterable) is False
+
+    with pytest.raises(TypeError, match="must specify at least one model type"):
+        get_types_array(typing.Iterable)
+
+    assert [
+        tool["function"]["name"] for tool in handle_parallel_model(annotated_union)
+    ] == [
+        "EmailJob",
+        "SmsJob",
+    ]
+    assert [
+        tool["name"] for tool in handle_anthropic_parallel_model(annotated_members)
+    ] == [
+        "EmailJob",
+        "SmsJob",
+    ]
+    assert set(ParallelModel(annotated_outer).registry) == {"EmailJob", "SmsJob"}
