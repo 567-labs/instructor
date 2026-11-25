@@ -9,8 +9,14 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from instructor import Mode
+from instructor import Mode, Provider
 from instructor.v2.core.errors import ConfigurationError, ResponseParsingError
+from instructor.v2.core.hooks import Hooks
+from instructor.v2.core.retry import retry_sync_v2
+from instructor.v2.providers.vertexai.handlers import (
+    VertexAIToolsHandler,
+    parse_vertexai_tools,
+)
 from instructor.v2.providers.vertexai.parallel import VertexAIParallelModel
 
 
@@ -261,3 +267,109 @@ def test_vertexai_schema_helper_raises_helpful_error_when_jsonref_missing(
 
     with pytest.raises(ConfigurationError, match="instructor\\[vertexai\\]"):
         handlers._create_gemini_json_schema(Weather)
+
+
+def _completion_with_parts(parts: list[Any]) -> SimpleNamespace:
+    return SimpleNamespace(
+        candidates=[SimpleNamespace(content=SimpleNamespace(parts=parts))]
+    )
+
+
+@pytest.mark.parametrize(
+    "completion",
+    [
+        pytest.param(SimpleNamespace(candidates=[]), id="empty-candidates"),
+        pytest.param(_completion_with_parts([]), id="empty-parts"),
+        pytest.param(
+            _completion_with_parts([SimpleNamespace(text="blocked")]),
+            id="text-only-part",
+        ),
+        pytest.param(
+            _completion_with_parts(
+                [SimpleNamespace(function_call=SimpleNamespace(name="Weather"))]
+            ),
+            id="missing-args",
+        ),
+    ],
+)
+def test_parse_vertexai_tools_raises_retryable_parsing_error(
+    completion: SimpleNamespace,
+) -> None:
+    with pytest.raises(ResponseParsingError) as exc_info:
+        parse_vertexai_tools(Weather, completion)
+
+    assert exc_info.value.mode == "TOOLS"
+    assert exc_info.value.raw_response is completion
+
+
+def test_parse_vertexai_tools_parses_valid_function_call() -> None:
+    completion = _completion_with_parts(
+        [
+            SimpleNamespace(
+                function_call=SimpleNamespace(name="Weather", args={"city": "Paris"})
+            )
+        ]
+    )
+
+    assert parse_vertexai_tools(Weather, completion) == Weather(city="Paris")
+
+
+def test_vertexai_tool_parsing_error_is_retried(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    blocked = SimpleNamespace(candidates=[])
+    recovered = _completion_with_parts(
+        [
+            SimpleNamespace(
+                function_call=SimpleNamespace(name="Weather", args={"city": "Paris"})
+            )
+        ]
+    )
+    responses = iter([blocked, recovered])
+    calls: list[SimpleNamespace] = []
+    parse_errors: list[tuple[Exception, dict[str, Any]]] = []
+    hooks = Hooks()
+    hooks.on(
+        "parse:error",
+        lambda error, **metadata: parse_errors.append((error, metadata)),
+    )
+
+    def fake_provider(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
+        response = next(responses)
+        calls.append(response)
+        return response
+
+    handler = VertexAIToolsHandler()
+    monkeypatch.setattr(
+        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
+        lambda _provider, _mode: None,
+    )
+    monkeypatch.setattr(
+        "instructor.v2.core.retry.mode_registry.get_handlers",
+        lambda _provider, _mode: SimpleNamespace(
+            response_parser=handler.parse_response,
+            reask_handler=lambda **call_kwargs: call_kwargs["kwargs"],
+        ),
+    )
+
+    result = retry_sync_v2(
+        func=fake_provider,
+        response_model=Weather,
+        provider=Provider.VERTEXAI,
+        mode=Mode.TOOLS,
+        context=None,
+        max_retries=2,
+        args=(),
+        kwargs={"messages": []},
+        strict=False,
+        hooks=hooks,
+    )
+
+    assert result == Weather(city="Paris")
+    assert calls == [blocked, recovered]
+    assert len(parse_errors) == 1
+    error, metadata = parse_errors[0]
+    assert isinstance(error, ResponseParsingError)
+    assert error.mode == "TOOLS"
+    assert error.raw_response is blocked
+    assert metadata["attempt_number"] == 1
