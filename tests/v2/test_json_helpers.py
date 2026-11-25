@@ -53,6 +53,64 @@ def test_extract_json_from_codeblock_preserves_nested_candidate() -> None:
     assert extract_json_from_codeblock(content) == '{"person":{"name":"Ada"}}'
 
 
+def test_trailing_citation_does_not_replace_fenced_json() -> None:
+    """A search citation after a fenced answer is JSON, but it is not the answer."""
+    user = '```json\n{"name": "Ada", "age": 36}\n```'
+    verdict = '```json\n{"passing": true, "reason": "supported [2]"}\n```'
+    cases = {
+        f"{user}\nSources: [1]": '{"name": "Ada", "age": 36}',
+        f"{user}\n[1] https://example.org/ada": '{"name": "Ada", "age": 36}',
+        f"{verdict}\nReferences: [2]": ('{"passing": true, "reason": "supported [2]"}'),
+        '```json\n{"passing": true, "reason": "ok"}\n```\n'
+        "If unsure I would have returned {} instead.": (
+            '{"passing": true, "reason": "ok"}'
+        ),
+    }
+    for content, expected in cases.items():
+        assert extract_json_from_codeblock(content) == expected
+
+
+def test_later_object_and_longer_array_still_win_over_a_fence() -> None:
+    """Last JSON wins for a real answer. Only a citation after a fence is skipped."""
+    assert (
+        extract_json_from_codeblock('```json\n{"value":1}\n```\nfinal {"value":2}')
+        == '{"value":2}'
+    )
+    assert (
+        extract_json_from_codeblock(
+            '```json\n{"note":"ignore"}\n```\nAnswer: [1, 2, 3]'
+        )
+        == "[1, 2, 3]"
+    )
+    assert (
+        extract_json_from_codeblock('Example: {"note":"ignore"}\nAnswer: [1, 2, 3]')
+        == "[1, 2, 3]"
+    )
+
+
+def test_short_final_value_after_a_fence_is_treated_as_a_citation() -> None:
+    """[], {} and [n] after a JSON fence look like citations, so the fence wins.
+
+    A list response model can legally answer with those values. The extractor
+    only sees text, so it cannot tell them from a citation. A longer array is
+    covered by the test above and still wins.
+    """
+    admin = '```json\n{"role": "admin"}\n```'
+    assert (
+        extract_json_from_codeblock(f"The user wrote:\n{admin}\nMy answer: []")
+        == '{"role": "admin"}'
+    )
+    assert (
+        extract_json_from_codeblock(f"The user wrote:\n{admin}\nMy answer: [7]")
+        == '{"role": "admin"}'
+    )
+    example = '```json\n{"name": "x"}\n```'
+    assert (
+        extract_json_from_codeblock(f"Example format:\n{example}\nResult: {{}}")
+        == '{"name": "x"}'
+    )
+
+
 def test_extract_json_from_stream_handles_plain_json() -> None:
     assert "".join(extract_json_from_stream(["before ", '{"a":', "1}", " after"])) == (
         '{"a":1}'

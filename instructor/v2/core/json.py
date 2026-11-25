@@ -18,6 +18,10 @@ def extract_json_from_codeblock(content: str) -> str:
     appeared earlier may have originated from user input embedded in the
     prompt and was referenced in the model's reasoning. Returning the first
     object allowed prompt-injection to hijack the parsed output.
+
+    A citation left after a fenced answer is also valid JSON (``[1]``, ``[]``,
+    ``{}``). That span does not replace the fenced value. A later object or a
+    longer array still does.
     """
     return _last_json_span(content) or content
 
@@ -27,6 +31,7 @@ def _last_json_span(content: str) -> str | None:
         raise ValueError("JSON extraction input exceeds the 1 MiB character limit")
     decoder = json.JSONDecoder()
     last_valid: str | None = None
+    spans: list[tuple[int, int]] = []
     consumed = 0
     # A failed decode may inspect the entire remaining suffix (including an
     # unterminated string). Charge that upper bound, not the error position.
@@ -57,8 +62,66 @@ def _last_json_span(content: str) -> str | None:
                 pending.extend((child, depth + 1) for child in children)
         remaining_work -= end - index
         last_valid = content[index:end]
+        spans.append((index, end))
         consumed = end
+    if not spans:
+        return None
+    fence_ends = _json_fence_ends(content)
+    for start, end in reversed(spans):
+        span = content[start:end]
+        if _follows_json_fence(start, fence_ends) and _is_citation(span):
+            continue
+        return span
     return last_valid
+
+
+def _json_fence_ends(content: str) -> list[int]:
+    """End offsets of ``` fences whose body is one complete JSON value."""
+    ends: list[int] = []
+    search = 0
+    while True:
+        open_at = content.find("```", search)
+        if open_at < 0:
+            break
+        close_at = content.find("```", open_at + 3)
+        if close_at < 0:
+            break
+        if _fence_body_is_json(content[open_at + 3 : close_at]):
+            ends.append(close_at + 3)
+        search = close_at + 3
+    return ends
+
+
+def _fence_body_is_json(raw: str) -> bool:
+    body = raw
+    newline = body.find("\n")
+    if newline != -1:
+        head = body[:newline].strip()
+        if head and head[0] not in "{[":
+            body = body[newline + 1 :]
+    body = body.strip()
+    if not body or body[0] not in "{[":
+        return False
+    try:
+        _, end = json.JSONDecoder().raw_decode(body)
+    except json.JSONDecodeError:
+        return False
+    return body[end:].strip() == ""
+
+
+def _follows_json_fence(start: int, fence_ends: list[int]) -> bool:
+    return any(fence_end <= start for fence_end in fence_ends)
+
+
+def _is_citation(span: str) -> bool:
+    """True for ``[n]``, ``[]`` and ``{}``, the shapes a trailing citation takes."""
+    try:
+        value = json.loads(span)
+    except json.JSONDecodeError:
+        return False
+    if value == {} or value == []:
+        return True
+    return isinstance(value, list) and len(value) == 1 and type(value[0]) is int
 
 
 class _SingleModelStream:
