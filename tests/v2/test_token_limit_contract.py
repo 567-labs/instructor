@@ -523,3 +523,25 @@ async def test_gemini_async_extractor_skips_textless_chunks() -> None:
         async for text in GeminiJSONHandler().extract_streaming_json_async(chunks())
     ]
     assert collected == [ITEMS_JSON]
+
+
+@pytest.mark.asyncio
+async def test_gemini_async_extractor_raises_on_max_tokens() -> None:
+    from instructor.v2.providers.gemini.handlers import GeminiJSONHandler
+
+    terminal = SimpleNamespace(
+        text="",
+        candidates=[SimpleNamespace(finish_reason=SimpleNamespace(name="MAX_TOKENS"))],
+    )
+
+    async def chunks() -> AsyncGenerator[Any, None]:
+        yield SimpleNamespace(text=ITEMS_JSON, candidates=[])
+        yield terminal
+
+    stream = GeminiJSONHandler().extract_streaming_json_async(
+        chunks(), require_complete=True
+    )
+    assert await anext(stream) == ITEMS_JSON
+    with pytest.raises(IncompleteOutputException) as exc_info:
+        await anext(stream)
+    assert exc_info.value.last_completion is terminal
