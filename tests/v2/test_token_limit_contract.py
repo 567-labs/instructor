@@ -10,6 +10,7 @@ into the registered response parser.
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Callable
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -199,11 +200,40 @@ def _mistral(mode: Mode) -> Callable[[bool], list[Any]]:
     return build
 
 
+def _gemini_like() -> Callable[[bool], list[Any]]:
+    """Duck-typed Google-style chunks with both text and parts accessors."""
+
+    def build(limit: bool) -> list[Any]:
+        reason = SimpleNamespace(name="MAX_TOKENS" if limit else "STOP")
+
+        def chunk(text: str, finish: Any = None) -> Any:
+            part = SimpleNamespace(text=text)
+            return SimpleNamespace(
+                text=text,
+                candidates=[
+                    SimpleNamespace(
+                        content=SimpleNamespace(parts=[part]), finish_reason=finish
+                    )
+                ],
+            )
+
+        tail = ", " if limit else "]}"
+        return [chunk(ITEMS_JSON), chunk(tail), chunk("", reason)]
+
+    return build
+
+
 STREAM_CASES: list[tuple[str, Provider, Mode, Callable[[bool], list[Any]]]] = [
     ("openai-tools", Provider.OPENAI, Mode.TOOLS, _openai_chat(Mode.TOOLS)),
     ("openai-json", Provider.OPENAI, Mode.JSON, _openai_chat(Mode.JSON)),
     ("openai-responses", Provider.OPENAI, Mode.RESPONSES_TOOLS, _openai_responses),
     ("anthropic-tools", Provider.ANTHROPIC, Mode.TOOLS, _anthropic),
+    (
+        "vertexai-md-json",
+        Provider.VERTEXAI,
+        Mode.MD_JSON,
+        _gemini_like(),
+    ),
     ("genai-tools", Provider.GENAI, Mode.TOOLS, _genai(Mode.TOOLS)),
     ("genai-json", Provider.GENAI, Mode.JSON, _genai(Mode.JSON)),
     (
@@ -420,3 +450,23 @@ def test_non_streaming_token_limit_raises(
         mode_registry.get_handlers(provider, mode).response_parser(response, Answer)
 
     assert exc_info.value.last_completion is response
+
+
+def test_gemini_iterable_stream_raises_on_max_tokens_after_complete_item() -> None:
+    """Gemini's streaming extractor must surface MAX_TOKENS for iterables."""
+    from instructor.v2.providers.gemini.handlers import GeminiJSONHandler
+
+    complete = SimpleNamespace(text=ITEMS_JSON, candidates=[])
+    terminal = SimpleNamespace(
+        text="",
+        candidates=[SimpleNamespace(finish_reason=SimpleNamespace(name="MAX_TOKENS"))],
+    )
+    handler = GeminiJSONHandler()
+
+    generator = handler.extract_streaming_json(
+        [complete, terminal], require_complete=True
+    )
+    assert next(generator) == ITEMS_JSON
+    with pytest.raises(IncompleteOutputException) as exc_info:
+        next(generator)
+    assert exc_info.value.last_completion is terminal

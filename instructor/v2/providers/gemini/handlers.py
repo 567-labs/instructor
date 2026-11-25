@@ -194,10 +194,13 @@ class GeminiHandlerBase(ModeHandler):
     mode: Mode
 
     def extract_streaming_json(
-        self, completion: TypingIterable[Any]
+        self, completion: TypingIterable[Any], *, require_complete: bool = False
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from Gemini streaming responses."""
+        incomplete_chunk: Any = None
         for chunk in completion:
+            if require_complete and is_truncated_at_max_tokens(chunk):
+                incomplete_chunk = chunk
             try:
                 # `candidates` can be empty (e.g. a safety-blocked chunk),
                 # which raises IndexError rather than AttributeError — skip
@@ -208,15 +211,23 @@ class GeminiHandlerBase(ModeHandler):
                     if "args" in resp_dict:
                         yield json.dumps(resp_dict["args"])
                 else:
-                    yield extract_gemini_chunk_text(chunk)
+                    # A usage-only or safety-blocked chunk has no text; yielding
+                    # None would break the downstream JSON scanner.
+                    if text := extract_gemini_chunk_text(chunk):
+                        yield text
             except (AttributeError, IndexError):
                 continue
+        if incomplete_chunk is not None:
+            raise IncompleteOutputException(last_completion=incomplete_chunk)
 
     async def extract_streaming_json_async(
-        self, completion: AsyncGenerator[Any, None]
+        self, completion: AsyncGenerator[Any, None], *, require_complete: bool = False
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from Gemini async streams."""
+        incomplete_chunk: Any = None
         async for chunk in completion:
+            if require_complete and is_truncated_at_max_tokens(chunk):
+                incomplete_chunk = chunk
             try:
                 if self.mode == Mode.TOOLS:
                     resp = chunk.candidates[0].content.parts[0].function_call
@@ -224,9 +235,14 @@ class GeminiHandlerBase(ModeHandler):
                     if "args" in resp_dict:
                         yield json.dumps(resp_dict["args"])
                 else:
-                    yield extract_gemini_chunk_text(chunk)
+                    # A usage-only or safety-blocked chunk has no text; yielding
+                    # None would break the downstream JSON scanner.
+                    if text := extract_gemini_chunk_text(chunk):
+                        yield text
             except (AttributeError, IndexError):
                 continue
+        if incomplete_chunk is not None:
+            raise IncompleteOutputException(last_completion=incomplete_chunk)
 
     def _parse_streaming(
         self,
@@ -245,6 +261,9 @@ class GeminiHandlerBase(ModeHandler):
         single_json = self.mode == Mode.MD_JSON and not issubclass(
             response_model, IterableBase
         )
+        # A truncated iterable stream must raise after the complete items;
+        # Partial stays best-effort, so only Iterable requires completion.
+        require_complete = issubclass(response_model, IterableBase)
         if inspect.isasyncgen(response) or isinstance(response, AsyncIterator):
             return streaming_model.from_streaming_response_async(
                 response,
@@ -254,7 +273,11 @@ class GeminiHandlerBase(ModeHandler):
                     )
                 )
                 if single_json
-                else self.extract_streaming_json_async,
+                else (
+                    lambda events: self.extract_streaming_json_async(
+                        events, require_complete=require_complete
+                    )
+                ),
                 **parse_kwargs,
             )
 
@@ -266,7 +289,11 @@ class GeminiHandlerBase(ModeHandler):
                 )
             )
             if single_json
-            else self.extract_streaming_json,
+            else (
+                lambda events: self.extract_streaming_json(
+                    events, require_complete=require_complete
+                )
+            ),
             **parse_kwargs,
         )
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):

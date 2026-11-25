@@ -261,10 +261,13 @@ class VertexAIHandlerBase(ModeHandler):
     mode: Mode
 
     def extract_streaming_json(
-        self, completion: TypingIterable[Any]
+        self, completion: TypingIterable[Any], *, require_complete: bool = False
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from VertexAI streaming responses."""
+        incomplete_chunk: Any = None
         for chunk in completion:
+            if require_complete and is_truncated_at_max_tokens(chunk):
+                incomplete_chunk = chunk
             try:
                 # `candidates` can be empty (e.g. a safety-blocked chunk),
                 # which raises IndexError rather than AttributeError — skip
@@ -277,12 +280,17 @@ class VertexAIHandlerBase(ModeHandler):
                     yield chunk.candidates[0].content.parts[0].text
             except (AttributeError, IndexError):
                 continue
+        if incomplete_chunk is not None:
+            raise IncompleteOutputException(last_completion=incomplete_chunk)
 
     async def extract_streaming_json_async(
-        self, completion: AsyncGenerator[Any, None]
+        self, completion: AsyncGenerator[Any, None], *, require_complete: bool = False
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from VertexAI async streams."""
+        incomplete_chunk: Any = None
         async for chunk in completion:
+            if require_complete and is_truncated_at_max_tokens(chunk):
+                incomplete_chunk = chunk
             try:
                 if self.mode == Mode.TOOLS:
                     yield json.dumps(
@@ -292,6 +300,8 @@ class VertexAIHandlerBase(ModeHandler):
                     yield chunk.candidates[0].content.parts[0].text
             except (AttributeError, IndexError):
                 continue
+        if incomplete_chunk is not None:
+            raise IncompleteOutputException(last_completion=incomplete_chunk)
 
     def _parse_streaming(
         self,
@@ -315,6 +325,9 @@ class VertexAIHandlerBase(ModeHandler):
         ):
             task_parser = streaming_model.tasks_from_task_list_chunks
 
+        # Iterable streams must raise after the complete items when truncated;
+        # Partial stays best-effort, like the other providers.
+        require_complete = issubclass(response_model, IterableBase)
         if inspect.isasyncgen(response) or isinstance(response, AsyncIterator):
             if task_parser is not None:
                 parse_kwargs["task_parser"] = (
@@ -322,7 +335,9 @@ class VertexAIHandlerBase(ModeHandler):
                 )
             return streaming_model.from_streaming_response_async(
                 response,
-                stream_extractor=self.extract_streaming_json_async,
+                stream_extractor=lambda events: self.extract_streaming_json_async(
+                    events, require_complete=require_complete
+                ),
                 **parse_kwargs,
             )
 
@@ -330,7 +345,9 @@ class VertexAIHandlerBase(ModeHandler):
             parse_kwargs["task_parser"] = task_parser
         generator = streaming_model.from_streaming_response(
             response,
-            stream_extractor=self.extract_streaming_json,
+            stream_extractor=lambda events: self.extract_streaming_json(
+                events, require_complete=require_complete
+            ),
             **parse_kwargs,
         )
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):
