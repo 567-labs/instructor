@@ -226,6 +226,7 @@ def _gemini_like() -> Callable[[bool], list[Any]]:
 
 def _gemini_like() -> Callable[[bool], list[Any]]:
     """Duck-typed Google-style chunks with both text and parts accessors."""
+
     def build(limit: bool) -> list[Any]:
         reason = SimpleNamespace(name="MAX_TOKENS" if limit else "STOP")
 
