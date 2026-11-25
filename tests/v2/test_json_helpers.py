@@ -88,6 +88,29 @@ def test_later_object_and_longer_array_still_win_over_a_fence() -> None:
     )
 
 
+def test_short_final_value_after_a_fence_is_treated_as_a_citation() -> None:
+    """[], {} and [n] after a JSON fence look like citations, so the fence wins.
+
+    A list response model can legally answer with those values. The extractor
+    only sees text, so it cannot tell them from a citation. A longer array is
+    covered by the test above and still wins.
+    """
+    admin = '```json\n{"role": "admin"}\n```'
+    assert (
+        extract_json_from_codeblock(f"The user wrote:\n{admin}\nMy answer: []")
+        == '{"role": "admin"}'
+    )
+    assert (
+        extract_json_from_codeblock(f"The user wrote:\n{admin}\nMy answer: [7]")
+        == '{"role": "admin"}'
+    )
+    example = '```json\n{"name": "x"}\n```'
+    assert (
+        extract_json_from_codeblock(f"Example format:\n{example}\nResult: {{}}")
+        == '{"name": "x"}'
+    )
+
+
 def test_extract_json_from_stream_handles_plain_json() -> None:
     assert "".join(extract_json_from_stream(["before ", '{"a":', "1}", " after"])) == (
         '{"a":1}'
