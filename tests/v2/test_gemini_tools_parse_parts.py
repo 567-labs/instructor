@@ -62,3 +62,21 @@ def test_tools_handler_parses_call_after_leading_text_part() -> None:
 
     assert parsed.value == 9
     assert parsed._raw_response is completion
+
+
+def test_parse_gemini_tools_legacy_single_part_without_name() -> None:
+    """Legacy single-part calls omit `name`; the parts[0] fallback still parses."""
+    completion = _completion(_part(function_call=SimpleNamespace(args={"value": 11})))
+
+    parsed = parse_gemini_tools(Answer, completion)
+
+    assert parsed == Answer(value=11)
+
+
+def test_parse_gemini_tools_raises_when_part_has_no_function_call() -> None:
+    """A part with no function_call leaves the call unresolved and raises."""
+    completion = _completion(_part(text="only prose"))
+
+    with pytest.raises(ResponseParsingError, match="No tool call found") as no_call:
+        parse_gemini_tools(Answer, completion)
+    assert no_call.value.mode == "GEMINI_TOOLS"
