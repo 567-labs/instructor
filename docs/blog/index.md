@@ -1,8 +1,11 @@
-# Subscribe to our Newsletter for Updates and Tips
+---
+title: Instructor blog
+description: Python tutorials on extracting data from LLMs, validating it with Pydantic, and streaming results.
+---
 
-If you want to get updates on new features and tips on how to use Instructor, you can subscribe to our newsletter below to get notified when we publish new content.
+# Instructor blog
 
-<iframe src="https://embeds.beehiiv.com/2faf420d-8480-4b6e-8d6f-9c5a105f917a?slim=true" data-test-id="beehiiv-embed" height="52" frameborder="0" scrolling="no" style="margin: 0; border-radius: 0px !important; background-color: transparent;"></iframe>
+Follow a Python example to [validate citations](posts/citations.md), [stream structured responses](posts/generator.md), or [classify customer messages with the OpenAI Decisions API](../concepts/decisions.md).
 
 ## Advanced Topics
 
@@ -45,3 +48,9 @@ If you want to get updates on new features and tips on how to use Instructor, yo
 
 - [Course: Structured Outputs with Instructor](https://www.wandb.courses/courses/steering-language-models?x=1)
 - [Keynote: Pydantic is All You Need](posts/aisummit-2023.md)
+
+## Subscribe to our newsletter for updates and tips
+
+Get new Instructor tutorials and release notes by email.
+
+<iframe title="Subscribe to the Instructor newsletter" src="https://embeds.beehiiv.com/2faf420d-8480-4b6e-8d6f-9c5a105f917a?slim=true" data-test-id="beehiiv-embed" height="52" frameborder="0" scrolling="no" style="margin: 0; border-radius: 0px !important; background-color: transparent;"></iframe>

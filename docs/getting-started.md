@@ -1,49 +1,25 @@
 ---
-title: Getting Started
-description: A step-by-step guide to getting started with Instructor for structured outputs from LLMs
+title: Python quickstart
+description: Build a Pydantic response model, extract a record with OpenAI, and add field validation, retries, and streaming. Then try the same model with Claude.
 ---
 
-# Getting Started with Instructor
+# Extract and validate your first LLM response {#getting-started-with-instructor}
 
-This guide will walk you through the basics of using Instructor to extract structured data from language models. By the end, you'll understand how to:
-
-1. Install and set up Instructor
-2. Extract basic structured data
-3. Handle validation and errors
-4. Work with streaming responses
-5. Use different LLM providers
+This guide starts with two fields, a name and an age. You'll add a validation rule, extract a list of addresses, and stream the result as it arrives.
 
 ## Installation
 
-First, install Instructor:
+Use Python 3.10 or later. Installing Instructor also installs Pydantic and the OpenAI SDK.
 
 ```bash
 pip install instructor
 ```
 
-To use a specific provider, install the appropriate extras:
-
-> Instructor's core install contains only required dependencies. Provider SDKs are optional and must be added explicitly.
-
-```bash
-# For OpenAI (included by default)
-pip install instructor
-
-# For Anthropic
-pip install "instructor[anthropic]"
-
-# For other providers
-pip install "instructor[google-genai]"         # For Google/Gemini
-pip install "instructor[vertexai]"             # For Vertex AI
-pip install "instructor[cohere]"               # For Cohere
-pip install "instructor[litellm]"              # For LiteLLM (multiple providers)
-pip install "instructor[mistral]"               # For Mistral
-pip install "instructor[xai]"                  # For xAI
-```
+For the Claude example, run `pip install "instructor[anthropic]"`. See [provider setup](./learning/getting_started/installation.md) for other SDKs and API keys.
 
 ## Setting Up Environment
 
-Set your API keys as environment variables:
+Set the API key for the provider you plan to use in the same shell that runs Python.
 
 ```bash
 # For OpenAI
@@ -74,6 +50,7 @@ client = instructor.from_provider("openai/gpt-6-luna")
 # Extract structured data
 user_info = client.create(
     response_model=UserInfo,
+    reasoning_effort="none",
     messages=[
         {"role": "user", "content": "John Doe is 30 years old."}
     ],
@@ -90,7 +67,7 @@ This example demonstrates the core workflow:
 
 ## Validation and Error Handling
 
-Instructor leverages Pydantic's validation to ensure your data meets requirements:
+Reuse the client above. A field constraint checks the age, and a custom validator checks that the name contains a space.
 
 ```python
 from pydantic import BaseModel, Field, field_validator
@@ -105,14 +82,16 @@ class User(BaseModel):
             raise ValueError('Name must include first and last name')
         return v
 
-# This will make the LLM retry if validation fails
 user = client.create(
     response_model=User,
+    max_retries=2,
     messages=[
-        {"role": "user", "content": "Extract: Tom is 25 years old."}
+        {"role": "user", "content": "Tom Smith is 25 years old."}
     ],
 )
 ```
+
+If the LLM returns `Tom`, Instructor sends the validator's message, `Name must include first and last name`, back to the LLM. With `max_retries=2`, the LLM gets up to two more attempts to extract `Tom Smith`.
 
 ## Working with Complex Models
 
@@ -147,16 +126,17 @@ person = client.create(
 
 ## Streaming Responses
 
-For larger responses or better user experience, use streaming:
+Call `create_partial` with the same `Person` model to see fields appear as the provider sends more data. Early snapshots may have missing fields.
 
 ```python
-from instructor import Partial
-
 # Stream the response as it's being generated
 stream = client.create_partial(
     response_model=Person,
     messages=[
-        {"role": "user", "content": "Extract a detailed person profile for John Smith, 35, who lives in Chicago and Springfield."}
+        {
+            "role": "user",
+            "content": "John Smith, 35, lives at 456 Oak Ave, Chicago, IL 60601.",
+        }
     ],
 )
 
@@ -217,8 +197,7 @@ Instructor automatically retries with validation feedback. You can configure ret
 
 ## Next Steps
 
-Now that you've mastered the basics, here are some next steps:
-
+- Use [typed decisions](./concepts/decisions.md) to classify or score the same input against several questions in one request.
 - Learn about [client setup with from_provider](./concepts/from_provider.md) for different LLM providers
 - Explore [advanced validation](./concepts/reask_validation.md) to ensure data quality
 - Check out the [Cookbook examples](./examples/index.md) for real-world applications
@@ -230,4 +209,4 @@ Now that you've mastered the basics, here are some next steps:
 
 For more detailed information on any topic, visit the [Concepts](./concepts/index.md) section.
 
-If you have questions or need help, join our [Discord community](https://discord.gg/bD9YE9JArw) or check the [GitHub repository](https://github.com/jxnl/instructor).
+If you have questions or need help, join our [Discord community](https://discord.gg/bD9YE9JArw) or check the [GitHub repository](https://github.com/567-labs/instructor).

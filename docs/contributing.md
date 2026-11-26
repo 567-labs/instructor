@@ -1,6 +1,6 @@
 ---
-title: Contribute to Instructor: Evals, Issues, and Pull Requests
-description: Join us in enhancing the Instructor library with evals, report issues, and submit pull requests on GitHub. Collaborate and contribute!
+title: Contribute
+description: Set up a development environment, add a provider, and run evaluation tests before submitting a pull request to Instructor.
 ---
 
 # Contributing to Instructor

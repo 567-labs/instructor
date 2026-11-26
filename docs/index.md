@@ -1,41 +1,32 @@
 ---
-title: "Instructor - Multi-Language Library for Structured LLM Outputs | Python, TypeScript, Go, Ruby"
-description: "Get structured, validated data from any LLM with Instructor - the #1 library for LLM data extraction. Supports 15+ providers (OpenAI, Anthropic, Google, Ollama, DeepSeek) in 6 languages. Built on type-safe schemas with automatic retries, streaming, and nested object support."
-keywords: "LLM structured outputs, structured data extraction, OpenAI structured data, Pydantic LLM validation, Python LLM library, TypeScript LLM, Go LLM, Ruby LLM, Anthropic structured outputs, GPT structured data extraction, LLM response validation, AI data extraction, Ollama structured outputs, open source LLM, DeepSeek validation, Instructor vs Guardrails, LLM validation library, JSON schema validation, nested LLM schemas"
+title: Structured outputs in Python
+description: Extract data into Pydantic models with OpenAI, Claude, or Gemini. Validate responses, retry failed requests, and stream completed records in Python.
 ---
 
-# Instructor: Top Multi-Language Library for Structured LLM Outputs
+# Structured LLM outputs in Python with Instructor {#instructor-top-multi-language-library-for-structured-llm-outputs}
 
-_Extract structured data from any LLM with type safety, validation, and automatic retries. Available in Python, TypeScript, Go, Ruby, Elixir, and Rust._
+Define the fields you need in a Pydantic model and pass it to Instructor as `response_model`. Instructor sends the schema to your LLM, validates the response, and returns a Python object.
 
 [![PyPI - Version](https://img.shields.io/pypi/v/instructor?style=flat-square&logo=pypi&logoColor=white&label=PyPI)](https://pypi.org/project/instructor/)
-[![License](https://img.shields.io/github/license/instructor-ai/instructor?style=flat-square&color=blue)](https://github.com/instructor-ai/instructor/blob/main/LICENSE)
-[![GitHub Repo stars](https://img.shields.io/github/stars/instructor-ai/instructor?style=flat-square&logo=github&logoColor=white)](https://github.com/instructor-ai/instructor)
+[![License](https://img.shields.io/github/license/567-labs/instructor?style=flat-square&color=blue)](https://github.com/567-labs/instructor/blob/main/LICENSE)
+[![GitHub Repo stars](https://img.shields.io/github/stars/567-labs/instructor?style=flat-square&logo=github&logoColor=white)](https://github.com/567-labs/instructor)
 [![Downloads](https://img.shields.io/pypi/dm/instructor?style=flat-square&logo=pypi&logoColor=white&label=Downloads)](https://pypi.org/project/instructor/)
 [![Discord](https://img.shields.io/discord/1192334452110659664?style=flat-square&logo=discord&logoColor=white&label=Discord)](https://discord.gg/bD9YE9JArw)
 [![Twitter Follow](https://img.shields.io/twitter/follow/jxnlco?style=flat-square&logo=twitter&logoColor=white)](https://twitter.com/jxnlco)
 
-> **Instructor for extraction, PydanticAI for agents.** Instructor shines when you need fast, schema-first extraction without extra agents. When your project needs quality gates, shareable runs, or built-in observability, try [PydanticAI](https://ai.pydantic.dev/). PydanticAI is the official agent runtime from the Pydantic team: it adds typed tools, dataset replays, and production dashboards while keeping your existing Instructor models. Read the [PydanticAI docs](https://ai.pydantic.dev/) to see how to bring those capabilities into your stack.
-
 ## What is Instructor?
 
-Instructor is the **most popular Python library** for extracting structured data from Large Language Models (LLMs). With over **3 million monthly downloads, 11k stars, and 100+ contributors**, it's the go-to solution for developers who need reliable, validated outputs from AI models.
+Instructor is a Python library for extracting structured data from text, images, and documents. If a record fails validation, Instructor can send the error back to the LLM and retry.
 
-Built on top of **Pydantic**, Instructor provides type-safe data extraction with automatic validation, retries, and streaming support. Whether you're using OpenAI's GPT models, Anthropic's Claude, Google's Gemini, **open source models with Ollama**, **DeepSeek**, or any of 15+ supported providers, Instructor ensures your LLM outputs are always structured and validated.
+- [Extract your first record](./getting-started.md) or [learn how response models work](./start-here.md).
+- [Stream a list of completed records](./concepts/iterable.md) or [watch one record fill in](./concepts/partial.md).
+- [Classify and score content with typed decisions](./concepts/decisions.md) in Instructor 1.18 and later.
 
-## Key Features for LLM Data Extraction
-
-- **Structured Outputs**: Define Pydantic models to specify exactly what data you want from your LLM
-- **Automatic Retries**: Built-in retry logic when validation fails - no more manual error handling
-- **Data Validation**: Leverage Pydantic's powerful validation to ensure response quality
-- **Streaming Support**: Real-time processing of partial responses and lists
-- **Multi-Provider**: Works with OpenAI, Anthropic, Google, Mistral, Cohere, Ollama, DeepSeek, and 15+ LLM providers
-- **Type Safety**: Full IDE support with proper type inference and autocompletion
-- **Open Source Support**: Run any open source model locally with Ollama, llama-cpp-python, or vLLM
+For agent workflows, see [PydanticAI](https://ai.pydantic.dev/).
 
 ## Quick Start
 
-Install Instructor and start extracting structured data in minutes:
+Use Python 3.10 or later. The base install includes Pydantic and the OpenAI SDK. See the [installation guide](./installation.md) for other providers.
 
 === "pip"
     ```bash
@@ -54,7 +45,7 @@ Install Instructor and start extracting structured data in minutes:
 
 ### Extract Structured Data
 
-Instructor's **`from_provider`** function provides a unified interface to work with any LLM provider. Switch between OpenAI, Anthropic, Google, Ollama, DeepSeek, and 15+ providers with the same code:
+Set `OPENAI_API_KEY` in your environment. This example asks GPT-6 Luna to extract three fields from a sentence.
 
 ```python
 import instructor
@@ -67,15 +58,12 @@ class Person(BaseModel):
     occupation: str
 
 
-# Works with any provider - same interface everywhere
 client = instructor.from_provider("openai/gpt-6-luna")
-# Or: instructor.from_provider("anthropic/claude-haiku-5-5")
-# Or: instructor.from_provider("google/gemini-pro")
-# Or: instructor.from_provider("ollama/llama3.2")  # local
 
 # Extract structured data from natural language
 person = client.create(
     response_model=Person,
+    reasoning_effort="none",
     messages=[
         {"role": "user", "content": "Extract: John is a 30-year-old software engineer"}
     ],
@@ -140,11 +128,9 @@ support_case = client.create(
 
 ## Supported LLM Providers
 
-Instructor works seamlessly with **15+ popular LLM providers**, giving you the flexibility to use any model while maintaining consistent structured output handling. From OpenAI's GPT models to **open source alternatives with Ollama**, **DeepSeek models**, and local inference, get validated data extraction everywhere.
+Use `from_provider` to select a provider and model. Check the [integration guide](./integrations/index.md) for supported modes, SDKs, and credentials.
 
-It stands out for its simplicity, transparency, and user-centric design, built on top of Pydantic. Instructor helps you manage [validation context](./concepts/reask_validation.md), retries with [Tenacity](./concepts/retrying.md), and streaming [Lists](./concepts/lists.md) and [Partial](./concepts/partial.md) responses.
-
-[:material-star: Star the Repo](https://github.com/jxnl/instructor){: .md-button .md-button--primary } [:material-book-open-variant: Cookbooks](./examples/index.md){: .md-button } [:material-lightbulb: Prompting Guide](./prompting/index.md){: .md-button }
+[:material-star: Star the Repo](https://github.com/567-labs/instructor){: .md-button .md-button--primary } [:material-book-open-variant: Cookbooks](./examples/index.md){: .md-button } [:material-lightbulb: Prompting Guide](./prompting/index.md){: .md-button }
 
 If you ever get stuck, you can always run `instructor docs` to open the documentation in your browser. It even supports searching for specific topics.
 
@@ -207,7 +193,7 @@ All providers use the same simple interface. Here are quick examples for the mos
         age: int
 
 
-    client = instructor.from_provider("google/gemini-2.5-flash")
+    client = instructor.from_provider("google/gemini-3.5-flash")
     resp = client.create(
         response_model=ExtractUser,
         messages=[{"role": "user", "content": "Extract Jason is 25 years old."}],
@@ -246,7 +232,7 @@ If you use Instructor in your research or project, please cite it using:
 @software{liu2024instructor,
   author = {Jason Liu and Contributors},
   title = {Instructor: A library for structured outputs from large language models},
-  url = {https://github.com/instructor-ai/instructor},
+  url = {https://github.com/567-labs/instructor},
   year = {2024},
   month = {3}
 }
@@ -288,7 +274,7 @@ If you use Instructor in your research or project, please cite it using:
 
 - :material-lightning-bolt: **Simplified LLM Interactions**
 
-    Support for [OpenAI](./integrations/openai.md), [Anthropic](./integrations/anthropic.md), [Google](./integrations/google.md), [Vertex AI](./integrations/vertex.md), [Mistral/Mixtral](./integrations/together.md), [Ollama](./integrations/ollama.md), [llama-cpp-python](./integrations/llama-cpp-python.md), [Cohere](./integrations/cohere.md), [LiteLLM](./integrations/litellm.md).
+    Support for [OpenAI](./integrations/openai.md), [Anthropic](./integrations/anthropic.md), [Google](./integrations/google.md), [Vertex AI](./integrations/vertex.md), [Mistral](./integrations/mistral.md), [Ollama](./integrations/ollama.md), [llama-cpp-python](./integrations/llama-cpp-python.md), [Cohere](./integrations/cohere.md), [LiteLLM](./integrations/litellm.md).
 
     [:octicons-arrow-right-16: See Hub](./integrations/index.md)
 
@@ -467,7 +453,7 @@ except ValidationError as e:
 
 ## Contributing
 
-If you want to help out, checkout some of the issues marked as `good-first-issue` or `help-wanted`. Found [here](https://github.com/jxnl/instructor/labels/good%20first%20issue). They could be anything from code improvements, a guest blog post, or a new cook book.
+If you want to help out, checkout some of the issues marked as `good-first-issue` or `help-wanted`. Found [here](https://github.com/567-labs/instructor/labels/good%20first%20issue). They could be anything from code improvements, a guest blog post, or a new cook book.
 
 ## License
 

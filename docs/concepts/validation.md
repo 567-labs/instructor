@@ -1,11 +1,13 @@
 ---
-title: Validation
-description: Learn how to validate LLM outputs with Pydantic for type safety and data consistency.
+title: Validate responses
+description: Use Pydantic field constraints and validators to check extracted data, retry invalid responses, and handle exhausted retries in Instructor.
 ---
 
-# Validation
+# Validate LLM responses with Pydantic {#validation}
 
-Instructor uses Pydantic for validation, providing type checking, data coercion, custom validators, and field constraints.
+Put constraints on your response model to reject invalid values, such as a negative age. For ordinary non-streaming extractions, Instructor can send validation errors back to the model and retry. Set [`max_retries`](retrying.md) to control how many additional attempts it makes.
+
+With [`create_iterable`](iterable.md), each item passes validation before you receive it. With [`create_partial`](partial.md), you can see fields before validation finishes.
 
 ## Validation Flow
 
@@ -19,7 +21,7 @@ flowchart TD
     D -->|Invalid| F{Auto-Retry Enabled?}
 
     F -->|Yes| G[Send Error Context to LLM]
-    F -->|No| H[Raise ValidationError]
+    F -->|No| H[Raise InstructorRetryException]
 
     G --> I[LLM Generates New Response]
     I --> J{Validate Again}
@@ -197,10 +199,11 @@ class User(BaseModel):
 
 ## Error Handling
 
-Handle validation failures with appropriate error types:
+Catch `InstructorRetryException` when the client exhausts its attempts.
 
 ```python
 import instructor
+from instructor.core import InstructorRetryException
 from pydantic import BaseModel, field_validator
 
 
@@ -225,8 +228,8 @@ try:
             {"role": "user", "content": "Extract: John, age: -5"},
         ],
     )
-except instructor.exceptions.InstructorValidationError as e:
-    print(f"Validation error: {e}")
+except InstructorRetryException as e:
+    print(f"Extraction failed after {e.n_attempts} attempts")
 ```
 
 ## Best Practices

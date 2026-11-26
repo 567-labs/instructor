@@ -1,15 +1,15 @@
 ---
-title: Iterable Extraction with Instructor - Stream Multiple Objects
-description: Use Iterable types to extract and stream multiple structured objects from LLM responses. Perfect for entity extraction and multi-task outputs.
+title: Stream records
+description: Use create_iterable to stream Pydantic models or unions from one LLM response, handle truncation, and close sync or async streams.
 ---
 
-# Multi-Task and Streaming
+# Stream records with create_iterable {#multi-task-and-streaming}
 
-Using an `Iterable` lets you extract multiple structured objects from a single LLM call, streaming them as they arrive. This is useful for entity extraction, multi-task outputs, and more.
+Pass the type of **one item** to `client.create_iterable`. Instructor yields each validated item from a single response. Use a union when the stream can contain more than one type of record.
 
-**We recommend using the `create_iterable` method for most use cases.** It's simpler and less error-prone than manually specifying `Iterable[...]` and `stream=True`.
+To get the whole collection at once, see [list extraction with `Iterable[T]`](lists.md). To watch fields fill in on one object, use [`create_partial`](partial.md).
 
-Here's a simple example showing how to extract multiple users from a single sentence. You can use either the recommended `create_iterable` method or the `create` method with `Iterable[User]`:
+Both examples below stream one `User` per person mentioned in the sentence.
 
 === "Using `create_iterable` (recommended)"
     ```python
@@ -65,6 +65,7 @@ Here's a simple example showing how to extract multiple users from a single sent
             }
         ],
         response_model=Iterable[User],
+        stream=True,
     )
 
     for user in resp:
@@ -79,11 +80,11 @@ Here's a simple example showing how to extract multiple users from a single sent
 ---
 
 
-We also support more complex extraction patterns such as Unions as you'll see below out of the box.
+The next example accepts weather requests and search queries in the same response.
 
 ???+ warning
 
-    Unions don't work with Gemini because the AnyOf is not supported in the current response schema.
+    Check that your provider and mode support the `anyOf` schema generated for unions.
 
 ## Synchronous Usage
 
@@ -166,6 +167,8 @@ We also support more complex extraction patterns such as Unions as you'll see be
 
 ## Stopping Iteration Early
 
+Catch `IncompleteOutputException` around the loop. If an OpenAI tool stream hits the token limit after emitting three valid records, the loop yields those three before raising. The shared parser also raises this error if the stream ends halfway through a record.
+
 Once iteration has started, close the iterable if you stop before consuming all
 results. Put synchronous iteration in a `try`/`finally` block and call
 `resp.close()` in `finally`. For asynchronous iteration, use
@@ -179,7 +182,7 @@ own iterable parsers.
 
 ## See Also
 
-- [Streaming Lists](./lists.md) - Similar functionality with different API
+- [Streaming Lists](./lists.md) - Collect records with `client.create`
 - [Streaming Partial](./partial.md) - Stream partially completed objects
 - [List Extraction Tutorial](../learning/patterns/list_extraction.md) - Step-by-step guide
 - [Streaming Basics](../learning/streaming/basics.md) - Introduction to streaming
@@ -282,6 +285,6 @@ own iterable parsers.
 
 ### Markdown output and multiple tool calls
 
-Native tool streams yield complete items as they arrive. Interleaved OpenAI tool calls are assembled by call index. In Markdown mode, a fenced JSON block takes precedence over JSON quoted in the surrounding prose. Fenced items can be emitted immediately. When the response has no fence, Instructor emits all bare JSON candidates in order at the end of the stream.
+Native tool streams yield complete items as they arrive. Interleaved OpenAI tool calls are assembled by call index. In Markdown mode, a fenced JSON block takes precedence over JSON quoted in the surrounding prose. A fenced JSON value is available once its outer object or array closes. When the response has no fence, Instructor emits all bare JSON candidates in order at the end of the stream.
 
 Code that calls `extract_json_from_stream` or its async counterpart directly with a known bare JSON stream can pass `prefer_fenced=False` to consume each completed value immediately.

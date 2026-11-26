@@ -1,3 +1,8 @@
+---
+title: Persistent memory with Dakera
+description: Retrieve stored statements from Dakera, use them to answer a question with Instructor, and store or delete a confirmed quote.
+---
+
 # Persistent memory with Dakera
 
 This example retrieves earlier statements from one Dakera namespace, sends them as reference data to an Instructor model, and returns a validated Pydantic response. The caller can select an exact quote from the current message to store after validation.

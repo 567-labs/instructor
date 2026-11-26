@@ -1,3 +1,8 @@
+---
+title: OpenAI-compatible gateways
+description: Select a provider and model ID or configure a custom gateway URL and credentials using the OpenAI Python SDK.
+---
+
 # OpenAI-compatible gateways
 
 ## Built-in provider clients

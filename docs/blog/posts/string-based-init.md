@@ -1,4 +1,7 @@
 ---
+title: Switch providers
+slug: unified-provider-interface-with-string-based-initialization
+description: Initialize an Instructor client with a provider and model string, then switch providers while reusing the same response model.
 draft: false
 date: 2024-04-20
 authors:

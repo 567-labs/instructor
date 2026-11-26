@@ -1,10 +1,20 @@
 site_name: Instructor
 site_author: Jason Liu
-site_description: A lightweight library for structured outputs with LLMs.
+site_description: Use Instructor and Pydantic to extract, validate, and stream structured LLM outputs in Python.
 repo_name: instructor
-repo_url: https://github.com/jxnl/instructor/
+repo_url: https://github.com/567-labs/instructor/
 site_url: https://python.useinstructor.com/
 edit_uri: edit/main/docs/
+exclude_docs: |
+  /AGENT.md
+  /api-docstring-assessment.md
+  /jobs.md
+  /templates/
+draft_docs: |
+  /prompting/few_shot/exemplar_selection/vote_k.md
+  /prompting/thought_generation/chain_of_thought_few_shot/memory_of_thought.md
+  /prompting/decomposition/recurs_of_thought.md
+  /prompting/decomposition/tree-of-thought.md
 copyright: Copyright &copy; 2024 Jason Liu
 theme:
   name: material
@@ -99,7 +109,7 @@ markdown_extensions:
   - pymdownx.magiclink:
       normalize_issue_symbols: true
       repo_url_shorthand: true
-      user: jxnl
+      user: 567-labs
       repo: instructor
   - pymdownx.mark
   - pymdownx.smartsymbols
@@ -164,6 +174,7 @@ nav:
     - Field-level Validation: 'learning/validation/field_level_validation.md'
   - Integrations:
     - Overview: 'integrations/index.md'
+    - Model IDs by Provider: 'integrations/model-selection.md'
     # Major cloud providers
     - OpenAI: 'integrations/openai.md'
     - OpenAI-compatible gateways: 'integrations/openai-compatible-gateways.md'
@@ -185,7 +196,6 @@ nav:
     - Anyscale: 'integrations/anyscale.md'
     
     # Other commercial providers
-    - Azure OpenAI: 'integrations/azure.md'
     - Cerebras: 'integrations/cerebras.md'
     - Cohere: 'integrations/cohere.md'
     - Databricks: 'integrations/databricks.md'
@@ -201,6 +211,8 @@ nav:
   - Cookbook:
     - Overview: 'examples/index.md'
     - "Audio Information Extraction": 'examples/audio_extraction.md'
+    - "Batch Processing in Memory": 'examples/batch_in_memory.md'
+    - "Synthetic Data with the OpenAI Batch API": 'examples/batch_job_oai.md'
     - "Recursive Schema Examples": 'examples/recursive.md'
     - "Enhancing Text Classification": 'examples/classification.md'
     - "Local Classification with Llama-cpp": 'examples/local_classification.md'
@@ -233,6 +245,7 @@ nav:
     - "Contact Information Extraction": 'examples/extract_contact_info.md'
     - "Knowledge Graph Building": 'examples/building_knowledge_graphs.md'
     - "Tracing with Langfuse": 'examples/tracing_with_langfuse.md'
+    - "Tracing with LangSmith": 'examples/batch_classification_langsmith.md'
     - "Tracing with Arize": 'examples/tracing_with_arize.md'
     - "Multiple Classification Tasks": 'examples/multiple_classification.md'
     - "Pandas DataFrame Integration": 'examples/pandas_df.md'
@@ -247,7 +260,8 @@ nav:
     - Retrying: 'concepts/retrying.md'
     - Fields: 'concepts/fields.md'
     - Models: 'concepts/models.md'
-    - Decisions: 'concepts/decisions.md'
+    - OpenAI Decisions API and Jev: 'concepts/decisions.md'
+    - Batch Processing: 'concepts/batch.md'
     - Parallel Tools: 'concepts/parallel.md'
     - Templating: 'concepts/templating.md'
     - Lists and Arrays: 'concepts/lists.md'
@@ -298,7 +312,6 @@ nav:
       - Example Ordering: 'prompting/few_shot/example_ordering.md'
       - Exemplar Selection:
         - Select Effective Examples: 'prompting/few_shot/exemplar_selection/knn.md'
-        - Vote-K: 'prompting/few_shot/exemplar_selection/vote_k.md'
         - Consistent Based Examples: 'prompting/few_shot/cosp.md'
     - Thought Generation:
       - Chain-Of-Thought (Zero-Shot):
@@ -311,7 +324,6 @@ nav:
         - Automate Example Selection: 'prompting/thought_generation/chain_of_thought_few_shot/auto_cot.md'
         - Prioritize Complex Examples: 'prompting/thought_generation/chain_of_thought_few_shot/complexity_based.md'
         - Include Incorrect Examples: 'prompting/thought_generation/chain_of_thought_few_shot/contrastive.md'
-        - Memory-of-Thought: 'prompting/thought_generation/chain_of_thought_few_shot/memory_of_thought.md'
         - Use Majority Voting: 'prompting/thought_generation/chain_of_thought_few_shot/uncertainty_routed_cot.md'
         - Generate Prompt Variations: 'prompting/thought_generation/chain_of_thought_few_shot/prompt_mining.md'
     - Ensembling:
@@ -338,16 +350,14 @@ nav:
       - Solve simpler subproblems: 'prompting/decomposition/least_to_most.md'
       - Ditch Vanilla Chain Of Thought: 'prompting/decomposition/plan_and_solve.md'
       - Generate Python for Intermediate Steps: 'prompting/decomposition/program_of_thought.md'
-      - Recurs.-of-Thought: 'prompting/decomposition/recurs_of_thought.md'
       - Generate in Parallel: 'prompting/decomposition/skeleton_of_thought.md'
-      - Tree-of-Thought: 'prompting/decomposition/tree-of-thought.md'
   - CLI Reference:
       - "CLI Reference": "cli/index.md"
       - "Finetuning GPT-3.5": "cli/finetune.md"
       - "Usage Tracking": "cli/usage.md"
       - "Batch Jobs": "cli/batch.md"
   - Find Jobs (External):
-      - Jobs: "jobs.md"
+      - Jobs: "https://jobs.applied-llms.org/"
   - Blog:
       - "blog/index.md"
 plugins:
@@ -368,6 +378,11 @@ plugins:
           - integrations/*.md
   - redirects:
       redirect_maps:
+         # Keep links to unfinished guides pointed at their technique summaries.
+         prompting/few_shot/exemplar_selection/vote_k.md: 'prompting/index.md#few-shot'
+         prompting/thought_generation/chain_of_thought_few_shot/memory_of_thought.md: 'prompting/index.md#thought-generation'
+         prompting/decomposition/recurs_of_thought.md: 'prompting/index.md#decomposition'
+         prompting/decomposition/tree-of-thought.md: 'prompting/index.md#decomposition'
          jobs.md: https://jobs.applied-llms.org/
          # LLM client redirects
          hub/ollama.md: integrations/ollama.md

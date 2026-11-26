@@ -1,28 +1,19 @@
 ---
-title: "Anthropic Claude Tutorial: Structured Outputs with Instructor"
-description: "Use Claude Haiku 5.5 with Instructor for structured data extraction and type-safe outputs in Python."
+title: "Claude structured outputs"
+description: "Extract Pydantic models from text, images, and PDFs with Anthropic Claude. Choose tool calling or native JSON Schema and stream validated results."
 ---
 
-## See Also
+# Claude structured outputs with Pydantic in Python
 
-- [Getting Started](../getting-started.md) - Quick start guide
-- [from_provider Guide](../concepts/from_provider.md) - Detailed client configuration
-- [Provider Examples](../index.md#provider-examples) - Quick examples for all providers
-- [Mode Comparison](../modes-comparison.md) - Using Anthropic's tool calling
+Pass a Pydantic class as `response_model` to extract fields from Claude's reply. Choose [tool calling or JSON Schema](#instructor-modes) and set `ANTHROPIC_API_KEY` before running the examples.
 
-# Anthropic Claude Tutorial: Structured Outputs with Instructor
-
-Use [Claude Haiku 5.5](https://platform.claude.com/docs/en/models/haiku-5-5/overview) with Instructor to extract structured data. Omit `temperature`, `top_p`, and `top_k`, and end the conversation with a user message.
+These examples use [Claude Haiku 5.5](https://platform.claude.com/docs/en/models/haiku-5-5/overview). For this model, omit `temperature`, `top_p`, and `top_k`, and end the conversation with a user message.
 
 ## Quick Start: Install Instructor for Claude
 
-Get started with Claude and Instructor for structured outputs:
-
-```
+```bash
 pip install "instructor[anthropic]"
 ```
-
-Once we've done so, getting started is as simple as using our `from_provider` method to patch the client up.
 
 ### Basic Usage
 
@@ -453,11 +444,9 @@ except Exception as e:
 
 ## Instructor Modes
 
-We provide several modes to make it easy to work with the different response models that Anthropic supports
-
-1. `instructor.Mode.JSON` : This uses the text completion API from the Anthropic API and then extracts out the desired response model from the text completion model
-2. `instructor.Mode.TOOLS` : This uses Anthropic's [tools calling API](https://docs.anthropic.com/en/docs/build-with-claude/tool-use) to return structured outputs. Automatically detects parallel tools from `Iterable[Union[...]]` response models.
-3. `instructor.Mode.PARALLEL_TOOLS` : **Deprecated** - Use `Mode.TOOLS` with `Iterable[Union[Model1, Model2, ...]]` instead. Auto-detected automatically.
+- `Mode.TOOLS` sends the model schema as a tool definition and validates the tool input.
+- `Mode.JSON_SCHEMA` requests native structured outputs through `output_config.format` on supported Anthropic SDKs.
+- `Mode.JSON` asks Claude to return JSON in the message text and validates the extracted value.
 
 ### Mode Auto-Detection
 
