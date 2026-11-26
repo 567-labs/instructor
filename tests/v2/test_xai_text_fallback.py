@@ -11,10 +11,14 @@ All fakes in this module are offline -- no provider calls or credentials.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from xai_sdk.aio.client import Client as AsyncClient
+    from xai_sdk.sync.client import Client as SyncClient
 
 from instructor import Mode, Provider
 from instructor.v2.core.registry import mode_registry
@@ -96,7 +100,9 @@ def test_string_content_behavior_is_unchanged(mode: Mode) -> None:
         for shape in ('{"answer": 8.0}', ['{"answer": 8.0}'])
     ]
 
-    assert all(isinstance(result, Answer) and result.answer == 8.0 for result in results)
+    assert all(
+        isinstance(result, Answer) and result.answer == 8.0 for result in results
+    )
 
 
 # --- client factory --------------------------------------------------------
@@ -109,26 +115,28 @@ class _Proto:
         self.response_format = SimpleNamespace(CopyFrom=lambda *_: None)
 
 
-class _SyncChat:
+class _BaseChat:
     def __init__(self, response: _Response) -> None:
         self.response = response
         self.proto = _Proto()
 
+
+class _SyncChat(_BaseChat):
     def sample(self) -> _Response:
         return self.response
 
 
-class _AsyncChat(_SyncChat):
+class _AsyncChat(_BaseChat):
     async def sample(self) -> _Response:
         return self.response
 
 
 class _ChatFactory:
-    def __init__(self, response: _Response, chat_cls: type[_SyncChat]) -> None:
+    def __init__(self, response: _Response, chat_cls: type[_BaseChat]) -> None:
         self.response = response
         self.chat_cls = chat_cls
 
-    def create(self, **_kwargs: Any) -> _SyncChat:
+    def create(self, **_kwargs: Any) -> _BaseChat:
         return self.chat_cls(self.response)
 
 
@@ -173,7 +181,9 @@ def test_sync_client_fallback_joins_text_blocks(
 
     sync_client_cls, _ = fake_xai_clients
     response = _Response(content=_text_blocks('{"ans', 'wer": 9.0}'))
-    instructor_client = from_xai(sync_client_cls(response), mode=mode)
+    instructor_client = from_xai(
+        cast("SyncClient", sync_client_cls(response)), mode=mode
+    )
 
     result = instructor_client.create_fn(
         Answer, [{"role": "user", "content": "hi"}], model="fake-model"
@@ -193,7 +203,9 @@ async def test_async_client_fallback_joins_text_blocks(
 
     _, async_client_cls = fake_xai_clients
     response = _Response(content=_text_blocks('{"ans', 'wer": 10.0}'))
-    instructor_client = from_xai(async_client_cls(response), mode=mode)
+    instructor_client = from_xai(
+        cast("AsyncClient", async_client_cls(response)), mode=mode
+    )
 
     result = await instructor_client.create_fn(
         Answer, [{"role": "user", "content": "hi"}], model="fake-model"
