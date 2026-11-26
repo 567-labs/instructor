@@ -1,7 +1,7 @@
 """Unit tests for Anthropic v2 handlers.
 
 These tests verify handler behavior without requiring API keys, by calling
-the handlers directly with real ``anthropic.types`` objects. One test makes a
+the handlers directly with real ``anthropic.types`` objects. Some tests make a
 local HTTP round trip through ``httpx.MockTransport``.
 """
 
@@ -18,10 +18,11 @@ import anthropic
 import pytest
 from anthropic.types import Message
 from anthropic.types.beta import BetaMessage
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 import instructor
 from instructor import Mode, Provider
+from instructor.v2.core.errors import InstructorRetryException
 from instructor.v2.core.registry import mode_registry
 from instructor.v2.core.response import process_response, process_response_async
 from instructor.v2.dsl.iterable import IterableModel
@@ -47,6 +48,10 @@ class TitledAnswer(BaseModel):
 class User(BaseModel):
     name: str
     age: int
+
+
+class StrictUser(User):
+    model_config = ConfigDict(strict=True)
 
 
 def _handler(mode: Mode) -> Any:
@@ -211,6 +216,91 @@ def test_json_schema_round_trip_over_http(beta: bool) -> None:
     }
     assert "output_format" not in body
     assert "tools" not in body
+
+
+@pytest.mark.parametrize("mode", [Mode.JSON, Mode.JSON_SCHEMA])
+@pytest.mark.parametrize("beta", [False, True])
+@pytest.mark.parametrize("strict", [False, True, None])
+@pytest.mark.parametrize("age", ["36", 36])
+def test_json_modes_respect_validation_strictness(
+    mode: Mode, beta: bool, strict: bool | None, age: str | int
+) -> None:
+    requests: list[dict[str, Any]] = []
+
+    def transport(request: Any) -> Any:
+        requests.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json=_message_payload(
+                [{"type": "text", "text": json.dumps({"name": "Ada", "age": age})}]
+            ),
+        )
+
+    options: dict[str, Any] = {
+        **BASE_KWARGS,
+        "response_model": StrictUser,
+        "max_retries": 0,
+    }
+    if strict is not None:
+        options["strict"] = strict
+
+    with anthropic.Anthropic(
+        api_key="local-only",
+        http_client=httpx.Client(transport=httpx.MockTransport(transport)),
+    ) as sdk:
+        client = instructor.from_anthropic(sdk, mode=mode, beta=beta)
+        if isinstance(age, str) and strict is not False:
+            with pytest.raises(InstructorRetryException) as caught:
+                client.create(**options)
+            assert isinstance(caught.value.__cause__, ValidationError)
+        else:
+            user = client.create(**options)
+            assert user.model_dump() == {"name": "Ada", "age": 36}
+
+    assert len(requests) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", [Mode.JSON, Mode.JSON_SCHEMA])
+@pytest.mark.parametrize("beta", [False, True])
+@pytest.mark.parametrize("strict", [False, True, None])
+@pytest.mark.parametrize("age", ["36", 36])
+async def test_json_modes_respect_validation_strictness_async(
+    mode: Mode, beta: bool, strict: bool | None, age: str | int
+) -> None:
+    requests: list[dict[str, Any]] = []
+
+    def transport(request: Any) -> Any:
+        requests.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json=_message_payload(
+                [{"type": "text", "text": json.dumps({"name": "Ada", "age": age})}]
+            ),
+        )
+
+    options: dict[str, Any] = {
+        **BASE_KWARGS,
+        "response_model": StrictUser,
+        "max_retries": 0,
+    }
+    if strict is not None:
+        options["strict"] = strict
+
+    async with anthropic.AsyncAnthropic(
+        api_key="local-only",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(transport)),
+    ) as sdk:
+        client = instructor.from_anthropic(sdk, mode=mode, beta=beta)
+        if isinstance(age, str) and strict is not False:
+            with pytest.raises(InstructorRetryException) as caught:
+                await client.create(**options)
+            assert isinstance(caught.value.__cause__, ValidationError)
+        else:
+            user = await client.create(**options)
+            assert user.model_dump() == {"name": "Ada", "age": 36}
+
+    assert len(requests) == 1
 
 
 @pytest.mark.parametrize("mode", [Mode.JSON, Mode.JSON_SCHEMA])
