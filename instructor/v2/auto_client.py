@@ -1181,11 +1181,12 @@ def _build_ollama(
         # Get base_url from kwargs or use default
         base_url = kwargs.pop("base_url", "http://localhost:11434/v1")
         api_key = api_key or "ollama"  # required by the SDK but unused
+        sdk_options = _take_openai_sdk_options(kwargs)
 
         client = (
-            openai.AsyncOpenAI(base_url=base_url, api_key=api_key)
+            openai.AsyncOpenAI(base_url=base_url, api_key=api_key, **sdk_options)
             if async_client
-            else openai.OpenAI(base_url=base_url, api_key=api_key)
+            else openai.OpenAI(base_url=base_url, api_key=api_key, **sdk_options)
         )
 
         # Models that support function calling (tools mode)
@@ -1263,11 +1264,12 @@ def _build_deepseek(
 
         # DeepSeek uses OpenAI-compatible API
         base_url = kwargs.pop("base_url", "https://api.deepseek.com")
+        sdk_options = _take_openai_sdk_options(kwargs)
 
         client = (
-            openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
+            openai.AsyncOpenAI(api_key=api_key, base_url=base_url, **sdk_options)
             if async_client
-            else openai.OpenAI(api_key=api_key, base_url=base_url)
+            else openai.OpenAI(api_key=api_key, base_url=base_url, **sdk_options)
         )
 
         result = from_deepseek(
@@ -1374,11 +1376,12 @@ def _build_openrouter(
 
         # OpenRouter uses OpenAI-compatible API
         base_url = kwargs.pop("base_url", "https://openrouter.ai/api/v1")
+        sdk_options = _take_openai_sdk_options(kwargs)
 
         client = (
-            openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
+            openai.AsyncOpenAI(api_key=api_key, base_url=base_url, **sdk_options)
             if async_client
-            else openai.OpenAI(api_key=api_key, base_url=base_url)
+            else openai.OpenAI(api_key=api_key, base_url=base_url, **sdk_options)
         )
 
         result = from_openrouter(

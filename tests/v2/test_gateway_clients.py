@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+from contextlib import AsyncExitStack
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -236,3 +237,49 @@ async def test_gateway_model_factories_keep_project_and_organization_on_the_sdk(
         assert headers["openai-organization"] == "org-fixture"
         assert headers["openai-project"] == "proj-fixture"
         assert "organization" not in body and "project" not in body
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("provider", ["deepseek", "openrouter", "ollama"])
+async def test_compatible_factories_route_transport_options_to_the_sdk(
+    wire_server, is_async: bool, provider: str
+) -> None:
+    base_url, received = wire_server
+    options: dict[str, Any] = {
+        "base_url": base_url,
+        "api_key": "fixture",
+        "default_headers": {"X-Route": "gateway-test"},
+        "default_query": {"tenant": "fixture"},
+        "timeout": 7,
+        "mode": Mode.TOOLS,
+    }
+    request: dict[str, Any] = {
+        "response_model": Contact,
+        "messages": [{"role": "user", "content": "Ada"}],
+        "max_retries": 1,
+    }
+    async with AsyncExitStack() as stack:
+        if is_async:
+            transport = await stack.enter_async_context(
+                openai.DefaultAsyncHttpxClient(trust_env=False)
+            )
+            client = instructor.from_provider(
+                f"{provider}/local", async_client=True, http_client=transport, **options
+            )
+            await stack.enter_async_context(client.client)
+            result = await client.create(**request)
+        else:
+            transport = stack.enter_context(openai.DefaultHttpxClient(trust_env=False))
+            client = instructor.from_provider(
+                f"{provider}/local", http_client=transport, **options
+            )
+            stack.enter_context(client.client)
+            result = client.create(**request)
+        assert result.name == "Ada"
+        assert client.client._client is transport
+        assert client.client.timeout == 7
+    path, headers, body = received[-1]
+    assert path == "/v1/chat/completions?tenant=fixture"
+    assert headers["x-route"] == "gateway-test"
+    assert not {"http_client", "default_headers", "default_query"} & body.keys()
