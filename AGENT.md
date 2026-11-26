@@ -96,26 +96,15 @@ Do not add changelog entries for docs-only or example-only changes unless they f
 
 ## Release Process
 
-Steps to publish a new version (e.g. `v1.15.0`):
+Follow the [release checklist](CONTRIBUTING.md#github-release-and-pypi-publication-are-separate).
+Keep the version in `pyproject.toml`, `instructor/__init__.py`, and `uv.lock` in
+sync and prepare a dated changelog section. Merge the reviewed changes into
+`main` once CI passes.
 
-1. **Ensure CI is green** on the staging PR before merging.
-
-2. **Merge staging → main** via the GitHub PR.
-
-3. **Bump version** in `pyproject.toml` (field `version = "X.Y.Z"`), then update the lockfile:
-   ```
-   uv lock
-   ```
-
-4. **Commit and tag** (tags use lowercase `v` prefix):
-   ```
-   git add pyproject.toml uv.lock
-   git commit -m "chore(release): vX.Y.Z"
-   git tag vX.Y.Z
-   git push origin main --tags
-   ```
-
-5. **Create a GitHub Release** for the tag — this triggers `.github/workflows/python-publish.yml`, which builds and publishes to PyPI automatically using the `PYPI_TOKEN` secret.
+Only publish with maintainer approval. Dispatch **Release Readiness** from
+`main` with `expected_version=X.Y.Z` and `publish=true`. Let it create the tag
+and GitHub release with the tested artifacts. Then dispatch **Upload Python
+Package** from `main` with `tag=vX.Y.Z` and verify the version on PyPI.
 
 Version bump rules (based on commits since last tag):
 - `feat!:` / `fix!:` / `BREAKING` → major

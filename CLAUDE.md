@@ -163,7 +163,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Type Checking with ty
 - **Type Checker**: Using `ty` for fast, incremental type checking
-- **Python Version**: 3.9+ for compatibility
+- Support Python 3.10 and later.
 - **Configuration**: Uses `pyproject.toml` settings for type checking
 - Run `uv run ty check` before committing - aim for zero errors
 
@@ -176,8 +176,7 @@ Always run these checks before committing code:
 
 ### Type Patterns
 - **Bounded TypeVars**: Use `T = TypeVar("T", bound=Union[BaseModel, ...])` for constraints
-- **Version Compatibility**: Handle Python 3.9 vs 3.10+ typing differences explicitly
-- **Union Type Syntax**: Use `from __future__ import annotations` to enable Python 3.10+ union syntax (`|`) in Python 3.9
+- Use `|` for unions. All supported Python versions understand this syntax.
 - **Simple Type Detection**: Special handling for `list[Union[int, str]]` patterns
 - **Runtime Type Handling**: Graceful fallbacks for compatibility
 
@@ -265,7 +264,7 @@ When creating examples:
 
 ### Core Dependencies
 - **Minimal core**: `openai`, `pydantic`, `docstring-parser`, `typer`, `rich`
-- **Python requirement**: `<4.0,>=3.9`
+- The package requires Python `>=3.10,<4.0`.
 - **Pydantic version**: `<3.0.0,>=2.8.0` (constrained for stability)
 
 ### Optional Dependencies
@@ -296,7 +295,7 @@ Includes:
 
 ### Managing Dependencies
 - Update `pyproject.toml` for new dependencies
-- Test with multiple Python versions (3.9-3.12)
+- Run the Python versions selected by `scripts/ci_test_plan.py`.
 - Run full test suite after dependency updates
 - Document any provider-specific version requirements
 

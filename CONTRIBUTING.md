@@ -416,18 +416,29 @@ all-extras and provider tests supply separate evidence; declared support is unch
 
 ### GitHub release and PyPI publication are separate
 
-`scheduled-release.yml` creates a GitHub release only when explicitly dispatched
-with `publish=true`, using `github.token`. [GitHub suppresses downstream workflow
-runs for release events created with that token](https://docs.github.com/en/actions/concepts/security/github_token).
-Therefore it does **not** trigger `python-publish.yml`, which listens only for
-`release: published`. A successful GitHub release job is not evidence of a PyPI
-upload; check both workflow runs and registry state.
+1. Set the release version in `pyproject.toml` and `instructor/__init__.py`,
+   then run `uv lock`. Move the changes being shipped into a dated
+   `## [X.Y.Z] - YYYY-MM-DD` section in `CHANGELOG.md`. Keep `[Unreleased]`
+   above it and add a comparison link from the last published tag to `vX.Y.Z`.
+   Before cutting the release, update the candidate date to the publication
+   date and check the notes against the changes since the last published tag.
+2. Run `python scripts/prepare_release.py --expected-version X.Y.Z` and review
+   `dist/release-notes.md`. The script includes only the matching dated section.
+   Merge the release PR into `main` once CI passes.
+3. In GitHub Actions, run [Release Readiness](.github/workflows/scheduled-release.yml)
+   from `main` with `expected_version=X.Y.Z`. Leave `publish=false` for a dry
+   run. Once approved, run it with `publish=true` and check that the resulting
+   GitHub release targets the reviewed commit. The workflow creates the tag
+   and attaches the tested, attested wheel and source archive. Do not create
+   the tag beforehand.
+4. Run [Upload Python Package](.github/workflows/python-publish.yml) from
+   `main` with `tag=vX.Y.Z`. The workflow verifies the attached distributions
+   against the tagged commit and uploads them using PyPI Trusted Publishing.
+   Check the workflow result and the [version on PyPI](https://pypi.org/project/instructor/).
 
-The handoff needs a separately reviewed change that preserves publication approval,
-tested artifact identity, and duplicate-publication protection. Do not create test
-tags/releases or broaden permissions to exercise it. Until then, an approved manual
-release process must explicitly account for event authentication and the tested
-attached artifacts.
+The second dispatch is required because [GitHub suppresses downstream release
+events created with `github.token`](https://docs.github.com/en/actions/concepts/security/github_token).
+The scheduled readiness run never publishes.
 
 ## Using Cursor for PR Creation
 

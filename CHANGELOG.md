@@ -9,139 +9,64 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
-### Fixed
-- **CLI**: `instructor files download` uses `files.content` and writes raw bytes; `files list` reads every page; `files delete` and `jobs cancel` exit nonzero on failure. ([#2979](https://github.com/567-labs/instructor/issues/2979), [#2984](https://github.com/567-labs/instructor/issues/2984))
-- **CLI (Anthropic batch)**: `batch download-file` and `batch results` keep the existing file when the result stream fails.
-- **Batch (OpenAI)**: Result downloads replace the destination atomically, in-memory uploads are named `batch.jsonl`, cancelled batches return partial results, and stopped batches with no finished requests return immediately. ([#3008](https://github.com/567-labs/instructor/issues/3008), [#2996](https://github.com/567-labs/instructor/issues/2996))
-- **Batch (legacy)**: `BatchJob.parse_from_string` rejects OpenAI `length` and Anthropic `max_tokens` records even when their JSON validates.
-- **Iterable streaming**: OpenAI Chat, OpenAI Responses, Gemini/Vertex AI, Cohere and Mistral raise `IncompleteOutputException` when the token limit hits between items.
-- **Token limits**: Bedrock and Writer JSON modes reject token-limited completions.
-- **JSON/MD_JSON system prompts**: OpenAI, Writer, Mistral and xAI append the schema instruction to a text part of list-form system messages instead of crashing on empty or image-first lists. ([#3049](https://github.com/567-labs/instructor/issues/3049))
-- **create_with_completion**: `response_model=None` returns the raw completion instead of raising `AttributeError`. ([#3047](https://github.com/567-labs/instructor/issues/3047))
-- **Anthropic**: `Mode.JSON_SCHEMA` sends native `output_config.format` on SDKs that support it instead of falling back to prompt instructions. JSON, JSON_SCHEMA and TOOLS accept `BetaMessage` responses, and forced `tool_choice` uses the declared tool name for custom schema titles.
-- **Anthropic Iterable**: `process_response` routes non-streaming Iterable responses through the given provider.
-- **Templating**: Anthropic and Bedrock string `system` prompts render with context.
-- **GenAI**: Requests without a response model keep generation options, `thinking_config` and `safety_settings`. Tool streams skip thought parts and empty chunks. `gs://` images decode base64 data, and PDF uploads stop polling when processing fails.
-- **OpenAI Responses**: Structured streams ignore commentary-phase message text.
-- **Mistral**: Responses with thinking and text chunks parse in JSON_SCHEMA and MD_JSON modes, and streams skip `None` deltas.
-- **Partial**: Snapshots keep declared defaults for missing nested models, build models inside tuple fields, and async streams close the source when the consumer stops.
-- **Iterable**: Streams ignore sibling keys after a `tasks` wrapper array closes.
-- **Errors**: Instructor exceptions survive pickling.
-- **Multimodal**: `Audio.from_path` accepts platform FLAC, M4A and AAC MIME aliases. `convert_messages` keeps legacy assistant `function_call` turns.
-- **Ollama**: `from_provider("ollama/...")` forwards a caller `api_key`.
-- Anthropic Iterable streams report a `max_tokens` stop between complete items as `IncompleteOutputException` instead of returning a silently truncated list.
-- Gemini and Vertex AI reject completions stopped at the token limit. Google and Mistral streaming handlers skip empty metadata chunks, and GenAI JSON mode aliases are classified consistently.
-- Validation errors retain user input and custom messages that contain Pydantic documentation URLs.
-- Mistral batch jobs support structured requests, lifecycle operations, result parsing, and provider-specific errors through the batch processor and CLI.
-- Cached responses accept both field names and validation aliases across supported Pydantic versions. Public cache keys include extra request-body options, and uncacheable list or scalar results emit a warning.
-- Explicit async validation visits set and frozenset items and reports validation failures from every item in a container.
-- Partial streams construct nested mapping and sequence values as models and defer data-aware default factories until their containing object is complete.
-- The OpenAI batch tutorial generates request files with `BatchProcessor.create_batch_from_messages`.
-- Iterable streams scan each chunk once, preserve interleaved tool-call boundaries, report truncated items, and close the provider stream. Markdown streams prefer fenced JSON and retain all bare objects when no fence appears.
-- File-backed batch requests replace the destination after all records serialize. Failed writes preserve the previous batch.
-- OpenAI batch request failures preserve string error messages and report HTTP status codes when an error body is missing.
-- OpenAI and Anthropic batch results that hit the token limit return an incomplete-output error, even when the partial JSON validates.
-- Batch job listings handle nullable OpenAI metadata and request counts, expose job validation errors, and recognize Anthropic cancellation requests.
-- Anthropic batch requests omit an unset temperature and preserve explicit numeric values, including zero.
-- Anthropic tool mode uses automatic choice for requested thinking and models that reject forced tool use.
-- OpenAI-compatible provider clients share endpoint, credential, and mode handling for ZhipuAI, Z.ai, Hubris, Atlas Cloud, Requesty, Sarvam, OrcaRouter, MiniMax, and Manifest.
-- OpenAI and OpenRouter structured outputs normalize nested object schemas consistently. OpenAI batch callers can select permissive schemas for arbitrary mapping fields with `strict=False`.
-- Message templating now renders Bedrock Converse text, Anthropic system blocks and OpenAI Responses input text.
-- Template rendering raises on undefined variables and preserves explicit Jinja raw blocks. Consecutive plain-text messages are joined once per role run.
-- Sync and async response helpers now log raw provider responses only when DEBUG is enabled and `INSTRUCTOR_LOG_RAW_RESPONSES=1` is set.
-- Distillation resolves quoted model return types. Distillation and LLM validators default to gpt-4.1-mini.
-- Image, PDF and audio data URIs accept case-insensitive media types and optional parameters. Audio MIME aliases are normalized consistently across input sources.
-- Media probes retry unsupported HEAD requests with a streamed GET. Missing local paths fall back to text, Bedrock PDF names are normalized, and assistant tool-call turns preserve missing or null content.
-- Request preparation logs only the mode and response model, keeping provider credentials and custom authentication headers out of debug records.
-- OpenAI batch retrieval can download available records from expired batches, and the file and fine-tuning commands stop when uploaded files fail processing.
-- Parallel tools dispatch by their declared provider names and reject ambiguous names before sending a request.
-- Handler registration preserves constructor errors, opaque hook callbacks can run without a signature, and shallow client copies rebind their response helpers.
-- Gemini MD_JSON now prepares requests without changing the caller’s messages or nested content lists. ([#2716](https://github.com/567-labs/instructor/issues/2716))
-- Gemini retries preserve validation feedback when a response is blocked, empty, or contains prose instead of a tool call.
-- Bedrock tool modes honor explicit tool choice and select automatic tool use for Claude models or thinking settings that require it.
-- Bedrock Converse accepts reasoning and tool history, converts raw Markdown JSON requests, and supports per-client bearer tokens.
-- OpenAI RESPONSES_TOOLS now preserves caller tools (e.g. code interpreter, web search) and avoids forcing tool choice when additional tools are provided. ([#2713](https://github.com/567-labs/instructor/issues/2713))
-- OpenAI-compatible and Cohere JSON modes join text blocks while ignoring reasoning blocks. Responses API token counts contribute to retry totals, and fenced JSON validates through the compatibility parser.
-- Reserved TypedDict keys survive schema and cache round trips. Collection response types and Iterable scalar items return native values. Response-schema wrappers are reused without keeping dynamic input models alive.
-- Update provider SDKs and developer tooling, with Python 3.9-compatible core and example pins and separate OpenAI 2.x and 3.x installation coverage.
-
-### Changed
-
-- The dependency resolver supports OpenAI 3.x and newer Jiter while retaining Python 3.9 compatibility. The LiteLLM extras accept 1.x releases and exclude the compromised 1.82.7 and 1.82.8 versions.
-
-### Tests / CI
-
-- Update the pinned checkout, artifact, setup-uv, and Codex actions.
-
-## [1.18.0] - 2026-09-26
+## [1.18.0] - 2026-11-26
 
 ### Added
-- **OpenAI Decisions**: Reuse typed decision models with `openai/gpt-6-luna` in `Mode.DECISIONS`, including predicate probabilities, choices, and scaled scores. Preserve the original OpenAI response and reject refusals or malformed answers. Wrap an existing `OpenAI` or `AsyncOpenAI` client, or use `from_provider`. Supply text, native JSON, or image content parts as decision input.
-- **Decisions**: Evaluate typed Choice, Noul, and Score questions with Jev through TypeSafe or OpenRouter.
-- **Decision clients**: Preserve provider response metadata, borrowed-client timeouts, alias-disabled models, reusable examples, and finite score scaling.
-- **Batch custom IDs**: Accept optional request IDs with count, uniqueness, and Anthropic format checks before writing a batch file or buffer. Preserve generated IDs when the option is omitted. ([#2691](https://github.com/567-labs/instructor/pull/2691))
 
-### Fixed
-- **Batch parsing**: Validate complete result payloads so Pydantic root models can wrap objects with a field named `root`, including empty objects with model defaults. ([#2743](https://github.com/567-labs/instructor/pull/2743))
-- **Batch failure details**: Reject absent Anthropic tool input instead of inventing an empty result. Preserve request IDs and original records when non-object payloads fail model validation.
-- **Batch retrieval**: Read both OpenAI success and error files, including completed batches where every request failed. Retrieve Anthropic ended batches with only errors, preserving request IDs, provider error details and raw records.
-- **OpenAI batch schemas**: Require every declared field in strict schemas, including defaulted and nullable nested fields. Normalize compositions and references without mutating caller-owned schemas or discarding field metadata. Preserve recursive back-references without creating cyclic dictionaries or infinitely expanding described fields. Reject arbitrary-key mappings instead of silently erasing their value schema.
-- **Anthropic batch errors**: Preserve provider error types and messages from `errored` results, while retaining request IDs and raw records. ([#2758](https://github.com/567-labs/instructor/pull/2758))
-- **TypedDict response models**: Preserve underscore-prefixed keys in request schemas, validation, and alias-based serialization, including required and optional keys. ([#2757](https://github.com/567-labs/instructor/pull/2757))
-- **TypedDict caching**: Preserve original keys and omitted optional fields when generated TypedDict models are serialized for cache round trips.
-- **Documentation**: Correct logging setup and replace unsupported `Maybe` examples with the public model factory. ([#2764](https://github.com/567-labs/instructor/pull/2764), [#2765](https://github.com/567-labs/instructor/pull/2765))
-- **Provider result handling**: Share identical result finalization across OpenAI, Anthropic, Mistral and xAI while preserving SDK-specific parsing, lazy parallel results and original response metadata.
-- **Hook dispatch**: Preserve callback order when handlers register or unregister callbacks during emission. Registration changes take effect on the next emission. ([#2634](https://github.com/567-labs/instructor/pull/2634))
-- **Citations**: Resolve quotes against lists or tuples of source text without combining independent sources. Reject unsupported source types rather than retaining unchecked quotes. Revises [#2699](https://github.com/567-labs/instructor/pull/2699).
-- **Examples**: Correct query-planner dependency field names and a generation prompt typo. ([#2697](https://github.com/567-labs/instructor/pull/2697))
-- **Cached models**: Serialize cached responses in round-trip mode so `Json` fields and computed fields remain valid on cache reads, including strict and extra-forbid models. ([#2688](https://github.com/567-labs/instructor/pull/2688))
-- **Batch encoding**: Read and write batch request/result files as UTF-8 instead of depending on the platform locale. ([#2667](https://github.com/567-labs/instructor/pull/2667))
-- **GenAI retries**: Preserve native model parts and thought signatures, then append validation feedback as a user turn without mutating caller history. ([#2632](https://github.com/567-labs/instructor/pull/2632))
-- **Response types**: Distinguish unsupported custom classes from union types while preserving Pydantic-supported scalars, dataclasses, annotated models and iterable types, including Python 3.9. ([#2629](https://github.com/567-labs/instructor/pull/2629))
-- **Parallel tools**: Dispatch by declared tool names across OpenAI, Anthropic, Mistral and xAI; retain VertexAI's class-name declarations. Reject unknown calls and validate non-streaming results inside the retry boundary rather than silently dropping calls or returning unchecked iterators. Consolidates [#2675](https://github.com/567-labs/instructor/pull/2675) and [#2698](https://github.com/567-labs/instructor/pull/2698).
-- **Incomplete Responses**: Reject incomplete OpenAI Responses before model validation or caching, even when defaults could produce a valid model. Preserve the original response and incomplete reason on the exception. ([#2705](https://github.com/567-labs/instructor/issues/2705))
-- **Retry isolation**: Preserve caller-owned request lists through public sync/async retry and reask helpers. ([#2646](https://github.com/567-labs/instructor/pull/2646))
+- **Typed decisions.** Use `Mode.DECISIONS` to classify an input, estimate probabilities and return scaled scores in one Pydantic model. Use the OpenAI Decisions API with `openai/gpt-6-luna` or Jev through TypeSafe or OpenRouter. OpenAI accepts text, JSON and image parts through `from_provider` or an existing sync or async SDK client. `create_with_completion` also returns the original response. Decision mode does not support Instructor retries, caching, streaming or completion hooks. ([#2708](https://github.com/567-labs/instructor/pull/2708), [#2975](https://github.com/567-labs/instructor/pull/2975))
+- **Mode suggestions.** `analyze_schema` inspects a model and `select_mode` suggests a mode from the provider's declared capabilities. Both are opt-in. Check that your deployment supports the suggested mode. ([#2941](https://github.com/567-labs/instructor/pull/2941))
+- **Provider clients.** Azure OpenAI and Azure AI Foundry support `from_azure` and `from_provider`. OpenAI-compatible gateways share endpoint, credential and mode handling, including ZhipuAI, Z.ai, Hubris, Atlas Cloud, Requesty, Sarvam, OrcaRouter, MiniMax and Manifest. ([#2935](https://github.com/567-labs/instructor/pull/2935), [#2937](https://github.com/567-labs/instructor/pull/2937), [#2963](https://github.com/567-labs/instructor/pull/2963))
+- **Batch processing.** Submit, monitor and retrieve Mistral jobs through `BatchProcessor` or the CLI. Supply custom request IDs when generating a batch, or let Instructor generate them. ([#2691](https://github.com/567-labs/instructor/pull/2691), [#2932](https://github.com/567-labs/instructor/pull/2932))
 
-### Security
-- **IPv6 remote media**: Reject transition addresses carrying non-public IPv4 destinations, including well-known NAT64, mapped/compatible addresses, 6to4 and Teredo. Reject the local-use NAT64 prefix entirely because its translation layout is network-specific; retain public-address checks on both the wrapper and known embedded destinations. Revises [#2673](https://github.com/567-labs/instructor/pull/2673).
-- **Streaming JSON bounds**: Enforce the existing 1 MiB character and 128-level nesting limits symmetrically on sync/async streams, including an over-depth opener at EOF. Preserve incremental emission and multiple-object behavior. Revises [#2638](https://github.com/567-labs/instructor/pull/2638).
+### Upgrade notes
 
-### Upgrade Notes
-- Completed batch retrieval includes failed requests as `BatchError` records instead of rejecting an all-failed batch or returning only successful requests. OpenAI retrieval waits for the files indicated by request counts; unfinished jobs remain unavailable.
-- OpenAI batch schemas use strict structured outputs: every named property is required, including fields with model defaults. Use nullable fields when the output may be null. Arbitrary-key mappings are unsupported in this path; use named model fields or a list of key/value objects. Anthropic mapping schemas are unchanged.
-- Decision mode is opt-in; existing chat modes are unchanged. TypeSafe and OpenRouter use the same typed questions but require their own credentials and model IDs. Retries, caching, streaming, and completion hooks are not supported in decision mode.
-- Citation context may be a string or a list/tuple of strings. Other supplied source types raise a validation error; missing context retains the existing no-validation behavior.
-- Unknown parallel tool calls now raise `ResponseParsingError` and follow the configured retry policy instead of being silently omitted. Native SDK and wire formats remain provider-specific; live provider compatibility is not established by offline tests.
-- Incomplete non-streaming Responses raise `IncompleteOutputException` even when their arguments satisfy model defaults. Increase the output budget or handle the exception; incomplete responses are not cached.
-- Streaming JSON exceeding the input or nesting limit raises `ValueError`. IPv6 transition URLs targeting private networks are rejected even if a platform classifies the outer address as public.
+- **Python 3.10 or later is required.** The package supports OpenAI SDK 2.x and 3.x. The LiteLLM extra requires versions 1.102.4 through 1.106.6. ([#2955](https://github.com/567-labs/instructor/pull/2955), [#2965](https://github.com/567-labs/instructor/pull/2965))
+- **Model defaults changed.** Distillation and `llm_validator` default to `gpt-6-luna`. The batch CLI defaults to Luna for OpenAI and `claude-haiku-5-5` for Anthropic. Set the model explicitly if you need to keep a previous default. ([#3041](https://github.com/567-labs/instructor/pull/3041))
+- **OpenAI strict schemas require every named field**, including fields with defaults. Make a field nullable if it can be null. For arbitrary mapping keys, use `strict=False` or a list of key/value objects. The same normalization applies to OpenRouter structured outputs. ([#2930](https://github.com/567-labs/instructor/pull/2930))
+- **Check for failed batch requests.** Retrieval can return `BatchError` records even when every request failed. OpenAI retrieval reads both success and error files and can recover available results from cancelled or expired jobs. ([#2996](https://github.com/567-labs/instructor/issues/2996), [#3008](https://github.com/567-labs/instructor/issues/3008))
+- **Check for incomplete output.** Non-streaming OpenAI Responses marked incomplete and Google responses marked `MAX_TOKENS` raise `IncompleteOutputException` even when model defaults would validate. Bedrock and Writer JSON modes also reject token-limited completions. ([#2601](https://github.com/567-labs/instructor/pull/2601), [#2705](https://github.com/567-labs/instructor/issues/2705), [#2923](https://github.com/567-labs/instructor/pull/2923), [#3056](https://github.com/567-labs/instructor/pull/3056))
+- **Parallel tools require unique names.** An unknown tool raises `ResponseParsingError` and follows the configured retry policy. ([#2675](https://github.com/567-labs/instructor/pull/2675), [#2698](https://github.com/567-labs/instructor/pull/2698), [#2911](https://github.com/567-labs/instructor/pull/2911))
+- **Template and citation validation is stricter.** Undefined template variables raise an error. For citations, pass a string or a list or tuple of strings. Quotes must match an individual source. Omitting citation context still skips validation. ([#2699](https://github.com/567-labs/instructor/pull/2699), [#2884](https://github.com/567-labs/instructor/pull/2884), [#2918](https://github.com/567-labs/instructor/pull/2918))
 
-## [1.17.1] - 2026-09-09
+### Streaming
 
-### Upgrade Notes
-- GenAI tools and JSON requests now raise `IncompleteOutputException` for non-streaming output marked `MAX_TOKENS`, even if the partial payload fits schema defaults. Increase the output-token budget or handle incomplete output explicitly.
-- Ordinary dictionaries containing non-string keys, including nested dictionaries, bypass caching. Pydantic models use their JSON-serialized representation for cache identity, which does not preserve every distinction between original Python key types.
+- OpenAI's sync JSON and tool modes can yield partial models before the stream ends. Partial snapshots resolve field aliases, retain defaults and build nested models inside nullable lists, mappings and tuples. Default factories that depend on other fields wait until the containing object is complete. ([#2600](https://github.com/567-labs/instructor/pull/2600), [#2900](https://github.com/567-labs/instructor/pull/2900), [#2924](https://github.com/567-labs/instructor/pull/2924), [#3040](https://github.com/567-labs/instructor/pull/3040), [#3041](https://github.com/567-labs/instructor/pull/3041))
+- Iterable streams keep interleaved tool calls separate and ignore sibling keys after the `tasks` array. Markdown iterables prefer fenced JSON, with bare objects as a fallback. Single-model Markdown streams buffer the response to select the last complete JSON span. ([#2912](https://github.com/567-labs/instructor/pull/2912), [#2927](https://github.com/567-labs/instructor/pull/2927), [#2948](https://github.com/567-labs/instructor/pull/2948))
+- OpenAI Chat and Responses, Anthropic, Google GenAI, Cohere and Mistral can raise `IncompleteOutputException` after yielding complete items when the provider reports its token limit. Handle errors while consuming the iterator. ([#2991](https://github.com/567-labs/instructor/pull/2991), [#3056](https://github.com/567-labs/instructor/pull/3056))
+- **Known limitations.** The legacy Gemini and Vertex AI iterable handlers can miss a token-limit signal. An iterable can also end without an error if the final item is complete but its array or wrapper never closes. ([#3113](https://github.com/567-labs/instructor/pull/3113), [#3072](https://github.com/567-labs/instructor/pull/3072))
+- Requests that reuse a model honor their own streaming flags. Async partial streams close the source on early exit. OpenAI Responses ignores commentary text, and Google and Mistral skip empty deltas. ([#2626](https://github.com/567-labs/instructor/pull/2626), [#3056](https://github.com/567-labs/instructor/pull/3056))
 
-### Fixed
-- **CLI installation**: Declare `tqdm` directly for OpenAI 3 installations. Construct file and job clients lazily so help works without credentials, while delete and cancel commands still fail when credentials are missing. ([#2622](https://github.com/567-labs/instructor/pull/2622))
-- **Anthropic retry usage**: Accumulate thinking-token counts when older SDKs retain `output_tokens_details` as a dictionary, preserving SDK response types and unknown/null metadata. ([#2620](https://github.com/567-labs/instructor/pull/2620))
-- **Streaming request isolation**: Honor explicit streaming flags across OpenAI-compatible, Anthropic, Mistral and xAI mode handlers when requests reuse a model. Preserve sequential direct-handler inference when `stream` is omitted. ([#2626](https://github.com/567-labs/instructor/pull/2626))
-- **Retry hooks**: Do not report a custom retry-policy error as terminal before the policy has finished deciding whether to retry. ([#2625](https://github.com/567-labs/instructor/pull/2625))
-- **Partial streaming**: Preserve model instances inside nullable list fields in sync and async streams, while retaining validation context and final validation. ([#2600](https://github.com/567-labs/instructor/pull/2600))
-- **GenAI truncation**: Raise `IncompleteOutputException` for non-streaming tools and JSON responses ending with `MAX_TOKENS`, instead of accepting schema defaults for missing output. ([#2601](https://github.com/567-labs/instructor/pull/2601))
-- **GenAI templating**: Preserve text-part metadata, including thought flags and signatures, without modifying caller-owned conversation history. ([#2607](https://github.com/567-labs/instructor/issues/2607), [#2608](https://github.com/567-labs/instructor/pull/2608))
-- **Documentation links**: Repair context-validation, quick-start and example links, and use the correct relative API link in the provider documentation template. Consolidates [#2599](https://github.com/567-labs/instructor/pull/2599), [#2609](https://github.com/567-labs/instructor/pull/2609), [#2610](https://github.com/567-labs/instructor/pull/2610) and [#2611](https://github.com/567-labs/instructor/pull/2611).
+### Batch and CLI
+
+- Batch results retain IDs, provider errors and raw records. OpenAI and Anthropic reject token-limited records even when the JSON validates. Root models can wrap objects containing a field named `root`. Anthropic rejects missing tool input. ([#2743](https://github.com/567-labs/instructor/pull/2743), [#2758](https://github.com/567-labs/instructor/pull/2758), [#2881](https://github.com/567-labs/instructor/pull/2881))
+- Batch files use UTF-8. Failed writes and interrupted downloads preserve existing files. OpenAI in-memory uploads have a filename, and stopped jobs with no completed requests return immediately. Job listings handle missing counts, validation errors and cancellation. ([#2667](https://github.com/567-labs/instructor/pull/2667), [#2908](https://github.com/567-labs/instructor/pull/2908), [#2942](https://github.com/567-labs/instructor/pull/2942), [#3056](https://github.com/567-labs/instructor/pull/3056))
+- File and job commands show help without credentials. File downloads preserve raw bytes, listings include all pages, and failed deletions and cancellations exit with an error. File and fine-tuning commands stop polling after a processing failure. ([#2622](https://github.com/567-labs/instructor/pull/2622), [#2979](https://github.com/567-labs/instructor/issues/2979), [#2984](https://github.com/567-labs/instructor/issues/2984))
+
+### Provider requests
+
+- OpenAI Responses preserves additional caller tools and includes token usage in retry totals. Strict schema conversion preserves metadata and recursive references. ([#2713](https://github.com/567-labs/instructor/issues/2713), [#2920](https://github.com/567-labs/instructor/pull/2920), [#3045](https://github.com/567-labs/instructor/pull/3045))
+- Anthropic uses native JSON Schema where supported, accepts beta messages and uses declared tool names. Tool choice accounts for thinking settings. Retries retain thinking-token counts, and batch requests omit unsupported or unset temperature values. ([#2620](https://github.com/567-labs/instructor/pull/2620), [#2905](https://github.com/567-labs/instructor/pull/2905), [#3056](https://github.com/567-labs/instructor/pull/3056))
+- Google GenAI preserves thought signatures, message history and generation settings. Blocked, empty and prose responses keep validation feedback on retry. Cloud Storage images decode correctly, and failed PDF uploads stop polling. ([#2607](https://github.com/567-labs/instructor/issues/2607), [#2608](https://github.com/567-labs/instructor/pull/2608), [#2632](https://github.com/567-labs/instructor/pull/2632), [#2716](https://github.com/567-labs/instructor/issues/2716), [#2907](https://github.com/567-labs/instructor/pull/2907))
+- Bedrock Converse supports tool and reasoning history, explicit tool choices and per-client bearer tokens. Ollama forwards the caller's API key. JSON handlers can separate text from reasoning blocks on OpenAI-compatible providers, Cohere and Mistral. ([#2916](https://github.com/567-labs/instructor/pull/2916), [#2920](https://github.com/567-labs/instructor/pull/2920), [#3056](https://github.com/567-labs/instructor/pull/3056))
+- Templates render provider system and input text, preserve Jinja raw blocks and handle list-form system messages. Media handling accepts more MIME aliases and data URI forms, retries unsupported HEAD requests and preserves assistant tool-call turns. ([#2909](https://github.com/567-labs/instructor/pull/2909), [#2914](https://github.com/567-labs/instructor/pull/2914), [#2915](https://github.com/567-labs/instructor/pull/2915), [#3049](https://github.com/567-labs/instructor/issues/3049))
+
+### Models, retries and caching
+
+- Collection responses and scalar iterable items return native values. `TypedDict` schemas preserve reserved keys, optional fields and read-only annotations. Distillation resolves quoted return types. Response wrappers can be reused without retaining dynamic models indefinitely. ([#2629](https://github.com/567-labs/instructor/pull/2629), [#2757](https://github.com/567-labs/instructor/pull/2757), [#2929](https://github.com/567-labs/instructor/pull/2929))
+- `create_with_completion(response_model=None)` returns the raw completion in both tuple positions. Retries preserve caller-owned lists. Hook changes take effect on the next emission, and custom retry policies finish deciding before terminal errors are reported. ([#2625](https://github.com/567-labs/instructor/pull/2625), [#2634](https://github.com/567-labs/instructor/pull/2634), [#2646](https://github.com/567-labs/instructor/pull/2646), [#3047](https://github.com/567-labs/instructor/issues/3047))
+- Explicit async validation collects errors across containers, including sets. Validation errors preserve custom messages and input. Instructor exceptions support pickling, and shallow client copies retain working response helpers. ([#2913](https://github.com/567-labs/instructor/pull/2913), [#2917](https://github.com/567-labs/instructor/pull/2917), [#3056](https://github.com/567-labs/instructor/pull/3056))
+- Cached models preserve validation aliases, `Json` values and omitted fields. Cache keys include extra request-body options. Unsupported list or scalar results emit a warning. ([#2688](https://github.com/567-labs/instructor/pull/2688), [#2925](https://github.com/567-labs/instructor/pull/2925), [#2947](https://github.com/567-labs/instructor/pull/2947))
 
 ### Security
-- **Cache identity**: Bypass caching for ordinary dictionaries containing non-string keys, including nested dictionaries, to prevent key collisions before serialization. ([#2614](https://github.com/567-labs/instructor/pull/2614))
 
-### Changed
-- Consolidate duplicate helpers and utility tests while preserving public compatibility, and separate token-budget policy from retry execution without changing budget arithmetic or retry behavior. ([#2616](https://github.com/567-labs/instructor/pull/2616), [#2617](https://github.com/567-labs/instructor/pull/2617))
-- Move Bedrock SDK construction and GenAI request configuration into their provider modules, and separate cache response serialization from cache storage while retaining compatibility entry points. ([#2618](https://github.com/567-labs/instructor/pull/2618), [#2619](https://github.com/567-labs/instructor/pull/2619), [#2621](https://github.com/567-labs/instructor/pull/2621))
+- Automatic logs omit request credentials, provider payloads and validation details. Raw response logging requires both DEBUG and `INSTRUCTOR_LOG_RAW_RESPONSES=1`. ([#2880](https://github.com/567-labs/instructor/pull/2880), [#2882](https://github.com/567-labs/instructor/pull/2882), [#2956](https://github.com/567-labs/instructor/pull/2956))
+- Disk caches use inline data. Legacy pickled or file-backed records become cache misses. Plain dictionaries with non-string keys bypass caching to prevent key collisions, even when nested. Model cache keys still use the JSON representation. ([#2614](https://github.com/567-labs/instructor/pull/2614), [#2952](https://github.com/567-labs/instructor/pull/2952))
+- Remote media checks block IPv6 transition addresses targeting private networks. Sync and async JSON extraction enforce limits of 1,048,576 characters and 128 nesting levels. ([#2673](https://github.com/567-labs/instructor/pull/2673), [#2638](https://github.com/567-labs/instructor/pull/2638))
 
-### Validation and Documentation
-- Add installed-distribution compatibility checks and make provider CI execution and skips visible; a skipped provider job is not evidence of live API compatibility. ([#2622](https://github.com/567-labs/instructor/pull/2622), [#2623](https://github.com/567-labs/instructor/pull/2623))
-- Add reproducible offline benchmarks and distinguish response-model allocations from retained objects. These tools do not claim a speedup or a fixed unbounded leak. ([#2624](https://github.com/567-labs/instructor/pull/2624), [#2627](https://github.com/567-labs/instructor/pull/2627))
-- Document provider-specific usage accounting and its streaming, cache, batch and legacy CLI-estimate limitations, together with retry and streaming contracts. ([#2620](https://github.com/567-labs/instructor/pull/2620), [#2625](https://github.com/567-labs/instructor/pull/2625), [#2626](https://github.com/567-labs/instructor/pull/2626))
+### Documentation and testing
+
+- Updated the batch, retry, usage and streaming guides. Corrected logging, `Maybe` and query-planner examples and repaired tutorial and API links. ([#2599](https://github.com/567-labs/instructor/pull/2599), [#2609](https://github.com/567-labs/instructor/pull/2609), [#2610](https://github.com/567-labs/instructor/pull/2610), [#2611](https://github.com/567-labs/instructor/pull/2611), [#2697](https://github.com/567-labs/instructor/pull/2697), [#2764](https://github.com/567-labs/instructor/pull/2764), [#2765](https://github.com/567-labs/instructor/pull/2765), [#3036](https://github.com/567-labs/instructor/pull/3036))
+- Added offline benchmarks, allocation tracking and installed-wheel compatibility checks. Provider test reports show which checks ran or were skipped. The release workflow verifies and attests distributions before PyPI Trusted Publishing. ([#2623](https://github.com/567-labs/instructor/pull/2623), [#2624](https://github.com/567-labs/instructor/pull/2624), [#2627](https://github.com/567-labs/instructor/pull/2627), [#2958](https://github.com/567-labs/instructor/pull/2958))
 
 ## [1.17.0] - 2026-09-04
 
@@ -473,7 +398,6 @@ previous published version is 1.16.0.
 - Pydantic v2 deprecation warnings resolved by migrating from class `Config` to `ConfigDict` ([#1782](https://github.com/567-labs/instructor/pull/1782))
 
 [Unreleased]: https://github.com/567-labs/instructor/compare/v1.18.0...HEAD
-[1.18.0]: https://github.com/567-labs/instructor/compare/v1.17.1...v1.18.0
-[1.17.1]: https://github.com/567-labs/instructor/compare/v1.17.0...v1.17.1
+[1.18.0]: https://github.com/567-labs/instructor/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/567-labs/instructor/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/567-labs/instructor/compare/v1.15.4...v1.16.0
