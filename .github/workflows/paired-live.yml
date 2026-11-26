@@ -1,0 +1,46 @@
+name: Paired Rust and Python live contracts
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/paired-live.yml
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Provider to test
+        type: choice
+        options: [all, openai, anthropic, openrouter, google, cohere, mistral, typesafe]
+        default: all
+      require_credentials:
+        description: Fail if a selected provider has no API key
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  paired:
+    name: Paired contracts
+    if: >-
+      github.repository == '567-labs/instructor' &&
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.event.pull_request.user.login != 'dependabot[bot]'))
+    # Pin the reusable workflow and its Rust checkout to the same reviewed commit.
+    uses: 567-labs/instructor-rs/.github/workflows/paired-live.yml@c630e8af30e8743e03f981b618d68a79e916075d
+    with:
+      rust_revision: 'c630e8af30e8743e03f981b618d68a79e916075d'
+      provider: ${{ inputs.provider || 'all' }}
+      require_credentials: ${{ inputs.require_credentials || false }}
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      GOOGLE_GENAI_MODEL: ${{ secrets.GOOGLE_GENAI_MODEL }}
+      COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}

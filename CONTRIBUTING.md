@@ -374,6 +374,35 @@ uv run coverage run -m pytest tests/ -k "not docs"
 uv run coverage report
 ```
 
+### Compare Python and Rust with live providers
+
+The `Paired Rust and Python live contracts` workflow runs the same cases
+against two pinned revisions. It runs automatically on trusted pull requests
+in this repository that change `.github/workflows/paired-live.yml`. Python's
+Actions run calls the pinned Rust workflow and supplies the named provider
+credentials already configured here. Both clients in each provider job use
+the same key. These tests make billable API calls.
+[Extraction cases](tests/llm/test_core_providers/README.md#run-the-cases-shared-with-rust) · [Decisions cases](docs/concepts/decisions.md#run-the-live-contract-tests)
+
+Once the caller is on the default branch, select a provider under **Actions →
+Paired Rust and Python live contracts → Run workflow**, or use the CLI.
+
+```sh
+gh workflow run paired-live.yml --repo 567-labs/instructor -f provider=openai
+```
+
+The run summary reports both commits, credential availability, and each
+client's outcome for every case. Providers with missing keys go into a
+collection-only job that checks both suites can discover their cases.
+Manual runs require every selected key by default. Use
+`-f require_credentials=false` to allow collection-only results alongside
+the live results. A failed or skipped case for a configured provider fails
+its job.
+
+To test a new pair, review the Rust workflow and its pinned Python revision.
+Update both the `uses` SHA and `rust_revision` in the caller to the same
+Rust commit, then check the provider results on the pull request.
+
 ## Branch and Release Process
 
 - `main` branch is the development branch
