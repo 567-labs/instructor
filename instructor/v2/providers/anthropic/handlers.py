@@ -924,15 +924,10 @@ class AnthropicStructuredOutputsHandler(AnthropicHandlerBase):
         text_content = text_blocks[-1].text
 
         # Parse and validate
-        if strict:
-            return response_model.model_validate_json(
-                text_content,
-                context=validation_context,
-                strict=strict,
-            )
         return response_model.model_validate_json(
             text_content,
             context=validation_context,
+            strict=strict,
         )
 
 
