@@ -1,8 +1,8 @@
 ---
 draft: False
 date: 2025-03-15
-title: "Structured outputs with Google's genai SDK"
-description: "Learn how to use Instructor with Google's Generative AI SDK to extract structured data from Gemini models."
+title: "Google Gen AI SDK examples for Gemini in Python"
+description: "Wrap a google.genai.Client with Instructor, extract structured data from images, audio, and PDFs, and stream partial models or individual records."
 slug: genai
 tags:
   - patching
@@ -10,24 +10,12 @@ authors:
   - instructor
 ---
 
-# Structured Outputs with Google's genai SDK
+# Google Gen AI SDK examples for Gemini in Python
 
-!!! info "Recommended SDK"
+Use these examples to pass native content and files to Gemini, handle validation failures, and stream results. For credentials and provider setup, start with the [Gemini API](google.md) or [Vertex AI](vertex.md) guide.
 
-    The `genai` SDK is Google's recommended Python client for working with Gemini models. It provides a unified interface for both the Gemini API and Vertex AI. For detailed setup instructions, including how to use it with Vertex AI, please refer to the [official Google AI documentation for the GenAI SDK](https://googleapis.github.io/python-genai/).
-
-This guide demonstrates how to use Instructor with Google's `genai` SDK to extract structured data from Gemini models.
-
-We currently have two modes for Gemini
-
-- `Mode.TOOLS` : This leverages function calling under the hood and returns a structured response
-- `Mode.JSON` : This provides Gemini with a JSON Schema that it will use to respond in a structured format with
-
-!!! info "Gemini Thought Parts Filtering"
-
-    When using `Mode.TOOLS`, Instructor automatically filters out thought parts from Gemini responses. Gemini 2.5 models include internal reasoning parts with `thought: true` by default, which cannot be disabled. Instructor removes these thought parts before processing the structured output to prevent runtime errors.
-
-    This filtering happens automatically and requires no additional configuration. For more information about Gemini's thinking feature, see the [official documentation](https://ai.google.dev/gemini-api/docs/thinking).
+- `Mode.TOOLS` extracts arguments from a function call and ignores parts marked as thoughts.
+- `Mode.JSON` sends a response schema and parses the returned JSON.
 
 !!! note "Backwards Compatibility"
 
@@ -58,7 +46,7 @@ class User(BaseModel):
     age: int
 
 # Initialize and patch the client
-client = instructor.from_provider("google/gemini-2.5-flash")
+client = instructor.from_provider("google/gemini-3.8-flash")
 
 # Extract structured data
 response = client.create(
@@ -78,7 +66,7 @@ print(response)  # User(name='Jason', age=25)
 ```python
 from google.genai import Client
 from instructor import Mode
-from instructor.v2 import from_genai
+from instructor import from_genai
 from pydantic import BaseModel
 
 
@@ -88,7 +76,7 @@ class User(BaseModel):
 
 
 raw_client = Client(api_key="YOUR_KEY")
-client = from_genai(raw_client, mode=Mode.TOOLS)
+client = from_genai(raw_client, model="gemini-3.8-flash", mode=Mode.TOOLS)
 
 result = client.chat.completions.create(
     messages=[{"role": "user", "content": "Extract: Jason is 25 years old"}],
@@ -116,7 +104,7 @@ class User(BaseModel):
     age: int
 
 # Initialize and patch the client
-client = instructor.from_provider("google/gemini-2.5-flash")
+client = instructor.from_provider("google/gemini-3.8-flash")
 
 # Single string (converted to user message)
 response = client.create(
@@ -168,7 +156,7 @@ class User(BaseModel):
     age: int
 
 
-client = instructor.from_provider("google/gemini-2.5-flash")
+client = instructor.from_provider("google/gemini-3.8-flash")
 
 # As a parameter
 response = client.create(
@@ -212,7 +200,7 @@ class User(BaseModel):
 
 
 # Initialize and patch the client
-client = instructor.from_provider("google/gemini-2.5-flash")
+client = instructor.from_provider("google/gemini-3.8-flash")
 
 # Single string (converted to user message)
 response = client.create(
@@ -281,7 +269,7 @@ class UserDetail(BaseModel):
     age: int
 
 
-client = instructor.from_provider("google/gemini-2.5-flash")
+client = instructor.from_provider("google/gemini-3.8-flash")
 
 response = client.create(
     messages=[{"role": "user", "content": "Extract: jason is 25 years old"}],
@@ -331,7 +319,7 @@ class ImageDescription(BaseModel):
     colors: list[str] = Field(..., description="The colors in the image")
 
 
-client = instructor.from_provider("google/gemini-2.5-flash")
+client = instructor.from_provider("google/gemini-3.8-flash")
 url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/image.jpg"
 # Multiple ways to load an image:
 response = client.create(
@@ -386,7 +374,7 @@ class AudioDescription(BaseModel):
 
 url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/gettysburg.wav"
 
-client = instructor.from_provider("google/gemini-2.5-flash")
+client = instructor.from_provider("google/gemini-3.8-flash")
 
 response = client.create(
     response_model=AudioDescription,
@@ -428,7 +416,7 @@ class Receipt(BaseModel):
     items: list[str]
 
 
-client = instructor.from_provider("google/gemini-2.5-flash")
+client = instructor.from_provider("google/gemini-3.8-flash")
 url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/invoice.pdf"
 # Multiple ways to load an PDF:
 response = client.create(
@@ -481,7 +469,7 @@ class Receipt(BaseModel):
     items: list[str]
 
 
-client = instructor.from_provider("google/gemini-2.5-flash")
+client = instructor.from_provider("google/gemini-3.8-flash")
 url = "https://raw.githubusercontent.com/instructor-ai/instructor/main/tests/assets/invoice.pdf"
 # Multiple ways to load an PDF:
 response = client.create(
@@ -519,7 +507,7 @@ class Summary(BaseModel):
     summary: str
 
 
-client = instructor.from_provider("google/gemini-2.5-flash")
+client = instructor.from_provider("google/gemini-3.8-flash")
 
 file1 = client.files.upload(
     file="./gettysburg.wav",
@@ -565,7 +553,7 @@ import instructor
 
 
 client = instructor.from_provider(
-    "google/gemini-2.5-flash",
+    "google/gemini-3.8-flash",
     mode=instructor.Mode.JSON,
 )
 
@@ -580,7 +568,7 @@ class PersonList(BaseModel):
 
 
 stream = client.create_partial(
-    model="gemini-2.5-flash",
+    model="gemini-3.8-flash",
     response_model=PersonList,
     stream=True,
     messages=[
@@ -606,7 +594,7 @@ For extracting multiple objects from a single response, use `create_iterable`:
 from pydantic import BaseModel
 import instructor
 
-client = instructor.from_provider("google/gemini-2.5-flash")
+client = instructor.from_provider("google/gemini-3.8-flash")
 
 class User(BaseModel):
     name: str
@@ -614,7 +602,7 @@ class User(BaseModel):
 
 # Extract multiple users from a single response
 stream = client.create_iterable(
-    model="gemini-2.5-flash",
+    model="gemini-3.8-flash",
     response_model=User,
     stream=True,
     messages=[
@@ -646,10 +634,10 @@ class User(BaseModel):
     age: int
 
 async def async_partial_example():
-    client = instructor.from_provider("google/gemini-2.5-flash", async_client=True)
+    client = instructor.from_provider("google/gemini-3.8-flash", async_client=True)
     
     stream = client.create_partial(
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         response_model=User,
         stream=True,
         messages=[
@@ -661,10 +649,10 @@ async def async_partial_example():
         print(chunk)
 
 async def async_iterable_example():
-    client = instructor.from_provider("google/gemini-2.5-flash", async_client=True)
+    client = instructor.from_provider("google/gemini-3.8-flash", async_client=True)
     
     stream = client.create_iterable(
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         response_model=User,
         stream=True,
         messages=[
@@ -701,7 +689,7 @@ class User(BaseModel):
 
 async def extract_user():
     client = instructor.from_provider(
-        "google/gemini-2.5-flash",
+        "google/gemini-3.8-flash",
         async_client=True,
     )
 

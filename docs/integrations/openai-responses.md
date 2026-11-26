@@ -1,11 +1,11 @@
 ---
-title: "OpenAI Responses API Guide"
-description: "Learn how to use Instructor's new Responses API with OpenAI models for structured outputs. Complete guide with examples and best practices."
+title: "OpenAI Responses API structured outputs with Pydantic"
+description: "Use the OpenAI Responses API in Python to validate tool calls with Pydantic, stream results, and combine structured extraction with web or file search."
 ---
 
-# OpenAI Responses API Guide
+# OpenAI Responses API structured outputs with Pydantic
 
-The Responses API provides a more streamlined way to work with OpenAI models through Instructor. This guide covers everything you need to know about using the new Responses API for type-safe, validated outputs.
+Set `OPENAI_API_KEY` and select `Mode.RESPONSES_TOOLS` to call the OpenAI Responses API. Pass the text as `input` and a Pydantic class as `response_model`. If your application uses `chat.completions.create`, see the [Chat Completions guide](openai.md).
 
 ## Quick Start
 
@@ -37,17 +37,7 @@ print(profile)
 
 ## Response Modes
 
-The Responses API supports two main modes:
-
-1. `instructor.Mode.RESPONSES_TOOLS`: Standard mode for structured outputs
-2. `instructor.Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS`: Enhanced mode that includes built-in tools like web search and file search
-
-```python
-# Initialize the client
-client = instructor.from_provider(
-    "openai/gpt-6-luna", mode=instructor.Mode.RESPONSES_TOOLS
-)
-```
+Use `Mode.RESPONSES_TOOLS` for structured responses, including requests that supply [built-in tools](#built-in-tools). The older `Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS` name maps to the same handler.
 
 ## Core Methods
 
@@ -318,7 +308,7 @@ In addition to this, the url_citation annotation object will contain the URL, ti
 
     client = instructor.from_provider(
         "openai/gpt-6-luna",
-        mode=instructor.Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS,
+        mode=instructor.Mode.RESPONSES_TOOLS,
         async_client=False,
     )
 
@@ -353,7 +343,7 @@ In addition to this, the url_citation annotation object will contain the URL, ti
 
     client = instructor.from_provider(
         "openai/gpt-6-luna",
-        mode=instructor.Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS,
+        mode=instructor.Mode.RESPONSES_TOOLS,
         async_client=True,
     )
 
@@ -412,7 +402,7 @@ This makes it easy to build RAG applications out of the box
 
     client = instructor.from_provider(
         "openai/gpt-6-luna",
-        mode=instructor.Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS
+        mode=instructor.Mode.RESPONSES_TOOLS
     )
 
     response = client.responses.create(
@@ -443,7 +433,7 @@ This makes it easy to build RAG applications out of the box
 
     client = instructor.from_provider(
         "openai/gpt-6-luna",
-        mode=instructor.Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS,
+        mode=instructor.Mode.RESPONSES_TOOLS,
         async_client=True
     )
 

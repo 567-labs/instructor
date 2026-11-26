@@ -1,15 +1,13 @@
 ---
-title: Start Here - Instructor for Beginners
-description: A beginner-friendly introduction to using Instructor for structured outputs from LLMs
+title: How Instructor turns LLM responses into Python objects
+description: Learn how Pydantic response models, provider clients, and validation work together in Instructor. Follow a simple example that extracts a person’s details.
 ---
 
-# Start Here: Instructor for Beginners
-
-Welcome! This guide will help you understand what Instructor does and how to start using it in your projects, even if you're new to working with language models.
+# How Instructor turns LLM responses into Python objects {#start-here-instructor-for-beginners}
 
 ## What is Instructor?
 
-Instructor is a Python library that helps you get structured, predictable data from language models like GPT-6 Luna and Claude. It's like giving the LLM a form to fill out instead of letting it respond however it wants.
+Instructor is a Python library for getting structured data from language models. Suppose your application needs a name, age, and city from a sentence. You define those fields in a Python class. Instructor uses the class as the output schema and returns an instance you can read with `person.name`, `person.age`, and `person.city`.
 
 ### Where Instructor Fits
 
@@ -25,23 +23,11 @@ flowchart LR
     style B fill:#e2f0fb,stroke:#b8daff,color:#004085
 ```
 
-### The Problem Instructor Solves
-
-Without Instructor, getting structured data from LLMs can be challenging:
-
-1. **Unpredictable outputs**: LLMs might format responses differently each time
-2. **Format errors**: Getting JSON or specific data structures can be error-prone
-3. **Validation headaches**: Checking if the response matches what you need
-
-Instructor solves these problems by:
-
-1. Defining exactly what data you want using Python classes
-2. Making sure the LLM returns data in that structure
-3. Validating the output and automatically fixing issues
+The provider generates a response. Instructor validates its fields and can retry with feedback if a field is missing or invalid. Your schema determines which errors validation can catch.
 
 ## A Simple Example
 
-Let's see Instructor in action with a basic example:
+[Install Instructor](./installation.md) and set `OPENAI_API_KEY` before running this example.
 
 ```python
 import instructor
@@ -59,6 +45,7 @@ client = instructor.from_provider("openai/gpt-6-luna")
 # Extract structured data
 person = client.create(
     response_model=Person,
+    reasoning_effort="none",
     messages=[
         {"role": "user", "content": "Extract: John is 30 years old and lives in New York."}
     ]
@@ -103,12 +90,12 @@ client = instructor.from_provider("openai/gpt-6-luna")
 client = instructor.from_provider("anthropic/claude-haiku-5-5")
 
 # For Google Gemini
-client = instructor.from_provider("google/gemini-3-flash")
+client = instructor.from_provider("google/gemini-3.5-flash")
 ```
 
 ### 3. Modes
 
-Modes control how Instructor gets structured data from the LLM. Different providers support different modes, and Instructor automatically selects the best one. You can also specify a mode manually if needed.
+Modes control how Instructor gets structured data from the LLM. Each provider has a default mode. You can [choose a supported mode](./modes-comparison.md) or use [typed decisions](./concepts/decisions.md) for classification and scoring.
 
 [Learn more about client setup →](./concepts/from_provider.md)
 

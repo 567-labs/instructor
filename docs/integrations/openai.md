@@ -1,9 +1,13 @@
 ---
-title: "Structured outputs with OpenAI, a complete guide with instructor"
-description: "Learn how to use Instructor with OpenAI's models for type-safe, structured outputs. Complete guide with examples and best practices for GPT-6 Luna."
+title: OpenAI structured outputs with Pydantic in Python
+description: Extract validated Pydantic models from OpenAI Chat Completions in Python. Configure tool calling, stream results, and connect compatible endpoints.
 ---
 
-# Structured outputs with OpenAI, a complete guide with instructor
+# OpenAI structured outputs with Pydantic in Python {#structured-outputs-with-openai-a-complete-guide-with-instructor}
+
+Use this guide to extract fields from text with Chat Completions. To classify
+an input or assign it a score, see the [OpenAI Decisions API guide](../concepts/decisions.md).
+For reasoning with tools, see the [Responses API guide](openai-responses.md).
 
 These examples use [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna). Chat Completions tool calls require `reasoning_effort="none"`. Use the Responses API when you need reasoning with tools. Set Chat Completions output limits with `max_completion_tokens`.
 

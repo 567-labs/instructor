@@ -1,3 +1,8 @@
+---
+title: "Model IDs for Instructor provider examples"
+description: "Find the model strings used in Instructor examples for OpenAI, Anthropic, Google, and other providers. Check each model against its provider reference."
+---
+
 # Model IDs used in provider examples
 
 OpenAI and Anthropic entries were reviewed November 13, 2026. Pass the full
@@ -21,7 +26,7 @@ the first slash.
 | OpenRouter | `openrouter/google/gemini-3.8-flash` | [Model](https://openrouter.ai/google/gemini-3.8-flash) |
 | Together | `together/meta-llama/Llama-3.3-70B-Instruct-Turbo` | [Models](https://docs.together.ai/docs/serverless/models) |
 | Bedrock | `bedrock/global.anthropic.claude-haiku-5-5` | [Model and regions](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-5-5.html) |
-| Vertex AI | `vertexai/gemini-3.8-flash` | [Model guide](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/guides/gemini-3-8-flash) |
+| [Vertex AI](vertex.md) | `google/gemini-3.8-flash` with `vertexai=True` | [Model guide](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/guides/gemini-3-8-flash) |
 
 ## Request differences
 

@@ -1,147 +1,67 @@
 ---
-title: Installing Instructor for LLM Structured Outputs
-description: Complete installation guide for Instructor with support for OpenAI, Anthropic, Google, and 15+ LLM providers. Get started in minutes.
+title: Set up provider SDKs and API keys for Instructor
+description: Choose the Python package and API key for OpenAI, Claude, Gemini, Cohere, or Mistral. Test your Instructor client with a structured extraction.
 ---
 
-# Instructor Installation Guide: Setup for LLM Structured Outputs
+# Set up your LLM provider {#instructor-installation-guide-setup-for-llm-structured-outputs}
 
-Learn how to install Instructor, the leading Python library for extracting structured data from LLMs like GPT-6 Luna, Claude, and Gemini. This comprehensive installation tutorial covers all major LLM providers and gets you ready for production use.
+Once you've [installed Instructor](../../installation.md), choose a provider and set its credentials in the environment where you run Python.
 
-## Quick Start: Install Instructor for LLM Development
+## Choose an SDK and API key
 
-Get started with structured LLM outputs in seconds. Install Instructor using pip:
+The base install includes the OpenAI SDK. For other providers, install the extra listed below. If you use a uv project, replace `python -m pip install` with `uv add`.
 
-```shell
-pip install instructor
-```
+| Provider | Install command | Environment variable |
+| --- | --- | --- |
+| [OpenAI](../../integrations/openai.md) | `python -m pip install instructor` | `OPENAI_API_KEY` |
+| [Anthropic Claude](../../integrations/anthropic.md) | `python -m pip install "instructor[anthropic]"` | `ANTHROPIC_API_KEY` |
+| [Google Gemini](../../integrations/google.md) | `python -m pip install "instructor[google-genai]"` | `GOOGLE_API_KEY` |
+| [Cohere](../../integrations/cohere.md) | `python -m pip install "instructor[cohere]"` | `CO_API_KEY` |
+| [Mistral](../../integrations/mistral.md) | `python -m pip install "instructor[mistral]"` | `MISTRAL_API_KEY` |
 
-Instructor leverages Pydantic for type-safe LLM data extraction:
+For [LiteLLM](../../integrations/litellm.md), install `instructor[litellm]` and configure credentials for the underlying provider. See [all integrations](../../integrations/index.md) for local models and cloud platforms.
 
-```shell
-pip install pydantic
-```
+## Set your API key
 
-> **Pro Tip**: Use `uv` for faster installation: `uv pip install instructor`
+For the OpenAI example below, replace the placeholder with your key. Run Python from the same shell.
 
-## LLM Provider Installation Guide
+=== "macOS or Linux"
 
-Instructor supports 15+ LLM providers. Here's how to install and configure each:
+    ```bash
+    export OPENAI_API_KEY="your-openai-key"
+    ```
 
-### OpenAI (GPT-6 Luna)
+=== "Windows PowerShell"
 
-Install the OpenAI SDK to use GPT-6 Luna:
+    ```powershell
+    $env:OPENAI_API_KEY = "your-openai-key"
+    ```
 
-```shell
-pip install instructor
-```
+## Test a request
 
-Configure your OpenAI API key for LLM access:
-
-```shell
-export OPENAI_API_KEY=your_openai_key
-```
-
-### Anthropic Claude LLM Setup
-
-Install the Anthropic SDK to use Claude Haiku 5.5:
-
-```shell
-pip install "instructor[anthropic]"
-```
-
-Configure Claude API access:
-
-```shell
-export ANTHROPIC_API_KEY=your_anthropic_key
-```
-
-### Google Gemini LLM Integration
-
-Use Gemini Pro and Flash models for structured outputs with function calling:
-
-```shell
-pip install "instructor[google-genai]"
-```
-
-Set up Gemini API access:
-
-```shell
-export GOOGLE_API_KEY=your_google_key
-```
-
-### Cohere
-
-To use with Cohere's models:
-
-```shell
-pip install "instructor[cohere]"
-```
-
-Set up your Cohere API key:
-
-```shell
-export COHERE_API_KEY=your_cohere_key
-```
-
-### Mistral
-
-To use with Mistral AI's models:
-
-```shell
-pip install "instructor[mistral]"
-```
-
-Set up your Mistral API key:
-
-```shell
-export MISTRAL_API_KEY=your_mistral_key
-```
-
-### LiteLLM (Multiple Providers)
-
-To use LiteLLM for accessing multiple providers:
-
-```shell
-pip install "instructor[litellm]"
-```
-
-Set up API keys for the providers you want to use.
-
-## Verify Your Instructor LLM Setup
-
-Test your Instructor installation with this simple LLM structured output example:
+This example sends a request to OpenAI and may incur API charges. For a local check, [print the installed version](../../installation.md#check-the-installed-version).
 
 ```python
 import instructor
 from pydantic import BaseModel
+
+
 class Person(BaseModel):
     name: str
     age: int
 
+
 client = instructor.from_provider("openai/gpt-6-luna")
 person = client.create(
-    model="gpt-6-luna",
     response_model=Person,
-    messages=[
-        {"role": "user", "content": "John Doe is 30 years old"}
-    ]
+    messages=[{"role": "user", "content": "John Doe is 30 years old."}],
 )
 
-print(f"Name: {person.name}, Age: {person.age}")
+print(person.name, person.age)
 ```
 
-## Next Steps in Your LLM Tutorial Journey
+To use Claude, install the Anthropic extra, set `ANTHROPIC_API_KEY`, and change the provider string to `anthropic/claude-haiku-5-5`.
 
-With Instructor installed, you're ready to build powerful LLM applications:
+If you're using a notebook, check that the kernel uses the environment containing the provider SDK. For authentication errors, check that the key is available to the Python process and that your account has access to the model.
 
-1. **[Create Your First LLM Extraction](first_extraction.md)** - Build structured outputs with any LLM
-2. **[Master Response Models](response_models.md)** - Learn Pydantic models for LLM data validation
-3. **[Configure LLM Clients](../../concepts/from_provider.md)** - Set up OpenAI, Anthropic, Google, and more
-
-## Common Installation Issues
-
-- **Import Errors**: Ensure you've installed the provider-specific extras (e.g., `instructor[anthropic]`)
-- **API Key Issues**: Verify your environment variables are set correctly
-- **Version Conflicts**: Use `pip install --upgrade instructor` to get the latest version
-
-Ready to extract structured data from LLMs? Continue to [Your First Extraction](first_extraction.md) →
+Next, [extract your first record](first_extraction.md) or learn how to [define a response model](response_models.md).

@@ -510,20 +510,6 @@ blog/posts/distilation-part1.md:
     outputs, the importance of structured outputs, and future plans for function implementation.
     Essential keywords include Instructor, fine-tuning, distillation, language models,
     Python, and dataset generation.
-blog/posts/extract-model-looks.md:
-  cross_links: []
-  hash: 1a96f01876050a880e6d2f67bee23cb2
-  references: []
-  summary: "This article presents a two-phase, parallel approach to generating complex,\
-    \ consistent Directed Acyclic Graphs (DAGs) and stories with GPT-4o, overcoming\
-    \ limitations of large graph sizes and context window constraints. By first creating\
-    \ a detailed story outline\u2014including setting, plot, choices, and visual style\u2014\
-    and then expanding branches concurrently while maintaining path-specific context,\
-    \ the method ensures coherence and efficiency. Key concepts include state isolation,\
-    \ parallel processing, structured validation with Pydantic, and controllable story\
-    \ depth. Ideal for generating large, interconnected content at scale, this approach\
-    \ enhances story and graph generation speed, consistency, and complexity using\
-    \ AI models like OpenAI\u2019s GPT-4o."
 blog/posts/extracting-model-metadata.md:
   ai_references:
   - '[../../concepts/multimodal.md]'

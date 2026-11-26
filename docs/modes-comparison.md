@@ -1,9 +1,9 @@
 ---
-title: Mode Comparison Guide
-description: Compare different modes available in Instructor and understand when to use each
+title: Choose a mode for structured outputs in Python
+description: Compare tool calling, JSON Schema, Markdown JSON, and decision models in Instructor. Choose a mode for your provider and migrate legacy mode names.
 ---
 
-## Instructor Mode Comparison Guide
+# Choose a mode for structured outputs in Python {#instructor-mode-comparison-guide}
 
 Instructor uses **core modes** that work across providers. Provider-specific
 modes still work, but they are deprecated and will show warnings.
@@ -18,6 +18,7 @@ mode-specific streaming logic.
 - `MD_JSON`: JSON from text or code blocks for simple or fallback cases.
 - `PARALLEL_TOOLS`: Multiple tool calls in one response.
 - `RESPONSES_TOOLS`: OpenAI Responses API tools.
+- Use [`DECISIONS`](concepts/decisions.md) in Instructor 1.18 to classify or score an input with the OpenAI Decisions API or Jev.
 
 ## Legacy Modes (Deprecated)
 

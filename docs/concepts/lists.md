@@ -1,11 +1,13 @@
 ---
-title: Streaming Lists with Instructor - Extract Multiple Objects
-description: Learn how to extract multiple structured objects from a single LLM call using streaming lists. Stream collections of Pydantic models as they're generated.
+title: Extract a list of Pydantic models with Instructor
+description: Collect multiple records using Iterable[T] in client.create, or set stream=True to process each record as it arrives.
 ---
 
-# Multi-task and Streaming
+# Extract a list with Iterable[T] {#multi-task-and-streaming}
 
-A common use case of structured extraction is defining a single schema class and then making another schema to create a list to do multiple extraction
+Pass `response_model=Iterable[User]` to `client.create` to extract several users in one call. With `stream=False` you get the list after the response finishes. Set `stream=True` to iterate over completed users, or use the [`create_iterable` shortcut](iterable.md).
+
+If the collection needs a named field or other metadata, you can define the outer model yourself.
 
 ```python
 from typing import List
@@ -45,14 +47,9 @@ print(Users.model_json_schema())
 """
 ```
 
-Defining a task and creating a list of classes is a common enough pattern that we make this convenient by making use of `Iterable[T]`. This lets us dynamically create a new class that:
-
-1. Has dynamic docstrings and class name based on the task
-2. Support streaming by collecting tokens until a task is received back out.
-
 ## Extracting Tasks using Iterable
 
-By using `Iterable` you get a very convenient class with prompts and names automatically defined:
+For a collection of users alone, Instructor builds the wrapper schema for you.
 
 ```python
 import instructor
@@ -72,7 +69,6 @@ client = instructor.from_provider(
 
 users = client.create(
     reasoning_effort="none",
-    temperature=0.1,
     response_model=Iterable[User],
     stream=False,
     messages=[
@@ -94,11 +90,9 @@ for user in users:
 
 ## Streaming Tasks
 
-We can also generate tasks as the tokens are streamed in by defining an `Iterable[T]` type.
+Use `stream=True` to process items before the response finishes. An error can still occur after a valid item has been yielded. See [handling incomplete streams](iterable.md#stopping-iteration-early).
 
-Lets look at an example in action with the same class
-
-```python hl_lines="6 26"
+```python
 import instructor
 from typing import Iterable
 from pydantic import BaseModel
@@ -115,7 +109,6 @@ client = instructor.from_provider(
 )
 
 users = client.create(
-    temperature=0.1,
     stream=True,
     response_model=Iterable[User],
     messages=[
@@ -133,7 +126,7 @@ for user in users:
 
 ## Asynchronous Streaming
 
-I also just want to call out in this example that `instructor` also supports asynchronous streaming. This is useful when you want to stream a response model and process the results as they come in, but you'll need to use the `async for` syntax to iterate over the results.
+With the async client, await `create` and consume the resulting stream with `async for`.
 
 ```python
 import instructor
@@ -158,7 +151,7 @@ async def print_iterable_results():
         max_retries=2,
         stream=True,
         messages=[
-            {"role": "user", "content": "Make two up people"},
+            {"role": "user", "content": "Make up two people"},
         ],
     )
     async for m in model:

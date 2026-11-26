@@ -1,5 +1,6 @@
 ---
-title: "TrueFoundry"
+title: Extract structured data with the TrueFoundry AI Gateway
+description: Connect Instructor to the TrueFoundry AI Gateway using the OpenAI Python SDK and validate model responses with Pydantic.
 ---
 
 This guide provides instructions for integrating Instructor with the [TrueFoundry AI Gateway](https://www.truefoundry.com/ai-gateway) for structured data extraction from LLMs.

@@ -1,4 +1,5 @@
 ---
+description: Use Anthropic web search with Instructor to retrieve recent UFC results and extract them into a structured Python response.
 date: 2025-05-07
 authors:
   - jxnl

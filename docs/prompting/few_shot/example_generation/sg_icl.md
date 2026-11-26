@@ -1,6 +1,6 @@
 ---
+description: Use an LLM to generate labeled reviews, then include them in a few-shot prompt to classify the sentiment of a new review.
 title: "Generate In-Context Examples"
-description: ""
 ---
 
 How can we generate examples for our prompt?

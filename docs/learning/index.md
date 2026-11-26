@@ -1,16 +1,15 @@
-# Instructor LLM Tutorial: Complete Guide to Structured Outputs
+---
+title: Python lessons on LLM extraction with Pydantic
+description: Follow Python lessons on extracting lists and nested records, validating fields, retrying failed requests, and streaming LLM responses.
+---
 
-Learn how to use Instructor for LLM structured outputs with this comprehensive tutorial. Instructor is the leading Python library for extracting structured, validated data from large language models (LLMs) like GPT-6 Luna, Claude, and Gemini.
+# Learn structured data extraction with Instructor {#instructor-llm-tutorial-complete-guide-to-structured-outputs}
 
-## What You'll Learn in This LLM Tutorial
+Start by extracting a single record. Then choose a lesson based on the shape of your data, the rules it must satisfy, or how you want to stream it.
 
-This Instructor tutorial covers everything from basic LLM integration to advanced structured output patterns. Whether you're building AI applications, automating data extraction, or creating LLM-powered APIs, this guide provides practical, production-ready examples.
+## Getting started
 
-## Getting Started with Instructor LLM Tutorial
-
-Start your journey with these beginner-friendly tutorials for LLM integration:
-
-* [**Installation Guide**](getting_started/installation.md) - Install Instructor for Python LLM development
+* [**Provider setup**](getting_started/installation.md) - Install a provider SDK and configure your API key
 * [**Your First LLM Extraction**](getting_started/first_extraction.md) - Build your first structured output with OpenAI, Anthropic, or Google LLMs
 * [**Response Models Tutorial**](getting_started/response_models.md) - Master Pydantic models for LLM outputs
 * [**LLM Client Setup**](../concepts/from_provider.md) - Configure Instructor for OpenAI, Anthropic, Gemini, and 15+ LLM providers
@@ -41,12 +40,3 @@ Real-time LLM output processing tutorials:
 
 * [**Streaming Basics**](streaming/basics.md) - Stream LLM responses for better UX
 * [**Streaming Lists**](streaming/lists.md) - Process LLM arrays in real-time
-
-## Why This Instructor LLM Tutorial?
-
-- **Production-Ready Examples**: Real-world LLM integration patterns used by thousands of developers
-- **Multi-Provider Support**: Works with OpenAI, Anthropic, Google, Cohere, and more
-- **Type-Safe Outputs**: Leverage Python's type system for reliable LLM applications
-- **Progressive Learning Path**: From basic LLM calls to advanced extraction techniques
-
-Ready to master structured outputs with LLMs? Start with our [installation guide](getting_started/installation.md) and build your first LLM-powered application today!

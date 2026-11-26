@@ -127,7 +127,7 @@ Techniques for effectively using examples in prompts:
 | [Example Generation](few_shot/example_generation/sg_icl.md) | Automatically create examples | Domains with limited example data |
 | [Example Ordering](few_shot/example_ordering.md) | Optimal sequencing of examples | Improved pattern recognition |
 | [KNN Example Selection](few_shot/exemplar_selection/knn.md) | Choose examples similar to query | Domain-specific accuracy |
-| [Vote-K Selection](few_shot/exemplar_selection/vote_k.md) | Advanced similarity-based selection | Complex pattern matching |
+| Vote-K Selection | Advanced similarity-based selection | Complex pattern matching |
 
 ## Thought Generation {#thought-generation}
 
@@ -150,7 +150,7 @@ Methods to encourage human-like reasoning in models:
 | [Auto-CoT](thought_generation/chain_of_thought_few_shot/auto_cot.md) | Choose diverse examples | Broad domain coverage |
 | [Complexity-Based CoT](thought_generation/chain_of_thought_few_shot/complexity_based.md) | Use complex examples | Challenging problem types |
 | [Contrastive CoT](thought_generation/chain_of_thought_few_shot/contrastive.md) | Include correct and incorrect cases | Error detection and avoidance |
-| [Memory of Thought](thought_generation/chain_of_thought_few_shot/memory_of_thought.md) | Use high-certainty examples | Reliability in critical applications |
+| Memory of Thought | Use high-certainty examples | Reliability in critical applications |
 | [Uncertainty-Routed CoT](thought_generation/chain_of_thought_few_shot/uncertainty_routed_cot.md) | Select the most certain reasoning path | Decision-making under uncertainty |
 | [Prompt Mining](thought_generation/chain_of_thought_few_shot/prompt_mining.md) | Generate templated prompts | Efficient prompt engineering |
 
@@ -195,9 +195,9 @@ Techniques for breaking down complex problems:
 | [Least-to-Most](decomposition/least_to_most.md) | Solve increasingly complex subproblems | Educational applications |
 | [Plan and Solve](decomposition/plan_and_solve.md) | Generate a structured plan | Project planning |
 | [Program of Thought](decomposition/program_of_thought.md) | Use code for reasoning | Algorithmic problems |
-| [Recursive Thought](decomposition/recurs_of_thought.md) | Recursively solve subproblems | Hierarchical problems |
+| Recursive Thought | Recursively solve subproblems | Hierarchical problems |
 | [Skeleton of Thought](decomposition/skeleton_of_thought.md) | Generate outline structure | Writing, planning |
-| [Tree of Thought](decomposition/tree-of-thought.md) | Search through possible paths | Decision trees, exploration |
+| Tree of Thought | Search through possible paths | Decision trees, exploration |
 
 ## Implementation with Instructor
 

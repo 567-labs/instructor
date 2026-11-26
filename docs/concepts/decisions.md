@@ -1,20 +1,60 @@
 ---
-title: Typed decisions
-description: Evaluate a shared context with typed choices, probabilities, and scores.
+title: Use the OpenAI Decisions API and Jev with Pydantic
+description: Classify text, estimate probabilities, and score inputs in Python. Define questions with Pydantic and run them with the OpenAI Decisions API or Jev.
 ---
 
-# Typed decisions
+# Use the OpenAI Decisions API and Jev with Pydantic {#typed-decisions}
 
-Decision mode requires Instructor 1.18.0 or later.
+Use `Mode.DECISIONS` when you can write down the possible answers before you
+send the request. For a customer message, you might want a topic, the
+probability that the customer wants a refund, and an urgency score. Each field
+in your Pydantic model asks one question about the same input. Instructor sends
+the questions together and validates the answers as a single model.
 
-Decision models evaluate one context against several questions in a single request.
-Use `Mode.DECISIONS` with Jev through OpenRouter or TypeSafe, or OpenAI's Decisions API. Define the questions
-as a Pydantic model and receive a validated instance.
+!!! note "Available in Instructor 1.18"
+    These examples require Python 3.10 or later and Instructor 1.18.0 or later.
+    To try them before the PyPI release, install the development version in
+    a virtual environment with `python -m pip install "instructor @ git+https://github.com/567-labs/instructor.git@main"`.
+
+## Classify a message with the OpenAI Decisions API
+
+Set `OPENAI_API_KEY` in your environment. The field description tells the model
+what to decide, and `Literal` defines the labels your application accepts.
+
+```python
+from typing import Literal
+
+import instructor
+from pydantic import BaseModel, Field
+
+
+class Ticket(BaseModel):
+    topic: Literal["billing", "access", "other"] = Field(
+        description="What does the customer need help with?"
+    )
+
+
+with instructor.from_provider(
+    "openai/gpt-6-luna", mode=instructor.Mode.DECISIONS
+) as client:
+    ticket = client.create(
+        response_model=Ticket,
+        input="My invoice shows two charges for the same subscription.",
+    )
+    print(ticket.topic)
+```
+
+Use [choices](#choices) for labels and [probabilities and scores](#probabilities-and-scores)
+for numeric answers. Call `create_with_completion()` when you need the
+provider's full answer distribution alongside the validated model. To extract
+an open-ended field such as the invoice number, see
+[structured outputs with OpenAI](../integrations/openai.md).
 
 ## Content moderation
 
-This example uses a reusable choice enum, an inline choice, a yes/no probability,
-and a score mapped to 0–10. Outputs shown in comments are illustrative.
+This example uses Jev through OpenRouter to evaluate a post against a policy.
+It combines a reusable choice enum, an inline choice, a yes/no probability,
+and a score mapped to 0–10. The comments show illustrative values.
 
 ```python
 from typing import Annotated, Literal, Union

@@ -1,3 +1,8 @@
+---
+title: Validate extracted fields with Pydantic
+description: Use Pydantic constraints and custom validators to check fields, lists, and nested models in structured LLM responses.
+---
+
 # Field Validation
 
 This guide covers how to add validation to fields when extracting structured data with Instructor. Field validation ensures that your extracted data meets specific criteria and constraints.

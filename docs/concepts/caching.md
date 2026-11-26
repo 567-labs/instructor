@@ -1,14 +1,14 @@
+---
+title: Cache LLM responses in Python with Instructor
+description: Reuse validated responses in memory, on disk, or in Redis. Configure cache namespaces to control which Instructor clients share results.
+---
+
 ## See Also
 
 - [Prompt Caching](./prompt_caching.md) - Cache prompts for cost optimization
 - [Performance Optimization](../examples/sqlmodel.md#performance-optimization) - Performance best practices
 - [Cost Optimization](../examples/batch_job_oai.md) - Reduce API costs
 - [Hooks](./hooks.md) - Monitor cache hits and misses
-
----
-title: Caching Strategies with Instructor
-description: Learn how to use caching with Instructor to reduce API costs and improve performance.
----
 
 For more details on caching concepts, see our [blog](../blog/posts/caching.md).
 

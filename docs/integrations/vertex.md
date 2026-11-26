@@ -1,20 +1,15 @@
 ---
-title: "Structured outputs with Vertex AI, a complete guide w/ instructor"
-description: "Complete guide to using Instructor with Google Cloud's Vertex AI. Learn how to generate structured, type-safe outputs with enterprise-grade AI capabilities."
+title: "Gemini structured outputs on Vertex AI with Python"
+description: "Configure a Google Cloud project and location, migrate to google-genai, and stream Pydantic models from Gemini on Vertex AI with Instructor."
 ---
 
-# Structured outputs with Vertex AI, a complete guide w/ instructor
+# Gemini structured outputs on Vertex AI with Python
 
-Google Cloud's Vertex AI provides enterprise-grade AI capabilities with robust scaling and security features. This guide shows you how to use Instructor with Vertex AI for type-safe, validated responses.
-
-!!! warning "Migration Notice"
-    The direct `from_vertexai` integration is being deprecated in favor of the unified `google-genai` SDK. 
-    Please use `from_provider` or `from_genai` with `vertexai=True` for new projects. 
-    See the [migration guide](#migration-to-google-genai) below.
+Use the [Google Gen AI SDK](genai.md) with `vertexai=True` to run Gemini in a Google Cloud project. Configure [Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc) and select a location where your model is available. For API key setup, see the [Gemini API guide](google.md).
 
 ## Quick Start
 
-Install Instructor with Google GenAI support (which includes Vertex AI):
+Install the Google Gen AI SDK and set [your project and location](#environment-variables) before running the examples.
 
 ```bash
 pip install "instructor[google-genai]"
@@ -39,7 +34,8 @@ class User(BaseModel):
 
 # Using from_provider (recommended)
 client = instructor.from_provider(
-    "vertexai/gemini-3.8-flash",
+    "google/gemini-3.8-flash",
+    vertexai=True,
 )
 
 resp = client.create(
@@ -61,10 +57,7 @@ print(resp)
 ```python
 import asyncio
 import instructor
-import vertexai  # type: ignore
 from pydantic import BaseModel
-
-vertexai.init()
 
 
 class User(BaseModel):
@@ -73,7 +66,8 @@ class User(BaseModel):
 
 
 client = instructor.from_provider(
-    "vertexai/gemini-3.8-flash",
+    "google/gemini-3.8-flash",
+    vertexai=True,
     async_client=True,
     mode=instructor.Mode.TOOLS,
 )
@@ -104,12 +98,9 @@ Instructor now supports streaming capabilities with Vertex AI! You can use both 
 ### Streaming Partial Responses
 
 ```python
-import vertexai  # type: ignore
 import instructor
 from pydantic import BaseModel
 from instructor.dsl.partial import Partial
-
-vertexai.init()
 
 
 class UserExtract(BaseModel):
@@ -118,7 +109,8 @@ class UserExtract(BaseModel):
 
 
 client = instructor.from_provider(
-    "vertexai/gemini-3.8-flash",
+    "google/gemini-3.8-flash",
+    vertexai=True,
     mode=instructor.Mode.TOOLS,
 )
 
@@ -141,11 +133,8 @@ for partial_user in response_stream:
 ### Streaming Iterable Collections
 
 ```python
-import vertexai  # type: ignore
 import instructor
 from pydantic import BaseModel
-
-vertexai.init()
 
 
 class UserExtract(BaseModel):
@@ -154,7 +143,8 @@ class UserExtract(BaseModel):
 
 
 client = instructor.from_provider(
-    "vertexai/gemini-3.8-flash",
+    "google/gemini-3.8-flash",
+    vertexai=True,
     mode=instructor.Mode.TOOLS,
 )
 
@@ -179,12 +169,9 @@ You can also use async versions of both streaming approaches:
 
 ```python
 import asyncio
-import vertexai  # type: ignore
 import instructor
 from pydantic import BaseModel
 from instructor.dsl.partial import Partial
-
-vertexai.init()
 
 
 class UserExtract(BaseModel):
@@ -193,7 +180,8 @@ class UserExtract(BaseModel):
 
 
 client = instructor.from_provider(
-    "vertexai/gemini-3.8-flash",
+    "google/gemini-3.8-flash",
+    vertexai=True,
     async_client=True,
     mode=instructor.Mode.TOOLS,
 )
@@ -238,21 +226,7 @@ asyncio.run(stream_iterable())
 
 ## Migration to Google GenAI
 
-The legacy `from_vertexai` method is being deprecated in favor of the unified Google GenAI SDK. Here's how to migrate:
-
-### Old Way (Deprecated)
-```python
-import instructor
-import vertexai
-
-vertexai.init(project="your-project", location="us-central1")
-
-client = instructor.from_provider(
-    "google/gemini-3.8-flash",
-    vertexai=True,
-    mode=instructor.Mode.TOOLS,
-)
-```
+Replace the deprecated `vertexai/<model>` prefix with `google/<model>` and pass `vertexai=True`. If you previously wrapped a Vertex AI client with `from_vertexai`, wrap a `google.genai.Client` with `from_genai` instead.
 
 ### New Way (Recommended)
 ```python
@@ -260,9 +234,10 @@ import instructor
 
 # Option 1: Using from_provider (simplest)
 client = instructor.from_provider(
-    "vertexai/gemini-3.8-flash",
+    "google/gemini-3.8-flash",
+    vertexai=True,
     project="your-project",  # Optional if set in environment
-    location="us-central1",  # Optional, defaults to us-central1
+    location="us-central1",  # Optional if set in environment
 )
 
 # Option 2: Using from_genai with Google GenAI SDK
@@ -286,9 +261,3 @@ You can also set these environment variables to avoid passing project/location e
 export GOOGLE_CLOUD_PROJECT="your-project-id"
 export GOOGLE_CLOUD_LOCATION="us-central1"
 ```
-
-## Updates and Compatibility
-
-Instructor maintains compatibility with Vertex AI's latest API versions. Check the [changelog](https://github.com/jxnl/instructor/blob/main/CHANGELOG.md) for updates.
-
-Streaming support has been added for both partial responses and iterable collections, with both synchronous and asynchronous interfaces.

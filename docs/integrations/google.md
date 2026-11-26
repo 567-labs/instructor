@@ -1,22 +1,15 @@
 ---
-title: "Google Gemini Tutorial: Structured Outputs with Instructor"
-description: "Learn how to use Google's Gemini models (Pro, Flash, Ultra) with Instructor for structured data extraction. Complete tutorial with examples for multimodal AI and type-safe outputs."
+title: "Gemini API structured outputs with Pydantic in Python"
+description: "Set up the Gemini API with Instructor, validate nested Pydantic models, configure safety settings, and migrate from the legacy google-generativeai SDK."
 ---
 
-## See Also
+# Gemini API structured outputs with Pydantic in Python
 
-- [Getting Started](../getting-started.md) - Quick start guide
-- [from_provider Guide](../concepts/from_provider.md) - Detailed client configuration
-- [Multi-Modal Examples](../examples/multi_modal_gemini.md) - Vision and multi-modal processing
-- [Provider Examples](../index.md#provider-examples) - Quick examples for all providers
-
-# Google Gemini Tutorial: Structured Outputs with Instructor
-
-Master structured data extraction using Google's Gemini models with Instructor. This comprehensive tutorial covers Gemini Pro, Flash, and Ultra models, including multimodal capabilities for processing text, images, and more.
+Use `instructor.from_provider("google/gemini-3.8-flash")` and set `GOOGLE_API_KEY` to call the Gemini API. If you authenticate through Google Cloud, follow the [Vertex AI guide](vertex.md).
 
 ## Google GenAI SDK
 
-Google's GenAI SDK is the recommended way to access Gemini models. It provides a unified interface for both the Gemini API and Vertex AI. This guide shows you how to use Instructor with Google's GenAI SDK for type-safe, validated responses.
+The examples use `google-genai`. For native SDK clients, file uploads, and streaming, see the [Google Gen AI SDK examples](genai.md).
 
 !!! info "Choosing a provider prefix"
 
@@ -350,11 +343,7 @@ We provide several modes to make it easy to work with the different response mod
 
 ## Available Models
 
-Google offers several Gemini models:
-
-- Gemini Flash (General purpose, fast inference)
-- Gemini Pro (Advanced reasoning, multimodal)
-- Gemini Flash-8b (Lightweight, cost-effective)
+Check [Google's model catalog](https://ai.google.dev/gemini-api/docs/models) for supported inputs and model availability.
 
 ## Using Gemini's Multimodal Capabilities
 
@@ -375,67 +364,8 @@ Stay tuned to the blog for more guides on using Gemini with instructor.
 
 ## Migration from google-generativeai
 
-If you're currently using the legacy `google-generativeai` package with Instructor, here's how to migrate:
-
-### Old Way (Deprecated)
-```python
-import instructor
-
-client = instructor.from_provider(
-    "google/gemini-3.8-flash",
-    mode=instructor.Mode.JSON,
-)
-```
-
-### New Way (Recommended)
-```python
-import instructor
-
-# Option 1: Using from_provider (recommended)
-client = instructor.from_provider("google/gemini-3.8-flash")
-
-# Option 2: Using from_genai directly (legacy/advanced)
-from google import genai
-from instructor import from_genai
-
-client = from_genai(genai.Client())
-```
+Install `instructor[google-genai]` and change the provider prefix from `gemini/` to `google/`. If you manage your own SDK client, replace `google.generativeai.GenerativeModel` with `google.genai.Client` and wrap it with [`from_genai`](genai.md).
 
 ### Vertex AI Migration
 
-For Vertex AI users, the migration is similar:
-
-#### Old Way (Deprecated)
-```python
-import instructor
-import vertexai
-
-vertexai.init(project="your-project", location="us-central1")
-client = instructor.from_provider(
-    "google/gemini-3.8-flash",
-    vertexai=True,
-    mode=instructor.Mode.TOOLS,
-)
-```
-
-#### New Way (Recommended)
-```python
-import instructor
-
-# Option 1: Using from_provider (recommended)
-client = instructor.from_provider(
-    "vertexai/gemini-3.8-flash", project="your-project", location="us-central1"
-)
-
-# Option 2: Using from_genai with vertexai=True (legacy/advanced)
-from google import genai
-from instructor import from_genai
-
-client = from_genai(
-    genai.Client(vertexai=True, project="your-project", location="us-central1")
-)
-```
-
-## Updates and Compatibility
-
-Instructor maintains compatibility with Google's latest API versions. Check the [changelog](https://github.com/jxnl/instructor/blob/main/CHANGELOG.md) for updates.
+Use `google/<model>` with `vertexai=True`. See [Vertex AI migration](vertex.md#migration-to-google-genai) for project and location settings.

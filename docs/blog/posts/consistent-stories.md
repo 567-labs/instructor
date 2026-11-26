@@ -10,6 +10,7 @@ draft: false
 tags:
   - OpenAI
   - DAGs
+  - Multimodal
 ---
 
 # Consistent Stories with GPT-4o

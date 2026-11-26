@@ -1,6 +1,6 @@
 ---
-title: Getting Started with Instructor: Help and Resources
-description: Explore key resources for getting help with Instructor, including Discord, blog, concepts, cookbooks, and GitHub discussions.
+title: Get help with Instructor
+description: Find answers in the Instructor cookbooks, ask the community on Discord or GitHub, and report issues with your Python integration.
 ---
 
 # Getting help with Instructor
