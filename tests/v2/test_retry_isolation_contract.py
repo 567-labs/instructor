@@ -21,6 +21,7 @@ from openai.types.chat.chat_completion_message_tool_call import (
 from openai.types.completion_usage import CompletionUsage
 from pydantic import BaseModel, PrivateAttr, ValidationError
 
+from instructor import from_provider
 from instructor.core import retry_async, retry_sync
 from instructor.processing import handle_reask_kwargs
 from instructor.v2.core.errors import InstructorRetryException
@@ -273,6 +274,69 @@ def test_handle_reask_isolates_all_history_lists_with_real_sdk_response() -> Non
     reasked["contents"].append({"role": "model", "parts": []})
     reasked["chat_history"].append({"role": "CHATBOT", "message": "Retry"})
     assert kwargs == snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize(
+    ("provider", "reasoning"),
+    [
+        ("deepseek", "Extract the person's name and age."),
+        ("deepseek", ""),
+        ("deepseek", None),
+        ("openai", None),
+    ],
+)
+async def test_tool_retries_preserve_reasoning_content_over_http(
+    retry_endpoint: RetryEndpoint,
+    is_async: bool,
+    provider: str,
+    reasoning: str | None,
+) -> None:
+    first = _completion("call_missing_age", valid=False)
+    if reasoning is not None:
+        first.choices[0].message = ChatCompletionMessage.model_validate(
+            {**first.choices[0].message.model_dump(), "reasoning_content": reasoning}
+        )
+    retry_endpoint.responses = [first, _completion("call_corrected", valid=True)]
+    messages = [{"role": "user", "content": "Ada is 37 years old."}]
+    snapshot = deepcopy(messages)
+    options: dict[str, Any] = {
+        "base_url": retry_endpoint.url,
+        "api_key": "local-test-key",
+        "mode": Mode.TOOLS,
+    }
+    async with AsyncExitStack() as stack:
+        if is_async:
+            client = from_provider(
+                f"{provider}/local",
+                async_client=True,
+                **options,
+            )
+            await stack.enter_async_context(client.client)
+            result = await client.create(
+                response_model=Answer, messages=messages, max_retries=2
+            )
+        else:
+            client = from_provider(
+                f"{provider}/local",
+                **options,
+            )
+            stack.enter_context(client.client)
+            result = client.create(
+                response_model=Answer, messages=messages, max_retries=2
+            )
+    assert result.model_dump() == {"name": "Ada", "age": 37}
+    assert messages == snapshot
+    assert len(retry_endpoint.calls) == 2
+    assistant, feedback = retry_endpoint.calls[1]["body"]["messages"][-2:]
+    if reasoning is None:
+        assert "reasoning_content" not in assistant
+    else:
+        assert assistant["reasoning_content"] == reasoning
+    assert assistant["tool_calls"][0]["id"] == "call_missing_age"
+    assert feedback["tool_call_id"] == "call_missing_age"
+    assert "age" in feedback["content"]
 
 
 def test_isolate_retry_kwargs_copies_only_mutable_history_containers() -> None:

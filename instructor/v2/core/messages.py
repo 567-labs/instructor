@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageParam
@@ -88,6 +88,10 @@ def dump_message(message: ChatCompletionMessage) -> ChatCompletionMessageParam:
         "role": message.role,
         "content": message.content or "",
     }
+    reasoning_content = getattr(message, "reasoning_content", None)
+    if isinstance(reasoning_content, str):
+        # DeepSeek requires this extension when replaying thinking-mode tool calls.
+        cast(dict[str, Any], ret)["reasoning_content"] = reasoning_content
     if hasattr(message, "tool_calls") and message.tool_calls is not None:
         ret["tool_calls"] = message.model_dump()["tool_calls"]
     if hasattr(message, "function_call") and message.function_call is not None:
