@@ -29,6 +29,7 @@ class SearchQuery(BaseModel):
     category: str
 
 
+@pytest.mark.paired
 @pytest.mark.asyncio
 async def test_partial_streaming(provider_config):
     """Test partial streaming with incremental updates."""
@@ -53,6 +54,7 @@ async def test_partial_streaming(provider_config):
     assert final.age == 30
 
 
+@pytest.mark.paired
 @pytest.mark.asyncio
 async def test_iterable_streaming(provider_config):
     """Test streaming multiple objects with Iterable."""
@@ -73,7 +75,11 @@ async def test_iterable_streaming(provider_config):
 
     assert len(users) == 3
     assert all(isinstance(user, User) for user in users)
-    assert {user.name for user in users} == {"Alice", "Bob", "Carol"}
+    assert {(user.name, user.age) for user in users} == {
+        ("Alice", 25),
+        ("Bob", 30),
+        ("Carol", 35),
+    }
 
 
 @pytest.mark.asyncio

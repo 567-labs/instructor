@@ -14,6 +14,7 @@ import instructor
 from .capabilities import skip_if_unsupported
 
 
+@pytest.mark.paired
 @pytest.mark.asyncio
 async def test_int(provider_config):
     """Test extracting int response."""
@@ -30,6 +31,7 @@ async def test_int(provider_config):
         ],
     )
     assert isinstance(response, int)
+    assert response == 42
 
 
 @pytest.mark.asyncio

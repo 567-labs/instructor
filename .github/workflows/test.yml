@@ -221,23 +221,27 @@ jobs:
       !failure() && !cancelled() &&
       contains(fromJSON(needs.select-tests.outputs.live_jobs || '[]'), 'core-google')
     env:
-      PROVIDER_TEST_REQUIREMENTS: GOOGLE_API_KEY GOOGLE_GENAI_MODEL
+      PROVIDER_TEST_REQUIREMENTS: GOOGLE_API_KEY
       HAS_GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY != '' }}
-      HAS_GOOGLE_GENAI_MODEL: ${{ secrets.GOOGLE_GENAI_MODEL != '' }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Install test dependencies
-        if: ${{ env.HAS_GOOGLE_API_KEY == 'true' && env.HAS_GOOGLE_GENAI_MODEL == 'true' }}
+        if: ${{ env.HAS_GOOGLE_API_KEY == 'true' }}
         uses: ./.github/actions/setup-test-environment
       - name: Skip core provider tests (Google)
-        if: ${{ env.HAS_GOOGLE_API_KEY != 'true' || env.HAS_GOOGLE_GENAI_MODEL != 'true' }}
-        run: echo "Skipping Google core provider tests (missing GOOGLE_API_KEY or GOOGLE_GENAI_MODEL)." | tee -a "$GITHUB_STEP_SUMMARY"
+        if: ${{ env.HAS_GOOGLE_API_KEY != 'true' }}
+        run: echo "Skipping Google core provider tests (missing GOOGLE_API_KEY)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run core provider tests (Google)
-        if: ${{ env.HAS_GOOGLE_API_KEY == 'true' && env.HAS_GOOGLE_GENAI_MODEL == 'true' }}
-        run: bash scripts/run_provider_tests.sh tests/llm/test_core_providers tests/v2/test_provider_modes.py -v -m llm -k "google or genai"
+        if: ${{ env.HAS_GOOGLE_API_KEY == 'true' }}
+        run: |
+          if [[ -z "$GOOGLE_GENAI_MODEL" ]]; then
+            bash scripts/run_provider_tests.sh tests/llm/test_core_providers -v -m paired -k google
+          else
+            bash scripts/run_provider_tests.sh tests/llm/test_core_providers tests/v2/test_provider_modes.py -v -m llm -k "google or genai"
+          fi
         env:
           INSTRUCTOR_ENV: CI
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
@@ -256,7 +260,8 @@ jobs:
       !failure() && !cancelled() &&
       contains(fromJSON(needs.select-tests.outputs.live_jobs || '[]'), 'core-other')
     env:
-      PROVIDER_TEST_REQUIREMENTS: COHERE_API_KEY XAI_API_KEY MISTRAL_API_KEY CEREBRAS_API_KEY FIREWORKS_API_KEY WRITER_API_KEY PERPLEXITY_API_KEY
+      PROVIDER_TEST_REQUIREMENTS: OPENROUTER_API_KEY COHERE_API_KEY XAI_API_KEY MISTRAL_API_KEY CEREBRAS_API_KEY FIREWORKS_API_KEY WRITER_API_KEY PERPLEXITY_API_KEY
+      HAS_OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY != '' }}
       HAS_COHERE_API_KEY: ${{ secrets.COHERE_API_KEY != '' }}
       HAS_XAI_API_KEY: ${{ secrets.XAI_API_KEY != '' }}
       HAS_MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY != '' }}
@@ -276,17 +281,18 @@ jobs:
           ${{ env.HAS_COHERE_API_KEY != 'true' && env.HAS_XAI_API_KEY != 'true'
           && env.HAS_MISTRAL_API_KEY != 'true' && env.HAS_CEREBRAS_API_KEY != 'true'
           && env.HAS_FIREWORKS_API_KEY != 'true' && env.HAS_WRITER_API_KEY != 'true'
-          && env.HAS_PERPLEXITY_API_KEY != 'true' }}
+          && env.HAS_PERPLEXITY_API_KEY != 'true' && env.HAS_OPENROUTER_API_KEY != 'true' }}
         run: echo "Skipping core provider tests (Other) (missing provider secrets)." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run core provider tests (Cohere, xAI, Mistral, etc)
         if: >-
           ${{ env.HAS_COHERE_API_KEY == 'true' || env.HAS_XAI_API_KEY == 'true'
           || env.HAS_MISTRAL_API_KEY == 'true' || env.HAS_CEREBRAS_API_KEY == 'true'
           || env.HAS_FIREWORKS_API_KEY == 'true' || env.HAS_WRITER_API_KEY == 'true'
-          || env.HAS_PERPLEXITY_API_KEY == 'true' }}
-        run: bash scripts/run_provider_tests.sh --retry-failures tests/llm/test_core_providers tests/v2/test_provider_modes.py -v -m llm -k "cohere or xai or mistral or cerebras or fireworks or writer or perplexity"
+          || env.HAS_PERPLEXITY_API_KEY == 'true' || env.HAS_OPENROUTER_API_KEY == 'true' }}
+        run: bash scripts/run_provider_tests.sh --retry-failures tests/llm/test_core_providers tests/v2/test_provider_modes.py -v -m llm -k "cohere or xai or mistral or cerebras or fireworks or writer or perplexity or (openrouter and paired)"
         env:
           INSTRUCTOR_ENV: CI
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
@@ -302,6 +308,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

@@ -6,10 +6,17 @@ across multiple providers (OpenAI, Anthropic, Google, Cohere, xAI, Mistral,
 Cerebras, Fireworks, Writer, Perplexity).
 """
 
+from __future__ import annotations
+
 import os
+from typing import TYPE_CHECKING
 
 import instructor
 import pytest
+
+
+if TYPE_CHECKING:
+    from _pytest.mark import ParameterSet
 
 
 GOOGLE_GENAI_MODEL = os.getenv("GOOGLE_GENAI_MODEL", "")
@@ -79,56 +86,87 @@ PROVIDER_CONFIGS = [
 ]
 
 
+# These additional routes participate in the shared Python/Rust cases.
+_PAIRED_ROUTES = [
+    ("openai/gpt-6-luna", instructor.Mode.RESPONSES_TOOLS, "OPENAI_API_KEY", "openai"),
+    (
+        "openrouter/google/gemini-3.8-flash",
+        instructor.Mode.TOOLS,
+        "OPENROUTER_API_KEY",
+        "openai",
+    ),
+]
+PAIRED_PROVIDERS = {"openai", "anthropic", "google", "cohere", "mistral", "openrouter"}
+
+
+def _paired_google_model() -> str:
+    configured = os.getenv("GOOGLE_GENAI_MODEL", "").strip() or "gemini-3.8-flash"
+    name = configured.removeprefix("google/").removeprefix("gemini/")
+    return f"google/{name}"
+
+
+def _missing_requirement(env_var: str, package: str) -> str | None:
+    if not os.getenv(env_var):
+        return f"{env_var} is not configured"
+    try:
+        __import__(package)
+    except ImportError:
+        return f"{package} package not installed"
+    return None
+
+
 def get_available_providers() -> list[tuple[str, instructor.Mode]]:
-    """
-    Get list of available providers based on API keys and installed packages.
+    """Legacy core cases run for providers with a selected model, key and SDK."""
+    return [
+        (model, mode)
+        for model, mode, key, package in PROVIDER_CONFIGS
+        if model and not _missing_requirement(key, package)
+    ]
 
-    Returns:
-        List of tuples (model_string, mode) for available providers
-    """
-    available = []
 
-    for model, mode, env_var, package in PROVIDER_CONFIGS:
-        if not model:
+def paired_parameters(*, only: bool) -> list[ParameterSet]:
+    """Give the shared cases stable node IDs and explicit missing-key skips."""
+    params = []
+    for model, mode, key, package in [*PROVIDER_CONFIGS, *_PAIRED_ROUTES]:
+        if key == "GOOGLE_API_KEY":
+            model = _paired_google_model()
+        paired = model.partition("/")[0] in PAIRED_PROVIDERS
+        if only and not paired:
             continue
-        # Check if API key is set
-        if not os.getenv(env_var):
+        reason = _missing_requirement(key, package)
+        if not paired and reason:
             continue
-
-        # Check if package is installed
-        try:
-            parts = package.split(".")
-            if len(parts) > 1:
-                __import__(parts[0])
-                # For nested imports like google.genai
-                __import__(package)
-            else:
-                __import__(package)
-            available.append((model, mode))
-        except ImportError:
-            continue
-
-    return available
+        route = (
+            "openai-responses"
+            if mode == instructor.Mode.RESPONSES_TOOLS
+            else model.split("/")[0]
+        )
+        marks = (pytest.mark.skip(reason=reason),) if reason else ()
+        params.append(pytest.param((model, mode), id=route, marks=marks))
+    return params
 
 
-def pytest_generate_tests(metafunc):
-    """
-    Pytest hook to generate parametrized tests for available providers.
-
-    This is used in test files that have 'provider_config' as a parameter.
-    """
-    if "provider_config" in metafunc.fixturenames:
-        available = get_available_providers()
-        if not available:
-            pytest.skip("No providers available (missing API keys or packages)")
-
-        # Generate test IDs like "openai" "anthropic" "google"
-        ids = [model.split("/")[0] for model, _ in available]
-        metafunc.parametrize("provider_config", available, ids=ids)
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    if "provider_config" not in metafunc.fixturenames:
+        return
+    mark = metafunc.definition.get_closest_marker("paired")
+    if mark is not None:
+        configs = paired_parameters(only=mark.kwargs.get("only", False))
+    else:
+        configs = [
+            pytest.param((model, mode), id=model.split("/")[0])
+            for model, mode in get_available_providers()
+        ]
+    # Pytest marks an empty parameter set skipped. A module can still contain
+    # paired cases available through a separately configured gateway.
+    metafunc.parametrize("provider_config", configs)
 
 
 def pytest_configure(config):
     """Register custom markers for provider-specific tests."""
+    config.addinivalue_line(
+        "markers", "paired: live contract shared with instructor-rs"
+    )
     config.addinivalue_line("markers", "openai: mark test as requiring OpenAI provider")
     config.addinivalue_line(
         "markers", "anthropic: mark test as requiring Anthropic provider"
