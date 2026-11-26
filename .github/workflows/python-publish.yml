@@ -72,14 +72,22 @@ jobs:
     environment:
       name: pypi
       url: https://pypi.org/project/instructor/
-    permissions:
-      id-token: write
+    permissions: {}
     steps:
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: latest-known
+          enable-cache: false
       - name: Download verified distributions by artifact ID
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           artifact-ids: ${{ needs.verify.outputs.artifact_id }}
           merge-multiple: true
           path: dist
-      - name: Publish using PyPI Trusted Publishing
-        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+      - name: Publish verified distributions with the PyPI token
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          : "${UV_PUBLISH_TOKEN:?PYPI_TOKEN is required to publish to PyPI}"
+          uv publish --trusted-publishing never dist/*
