@@ -5,7 +5,8 @@ categories:
   - instructor
 comments: true
 date: 2026-11-26
-description: Build a Python function that classifies support tickets as billing, access, or other using Pydantic, Instructor, and the OpenAI Decisions API.
+title: Classify tickets
+description: Route tickets to billing, access, or other with the OpenAI Decisions API.
 draft: true
 slug: decisions-api
 tags:
@@ -19,7 +20,7 @@ tags:
 
 > I can't sign in to download my invoice.
 
-Does this go to billing or access? I'd send it to access. The invoice is why the customer wants to sign in. The login is what they need help with.
+Billing or access? I'd pick access. The customer needs help signing in.
 
 Let's write a Python function that takes a message and returns `"billing"`, `"access"`, or `"other"`. We'll use Instructor to turn one Pydantic field into a question for the [OpenAI Decisions API](https://developers.openai.com/api/docs/guides/decisions).
 
@@ -27,7 +28,7 @@ Let's write a Python function that takes a message and returns `"billing"`, `"ac
 
 ## Define the labels and the rule
 
-Use Python 3.10 or later and set `OPENAI_API_KEY` in your environment. The example requires Instructor 1.18.0 or later. Until it's on PyPI, install from GitHub in a virtual environment.
+Set `OPENAI_API_KEY` and use Python 3.10 or later. To try Instructor 1.18 before the PyPI release, install from GitHub.
 
 ```bash
 python -m pip install "instructor @ git+https://github.com/567-labs/instructor.git@main"
@@ -64,11 +65,11 @@ def classify(message: str) -> Topic:
 print(classify("I can't sign in to download my invoice."))
 ```
 
-Instructor sends the field description as the question, the three values in `Literal` as the choices, and the message as input. It validates the answer and returns a `Ticket`. Your function returns the label. A missing answer or an unexpected label raises an error, so `"other"` stays an explicit choice.
+Instructor sends the field description as the question and the [`Literal` values](../../concepts/decisions.md#choices) as the choices. `client.create` returns a validated `Ticket`. `classify` returns its label.
 
 ## Change a few words and try again
 
-I'd test the classifier with these three messages. Here's how I'd label them by hand.
+Here's how I'd label three test cases.
 
 | Message | Expected label |
 | --- | --- |
@@ -76,8 +77,6 @@ I'd test the classifier with these three messages. Here's how I'd label them by 
 | I signed in and downloaded my invoice. Why was I charged twice? | `billing` |
 | Can I change the colors on my dashboard? | `other` |
 
-The first two mention the same things. **“What does the customer need help fixing first?”** is the part of the field description that tells the model how to choose.
+The first two tickets mention signing in and an invoice. In the second, the customer has already signed in. That's why the question asks **what they need help fixing first**.
 
-For more ways to define labels, see the [typed decisions guide](../../concepts/decisions.md#choices).
-
-Before adding more categories, ask two people on your support team to label the same tickets. Where they disagree, write down the rule they settle on. That's what I'd put in `Field(description=...)`.
+Try this with a few tickets your team disagrees on. Once you settle on a routing rule, put it in `Field(description=...)` and keep those tickets as test cases.
