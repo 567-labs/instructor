@@ -161,13 +161,30 @@ def parse_gemini_tools(
 ) -> BaseModel:
     """Parse Gemini tool-call responses."""
     try:
-        function_call = completion.candidates[0].content.parts[0].function_call
+        parts = completion.candidates[0].content.parts
+        function_call = None
+        # Protobuf exposes an empty function-call object on text/thought parts,
+        # which can precede the real call within a single response.
+        for part in parts:
+            candidate = getattr(part, "function_call", None)
+            if getattr(candidate, "name", None):
+                function_call = candidate
+                break
+        if function_call is None and parts:
+            # Legacy single-part calls may omit `name`; keep the original path.
+            function_call = getattr(parts[0], "function_call", None)
     except (AttributeError, IndexError, KeyError, TypeError) as exc:
         raise ResponseParsingError(
             "No tool call found in Gemini response",
             mode="GEMINI_TOOLS",
             raw_response=completion,
         ) from exc
+    if function_call is None:
+        raise ResponseParsingError(
+            "No tool call found in Gemini response",
+            mode="GEMINI_TOOLS",
+            raw_response=completion,
+        )
     args = getattr(function_call, "args", None)
     if args is None and hasattr(type(function_call), "to_dict"):
         try:
