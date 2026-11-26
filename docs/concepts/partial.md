@@ -1,6 +1,6 @@
 ---
-title: Stream partial Pydantic models with Instructor
-description: Use create_partial to display fields as a response arrives. Learn when validators run, how defaults work, and what happens if the stream ends early.
+title: Partial streaming
+description: Use create_partial to display fields as they arrive and validate the completed Pydantic model.
 ---
 
 # Stream one Pydantic model with create_partial {#streaming-partial-responses}
@@ -52,7 +52,7 @@ Only the last of these prefixes is a complete JSON object.
 
     Instructor constructs incomplete snapshots without running the original model's validators. Missing fields can be `None` or take their defaults. Nested objects can validate as they finish. Once the full object is complete, Instructor validates it against the original model and runs its validators.
 
-    A truncated stream can end with an incomplete snapshot or raise an error during iteration. In Markdown JSON, a complete nested value may be selected if the outer object was cut off. Exhaust the iterator and check that you received a complete result before saving it.
+    If the stream stops after `{"name": "John",`, the last snapshot can have `age=None`. If the LLM closes the object without supplying `age`, validation fails. In Markdown JSON, if the outer object is cut off, Instructor may select a complete object or array inside it.
 
 This example redraws the meeting details in a terminal as they arrive.
 
@@ -227,7 +227,7 @@ and cannot distinguish overlapping calls using the same class. Explicit parsing
 also retires a pending legacy marker; do not mix explicit and implicit parsing
 for overlapping calls with the same model.
 
-The shared Partial parser closes a closable source when iteration ends. If you stop early, close the active generator with `close()` or `await aclose()`. OpenAI-compatible handlers return generators, so catch validation errors during iteration. Some providers collect synchronous results inside `parse_response` and can raise there.
+If you stop reading snapshots early, call `close()` on the generator or `await aclose()` on the async generator. The partial parser then closes the underlying stream if it supports closing. With OpenAI-compatible handlers, catch validation errors around the loop. Handlers that collect all snapshots before returning can raise during `parse_response`.
 
 The native xAI client has a separate SDK streaming path; the shared routing rule
 here concerns its registry mode handlers. Providers without class-keyed stream

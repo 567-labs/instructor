@@ -1,5 +1,5 @@
 ---
-title: Instructor tutorials in Jupyter notebooks
+title: Jupyter tutorials
 description: Run Python notebooks on LLM data extraction, validation, retrieval, knowledge graphs, and synthetic data generation.
 ---
 

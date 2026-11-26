@@ -1,5 +1,5 @@
 ---
-title: Get help with Instructor
+title: Get help
 description: Find answers in the Instructor cookbooks, ask the community on Discord or GitHub, and report issues with your Python integration.
 ---
 

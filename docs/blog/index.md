@@ -1,6 +1,6 @@
 ---
-title: Instructor blog | Building LLM applications in Python
-description: Read Python tutorials on extracting structured data and validating LLM responses with Pydantic. Explore release notes and examples from the Instructor team.
+title: Instructor blog
+description: Python tutorials on extracting data from LLMs, validating it with Pydantic, and streaming results.
 ---
 
 # Instructor blog

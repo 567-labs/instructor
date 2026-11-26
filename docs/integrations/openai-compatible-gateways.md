@@ -1,5 +1,5 @@
 ---
-title: Use OpenAI-compatible gateways with Instructor
+title: OpenAI-compatible gateways
 description: Select a provider and model ID or configure a custom gateway URL and credentials using the OpenAI Python SDK.
 ---
 

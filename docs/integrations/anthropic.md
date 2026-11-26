@@ -1,5 +1,5 @@
 ---
-title: "Claude structured outputs with Pydantic in Python"
+title: "Claude structured outputs"
 description: "Extract Pydantic models from text, images, and PDFs with Anthropic Claude. Choose tool calling or native JSON Schema and stream validated results."
 ---
 

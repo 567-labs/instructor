@@ -1,5 +1,5 @@
 ---
-title: OpenAI structured outputs with Pydantic in Python
+title: OpenAI structured outputs
 description: Extract validated Pydantic models from OpenAI Chat Completions in Python. Configure tool calling, stream results, and connect compatible endpoints.
 ---
 

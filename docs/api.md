@@ -1,5 +1,5 @@
 ---
-title: Instructor Python API reference
+title: Python API
 description: Look up Python client methods for structured outputs, streaming, validation, and batch processing, plus factories for connecting an LLM provider.
 ---
 

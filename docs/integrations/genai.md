@@ -1,7 +1,7 @@
 ---
 draft: False
 date: 2025-03-15
-title: "Google Gen AI SDK examples for Gemini in Python"
+title: "Google Gen AI SDK"
 description: "Wrap a google.genai.Client with Instructor, extract structured data from images, audio, and PDFs, and stream partial models or individual records."
 slug: genai
 tags:

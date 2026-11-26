@@ -1,5 +1,5 @@
 ---
-title: Cache LLM responses in Python with Instructor
+title: Response caching
 description: Reuse validated responses in memory, on disk, or in Redis. Configure cache namespaces to control which Instructor clients share results.
 ---
 

@@ -1,5 +1,5 @@
 ---
-title: Stream validated records with create_iterable in Instructor
+title: Stream records
 description: Use create_iterable to stream Pydantic models or unions from one LLM response, handle truncation, and close sync or async streams.
 ---
 
@@ -167,7 +167,7 @@ The next example accepts weather requests and search queries in the same respons
 
 ## Stopping Iteration Early
 
-On supported providers, including OpenAI, a token limit can raise `IncompleteOutputException` even after several valid items have arrived. The shared scanner also raises if the stream ends inside an item. Catch errors around the loop and decide whether to keep records you've already processed before retrying.
+Catch `IncompleteOutputException` around the loop. If an OpenAI tool stream hits the token limit after emitting three valid records, the loop yields those three before raising. The shared parser also raises this error if the stream ends halfway through a record.
 
 Once iteration has started, close the iterable if you stop before consuming all
 results. Put synchronous iteration in a `try`/`finally` block and call

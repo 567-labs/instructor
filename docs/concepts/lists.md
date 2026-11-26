@@ -1,5 +1,5 @@
 ---
-title: Extract a list of Pydantic models with Instructor
+title: Extract lists
 description: Collect multiple records using Iterable[T] in client.create, or set stream=True to process each record as it arrives.
 ---
 
@@ -90,7 +90,7 @@ for user in users:
 
 ## Streaming Tasks
 
-Use `stream=True` to process items before the response finishes. An error can still occur after a valid item has been yielded. See [handling incomplete streams](iterable.md#stopping-iteration-early).
+Set `stream=True` to process each user as soon as their record is complete. See [handling incomplete streams](iterable.md#stopping-iteration-early) if the response stops mid-record.
 
 ```python
 import instructor

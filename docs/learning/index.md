@@ -1,5 +1,5 @@
 ---
-title: Python lessons on LLM extraction with Pydantic
+title: Learn structured extraction
 description: Follow Python lessons on extracting lists and nested records, validating fields, retrying failed requests, and streaming LLM responses.
 ---
 

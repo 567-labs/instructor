@@ -1,5 +1,5 @@
 ---
-title: Choose a mode for structured outputs in Python
+title: Compare output modes
 description: Compare tool calling, JSON Schema, Markdown JSON, and decision models in Instructor. Choose a mode for your provider and migrate legacy mode names.
 ---
 

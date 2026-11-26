@@ -1,5 +1,5 @@
 ---
-title: Extract structured data with the TrueFoundry AI Gateway
+title: TrueFoundry AI Gateway
 description: Connect Instructor to the TrueFoundry AI Gateway using the OpenAI Python SDK and validate model responses with Pydantic.
 ---
 

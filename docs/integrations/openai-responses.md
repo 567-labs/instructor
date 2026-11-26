@@ -1,5 +1,5 @@
 ---
-title: "OpenAI Responses API structured outputs with Pydantic"
+title: "OpenAI Responses API"
 description: "Use the OpenAI Responses API in Python to validate tool calls with Pydantic, stream results, and combine structured extraction with web or file search."
 ---
 

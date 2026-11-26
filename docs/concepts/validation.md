@@ -1,5 +1,5 @@
 ---
-title: Validate LLM responses with Instructor and Pydantic
+title: Validate responses
 description: Use Pydantic field constraints and validators to check extracted data, retry invalid responses, and handle exhausted retries in Instructor.
 ---
 
@@ -7,7 +7,7 @@ description: Use Pydantic field constraints and validators to check extracted da
 
 Put constraints on your response model to reject invalid values, such as a negative age. For ordinary non-streaming extractions, Instructor can send validation errors back to the model and retry. Set [`max_retries`](retrying.md) to control how many additional attempts it makes.
 
-Streaming has different timing. [Iterable streams](iterable.md) validate completed items. [Partial snapshots](partial.md) can contain values that haven't passed validation yet.
+With [`create_iterable`](iterable.md), each item passes validation before you receive it. With [`create_partial`](partial.md), you can see fields before validation finishes.
 
 ## Validation Flow
 

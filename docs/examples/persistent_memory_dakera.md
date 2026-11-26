@@ -1,5 +1,5 @@
 ---
-title: Persistent memory with Dakera and Instructor
+title: Persistent memory with Dakera
 description: Retrieve stored statements from Dakera, use them to answer a question with Instructor, and store or delete a confirmed quote.
 ---
 

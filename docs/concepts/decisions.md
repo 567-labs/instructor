@@ -1,6 +1,6 @@
 ---
-title: Use the OpenAI Decisions API and Jev with Pydantic
-description: Classify text, estimate probabilities, and score inputs in Python. Define questions with Pydantic and run them with the OpenAI Decisions API or Jev.
+title: OpenAI Decisions API and Jev
+description: Use Pydantic fields to classify a support ticket, estimate the probability of a policy violation, or score its severity.
 ---
 
 # Use the OpenAI Decisions API and Jev with Pydantic {#typed-decisions}

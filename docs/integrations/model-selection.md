@@ -1,6 +1,6 @@
 ---
-title: "Model IDs for Instructor provider examples"
-description: "Find the model strings used in Instructor examples for OpenAI, Anthropic, Google, and other providers. Check each model against its provider reference."
+title: "Provider model IDs"
+description: "Look up the model string to pass to from_provider for OpenAI, Anthropic, Google, and other providers."
 ---
 
 # Model IDs used in provider examples

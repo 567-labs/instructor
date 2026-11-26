@@ -1,5 +1,5 @@
 ---
-title: "Gemini structured outputs on Vertex AI with Python"
+title: "Gemini on Vertex AI"
 description: "Configure a Google Cloud project and location, migrate to google-genai, and stream Pydantic models from Gemini on Vertex AI with Instructor."
 ---
 

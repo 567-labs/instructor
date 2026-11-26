@@ -1,5 +1,5 @@
 ---
-title: Connect Instructor to Azure OpenAI and Microsoft Foundry
+title: Azure OpenAI and Microsoft Foundry
 description: Configure a deployment name, endpoint, and authentication for structured outputs with Azure OpenAI or the Microsoft Foundry v1 API.
 ---
 

@@ -1,5 +1,5 @@
 ---
-title: Contribute to Instructor
+title: Contribute
 description: Set up a development environment, add a provider, and run evaluation tests before submitting a pull request to Instructor.
 ---
 

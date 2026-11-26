@@ -1,5 +1,5 @@
 ---
-title: Optimizing dictionary access in Instructor
+title: Dictionary lookups
 description: Compare how Instructor reads message and configuration dictionaries in Python, with code examples and timings for common operations.
 ---
 

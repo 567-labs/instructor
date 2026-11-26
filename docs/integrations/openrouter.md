@@ -1,5 +1,5 @@
 ---
-title: OpenRouter structured outputs with Pydantic in Python
+title: OpenRouter structured outputs
 description: Extract validated Pydantic models through OpenRouter. Configure provider routing and use synchronous or asynchronous requests in Python.
 ---
 

@@ -1,6 +1,6 @@
 ---
-title: Instructor Concepts - Core Features and Patterns
-description: Explore core concepts and features of the Instructor library. Learn about structured outputs, validation, streaming, and advanced patterns.
+title: Instructor concepts
+description: Define response models, validate LLM outputs, stream records, and retry failed requests.
 ---
 
 # Instructor Concepts

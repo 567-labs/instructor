@@ -1,5 +1,5 @@
 ---
-title: Set up provider SDKs and API keys for Instructor
+title: Provider setup
 description: Choose the Python package and API key for OpenAI, Claude, Gemini, Cohere, or Mistral. Test your Instructor client with a structured extraction.
 ---
 
@@ -39,7 +39,7 @@ For the OpenAI example below, replace the placeholder with your key. Run Python 
 
 ## Test a request
 
-This example sends a request to OpenAI and may incur API charges. For a local check, [print the installed version](../../installation.md#check-the-installed-version).
+To test your API key, ask OpenAI to extract a name and age. To check installation locally, [print the installed version](../../installation.md#check-the-installed-version).
 
 ```python
 import instructor
@@ -61,7 +61,5 @@ print(person.name, person.age)
 ```
 
 To use Claude, install the Anthropic extra, set `ANTHROPIC_API_KEY`, and change the provider string to `anthropic/claude-haiku-5-5`.
-
-If you're using a notebook, check that the kernel uses the environment containing the provider SDK. For authentication errors, check that the key is available to the Python process and that your account has access to the model.
 
 Next, [extract your first record](first_extraction.md) or learn how to [define a response model](response_models.md).

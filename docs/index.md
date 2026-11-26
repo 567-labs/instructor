@@ -1,5 +1,5 @@
 ---
-title: Structured LLM outputs in Python with Instructor
+title: Structured outputs in Python
 description: Extract data into Pydantic models with OpenAI, Claude, or Gemini. Validate responses, retry failed requests, and stream completed records in Python.
 ---
 
@@ -16,7 +16,7 @@ Define the fields you need in a Pydantic model and pass it to Instructor as `res
 
 ## What is Instructor?
 
-Instructor is a Python library for extracting structured data from text, images, and documents. Your model defines what counts as a valid result. If validation fails, Instructor can send the error back to the LLM and retry.
+Instructor is a Python library for extracting structured data from text, images, and documents. If a record fails validation, Instructor can send the error back to the LLM and retry.
 
 - [Extract your first record](./getting-started.md) or [learn how response models work](./start-here.md).
 - [Stream a list of completed records](./concepts/iterable.md) or [watch one record fill in](./concepts/partial.md).

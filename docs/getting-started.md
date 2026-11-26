@@ -1,5 +1,5 @@
 ---
-title: Extract and validate LLM responses in Python with Instructor
+title: Python quickstart
 description: Build a Pydantic response model, extract a record with OpenAI, and add field validation, retries, and streaming. Then try the same model with Claude.
 ---
 
@@ -91,7 +91,7 @@ user = client.create(
 )
 ```
 
-If the LLM returns only `Tom`, the validator raises an error. Instructor can send that error back to the LLM and try again. A name that passes the check can still be wrong. When a source omits a value, consider [making the field optional](./learning/patterns/optional_fields.md).
+If the LLM returns `Tom`, Instructor sends the validator's message, `Name must include first and last name`, back to the LLM. With `max_retries=2`, the LLM gets up to two more attempts to extract `Tom Smith`.
 
 ## Working with Complex Models
 

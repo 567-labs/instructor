@@ -1,11 +1,11 @@
 ---
-title: "LLM provider integrations for structured outputs in Python"
-description: "Choose an Instructor provider, install its Python SDK, and extract Pydantic models with OpenAI, Claude, Gemini, Ollama, or an OpenAI-compatible endpoint."
+title: "LLM providers"
+description: "Find the Python SDK, credentials, and model ID for your LLM provider."
 ---
 
 # LLM provider integrations for structured outputs in Python
 
-Choose the service that hosts your model. Each guide shows how to connect Instructor and validate the response with a Pydantic model. See [model IDs by provider](model-selection.md) and [supported output modes](../modes-comparison.md) before choosing a client.
+Choose the service that hosts your model to find its SDK and credentials. For the string to pass to `from_provider`, see [model IDs by provider](model-selection.md).
 
 <div class="grid cards" markdown>
 
@@ -56,8 +56,6 @@ Choose the service that hosts your model. Each guide shows how to connect Instru
 </div>
 
 ## Common Features
-
-Feature support depends on the provider, model, and mode.
 
 | Feature | Description | Documentation |
 |---------|-------------|---------------|

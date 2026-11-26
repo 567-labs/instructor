@@ -1,5 +1,5 @@
 ---
-title: Install Instructor for Python with pip or uv
+title: Install Instructor
 description: Check Python compatibility, install Instructor with pip or uv, and verify the version. The base package includes Pydantic and the OpenAI SDK.
 ---
 

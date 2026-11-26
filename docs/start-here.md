@@ -1,13 +1,13 @@
 ---
-title: How Instructor turns LLM responses into Python objects
-description: Learn how Pydantic response models, provider clients, and validation work together in Instructor. Follow a simple example that extracts a person’s details.
+title: How Instructor works
+description: Define a Pydantic model and use Instructor to extract a name, age, and city from a sentence.
 ---
 
 # How Instructor turns LLM responses into Python objects {#start-here-instructor-for-beginners}
 
 ## What is Instructor?
 
-Instructor is a Python library for getting structured data from language models. Suppose your application needs a name, age, and city from a sentence. You define those fields in a Python class. Instructor uses the class as the output schema and returns an instance you can read with `person.name`, `person.age`, and `person.city`.
+Suppose you need a name, age, and city from a sentence. Define those fields in a Pydantic model called `Person`. Instructor asks the LLM for the three fields and returns a `Person` instance.
 
 ### Where Instructor Fits
 
@@ -23,7 +23,7 @@ flowchart LR
     style B fill:#e2f0fb,stroke:#b8daff,color:#004085
 ```
 
-The provider generates a response. Instructor validates its fields and can retry with feedback if a field is missing or invalid. Your schema determines which errors validation can catch.
+If the LLM leaves out `city`, Pydantic reports the missing field. Instructor can send that error to the LLM and ask it to try again.
 
 ## A Simple Example
 
@@ -57,9 +57,7 @@ print(f"Age: {person.age}")    # Age: 30
 print(f"City: {person.city}")  # City: New York
 ```
 
-That's it! Instructor handled all the complexity of getting the LLM to format the data correctly.
-
-**Ready to get started?** [Follow our step-by-step guide →](./getting-started.md)
+[Add field validation to your response model](./getting-started.md).
 
 ## Key Concepts
 

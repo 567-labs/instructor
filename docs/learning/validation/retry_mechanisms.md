@@ -1,5 +1,5 @@
 ---
-title: Retry failed LLM validations in Python
+title: Validation retries
 description: Configure retries in Instructor, send validation feedback to the model, and handle errors when the final attempt fails.
 ---
 

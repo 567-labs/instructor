@@ -1,5 +1,5 @@
 ---
-title: Advanced Prompting Techniques Guide
+title: Prompting techniques
 description: Research-backed prompting techniques to improve LLM performance with Instructor
 ---
 

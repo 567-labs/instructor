@@ -1,5 +1,5 @@
 ---
-title: Validate extracted fields with Pydantic
+title: Pydantic field validation
 description: Use Pydantic constraints and custom validators to check fields, lists, and nested models in structured LLM responses.
 ---
 

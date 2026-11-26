@@ -1,6 +1,6 @@
 ---
-title: "Gemini API structured outputs with Pydantic in Python"
-description: "Set up the Gemini API with Instructor, validate nested Pydantic models, configure safety settings, and migrate from the legacy google-generativeai SDK."
+title: "Gemini structured outputs"
+description: "Connect to the Gemini API, validate nested Pydantic models, and migrate from google-generativeai to google-genai."
 ---
 
 # Gemini API structured outputs with Pydantic in Python
