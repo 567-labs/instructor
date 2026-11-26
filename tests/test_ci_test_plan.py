@@ -24,7 +24,7 @@ CASES = {
     "mixed-provider-modes": PlanCase(
         ("tests/v2/test_provider_modes.py",),
         ("v2",),
-        tuple(ci.LIVE_JOBS - {"auto-client-test"}),
+        tuple(ci.CORE_JOBS),
     ),
     "mixed-auto-client": PlanCase(
         ("tests/providers/test_auto_client.py",), ("core",), ("auto-client-test",)
@@ -32,9 +32,12 @@ CASES = {
     "one-live-provider": PlanCase(
         ("tests/llm/test_anthropic/test_tools.py",), providers=("Anthropic",)
     ),
+    "live-decisions": PlanCase(
+        ("tests/llm/test_decisions/test_live_decisions.py",), live=("decisions",)
+    ),
     "shared-live-tests": PlanCase(
         ("tests/llm/test_core_providers/test_client.py",),
-        live=tuple(ci.LIVE_JOBS - {"auto-client-test"}),
+        live=tuple(ci.CORE_JOBS),
     ),
     "google-runtime": PlanCase(
         ("instructor/v2/providers/genai/client.py",),

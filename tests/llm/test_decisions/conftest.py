@@ -30,9 +30,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def decisions_provider(request: pytest.FixtureRequest) -> tuple[str, str]:
     if not request.config.getoption("run_decisions_live"):
         reason = "Live decisions calls require --run-decisions-live"
-        pytest.skip(reason)  # ty: ignore[too-many-positional-arguments]
+        pytest.skip(reason=reason)
     provider, default_model, key_name, model_name = request.param
     if not os.getenv(key_name):
         reason = f"Live {provider} contract requires {key_name}"
-        pytest.skip(reason)  # ty: ignore[too-many-positional-arguments]
-    return provider, os.getenv(model_name, default_model)
+        pytest.skip(reason=reason)
+    return provider, os.getenv(model_name) or default_model

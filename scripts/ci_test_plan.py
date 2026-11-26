@@ -32,13 +32,13 @@ PROVIDERS = (
     Provider("Writer", "WRITER_API_KEY", "tests/llm/test_writer", "other"),
 )
 SHARDS = set(UNIT_GROUPS)
-LIVE_JOBS = {
+CORE_JOBS = {
     "core-openai",
     "core-anthropic",
     "core-google",
     "core-other",
-    "auto-client-test",
 }
+LIVE_JOBS = CORE_JOBS | {"auto-client-test", "decisions"}
 VERSIONS = ["3.10", "3.11", "3.12", "3.13"]
 PROVIDER_FAMILY = {
     "anthropic": "anthropic",
@@ -82,20 +82,20 @@ def select_tests(paths: list[str]) -> TestPlan:
             plan.providers.add(provider.name)
             continue
         if path.startswith("tests/llm/test_decisions/"):
-            plan.live_jobs.add("core-openai")
+            plan.live_jobs.add("decisions")
             continue
         if path == "tests/llm/test_current_doc_models.py":
             plan.live_jobs.add("core-other")
             continue
         if path.startswith("tests/llm/test_core_providers/"):
-            plan.live_jobs.update(LIVE_JOBS - {"auto-client-test"})
+            plan.live_jobs.update(CORE_JOBS)
             continue
         if path.startswith("tests/") and not path.startswith("tests/llm/"):
             if not re.fullmatch(r"test_.*\.py|.*_test\.py", Path(path).name):
                 return full_plan()
             plan.shards.add(group_for_path(path))
             if path == "tests/v2/test_provider_modes.py":
-                plan.live_jobs.update(LIVE_JOBS - {"auto-client-test"})
+                plan.live_jobs.update(CORE_JOBS)
             if path == "tests/providers/test_auto_client.py":
                 plan.live_jobs.add("auto-client-test")
             continue
