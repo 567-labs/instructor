@@ -75,6 +75,21 @@ def test_iterable_scan_object_resumes_like_a_full_rescan() -> None:
     assert "".join(scanner.buffer) == buffer[buffer.index("{") :]
 
 
+def test_iterable_pending_escape_survives_empty_chunk() -> None:
+    from instructor.v2.dsl.iterable import _TaskObjects
+
+    scanner = _TaskObjects()
+    prefix = '{"text":"\\'
+    suffix = '"雪}[]"}'
+    assert list(scanner.feed(prefix)) == []
+    assert list(scanner.feed("")) == []
+    assert list(scanner.feed(suffix + "{}")) == [
+        (prefix + suffix, len(suffix)),
+        ("{}", len(suffix) + 2),
+    ]
+    scanner.finish()
+
+
 def test_iterable_tasks_from_chunks_handles_braces_inside_strings() -> None:
     chunks = [
         '{"tasks": [',
