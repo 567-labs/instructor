@@ -436,7 +436,6 @@ plugins:
             allow_inspection: true
             show_bases: true
   - blog:
-      enabled: !ENV CI
       blog_dir: "blog"
       blog_toc: true
       post_dir: blog/posts
