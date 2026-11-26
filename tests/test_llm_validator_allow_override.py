@@ -147,6 +147,16 @@ class TestAllowOverride:
         }
 
 
+def test_reasoning_effort_is_forwarded_only_when_set():
+    client = _make_recording_client(is_valid=True)
+    llm_validator("Must be lowercase", client)("jason liu")
+    llm_validator("Must be lowercase", client, reasoning_effort="none")("jason liu")
+
+    default_request, configured_request = client.chat.completions.requests
+    assert "reasoning_effort" not in default_request
+    assert configured_request["reasoning_effort"] == "none"
+
+
 def test_invalid_value_still_raises_with_python_optimized():
     script = """
 from types import SimpleNamespace
