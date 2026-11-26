@@ -96,14 +96,7 @@ _PAIRED_ROUTES = [
         "openai",
     ),
 ]
-_PAIRED_KEYS = {
-    "OPENAI_API_KEY",
-    "ANTHROPIC_API_KEY",
-    "GOOGLE_API_KEY",
-    "COHERE_API_KEY",
-    "MISTRAL_API_KEY",
-    "OPENROUTER_API_KEY",
-}
+PAIRED_PROVIDERS = {"openai", "anthropic", "google", "cohere", "mistral", "openrouter"}
 
 
 def _paired_google_model() -> str:
@@ -135,11 +128,11 @@ def paired_parameters(*, only: bool) -> list[ParameterSet]:
     """Give the shared cases stable node IDs and explicit missing-key skips."""
     params = []
     for model, mode, key, package in [*PROVIDER_CONFIGS, *_PAIRED_ROUTES]:
-        paired = key in _PAIRED_KEYS
-        if only and not paired:
-            continue
         if key == "GOOGLE_API_KEY":
             model = _paired_google_model()
+        paired = model.partition("/")[0] in PAIRED_PROVIDERS
+        if only and not paired:
+            continue
         reason = _missing_requirement(key, package)
         if not paired and reason:
             continue
