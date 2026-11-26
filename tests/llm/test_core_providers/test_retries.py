@@ -2,7 +2,7 @@
 Retry and error handling tests that run across all core providers.
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 import pytest
 import instructor
 
@@ -36,15 +36,28 @@ async def test_max_retries_parameter(provider_config):
     assert 0 <= user.age <= 120
 
 
+@pytest.mark.paired
 @pytest.mark.asyncio
 async def test_validation_with_retries(provider_config):
-    """Test that validation errors trigger retries (if supported)."""
+    """Reject a structurally valid response and check the next answer."""
     model, mode = provider_config
     client = instructor.from_provider(model, mode=mode, async_client=True)
 
-    # This should work after potential retries
+    attempts = 0
+
+    class RetriedUser(ValidatedUser):
+        @model_validator(mode="after")
+        def retry_once(self) -> "RetriedUser":
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise ValueError(
+                    "Check both fields against the original text and submit them again."
+                )
+            return self
+
     user = await client.create(
-        response_model=ValidatedUser,
+        response_model=RetriedUser,
         messages=[
             {
                 "role": "user",
@@ -55,4 +68,5 @@ async def test_validation_with_retries(provider_config):
     )
 
     assert isinstance(user, ValidatedUser)
-    assert user.age >= 0 and user.age <= 120
+    assert attempts == 2
+    assert (user.name, user.age) == ("Sarah Johnson", 25)

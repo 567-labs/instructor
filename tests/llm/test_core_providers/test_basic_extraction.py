@@ -30,22 +30,25 @@ class UserWithAddress(BaseModel):
     address: Address
 
 
+@pytest.mark.paired
 @pytest.mark.asyncio
 async def test_simple_extraction(provider_config):
     """Test simple single object extraction."""
     model, mode = provider_config
     client = instructor.from_provider(model, mode=mode, async_client=True)
 
-    user = await client.create(
+    user, completion = await client.create_with_completion(
         response_model=User,
         messages=[{"role": "user", "content": "Extract: Jason is 25 years old"}],
     )
 
+    assert completion is not None
     assert isinstance(user, User)
     assert user.name == "Jason"
     assert user.age == 25
 
 
+@pytest.mark.paired
 @pytest.mark.asyncio
 async def test_list_extraction(provider_config):
     """Test extracting multiple objects in a list."""
@@ -64,10 +67,14 @@ async def test_list_extraction(provider_config):
 
     assert isinstance(result, list)
     assert len(result) == 3
-    assert {user.name for user in result} == {"Alice", "Bob", "Charlie"}
-    assert {user.age for user in result} == {30, 25, 35}
+    assert {(user.name, user.age) for user in result} == {
+        ("Alice", 30),
+        ("Bob", 25),
+        ("Charlie", 35),
+    }
 
 
+@pytest.mark.paired
 @pytest.mark.asyncio
 async def test_nested_model_extraction(provider_config):
     """Test extracting nested models."""

@@ -24,13 +24,49 @@ The [Test workflow](../../../.github/workflows/test.yml) uses the shared
   collection or selection cannot be inferred from XML, and jobs that never start
   cannot emit a summary.
 
-The [retry tests](test_retries.py) accept retry settings without forcing a failed
-attempt. [Raw-response tests](test_response_modes.py) check non-null completions;
+The [retry tests](test_retries.py) exercise the retry budget and check a
+second validation after an intentionally rejected answer. [Raw-response tests](test_response_modes.py) check non-null completions;
 [local Responses SDK contracts](../../v2/test_responses_sdk_contract.py) separately
 check sync/async wire mapping, SDK response types and HTTP error causes using
 loopback HTTP. Unit/handler tests in [tests/coverage](../../coverage) also use test
 doubles; their coverage is not live-provider evidence. Marker selection is not a
 network sandbox, so keep provider credentials out of offline coverage runs.
+
+## Run the cases shared with Rust
+
+The paired marker identifies nine async extraction cases. They progress from
+a scalar and a flat record to a string-valued enum, a list of records and a
+nested address. The manifest combines a list of records, enum states and an
+optional carrier. The remaining cases check a validation retry and both partial
+and iterable streaming. The validation case rejects the first valid answer,
+then checks the accepted name and age.
+
+| Pytest ID | Model | API key |
+| --- | --- | --- |
+| `openai` | `openai/gpt-6-luna` | `OPENAI_API_KEY` |
+| `openai-responses` | `openai/gpt-6-luna` via Responses tools | `OPENAI_API_KEY` |
+| `anthropic` | `anthropic/claude-haiku-5-5` | `ANTHROPIC_API_KEY` |
+| `google` | `google/gemini-3.8-flash` or `GOOGLE_GENAI_MODEL` | `GOOGLE_API_KEY` |
+| `cohere` | `cohere/command-a-03-2025` | `COHERE_API_KEY` |
+| `mistral` | `mistral/ministral-8b-latest` | `MISTRAL_API_KEY` |
+| `openrouter` | `openrouter/google/gemini-3.8-flash` | `OPENROUTER_API_KEY` |
+
+The shared cases have stable route IDs even when credentials or SDKs are
+missing. Pytest reports a skip with the missing requirement. The command below
+lists the 63 paired nodes without making paid requests. Remove
+`--collect-only` to run them with the installed SDKs and available credentials.
+
+```bash
+uv run --frozen pytest tests/llm/test_core_providers -m paired \
+  -k 'openai or anthropic or google or cohere or mistral or openrouter' \
+  -rs --collect-only
+```
+
+OpenRouter and OpenAI Responses join these nine cases. The two new shipment
+tests use only the shared routes. Existing core cases also run for the other
+providers configured in this suite. The separate documentation smoke checks
+use the IDs from the guides, including `mistral/mistral-small-latest` for Mistral.
+[Documented model cases](../test_current_doc_models.py) · [Decisions cases](../test_decisions/test_live_decisions.py)
 
 ## Philosophy
 
