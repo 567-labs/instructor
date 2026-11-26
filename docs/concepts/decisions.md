@@ -316,3 +316,28 @@ than being replaced with defaults. Decision mode currently does not support
 streaming, retries, caching, or completion hooks; HTTP errors propagate to the
 caller. See the [TypeSafe API reference](https://docs.typesafe.ai/api) and
 [OpenRouter's Jev guide](https://openrouter.ai/blog/tutorials/how-to-use-jev/).
+
+## Run the live contract tests
+
+The live tests send the same support ticket to each configured route through its synchronous
+and asynchronous clients. They check the typed choice, refund probability,
+scaled urgency, raw answer distributions and usage. Each route uses its own
+credential. The Python and Rust suites read these names from the environment. [Python tests](https://github.com/567-labs/instructor/tree/main/tests/llm/test_decisions)
+
+| Route | Credential | Default model | Optional model override |
+| --- | --- | --- | --- |
+| OpenAI | `OPENAI_API_KEY` | `gpt-6-luna` | `OPENAI_DECISIONS_MODEL` |
+| OpenRouter | `OPENROUTER_API_KEY` | `typesafe/jev-1.13` | `OPENROUTER_DECISIONS_MODEL` |
+| TypeSafe | `TYPESAFE_API_KEY` | `jev-latest` | `TYPESAFE_DECISIONS_MODEL` |
+
+With the development dependencies installed, opt in to paid requests for
+the available keys. Add `-k openrouter` to select the two OpenRouter cases.
+
+```bash
+uv run --frozen pytest tests/llm/test_decisions -m llm --run-decisions-live -rs
+```
+
+In GitHub Actions, the Decisions job uses Actions secrets for credentials and
+Actions variables for model overrides. An unset or empty override selects the
+default. A missing credential skips the two cases for its route. The job
+summary lists credential availability and JUnit outcomes. [Test workflow](https://github.com/567-labs/instructor/blob/main/.github/workflows/test.yml)
