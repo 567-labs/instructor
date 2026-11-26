@@ -488,6 +488,10 @@ class _ChatToolArguments:
             yield from fragments
 
 
+_CHAT_TEXT_MODES = (Mode.JSON, Mode.MD_JSON, Mode.JSON_SCHEMA)
+_CHAT_TOOL_MODES = (Mode.TOOLS, Mode.TOOLS_STRICT, Mode.PARALLEL_TOOLS)
+
+
 class OpenAIHandlerBase(StreamingModelState, ModeHandler):
     """Base class for OpenAI handlers with shared utilities."""
 
@@ -500,6 +504,7 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         *,
         single_model: bool = False,
         require_complete: bool = False,
+        _group_candidates: bool = False,
     ) -> Generator[str, None, None]:
         """Extract JSON chunks from OpenAI-compatible streaming responses."""
         # Raised only after every complete item has been flushed downstream.
@@ -529,18 +534,10 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                         Mode.warn_mode_functions_deprecation()
                         if json_chunk := chunk.choices[0].delta.function_call.arguments:
                             yield json_chunk
-                    elif self.mode in {
-                        Mode.JSON,
-                        Mode.MD_JSON,
-                        Mode.JSON_SCHEMA,
-                    }:
+                    elif self.mode in _CHAT_TEXT_MODES:
                         if json_chunk := chunk.choices[0].delta.content:
                             yield json_chunk
-                    elif self.mode in {
-                        Mode.TOOLS,
-                        Mode.TOOLS_STRICT,
-                        Mode.PARALLEL_TOOLS,
-                    }:
+                    elif self.mode in _CHAT_TOOL_MODES:
                         for arguments in tool_arguments.feed(
                             chunk.choices[0].delta.tool_calls
                         ):
@@ -565,7 +562,11 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
 
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
-            yield from extract_json_from_stream(raw_chunks, single_model=single_model)
+            yield from extract_json_from_stream(
+                raw_chunks,
+                single_model=single_model,
+                _group_candidates=_group_candidates,
+            )
         else:
             yield from raw_chunks
         if truncated:
@@ -578,6 +579,7 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         *,
         single_model: bool = False,
         require_complete: bool = False,
+        _group_candidates: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Extract JSON chunks from OpenAI-compatible async streams."""
         truncated: list[IncompleteOutputException] = []
@@ -606,18 +608,10 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
                         Mode.warn_mode_functions_deprecation()
                         if json_chunk := chunk.choices[0].delta.function_call.arguments:
                             yield json_chunk
-                    elif self.mode in {
-                        Mode.JSON,
-                        Mode.MD_JSON,
-                        Mode.JSON_SCHEMA,
-                    }:
+                    elif self.mode in _CHAT_TEXT_MODES:
                         if json_chunk := chunk.choices[0].delta.content:
                             yield json_chunk
-                    elif self.mode in {
-                        Mode.TOOLS,
-                        Mode.TOOLS_STRICT,
-                        Mode.PARALLEL_TOOLS,
-                    }:
+                    elif self.mode in _CHAT_TOOL_MODES:
                         for arguments in tool_arguments.feed(
                             chunk.choices[0].delta.tool_calls
                         ):
@@ -643,7 +637,9 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         raw_chunks = _raw_chunks()
         if self.mode == Mode.MD_JSON:
             async for chunk in extract_json_from_stream_async(
-                raw_chunks, single_model=single_model
+                raw_chunks,
+                single_model=single_model,
+                _group_candidates=_group_candidates,
             ):
                 yield chunk
         else:
@@ -701,6 +697,9 @@ class OpenAIHandlerBase(StreamingModelState, ModeHandler):
         # must not end silently when the provider truncates them.
         if inspect.isclass(response_model) and issubclass(response_model, IterableBase):
             extractor_options["require_complete"] = True
+            # Subclasses can override the extractors with the public keywords only.
+            if type(self) is OpenAIMDJSONHandler:
+                extractor_options["_group_candidates"] = True
 
         if inspect.isasyncgen(response) or isinstance(response, AsyncIterator):
             return streaming_model.from_streaming_response_async(
