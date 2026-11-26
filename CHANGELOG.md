@@ -71,7 +71,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Tests / CI
 
-- The Decisions job runs synchronous and asynchronous contracts for OpenAI and both Jev routes using each configured key. [#3134](https://github.com/567-labs/instructor/pull/3134)
 - Update the pinned checkout, artifact, setup-uv, and Codex actions.
 
 ## [1.18.0] - 2026-09-26
