@@ -15,13 +15,22 @@ def llm_validator(
     allow_override: bool = False,
     model: str = "gpt-6-luna",
     temperature: float = 0,
+    reasoning_effort: str | None = None,
 ) -> Callable[[str], str]:
     """Create a validator that uses an LLM to validate an attribute.
+
+    Args:
+        reasoning_effort: Passed to the completion request when set, e.g. ``"none"``
+            for GPT-6 Luna Chat Completions tool calls.
 
     Raises:
         ValueError: If the value is invalid and no replacement is allowed or
             available.
     """
+
+    extra_kwargs = (
+        {} if reasoning_effort is None else {"reasoning_effort": reasoning_effort}
+    )
 
     def llm(v: str) -> str:
         validation_payload = json.dumps(
@@ -52,6 +61,7 @@ def llm_validator(
             ],
             model=model,
             temperature=temperature,
+            **extra_kwargs,
         )
 
         if not resp.is_valid:
