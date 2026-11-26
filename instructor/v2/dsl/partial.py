@@ -154,9 +154,7 @@ def process_potential_object(potential_object, partial_mode, partial_model, **kw
     parsed = from_json(json_str.encode(), partial_mode=partial_mode)
 
     tracker = JsonCompleteness()
-    # Keep a separate parse tree for completeness. Nested validators can
-    # mutate the values being assembled into the snapshot.
-    tracker.analyze(json_str)
+    tracker._analyze(json_str, parsed if partial_mode == "trailing-strings" else None)
 
     # Get original model for validation
     original_model = getattr(partial_model, "_original_model", None)
