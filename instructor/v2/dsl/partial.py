@@ -19,6 +19,7 @@ from functools import reduce
 from inspect import Parameter, signature
 from operator import or_
 from typing import (  # noqa: UP035
+    Annotated,
     Any,
     Generic,
     NoReturn,
@@ -50,6 +51,13 @@ _processing_models: ContextVar[set[type] | None] = ContextVar(
 )
 
 
+def _strip_annotated(annotation: Any) -> Any:
+    """Return the underlying type of ``Annotated[T, ...]`` (possibly nested)."""
+    while get_origin(annotation) is Annotated:
+        annotation = get_args(annotation)[0]
+    return annotation
+
+
 def _unwrap_optional_base_model(annotation: Any) -> type[BaseModel] | None:
     """Return the BaseModel subclass for a type annotation, unwrapping Optional[T].
 
@@ -59,13 +67,14 @@ def _unwrap_optional_base_model(annotation: Any) -> type[BaseModel] | None:
     - Arbitrary ``Union`` with multiple non-None args  →  returns None (ambiguous)
     - Any other annotation  →  returns None
     """
+    annotation = _strip_annotated(annotation)
     if isinstance(annotation, type) and issubclass(annotation, BaseModel):
         return annotation
     origin = get_origin(annotation)
     if origin in UNION_ORIGINS:
         non_none_args = [arg for arg in get_args(annotation) if arg is not type(None)]
         if len(non_none_args) == 1:
-            arg = non_none_args[0]
+            arg = _strip_annotated(non_none_args[0])
             if isinstance(arg, type) and issubclass(arg, BaseModel):
                 return arg
     return None
@@ -299,6 +308,7 @@ def _build_partial_value(
 ) -> Any:
     if value is None:
         return None
+    annotation = _strip_annotated(annotation)
     model = _unwrap_optional_base_model(annotation)
     if model is not None:
         if tracker.is_path_complete(path):
@@ -310,7 +320,7 @@ def _build_partial_value(
     if origin in UNION_ORIGINS:
         non_none = [arg for arg in args if arg is not type(None)]
         if len(non_none) == 1:
-            annotation = non_none[0]
+            annotation = _strip_annotated(non_none[0])
             origin, args = get_origin(annotation), get_args(annotation)
     if origin is list and args and isinstance(value, list):
         return [
