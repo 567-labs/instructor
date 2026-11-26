@@ -294,7 +294,15 @@ def create_from_file(
 
         # Show updated batch list
         provider_name = model.split("/", 1)[0]
-        watch(limit=5, poll=2, screen=False, live=False, provider=provider_name)
+        watch(
+            limit=5,
+            poll=2,
+            screen=False,
+            live=False,
+            provider=provider_name,
+            use_anthropic=None,
+            full_id=False,
+        )
 
     except Exception as e:
         console.print(f"[bold red]Error creating batch job: {e}[/bold red]")
@@ -348,7 +356,15 @@ def cancel(
         )
 
         # Show updated status
-        watch(limit=5, poll=2, screen=False, live=False, provider=provider)
+        watch(
+            limit=5,
+            poll=2,
+            screen=False,
+            live=False,
+            provider=provider,
+            use_anthropic=None,
+            full_id=False,
+        )
 
     except NotImplementedError as e:
         console.print(f"[yellow]Note: {e}[/yellow]")
@@ -389,7 +405,15 @@ def delete(
         )
 
         # Show updated status
-        watch(limit=5, poll=2, screen=False, live=False, provider=provider)
+        watch(
+            limit=5,
+            poll=2,
+            screen=False,
+            live=False,
+            provider=provider,
+            use_anthropic=None,
+            full_id=False,
+        )
 
     except NotImplementedError as e:
         console.print(f"[yellow]Note: {e}[/yellow]")
