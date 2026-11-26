@@ -124,3 +124,44 @@ asyncio.run(main())
 `Mode.TOOLS` requires a model and route that support function calls. Choose `Mode.JSON_SCHEMA` when the route supports native structured outputs. For a text-only chat model, `Mode.MD_JSON` asks for JSON in the prompt and validates the response locally.
 
 AI Stupid Level can route a request to different upstream models. Its response headers identify the selected route. `create_with_completion` returns both the validated model and the SDK completion when you need the completion’s model identifier.
+## Other OpenAI-compatible gateways
+
+For an endpoint not listed above, pass its complete API base URL and its own
+credential explicitly. Keep the model ID separate from the endpoint; an unrelated
+OPENAI_API_KEY must not be used for another service.
+
+Set GATEWAY_BASE_URL, GATEWAY_API_KEY and GATEWAY_MODEL for your endpoint.
+The example uses prompted JSON rather than assuming tool or native JSON Schema support.
+
+```python
+import os
+
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel
+
+
+class Contact(BaseModel):
+    name: str
+    team: str
+
+
+with OpenAI(
+    max_retries=0,
+    base_url=os.environ["GATEWAY_BASE_URL"],
+    api_key=os.environ["GATEWAY_API_KEY"],
+) as sdk:
+    client = instructor.from_openai(sdk, mode=instructor.Mode.MD_JSON)
+    contact = client.chat.completions.create(
+        model=os.environ["GATEWAY_MODEL"],
+        response_model=Contact,
+        messages=[{"role": "user", "content": "Ada works on the maps team."}],
+        max_retries=0,
+    )
+    print(contact.name, contact.team)
+```
+
+Missing variables raise KeyError before sending a request. Instructor validates
+the answer locally. Invalid answers can raise validation/retry exceptions.
+This example disables retries to avoid unexpected repeated charges; set a retry
+budget appropriate for your service when enabling them.
