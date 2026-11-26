@@ -41,3 +41,34 @@ def test_tracker_only_skips_provably_incomplete_containers(
     assert tracker.is_root_complete() is ("" in complete_paths)
     assert tracker.get_complete_paths() == complete_paths
     assert ({} in calls) is strict_attempted
+
+
+def test_partial_tracker_defers_private_parse_until_descendant_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = '{"records":[{"n":1},{"n":2},{"n":'
+    parse = json_tracker.from_json
+    shared = parse(document.encode(), partial_mode="trailing-strings")
+    calls = 0
+
+    def capture_parse(data: bytes, **kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        return parse(data, **kwargs)
+
+    monkeypatch.setattr(json_tracker, "from_json", capture_parse)
+    tracker = json_tracker.JsonCompleteness()
+    tracker._analyze(document, shared)
+    assert tracker.is_path_complete("records[0]")
+    assert tracker.is_path_complete("records[1]")
+    assert not tracker.is_path_complete("records[2]")
+    assert calls == 0
+
+    # Validators can change multiple completed objects before an alias
+    # requests a descendant. Completeness must still reflect the wire data.
+    shared["records"][0].clear()
+    shared["records"][1]["added"] = 3
+    assert tracker.is_path_complete("records[0].n")
+    assert not tracker.is_path_complete("records[1].added")
+    assert tracker.is_path_complete("records[1].n")
+    assert calls == 1
