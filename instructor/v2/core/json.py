@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncGenerator, Generator, Iterable
 
+from jiter import from_json
+
 
 MAX_JSON_EXTRACTION_CHARS = 1024 * 1024
 MAX_JSON_DEPTH = 128
@@ -22,7 +24,7 @@ def extract_json_from_codeblock(content: str) -> str:
     return _last_json_span(content) or content
 
 
-def _last_json_span(content: str) -> str | None:
+def _last_json_span(content: str, *, skip_incomplete: bool = False) -> str | None:
     if len(content) > MAX_JSON_EXTRACTION_CHARS:
         raise ValueError("JSON extraction input exceeds the 1 MiB character limit")
     decoder = json.JSONDecoder()
@@ -38,11 +40,22 @@ def _last_json_span(content: str) -> str | None:
             continue
         if remaining_work < len(content) - index:
             raise ValueError("JSON extraction malformed-input work limit exceeded")
+        complete = True
         try:
             value, end = decoder.raw_decode(content, index)
         except json.JSONDecodeError:
             remaining_work -= len(content) - index
-            continue
+            if not skip_incomplete:
+                continue
+            try:
+                value = from_json(
+                    content[index:].encode(), partial_mode="trailing-strings"
+                )
+            except ValueError:
+                continue
+            # A completed child is not a separate answer inside a truncated root.
+            complete = False
+            end = len(content)
         except RecursionError as exc:
             raise ValueError("JSON extraction nesting limit exceeded") from exc
         pending = [(value, 1)]
@@ -55,8 +68,9 @@ def _last_json_span(content: str) -> str | None:
                     )
                 children = node.values() if isinstance(node, dict) else node
                 pending.extend((child, depth + 1) for child in children)
-        remaining_work -= end - index
-        last_valid = content[index:end]
+        if complete:
+            remaining_work -= end - index
+            last_valid = content[index:end]
         consumed = end
     return last_valid
 
@@ -77,7 +91,7 @@ class _SingleModelStream:
 
     def result(self) -> Generator[str, None, None]:
         content = "".join(self.chunks)
-        span = _last_json_span(content)
+        span = _last_json_span(content, skip_incomplete=True)
         if span is None:
             # Retain incomplete input so a truncated stream can produce a partial model.
             yield from extract_json_from_stream(self.chunks)
