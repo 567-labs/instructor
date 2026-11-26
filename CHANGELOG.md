@@ -71,6 +71,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Tests / CI
 
+- PyPI uploads use `PYPI_TOKEN` again after verifying the wheel and sdist against the tagged commit's GitHub build attestation.
 - Update the pinned checkout, artifact, setup-uv, and Codex actions.
 
 ## [1.18.0] - 2026-09-26

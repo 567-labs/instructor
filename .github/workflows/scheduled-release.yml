@@ -90,7 +90,8 @@ jobs:
 
           if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
             TAG_SHA=$(git rev-list -n 1 "$TAG")
-            if [ "$TAG_SHA" != "$GITHUB_SHA" ]; then
+            # A pull request tests a merge commit and cannot attest or publish it.
+            if [ "$GITHUB_EVENT_NAME" != "pull_request" ] && [ "$TAG_SHA" != "$GITHUB_SHA" ]; then
               echo "::error::Tag $TAG already points to $TAG_SHA; source needs a new version."
               exit 1
             fi
