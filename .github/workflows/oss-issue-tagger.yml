@@ -36,7 +36,7 @@ jobs:
           ISSUE_NUMBER: ${{ inputs.issue_number || github.event.issue.number }}
         run: gh issue view "$ISSUE_NUMBER" --repo "$GH_REPO" --json number,title,body > triage-current-issue.json
       - id: codex
-        uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e # v1.12
+        uses: openai/codex-action@306c6a196a99dcc6582530c396a19d2672d5e9ec # v1.14
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           # Add `allow-users: "*"` only when enabling public issue triggers.
