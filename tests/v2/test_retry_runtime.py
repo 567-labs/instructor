@@ -1228,3 +1228,91 @@ async def test_retry_async_v2_reports_an_empty_retry_policy_without_losing_conte
     assert "Unexpected code path in retry_async_v2" in [
         record.getMessage() for record in caplog.records
     ]
+
+
+
+def test_retry_sync_v2_emits_error_hooks_on_incomplete_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from instructor.v2.core.errors import IncompleteOutputException
+
+    seen: list[tuple[str, Exception, dict[str, Any]]] = []
+    hooks = Hooks()
+    hooks.on("completion:error", lambda exc, **kw: seen.append(("completion:error", exc, kw)))
+    hooks.on("completion:last_attempt", lambda exc, **kw: seen.append(("completion:last_attempt", exc, kw)))
+    hooks.on("parse:error", lambda exc, **kw: seen.append(("parse:error", exc, kw)))
+
+    err = IncompleteOutputException(last_completion=SimpleNamespace(truncated=True))
+    monkeypatch.setattr(
+        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
+        lambda _p, _m: None,
+    )
+    monkeypatch.setattr(
+        "instructor.v2.core.retry.mode_registry.get_handlers",
+        lambda _p, _m: SimpleNamespace(
+            response_parser=lambda **_k: (_ for _ in ()).throw(err),
+            reask_handler=lambda **call: call["kwargs"],
+        ),
+    )
+    with pytest.raises(IncompleteOutputException) as exc_info:
+        retry_sync_v2(
+            func=lambda *_a, **_kw: SimpleNamespace(),
+            response_model=Answer,
+            provider=Provider.OPENAI,
+            mode=Mode.TOOLS,
+            context=None,
+            max_retries=3,
+            args=(),
+            kwargs={"messages": [{"role": "user", "content": "hi"}]},
+            strict=True,
+            hooks=hooks,
+        )
+    assert exc_info.value is err
+    assert [n for n, _, _ in seen] == ["completion:error", "completion:last_attempt"]
+    assert all(e is err and m == {"attempt_number": 1, "max_attempts": 4, "is_last_attempt": True} for _, e, m in seen)
+
+
+@pytest.mark.asyncio
+async def test_retry_async_v2_emits_error_hooks_on_incomplete_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from instructor.v2.core.errors import IncompleteOutputException
+
+    seen: list[tuple[str, Exception, dict[str, Any]]] = []
+    hooks = Hooks()
+    hooks.on("completion:error", lambda exc, **kw: seen.append(("completion:error", exc, kw)))
+    hooks.on("completion:last_attempt", lambda exc, **kw: seen.append(("completion:last_attempt", exc, kw)))
+    hooks.on("parse:error", lambda exc, **kw: seen.append(("parse:error", exc, kw)))
+
+    err = IncompleteOutputException(last_completion=SimpleNamespace(truncated=True))
+    monkeypatch.setattr(
+        "instructor.v2.core.retry.RegistryValidationMixin.validate_mode_registration",
+        lambda _p, _m: None,
+    )
+    monkeypatch.setattr(
+        "instructor.v2.core.retry.mode_registry.get_handlers",
+        lambda _p, _m: SimpleNamespace(
+            response_parser=lambda **_k: (_ for _ in ()).throw(err),
+            reask_handler=lambda **call: call["kwargs"],
+        ),
+    )
+
+    async def create(*_a: Any, **_kw: Any) -> Any:
+        return SimpleNamespace()
+
+    with pytest.raises(IncompleteOutputException) as exc_info:
+        await retry_async_v2(
+            func=create,
+            response_model=Answer,
+            provider=Provider.OPENAI,
+            mode=Mode.TOOLS,
+            context=None,
+            max_retries=2,
+            args=(),
+            kwargs={"messages": [{"role": "user", "content": "hi"}]},
+            strict=True,
+            hooks=hooks,
+        )
+    assert exc_info.value is err
+    assert [n for n, _, _ in seen] == ["completion:error", "completion:last_attempt"]
+    assert all(e is err and m == {"attempt_number": 1, "max_attempts": 3, "is_last_attempt": True} for _, e, m in seen)
