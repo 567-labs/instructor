@@ -31,7 +31,7 @@ jobs:
           instructor examples tests scripts/ci_test_plan.py scripts/run_unit_tests.py scripts/ci_worker_coverage.py scripts/check_statement_coverage.py pyproject.toml uv.lock .pre-commit-config.yaml .github/workflows/ruff.yml
       - name: Install uv
         if: steps.scope.outputs.changed == 'true'
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           version: latest-known
           enable-cache: true
