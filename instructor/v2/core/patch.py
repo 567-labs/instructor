@@ -37,13 +37,19 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("instructor.v2")
 
+# Responses API modes reject ``reasoning_effort`` entirely; only Chat
+# Completions modes accept the Luna function-calling default below.
+_RESPONSES_MODES = frozenset(
+    {Mode.RESPONSES_TOOLS, Mode.RESPONSES_TOOLS_WITH_INBUILT_TOOLS}
+)
+
 
 def _apply_openai_model_defaults(
     provider: Provider, mode: Mode, kwargs: dict[str, Any]
 ) -> None:
     if (
         provider is Provider.OPENAI
-        and mode is not Mode.RESPONSES_TOOLS
+        and mode not in _RESPONSES_MODES
         and kwargs.get("model") == "gpt-6-luna"
         and (kwargs.get("tools") or "temperature" in kwargs or "top_p" in kwargs)
     ):
