@@ -16,6 +16,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Batch (legacy)**: `BatchJob.parse_from_string` rejects OpenAI `length` and Anthropic `max_tokens` records even when their JSON validates.
 - **Iterable streaming**: OpenAI Chat, OpenAI Responses, Gemini/Vertex AI, Cohere and Mistral raise `IncompleteOutputException` when the token limit hits between items.
 - **Token limits**: Bedrock and Writer JSON modes reject token-limited completions.
+- **Writer**: `MD_JSON` and `JSON_SCHEMA` raise `ResponseParsingError` for a response without choices instead of `IndexError`, so `max_retries` reasks it. ([#3102](https://github.com/567-labs/instructor/issues/3102))
 - **JSON/MD_JSON system prompts**: OpenAI, Writer, Mistral and xAI append the schema instruction to a text part of list-form system messages instead of crashing on empty or image-first lists. ([#3049](https://github.com/567-labs/instructor/issues/3049))
 - **create_with_completion**: `response_model=None` returns the raw completion instead of raising `AttributeError`. ([#3047](https://github.com/567-labs/instructor/issues/3047))
 - **Anthropic**: `Mode.JSON_SCHEMA` sends native `output_config.format` on SDKs that support it instead of falling back to prompt instructions. JSON, JSON_SCHEMA and TOOLS accept `BetaMessage` responses, and forced `tool_choice` uses the declared tool name for custom schema titles.
