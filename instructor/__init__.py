@@ -65,6 +65,7 @@ if TYPE_CHECKING:
         from_orcarouter as from_orcarouter,
         from_minimax as from_minimax,
         from_manifest as from_manifest,
+        from_straitly as from_straitly,
     )
     from .v2.providers.openrouter.client import from_openrouter as from_openrouter
     from .v2.providers.perplexity.client import from_perplexity as from_perplexity
@@ -99,6 +100,7 @@ __all__ = [
     "from_orcarouter",
     "from_minimax",
     "from_manifest",
+    "from_straitly",
     "from_databricks",
     "from_deepseek",
     "from_openrouter",
@@ -150,6 +152,7 @@ _LAZY_IMPORTS: dict[str, tuple[str, str | None]] = {
     "from_orcarouter": (".v2.providers.openai.client", "from_orcarouter"),
     "from_minimax": (".v2.providers.openai.client", "from_minimax"),
     "from_manifest": (".v2.providers.openai.client", "from_manifest"),
+    "from_straitly": (".v2.providers.openai.client", "from_straitly"),
     "from_databricks": (".v2.providers.openai.client", "from_databricks"),
     "from_deepseek": (".v2.providers.openai.client", "from_deepseek"),
     "from_openrouter": (".v2.providers.openrouter.client", "from_openrouter"),

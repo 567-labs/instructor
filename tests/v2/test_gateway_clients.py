@@ -26,6 +26,7 @@ CASES = [
     ("orcarouter", "api.orcarouter.ai", "ORCAROUTER_API_KEY", Mode.TOOLS),
     ("minimax", "api.minimax.io", "MINIMAX_API_KEY", Mode.TOOLS),
     ("manifest", "app.manifest.build", "MANIFEST_API_KEY", Mode.TOOLS),
+    ("straitly", "api.straitly.ai", "STRAITLY_API_KEY", Mode.TOOLS),
 ]
 
 
@@ -180,6 +181,7 @@ def test_regional_key_alias_and_supported_modes(
         client.client.close()
     assert mode_registry.is_registered(Provider.HUBRIS, Mode.PARALLEL_TOOLS)
     assert mode_registry.is_registered(Provider.REQUESTY, Mode.JSON_SCHEMA)
+    assert mode_registry.is_registered(Provider.STRAITLY, Mode.JSON_SCHEMA)
     assert not mode_registry.is_registered(Provider.SARVAM, Mode.PARALLEL_TOOLS)
     assert not mode_registry.is_registered(Provider.MINIMAX, Mode.JSON_SCHEMA)
     with pytest.raises(ModeError):

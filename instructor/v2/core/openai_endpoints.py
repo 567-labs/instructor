@@ -76,6 +76,11 @@ OPENAI_ENDPOINTS = {
         key_variables=("MANIFEST_API_KEY",),
         modes=(Mode.TOOLS, Mode.JSON, Mode.MD_JSON),
     ),
+    Provider.STRAITLY: OpenAIEndpoint(
+        base_url="https://api.straitly.ai/v1",
+        key_variables=("STRAITLY_API_KEY",),
+        modes=(Mode.TOOLS, Mode.JSON_SCHEMA, Mode.MD_JSON, Mode.PARALLEL_TOOLS),
+    ),
 }
 
 ENDPOINT_HOSTS = {

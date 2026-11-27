@@ -20,6 +20,7 @@ Use `instructor.from_provider("provider/model")` with a key issued for that prov
 | [OrcaRouter](https://docs.orcarouter.ai/) (`orcarouter`) | `https://api.orcarouter.ai/v1` | `ORCAROUTER_API_KEY` | `TOOLS` |
 | [MiniMax](https://platform.minimax.io/docs/api-reference/text-openai-api) (`minimax`) | `https://api.minimax.io/v1` | `MINIMAX_API_KEY` | `TOOLS` |
 | [Manifest](https://manifest.build/llm-gateway/docs/introduction/) (`manifest`) | `https://app.manifest.build/v1` | `MANIFEST_API_KEY` | `TOOLS` |
+| [Straitly](https://straitly.ai/docs/quickstart) (`straitly`) | `https://api.straitly.ai/v1` | `STRAITLY_API_KEY` | `TOOLS` |
 
 Set `INSTRUCTOR_MODEL` to your provider and model, for example `manifest/auto` or `requesty/openai/gpt-4o-mini`. Set the matching credential variable from the table.
 
@@ -59,6 +60,7 @@ The available modes depend on the route and its upstream model. `MD_JSON` valida
 | `orcarouter` | `TOOLS`, `JSON_SCHEMA`, `MD_JSON`, `PARALLEL_TOOLS` |
 | `minimax` | `TOOLS`, `MD_JSON` |
 | `manifest` | `TOOLS`, `JSON`, `MD_JSON` |
+| `straitly` | `TOOLS`, `JSON_SCHEMA`, `MD_JSON`, `PARALLEL_TOOLS` |
 
 Z.ai and ZhipuAI have separate regional endpoints. Use the key for the selected region, or supply its key explicitly with `api_key=`. Sarvam uses its v2 Token Factory endpoint and defaults to `MD_JSON`. MiniMax reasoning models can include reasoning before the final JSON. Use `MD_JSON` for a fenced answer or `TOOLS` for a function call.
 
