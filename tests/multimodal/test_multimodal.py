@@ -94,6 +94,37 @@ def test_image_to_anthropic():
     assert anthropic_format["source"]["media_type"] == "image/jpeg"
 
 
+def test_image_to_anthropic_takes_the_payload_of_a_data_uri(base64_png: str):
+    # A data URI already carries the bytes; the encoder must not emit ``data: None``.
+    payload = base64_png.split(",", 1)[1]
+    image = Image(source=base64_png, media_type="image/png", data=None)
+
+    anthropic_format = image.to_anthropic()
+
+    assert anthropic_format["source"]["data"] == payload
+
+
+def test_image_to_anthropic_rejects_a_source_without_data():
+    image = Image(source="missing-image.png", media_type="image/png", data=None)
+
+    with pytest.raises(ValueError, match="Image data is missing"):
+        image.to_anthropic()
+
+
+def test_image_to_anthropic_downloads_an_uppercase_url(monkeypatch):
+    # PDF encoding already treats the scheme case-insensitively; images must too.
+    image = Image(
+        source="HTTPS://cdn.example.test/image.png",
+        media_type="image/png",
+        data=None,
+    )
+    monkeypatch.setattr(type(image), "url_to_base64", staticmethod(lambda _url: "QUJD"))
+
+    anthropic_format = image.to_anthropic()
+
+    assert anthropic_format["source"]["data"] == "QUJD"
+
+
 def test_image_to_openai():
     image = Image(
         source="http://example.com/image.jpg", media_type="image/jpeg", data=None
