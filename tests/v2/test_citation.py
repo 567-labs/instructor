@@ -7,8 +7,10 @@ compiled as a pattern.
 
 from __future__ import annotations
 
+import json
+
 import pytest
-from pydantic import ValidationError
+from pydantic import ConfigDict, Field, ValidationError, create_model
 
 from instructor.v2.dsl.citation import CitationMixin
 
@@ -197,3 +199,38 @@ def test_short_quote_edit_budget(quote: str, source: str, expected: list[str]) -
         {"substring_quotes": [quote]}, context={"context": source}
     )
     assert answer.substring_quotes == expected
+
+
+class FrozenAnswer(CitationMixin):
+    model_config = ConfigDict(frozen=True)
+
+
+FrozenQuotesAnswer = create_model(
+    "FrozenQuotesAnswer",
+    __base__=CitationMixin,
+    substring_quotes=(list[str], Field(frozen=True)),
+)
+
+
+@pytest.mark.parametrize("model_type", [Answer, FrozenAnswer, FrozenQuotesAnswer])
+@pytest.mark.parametrize("as_json", [False, True])
+@pytest.mark.parametrize("chunked", [False, True])
+def test_citations_normalize_during_frozen_model_validation(
+    model_type: type[CitationMixin], as_json: bool, chunked: bool
+) -> None:
+    source = "The margin is 50% (approx) this quarter."
+    quotes = ["50% (aprox)", "an unrelated fabricated citation"]
+    payload = {"substring_quotes": quotes.copy()}
+    context = {"context": [source] if chunked else source}
+
+    answer = (
+        model_type.model_validate_json(json.dumps(payload), context=context)
+        if as_json
+        else model_type.model_validate(payload, context=context)
+    )
+
+    assert answer.substring_quotes == ["50% (approx)"]
+    assert payload == {"substring_quotes": quotes}
+    if model_type is not Answer:
+        with pytest.raises(ValidationError, match="frozen"):
+            answer.substring_quotes = ["changed"]
