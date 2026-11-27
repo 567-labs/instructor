@@ -14,7 +14,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **CLI (Anthropic batch)**: `batch download-file` and `batch results` keep the existing file when the result stream fails.
 - **Batch (OpenAI)**: Result downloads replace the destination atomically, in-memory uploads are named `batch.jsonl`, cancelled batches return partial results, and stopped batches with no finished requests return immediately. ([#3008](https://github.com/567-labs/instructor/issues/3008), [#2996](https://github.com/567-labs/instructor/issues/2996))
 - **Batch (legacy)**: `BatchJob.parse_from_string` rejects OpenAI `length` and Anthropic `max_tokens` records even when their JSON validates.
-- **Iterable streaming**: OpenAI Chat, OpenAI Responses, Gemini/Vertex AI, Cohere and Mistral raise `IncompleteOutputException` when the token limit hits between items.
+- **Iterable streaming**: OpenAI Chat, OpenAI Responses, Gemini/Vertex AI, Cohere and Mistral raise `IncompleteOutputException` when the token limit hits between items. Gemini and Vertex AI streaming parsers now actually perform that check; Gemini also skips text-less chunks instead of feeding `None` to the JSON scanner.
 - **Token limits**: Bedrock and Writer JSON modes reject token-limited completions.
 - **JSON/MD_JSON system prompts**: OpenAI, Writer, Mistral and xAI append the schema instruction to a text part of list-form system messages instead of crashing on empty or image-first lists. ([#3049](https://github.com/567-labs/instructor/issues/3049))
 - **create_with_completion**: `response_model=None` returns the raw completion instead of raising `AttributeError`. ([#3047](https://github.com/567-labs/instructor/issues/3047))
