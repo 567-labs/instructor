@@ -52,11 +52,13 @@ def _convert_messages_to_cohere_v1(kwargs: dict[str, Any]) -> dict[str, Any]:
 
     messages = new_kwargs.pop("messages", [])
     chat_history = []
+    roles = {"system": "SYSTEM", "user": "USER", "assistant": "CHATBOT"}
 
     for message in messages[:-1]:
+        role = message["role"]
         chat_history.append(
             {
-                "role": message["role"],
+                "role": roles.get(role, role),
                 "message": message["content"],
             }
         )
@@ -206,9 +208,9 @@ class CohereHandlerBase(ModeHandler):
             # V1 format
             message = kwargs.get("message", "")
             if "chat_history" in kwargs:
-                kwargs["chat_history"].append({"role": "user", "message": message})
+                kwargs["chat_history"].append({"role": "USER", "message": message})
             else:
-                kwargs["chat_history"] = [{"role": "user", "message": message}]
+                kwargs["chat_history"] = [{"role": "USER", "message": message}]
             kwargs["message"] = correction_msg
 
         return kwargs
@@ -262,7 +264,7 @@ Respond with JSON only. Do not include code fences, markdown, or extra text.
         else:
             # V1 format: prepend to chat_history
             new_kwargs["chat_history"] = [
-                {"role": "user", "message": instruction}
+                {"role": "USER", "message": instruction}
             ] + new_kwargs.get("chat_history", [])
 
         return prepared_model, new_kwargs
