@@ -16,7 +16,11 @@ from pydantic import BaseModel
 
 from instructor.v2.core.mode import Mode
 from instructor.v2.core.providers import Provider
-from instructor.v2.core.errors import ConfigurationError, IncompleteOutputException
+from instructor.v2.core.errors import (
+    ConfigurationError,
+    IncompleteOutputException,
+    ResponseParsingError,
+)
 from instructor.v2.dsl.iterable import IterableBase
 from instructor.v2.dsl.parallel import ParallelBase, get_types_array
 from instructor.v2.dsl.partial import PartialBase
@@ -150,8 +154,22 @@ def parse_vertexai_tools(
     validation_context: dict[str, Any] | None = None,
 ) -> BaseModel:
     """Parse VertexAI function-call responses."""
-    tool_call = completion.candidates[0].content.parts[0].function_call.args
-    model = {field: tool_call[field] for field in tool_call}
+    try:
+        function_call = completion.candidates[0].content.parts[0].function_call
+    except (AttributeError, IndexError, KeyError, TypeError) as exc:
+        raise ResponseParsingError(
+            "No tool call found in VertexAI response",
+            mode="TOOLS",
+            raw_response=completion,
+        ) from exc
+    args = getattr(function_call, "args", None)
+    if args is None:
+        raise ResponseParsingError(
+            "No tool call args found in VertexAI response",
+            mode="TOOLS",
+            raw_response=completion,
+        )
+    model = {field: args[field] for field in args}
     return response_model.model_validate(
         model,
         context=validation_context,
