@@ -7,7 +7,7 @@ because they expect a ChatCompletion but receive a Stream object.
 GitHub Issue: https://github.com/jxnl/instructor/issues/1991
 """
 
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from typing import Any, Optional
 
 import pytest
@@ -299,6 +299,180 @@ def test_sync_partial_retry_stream_lifecycle(outcome: str) -> None:
             next(result)
     else:
         assert list(result) == (
+            []
+            if outcome == "empty"
+            else [Result.model_construct(value=None), Result(value=7)]
+        )
+    assert closed and calls == 1
+
+
+@pytest.mark.asyncio
+async def test_async_streaming_retry_exhaustion_preserves_validation_error() -> None:
+    import json
+
+    import httpx
+    import instructor
+    from openai import AsyncOpenAI
+    from instructor.core.exceptions import InstructorRetryException
+
+    class ImpossibleModel(BaseModel):
+        value: str
+
+        @field_validator("value")
+        @classmethod
+        def always_fail(cls, _value: str) -> str:
+            raise ValueError("controlled invalid value")
+
+    requests: list[dict[str, Any]] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        requests.append(body)
+        call = {
+            "index": 0,
+            "id": "call_1",
+            "type": "function",
+            "function": {
+                "name": body["tools"][0]["function"]["name"],
+                "arguments": '{"value":"test"}',
+            },
+        }
+        chunk = {
+            "id": "chatcmpl-local",
+            "object": "chat.completion.chunk",
+            "created": 1,
+            "model": "local",
+            "choices": [{"index": 0, "delta": {"tool_calls": [call]}}],
+        }
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/event-stream"},
+            content=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n",
+        )
+
+    transport = httpx.MockTransport(respond)
+    async with AsyncOpenAI(
+        api_key="local", http_client=httpx.AsyncClient(transport=transport)
+    ) as sdk:
+        client = instructor.from_openai(sdk)
+        with pytest.raises(InstructorRetryException) as caught:
+            _ = [
+                item
+                async for item in client.chat.completions.create_partial(
+                    model="local",
+                    max_retries=2,
+                    messages=[{"role": "user", "content": "test"}],
+                    response_model=ImpossibleModel,
+                )
+            ]
+    assert len(requests) == caught.value.n_attempts == 3
+    assert isinstance(caught.value.__cause__, ValidationError)
+    assert "controlled invalid value" in str(caught.value.__cause__)
+
+
+@pytest.mark.asyncio
+async def test_async_streaming_partial_recovers_on_retry() -> None:
+    from types import SimpleNamespace
+
+    import instructor
+    from instructor.v2.core.providers import Provider
+    from instructor.v2.core.retry import retry_async_v2
+    from instructor.v2.dsl.partial import Partial
+
+    class UpperModel(BaseModel):
+        value: str
+
+        @field_validator("value")
+        @classmethod
+        def require_upper(cls, value: str) -> str:
+            if not value.isupper():
+                raise ValueError("value must be uppercase")
+            return value
+
+    calls = 0
+
+    async def stream(payload: str) -> AsyncGenerator[Any, None]:
+        yield SimpleNamespace(
+            choices=[SimpleNamespace(delta=SimpleNamespace(content=payload))]
+        )
+
+    async def create(**_kwargs: Any) -> AsyncGenerator[Any, None]:
+        nonlocal calls
+        calls += 1
+        return stream('{"value":"bad"}' if calls == 1 else '{"value":"OK"}')
+
+    result = await retry_async_v2(
+        create,
+        Partial[UpperModel],
+        Provider.OPENAI,
+        instructor.Mode.JSON_SCHEMA,
+        None,
+        2,
+        (),
+        {"messages": [{"role": "user", "content": "test"}], "stream": True},
+        True,
+    )
+    assert isinstance(result, AsyncGenerator)
+    assert [item async for item in result] == [UpperModel(value="OK")]
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("outcome", ["empty", "close", "complete", "invalid-final"])
+async def test_async_partial_retry_stream_lifecycle(outcome: str) -> None:
+    from types import SimpleNamespace
+
+    import instructor
+    from instructor.v2.core.providers import Provider
+    from instructor.v2.core.retry import retry_async_v2
+    from instructor.v2.dsl.partial import Partial
+
+    class Result(BaseModel):
+        value: int
+
+    closed = False
+    calls = 0
+
+    async def stream() -> AsyncGenerator[Any, None]:
+        nonlocal closed
+        try:
+            if outcome == "empty":
+                return
+            for content in (
+                '{"value":',
+                '"wrong"}' if outcome == "invalid-final" else "7}",
+            ):
+                yield SimpleNamespace(
+                    choices=[SimpleNamespace(delta=SimpleNamespace(content=content))]
+                )
+        finally:
+            closed = True
+
+    async def create(**_kwargs: Any) -> AsyncGenerator[Any, None]:
+        nonlocal calls
+        calls += 1
+        return stream()
+
+    result = await retry_async_v2(
+        create,
+        Partial[Result],
+        Provider.OPENAI,
+        instructor.Mode.JSON_SCHEMA,
+        None,
+        2,
+        (),
+        {"stream": True},
+        True,
+    )
+    assert isinstance(result, AsyncGenerator)
+    if outcome == "close":
+        await result.aclose()
+    elif outcome == "invalid-final":
+        assert (await anext(result)).value is None
+        with pytest.raises(ValidationError):
+            await anext(result)
+    else:
+        assert [item async for item in result] == (
             []
             if outcome == "empty"
             else [Result.model_construct(value=None), Result(value=7)]

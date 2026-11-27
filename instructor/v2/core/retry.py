@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -117,6 +117,18 @@ def _replay_first_partial(
         yield from stream
     finally:
         stream.close()
+
+
+async def _replay_first_partial_async(
+    first: Any, stream: AsyncGenerator[Any, None]
+) -> AsyncGenerator[Any, None]:
+    try:
+        yield None  # The retry loop primes cleanup before returning the stream.
+        yield first
+        async for item in stream:
+            yield item
+    finally:
+        await stream.aclose()
 
 
 def _initialize_usage(provider: Provider | Mode) -> Any:
@@ -603,6 +615,23 @@ async def retry_async_v2(
                         stream=stream,
                         is_async=True,
                     )
+                    if (
+                        stream
+                        and isinstance(parsed, AsyncGenerator)
+                        and isinstance(response_model, type)
+                        and issubclass(response_model, PartialBase)
+                    ):
+                        # Retry before exposing a snapshot. Replaying a stream
+                        # after delivery would duplicate the caller's output.
+                        try:
+                            first = await anext(parsed)
+                        except StopAsyncIteration:
+                            pass
+                        else:
+                            replay = _replay_first_partial_async(first, parsed)
+                            # Enter cleanup even if closed before iteration.
+                            await anext(replay)
+                            parsed = replay
                     logger.debug(
                         f"Successfully parsed response on attempt "
                         f"{attempt.retry_state.attempt_number}"
