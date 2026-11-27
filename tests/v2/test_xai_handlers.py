@@ -7,13 +7,15 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import BaseModel
 
 from instructor import Mode, Provider
+from instructor.v2.core.errors import InstructorRetryException, ResponseParsingError
 from instructor.v2.core.registry import mode_registry
+from instructor.v2.core.retry import retry_async_v2, retry_sync_v2
 
 
 class Answer(BaseModel):
@@ -46,6 +48,80 @@ class MockResponse:
         self.text = text
         self.content = content
         self.tool_calls = tool_calls
+
+
+@pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.JSON_SCHEMA, Mode.MD_JSON])
+def test_empty_response_is_reasked(mode):
+    empty = MockResponse()
+    valid = MockResponse(text='{"answer": 42.0}')
+    completion = MagicMock(side_effect=[empty, valid])
+
+    result = retry_sync_v2(
+        func=completion,
+        response_model=Answer,
+        provider=Provider.XAI,
+        mode=mode,
+        context=None,
+        max_retries=1,
+        args=(),
+        kwargs={"messages": [{"role": "user", "content": "What is the answer?"}]},
+        strict=True,
+    )
+
+    assert result.answer == 42.0
+    assert completion.call_count == 2
+    assert "Validation Error" in completion.call_args.kwargs["messages"][-1]["content"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.JSON_SCHEMA, Mode.MD_JSON])
+async def test_empty_response_is_reasked_async(mode):
+    empty = MockResponse()
+    valid = MockResponse(text='{"answer": 42.0}')
+    completion = AsyncMock(side_effect=[empty, valid])
+
+    result = await retry_async_v2(
+        func=completion,
+        response_model=Answer,
+        provider=Provider.XAI,
+        mode=mode,
+        context=None,
+        max_retries=1,
+        args=(),
+        kwargs={"messages": [{"role": "user", "content": "What is the answer?"}]},
+        strict=True,
+    )
+
+    assert result.answer == 42.0
+    assert completion.await_count == 2
+    assert "Validation Error" in completion.call_args.kwargs["messages"][-1]["content"]
+
+
+@pytest.mark.parametrize("mode", [Mode.TOOLS, Mode.JSON_SCHEMA, Mode.MD_JSON])
+def test_empty_response_retains_failed_attempts(mode):
+    empty = MockResponse()
+    completion = MagicMock(return_value=empty)
+
+    with pytest.raises(InstructorRetryException) as caught:
+        retry_sync_v2(
+            func=completion,
+            response_model=Answer,
+            provider=Provider.XAI,
+            mode=mode,
+            context=None,
+            max_retries=1,
+            args=(),
+            kwargs={"messages": [{"role": "user", "content": "What is the answer?"}]},
+            strict=True,
+        )
+
+    assert completion.call_count == 2
+    assert caught.value.n_attempts == 2
+    assert caught.value.last_completion is empty
+    assert len(caught.value.failed_attempts) == 2
+    for attempt in caught.value.failed_attempts:
+        assert isinstance(attempt.exception, ResponseParsingError)
+        assert attempt.exception.raw_response is empty
 
 
 # ============================================================================
