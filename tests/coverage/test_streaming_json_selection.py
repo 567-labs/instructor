@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import partial
 from types import SimpleNamespace
 from typing import Any
 
@@ -209,3 +210,61 @@ def test_fenced_items_are_available_before_consuming_later_chunks():
     assert "".join(next(result) for _ in '{"value":1}') == '{"value":1}'
     assert seen == [1]
     assert "".join(result) == '{"value":2}'
+
+
+class NestedAnswer(BaseModel):
+    value: int
+    child: Answer
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prefix", ["", "```json\n"])
+async def test_partial_stream_keeps_completed_child_inside_incomplete_root(
+    prefix: str,
+) -> None:
+    chunks = [prefix + '{"value":1,"child":', '{"value":2}']
+    model: Any = Partial[NestedAnswer]
+    sync_results = list(
+        model.from_streaming_response(
+            iter(chunks),
+            stream_extractor=partial(extract_json_from_stream, single_model=True),
+        )
+    )
+    async_results = [
+        item
+        async for item in model.from_streaming_response_async(
+            async_items(chunks),
+            stream_extractor=partial(extract_json_from_stream_async, single_model=True),
+        )
+    ]
+
+    expected = {"value": 1, "child": {"value": 2}}
+    assert sync_results[-1].model_dump() == expected
+    assert async_results[-1].model_dump() == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ('{"items":[{"value":2}]', '{"items":[{"value":2}]'),
+        ('{"value":1} then {"child":{"value":2}', '{"value":1}'),
+        ('prose [broken {"value":2}', '{"value":2}'),
+        ('{"value":1} then {"value":2}', '{"value":2}'),
+    ],
+)
+async def test_single_model_selection_preserves_container_boundaries(
+    text: str, expected: str
+) -> None:
+    assert "".join(extract_json_from_stream(text, single_model=True)) == expected
+    assert (
+        "".join(
+            [
+                part
+                async for part in extract_json_from_stream_async(
+                    async_items(list(text)), single_model=True
+                )
+            ]
+        )
+        == expected
+    )

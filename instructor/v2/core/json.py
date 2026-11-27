@@ -6,6 +6,8 @@ import json
 import re
 from collections.abc import AsyncGenerator, Generator, Iterable
 
+from jiter import from_json
+
 
 MAX_JSON_EXTRACTION_CHARS = 1024 * 1024
 MAX_JSON_DEPTH = 128
@@ -24,7 +26,7 @@ def extract_json_from_codeblock(content: str) -> str:
     return _last_json_span(content) or content
 
 
-def _last_json_span(content: str) -> str | None:
+def _last_json_span(content: str, *, skip_incomplete: bool = False) -> str | None:
     size = len(content)
     if size > MAX_JSON_EXTRACTION_CHARS:
         raise ValueError("JSON extraction input exceeds the 1 MiB character limit")
@@ -40,12 +42,24 @@ def _last_json_span(content: str) -> str | None:
         index = match.start()
         if remaining_work < size - index:
             raise ValueError("JSON extraction malformed-input work limit exceeded")
+        complete = True
         try:
             value, end = decoder.raw_decode(content, index)
         except json.JSONDecodeError:
             remaining_work -= size - index
-            position = index + 1
-            continue
+            if not skip_incomplete:
+                position = index + 1
+                continue
+            try:
+                value = from_json(
+                    content[index:].encode(), partial_mode="trailing-strings"
+                )
+            except ValueError:
+                position = index + 1
+                continue
+            # A completed child is not a separate answer inside a truncated root.
+            complete = False
+            end = size
         except RecursionError as exc:
             raise ValueError("JSON extraction nesting limit exceeded") from exc
         # The opener guarantees a container root. Scalars cannot add depth.
@@ -58,8 +72,9 @@ def _last_json_span(content: str) -> str | None:
             for child in children:
                 if type(child) is dict or type(child) is list:
                     pending.append((child, depth + 1))
-        remaining_work -= end - index
-        last_span = index, end
+        if complete:
+            remaining_work -= end - index
+            last_span = index, end
         position = end
     if last_span is None:
         return None
@@ -83,7 +98,7 @@ class _SingleModelStream:
 
     def result(self) -> Generator[str, None, None]:
         content = "".join(self.chunks)
-        span = _last_json_span(content)
+        span = _last_json_span(content, skip_incomplete=True)
         if span is None:
             # Retain incomplete input so a truncated stream can produce a partial model.
             yield from extract_json_from_stream(self.chunks)
