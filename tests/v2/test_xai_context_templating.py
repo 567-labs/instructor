@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel
 from xai_sdk import chat as xchat
@@ -74,7 +74,9 @@ def _messages() -> list[dict[str, str]]:
 
 def test_from_xai_renders_context_before_sending_sync(monkeypatch: Any) -> None:
     factory = _install_stubs(monkeypatch)
-    wrapped = xai_client.from_xai(_SyncClient(factory), mode=Mode.TOOLS)
+    wrapped = cast(
+        Any, xai_client.from_xai(cast(Any, _SyncClient(factory)), mode=Mode.TOOLS)
+    )
     messages = _messages()
 
     result = wrapped.create(
@@ -91,7 +93,9 @@ def test_from_xai_renders_context_before_sending_sync(monkeypatch: Any) -> None:
 
 def test_from_xai_renders_context_before_sending_async(monkeypatch: Any) -> None:
     factory = _install_async_stubs(monkeypatch)
-    wrapped = xai_client.from_xai(_AsyncClient(factory), mode=Mode.TOOLS)
+    wrapped = cast(
+        Any, xai_client.from_xai(cast(Any, _AsyncClient(factory)), mode=Mode.TOOLS)
+    )
     messages = _messages()
 
     result = asyncio.run(
