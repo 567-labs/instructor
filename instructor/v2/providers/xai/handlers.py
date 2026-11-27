@@ -55,6 +55,7 @@ from instructor.v2.core.streaming import StreamingModelState
 from instructor.v2.core.messages import (
     append_system_instruction,
     copy_messages_for_mutation,
+    text_from_content_blocks,
 )
 
 
@@ -431,7 +432,9 @@ class XAIToolsHandler(XAIHandlerBase):
             if isinstance(content, str):
                 text_content = content
             elif isinstance(content, list) and content:
-                text_content = str(content[0])
+                text_content = text_from_content_blocks(content) or ""
+                if not text_content and isinstance(content[0], str):
+                    text_content = content[0]
 
         if text_content:
             json_str = extract_json_from_codeblock(text_content)
@@ -601,7 +604,9 @@ class XAIJSONSchemaHandler(XAIHandlerBase):
             if isinstance(content, str):
                 text_content = content
             elif isinstance(content, list) and content:
-                text_content = str(content[0])
+                text_content = text_from_content_blocks(content) or ""
+                if not text_content and isinstance(content[0], str):
+                    text_content = content[0]
 
         if text_content:
             parsed = response_model.model_validate_json(
@@ -703,7 +708,9 @@ class XAIMDJSONHandler(XAIHandlerBase):
             if isinstance(content, str):
                 text_content = content
             elif isinstance(content, list) and content:
-                text_content = str(content[0])
+                text_content = text_from_content_blocks(content) or ""
+                if not text_content and isinstance(content[0], str):
+                    text_content = content[0]
 
         if text_content:
             json_str = extract_json_from_codeblock(text_content)

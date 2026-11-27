@@ -21,6 +21,7 @@ from instructor.v2.dsl.parallel import get_types_array
 from instructor.v2.dsl.partial import PartialBase
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.core.response_model import prepare_response_model
+from instructor.v2.core.messages import text_from_content_blocks
 
 # Ensure handlers are registered (decorators auto-register on import)
 from instructor.v2.providers.xai import handlers
@@ -324,7 +325,9 @@ def from_xai(
                     if isinstance(content, str):
                         text_content = content
                     elif isinstance(content, list) and content:
-                        text_content = str(content[0])
+                        text_content = text_from_content_blocks(content) or ""
+                        if not text_content and isinstance(content[0], str):
+                            text_content = content[0]
 
                 if text_content:
                     json_str = extract_json_from_codeblock(text_content)
@@ -390,7 +393,9 @@ def from_xai(
             if isinstance(content, str):
                 text_content = content
             elif isinstance(content, list) and content:
-                text_content = str(content[0])
+                text_content = text_from_content_blocks(content) or ""
+                if not text_content and isinstance(content[0], str):
+                    text_content = content[0]
 
         if text_content:
             json_str = extract_json_from_codeblock(text_content)
@@ -492,7 +497,9 @@ def from_xai(
                     if isinstance(content, str):
                         text_content = content
                     elif isinstance(content, list) and content:
-                        text_content = str(content[0])
+                        text_content = text_from_content_blocks(content) or ""
+                        if not text_content and isinstance(content[0], str):
+                            text_content = content[0]
 
                 if text_content:
                     json_str = extract_json_from_codeblock(text_content)
@@ -558,7 +565,9 @@ def from_xai(
             if isinstance(content, str):
                 text_content = content
             elif isinstance(content, list) and content:
-                text_content = str(content[0])
+                text_content = text_from_content_blocks(content) or ""
+                if not text_content and isinstance(content[0], str):
+                    text_content = content[0]
 
         if text_content:
             json_str = extract_json_from_codeblock(text_content)
