@@ -1,19 +1,48 @@
 ---
-title: Installing Instructor with Pip
-description: Learn how to install Instructor and its dependencies using pip for Python 3.10+. Simple setup guide included.
+title: Install Instructor
+description: Check Python compatibility, install Instructor with pip or uv, and verify the version. The base package includes Pydantic and the OpenAI SDK.
 ---
 
-Installation is as simple as:
+# Install Instructor for Python
 
-```bash
-pip install instructor
-```
+Instructor 1.18 requires Python 3.10 or later. If you're upgrading from 1.17 on Python 3.9, create an environment with a newer Python interpreter first.
 
-Instructor has a few dependencies:
+## Install the package
 
-- [`openai`](https://pypi.org/project/openai/): OpenAI's Python client.
-- [`typer`](https://pypi.org/project/typer/): Build great CLIs. Easy to code. Based on Python type hints.
-- [`docstring-parser`](https://pypi.org/project/docstring-parser/): A parser for Python docstrings, to improve the experience of working with docstrings in jsonschema.
-- [`pydantic`](https://pypi.org/project/pydantic/): Data validation and settings management using python type annotations.
+=== "pip"
 
-If you've got Python 3.10+ and `pip` installed, you're good to go.
+    In an activated virtual environment, run
+
+    ```bash
+    python -m pip install instructor
+    ```
+
+=== "uv"
+
+    In a uv project, run
+
+    ```bash
+    uv add instructor
+    ```
+
+The base package includes Pydantic and the OpenAI SDK. For Claude, Gemini, or another provider, see [provider SDKs and API keys](./learning/getting_started/installation.md).
+
+## Check the installed version
+
+These commands import Instructor locally. You don't need an API key.
+
+=== "pip"
+
+    ```bash
+    python -c "import instructor; print(instructor.__version__)"
+    ```
+
+=== "uv"
+
+    ```bash
+    uv run python -c "import instructor; print(instructor.__version__)"
+    ```
+
+If Python can't find Instructor, check that your editor or notebook uses the same environment where you installed it.
+
+Next, [extract and validate your first record](./getting-started.md).

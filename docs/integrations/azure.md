@@ -1,3 +1,8 @@
+---
+title: Azure OpenAI and Microsoft Foundry
+description: Configure a deployment name, endpoint, and authentication for structured outputs with Azure OpenAI or the Microsoft Foundry v1 API.
+---
+
 # Azure OpenAI and Microsoft Foundry
 
 Use the deployment name from your Azure resource as the model. The installed OpenAI SDK supports both the dated Azure OpenAI API and the Foundry v1 API.

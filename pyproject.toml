@@ -30,7 +30,7 @@ dependencies = [
 ]
 name = "instructor"
 version = "1.18.0"
-description = "structured outputs for llm"
+description = "Extract, validate, and stream structured LLM outputs in Python with Pydantic."
 readme = "README.md"
 
 [build-system]
@@ -42,6 +42,8 @@ package = true
 
 [project.urls]
 repository = "https://github.com/567-labs/instructor"
+documentation = "https://python.useinstructor.com/"
+changelog = "https://github.com/567-labs/instructor/blob/main/CHANGELOG.md"
 
 [tool.pytest.ini_options]
 markers = [

@@ -1,6 +1,6 @@
 ---
-title: Instructor Tutorials
-description: Interactive, step-by-step tutorials for learning how to use Instructor effectively
+title: Jupyter tutorials
+description: Run Python notebooks on LLM data extraction, validation, retrieval, knowledge graphs, and synthetic data generation.
 ---
 
 # Instructor Tutorials
@@ -90,12 +90,7 @@ By completing this tutorial series, you'll gain practical skills in:
 
 ## Setup Requirements
 
-Before starting, make sure you have:
-
-- **Python Environment**: Python 3.8+ installed
-- **Dependencies**: Install with `pip install "instructor[all]"`
-- **API Keys**: Access to OpenAI API or other supported providers
-- **Basic Knowledge**: Familiarity with Python and basic LLM concepts
+Use Python 3.10 or later and [install Instructor](../installation.md) in the environment used by your notebook kernel. Set `OPENAI_API_KEY` for the OpenAI examples. If you use another provider, check its [SDK and API key requirements](../learning/getting_started/installation.md).
 
 ## Getting Help {#getting-help}
 

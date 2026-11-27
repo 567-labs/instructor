@@ -1,9 +1,11 @@
 ---
-title: Streaming Partial Responses with Instructor and OpenAI
-description: Learn to utilize field-level streaming with Instructor and OpenAI for incremental responses in Python.
+title: Partial streaming
+description: Use create_partial to display fields as they arrive and validate the completed Pydantic model.
 ---
 
-# Streaming Partial Responses
+# Stream one Pydantic model with create_partial {#streaming-partial-responses}
+
+Use `client.create_partial(response_model=User, ...)` to update a form or preview as fields arrive. Each result is a snapshot of the same object. To process a sequence of completed records, use [`create_iterable`](iterable.md).
 
 !!! tip "Literal fields (optional / legacy)"
 
@@ -13,15 +15,11 @@ description: Learn to utilize field-level streaming with Instructor and OpenAI f
     `PartialLiteralMixin` still imports for older examples, but it is **deprecated** and raises a
     `DeprecationWarning` — safe to remove from new code.
 
-Field level streaming provides incremental snapshots of the current state of the response model that are immediately usable. This approach is particularly relevant in contexts like rendering UI components.
-
-Instructor supports this pattern by making use of `create_partial`. This lets us dynamically create a new class that treats all of the original model's fields as `Optional`.
-
-When a text response can contain several JSON values, single-model Markdown JSON parsing selects the last complete object or array after the stream ends. Iterable responses continue to yield multiple items.
+Single-model Markdown JSON streams wait until the stream ends to select the last complete object or array. A fenced answer may arrive as a single snapshot. For incremental updates, use a native tool or structured output mode that streams field values.
 
 ## Understanding Partial Responses
 
-Consider what happens whene we define a response model:
+Suppose both fields are required.
 
 ```python
 from pydantic import BaseModel
@@ -32,7 +30,7 @@ class User(BaseModel):
     age: int
 ```
 
-If we streamed json out from OpenAI, we would only be able to parse when the object is completed returned!
+Only the last of these prefixes is a complete JSON object.
 
 ```
 {"name": "Jo
@@ -41,7 +39,7 @@ If we streamed json out from OpenAI, we would only be able to parse when the obj
 {"name": "John", "age": 25} # Completed
 ```
 
-When specifying a `create_partial` and setting `stream=True`, the response from `instructor` becomes a `Generator[T]`. As the generator yields results, you can iterate over these incremental updates. The last value yielded by the generator represents the completed extraction!
+`create_partial` enables streaming and returns an iterator. The snapshots might look like this. Their number and contents depend on how the provider splits the response.
 
 ```
 {"name": "Jo                 => User(name="Jo", age=None)
@@ -50,11 +48,13 @@ When specifying a `create_partial` and setting `stream=True`, the response from 
 {"name": "John", "age": 25}  => User(name="John", age=25)
 ```
 
-!!! warning "Limited Validator Support"
+!!! warning "A snapshot can contain unvalidated values"
 
-    Due to the streaming nature of the response model, we do not support validators since they would not be able to be applied to the streaming response.
+    Instructor constructs incomplete snapshots without running the original model's validators. Missing fields can be `None` or take their defaults. Nested objects can validate as they finish. Once the full object is complete, Instructor validates it against the original model and runs its validators.
 
-Let's look at an example of streaming an extraction of conference information, that would be used to stream in an react component.
+    If the stream stops after `{"name": "John",`, the last snapshot can have `age=None`. If the LLM closes the object without supplying `age`, validation fails. In Markdown JSON, if the outer object is cut off, Instructor may select a complete object or array inside it.
+
+This example redraws the meeting details in a terminal as they arrive.
 
 ```python
 import instructor
@@ -75,7 +75,7 @@ During the meeting, we agreed on several key points. The conference will be held
 
 The budget for the event is set at $50,000, covering venue costs, speaker fees, and promotional activities. Each participant is expected to contribute an article to the conference blog by February 20th.
 
-A follow-up meetingis scheduled for January 25th at 3 PM GMT to finalize the agenda and confirm the list of speakers.
+A follow-up meeting is scheduled for January 25th at 3 PM GMT to finalize the agenda and confirm the list of speakers.
 """
 
 
@@ -168,7 +168,7 @@ can compute its defaults before the outer object finishes. An explicitly supplie
 
 ## Asynchronous Streaming
 
-I also just want to call out in this example that `instructor` also supports asynchronous streaming. This is useful when you want to stream a response model and process the results as they come in, but you'll need to use the `async for` syntax to iterate over the results.
+Set `async_client=True` and iterate over `client.create_partial(...)` with `async for`.
 
 ```python
 import instructor
@@ -227,11 +227,7 @@ and cannot distinguish overlapping calls using the same class. Explicit parsing
 also retires a pending legacy marker; do not mix explicit and implicit parsing
 for overlapping calls with the same model.
 
-Sync partial parsing still materializes its results and may raise validation errors
-inside `parse_response`; async partial validation occurs during iteration. Closing
-a parsed generator early is not a promise that it closes the underlying SDK stream.
-Retain and close the source stream according to its SDK's ownership contract.
-Cancellation while awaiting a source propagates to that source.
+If you stop reading snapshots early, call `close()` on the generator or `await aclose()` on the async generator. The partial parser then closes the underlying stream if it supports closing. With OpenAI-compatible handlers, catch validation errors around the loop. Handlers that collect all snapshots before returning can raise during `parse_response`.
 
 The native xAI client has a separate SDK streaming path; the shared routing rule
 here concerns its registry mode handlers. Providers without class-keyed stream

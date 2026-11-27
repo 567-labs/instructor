@@ -1,13 +1,15 @@
 ---
-title: API Reference Guide
-description: Explore the comprehensive API reference with details on instructors, validation, iteration, and function calls.
+title: Python API
+description: Look up Python client methods for structured outputs, streaming, validation, and batch processing, plus factories for connecting an LLM provider.
 ---
 
-# API Reference
+# Instructor Python API reference {#api-reference}
 
 Core modes are the recommended default. Legacy provider-specific modes still
 work but are deprecated and will show warnings. See the
 [Mode Migration Guide](concepts/mode-migration.md) for details.
+
+For `Mode.DECISIONS` in Instructor 1.18, see [decision clients and question types](concepts/decisions.md).
 
 ## Core Clients
 

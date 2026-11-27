@@ -1,6 +1,6 @@
 ---
-title: Instructor Concepts - Core Features and Patterns
-description: Explore core concepts and features of the Instructor library. Learn about structured outputs, validation, streaming, and advanced patterns.
+title: Instructor concepts
+description: Define response models, validate LLM outputs, stream records, and retry failed requests.
 ---
 
 # Instructor Concepts
@@ -11,6 +11,7 @@ This section explains the core concepts and features of the Instructor library, 
 
 These are the fundamental concepts you need to understand to use Instructor effectively:
 
+- [Typed decisions](./decisions.md) - Classify content, estimate probabilities, and return scores
 - [Models](./models.md) - Using Pydantic models to define output structures
 - [Patching](./patching.md) - How Instructor patches LLM clients
 - [from_provider](./from_provider.md) - Unified interface for creating clients across all providers

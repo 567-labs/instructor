@@ -1,10 +1,10 @@
-# Instructor: Structured Outputs for LLMs
+# Structured LLM outputs in Python with Instructor
 
 <p align="center">
   <b>English</b> · <a href="https://github.com/567-labs/instructor/blob/main/README.zh.md">简体中文</a>
 </p>
 
-Get reliable JSON from any LLM. Built on Pydantic for validation, type safety, and IDE support.
+Define the data you need as a Pydantic model. Instructor asks your LLM for those fields and validates the response. [Install Instructor](https://python.useinstructor.com/installation/) and set `OPENAI_API_KEY` to run this example.
 
 ```python
 import instructor
@@ -21,13 +21,16 @@ class User(BaseModel):
 client = instructor.from_provider("openai/gpt-6-luna")
 user = client.chat.completions.create(
     response_model=User,
+    reasoning_effort="none",
     messages=[{"role": "user", "content": "John is 25 years old"}],
 )
 
 print(user)  # User(name='John', age=25)
 ```
 
-**That's it.** No JSON parsing, no error handling, no retries. Just define a model and get structured data.
+If a response fails validation, Instructor can retry with feedback from Pydantic. [Extract your first record](https://python.useinstructor.com/getting-started/) or [stream a list of records](https://python.useinstructor.com/concepts/iterable/).
+
+Instructor 1.18 adds classification and scoring through the OpenAI Decisions API and Jev. [Define a decision model in Python](https://python.useinstructor.com/concepts/decisions/).
 
 [![PyPI](https://img.shields.io/pypi/v/instructor?style=flat-square)](https://pypi.org/project/instructor/)
 [![Downloads](https://img.shields.io/pypi/dm/instructor?style=flat-square)](https://pypi.org/project/instructor/)

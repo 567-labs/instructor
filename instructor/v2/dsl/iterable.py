@@ -21,6 +21,9 @@ class _ToolCallStart(str):
     """A text fragment that starts a separate tool call in the string extractor API."""
 
 
+_TASK_BOUNDARY = re.compile(r"[\[\]{}\\]")
+
+
 class _TaskObjects:
     """Scan object arguments and the items of a tasks array across chunk boundaries."""
 
@@ -37,15 +40,42 @@ class _TaskObjects:
         self.buffer: list[str] = []
 
     def feed(self, chunk: str) -> Generator[tuple[str, int], None, None]:
-        for index, char in enumerate(chunk):
-            if self.depth:
-                self.buffer.append(char)
-            if self.escaped:
-                self.escaped = False
-            elif self.quoted and char == "\\":
-                self.escaped = True
-            elif char == '"':
+        if not chunk:
+            return
+
+        # Skip the first character when the previous chunk ended mid-escape.
+        pos = 1 if self.escaped else 0
+        self.escaped = False
+
+        # Most short fragments stay inside a string or contain no delimiters.
+        # Only quote parity matters in a run without escapes or delimiters.
+        inside_string = self.quoted and '"' not in chunk
+        if "\\" not in chunk and (
+            inside_string
+            or not ("{" in chunk or "}" in chunk or "[" in chunk or "]" in chunk)
+        ):
+            if chunk.count('"', pos) % 2:
                 self.quoted = not self.quoted
+            if self.depth:
+                self.buffer.append(chunk)
+            return
+
+        start = 0
+        size = len(chunk)
+        while pos < size:
+            index = pos
+            if chunk[pos] not in "{}[]\\":
+                match = _TASK_BOUNDARY.search(chunk, pos)
+                index = size if match is None else match.start()
+                if chunk.count('"', pos, index) % 2:
+                    self.quoted = not self.quoted
+                if index == size:
+                    break
+            char = chunk[index]
+            pos = index + 1
+            if self.quoted and char == "\\":
+                self.escaped = pos == size
+                pos += 1
             elif not self.quoted:
                 if self.wrapper_depth:
                     if char in "{[":
@@ -54,13 +84,15 @@ class _TaskObjects:
                         self.wrapper_depth -= 1
                 elif char == "{":
                     if self.depth == 0:
-                        self.buffer = [char]
+                        self.buffer.clear()
+                        start = index
                         self.may_unwrap = self.unwrap_tasks and not self.in_array
                     self.depth += 1
                 elif char == "}" and self.depth:
                     self.depth -= 1
                     if not self.depth:
-                        yield "".join(self.buffer), index + 1
+                        self.buffer.append(chunk[start:pos])
+                        yield "".join(self.buffer), pos
                         self.buffer.clear()
                 elif char == "[":
                     if not self.depth:
@@ -68,7 +100,8 @@ class _TaskObjects:
                     elif self.may_unwrap:
                         self.may_unwrap = False
                         if self.depth == 1 and re.fullmatch(
-                            r'\{\s*"tasks"\s*:\s*\[', "".join(self.buffer)
+                            r'\{\s*"tasks"\s*:\s*\[',
+                            "".join(self.buffer) + chunk[start:pos],
                         ):
                             self.buffer.clear()
                             self.depth = 0
@@ -80,6 +113,9 @@ class _TaskObjects:
                         # Ignore the rest of the wrapper object, e.g. sibling keys.
                         self.unwrapped = False
                         self.wrapper_depth = 1
+
+        if self.depth:
+            self.buffer.append(chunk[start:])
 
     def finish(self) -> None:
         if self.depth:

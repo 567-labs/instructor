@@ -56,9 +56,15 @@ class JsonCompleteness:
     def __init__(self) -> None:
         self._complete_paths: set[str] = set()
         self._complete_subtrees: dict[str, list[Any]] = {}
+        self._shared_json: str | None = None
 
     def analyze(self, json_str: str) -> None:
         """Analyze a JSON string and determine completeness of each path."""
+        self._analyze(json_str)
+
+    def _analyze(self, json_str: str, parsed_partial: Any = None) -> None:
+        """Optionally reuse a trailing-strings parse of this exact input."""
+        self._shared_json = None
         self._complete_paths.clear()
         self._complete_subtrees.clear()
 
@@ -81,7 +87,13 @@ class JsonCompleteness:
                 self._mark_complete(parsed, "")
                 return
 
-        # Root incomplete - use sibling heuristic
+        # Compute sibling paths before validators see the tree. Most snapshots
+        # need only those paths, so defer parsing a private tree until expansion.
+        if parsed_partial is not None:
+            self._shared_json = json_str
+            self._check_siblings(parsed_partial, "")
+            return
+
         try:
             parsed = from_json(raw, partial_mode="trailing-strings")
         except ValueError:
@@ -97,6 +109,10 @@ class JsonCompleteness:
             self._complete_subtrees.setdefault(path, []).append(data)
 
     def _expand(self, path: str) -> None:
+        if self._shared_json is not None:
+            # A validator may have mutated a shared subtree. Rebuild once from
+            # the original JSON before inspecting any descendants.
+            self.analyze(self._shared_json)
         for data in self._complete_subtrees.pop(path, ()):
             self._mark_all(data, path)
 

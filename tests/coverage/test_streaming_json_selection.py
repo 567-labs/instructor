@@ -40,6 +40,32 @@ def event(content: str) -> SimpleNamespace:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("fenced", [False, True])
+async def test_md_json_grouping_preserves_public_chunks_and_final_selection(
+    fenced: bool,
+) -> None:
+    handler = OpenAIMDJSONHandler()
+    candidates = ['{"value":1}', '{"tasks":[{"value":2}]}']
+    payload = "".join(candidates)
+    text = f'{{"ignore":1}} ```json\n{payload}\n```' if fenced else payload
+    events = [event(char) for char in text]
+
+    for group, single, expected in [
+        (False, False, list(payload)),
+        (True, False, candidates),
+        (True, True, [candidates[-1]]),
+    ]:
+        stream = handler.extract_streaming_json(
+            events, single_model=single, _group_candidates=group
+        )
+        assert list(stream) == expected
+        async_stream = handler.extract_streaming_json_async(
+            async_items(events), single_model=single, _group_candidates=group
+        )
+        assert [part async for part in async_stream] == expected
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "handler",
     [

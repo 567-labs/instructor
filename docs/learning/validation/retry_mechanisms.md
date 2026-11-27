@@ -1,3 +1,8 @@
+---
+title: Validation retries
+description: Configure retries in Instructor, send validation feedback to the model, and handle errors when the final attempt fails.
+---
+
 # Retry Mechanisms
 
 Retry mechanisms in Instructor handle validation failures by giving the LLM another chance to generate valid responses. This guide explains how retries work and how to customize them for your use case.

@@ -1,13 +1,14 @@
 ---
-title: "Structured outputs with OpenRouter, a complete guide with instructor"
-description: "Learn how to use Instructor with OpenRouter to access multiple LLM providers through a unified API. Get type-safe, structured outputs from various models including Qwen, Gemini, Mistral, and Cohere."
+title: OpenRouter structured outputs
+description: Extract validated Pydantic models through OpenRouter. Configure provider routing and use synchronous or asynchronous requests in Python.
 ---
 
-# Structured outputs with OpenRouter, a complete guide with instructor
+# OpenRouter structured outputs with Pydantic in Python {#structured-outputs-with-openrouter-a-complete-guide-with-instructor}
 
 OpenRouter provides a unified API to access multiple LLM providers, allowing you to easily switch between different models. This guide shows you how to use Instructor with OpenRouter for type-safe, validated responses across various LLM providers.
 
-To set Provider specific configuration on the `openai` client, make sure to use the `extra_body` kwarg.
+Pass provider-specific settings through `extra_body`. For classification and
+scoring with Jev, see [decision models with OpenRouter](../concepts/decisions.md#content-moderation).
 
 ## Quick Start
 

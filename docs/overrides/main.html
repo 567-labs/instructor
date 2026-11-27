@@ -1,4 +1,23 @@
-{% extends "base.html" %} 
+{% extends "base.html" %}
+{% block htmltitle %}
+  {% if page %}
+    {% set title = (page.meta.title or page.title or config.site_name) | striptags %}
+    {% if page.url.startswith("blog/category/") %}
+      {% set title = "Articles about " ~ title %}
+    {% elif page.url.startswith("blog/archive/") %}
+      {% set title = "Articles from " ~ title %}
+    {% endif %}
+    {% if page.url.startswith("blog/") and "/page/" in page.url %}
+      {% set title = title ~ " (page " ~ page.url.rstrip("/").split("/")[-1] ~ ")" %}
+    {% endif %}
+    {% if config.site_name | lower not in title | lower %}
+      {% set title = title ~ " - " ~ config.site_name %}
+    {% endif %}
+    <title>{{ title | e }}</title>
+  {% else %}
+    {{ super() }}
+  {% endif %}
+{% endblock %}
 {% block announce %}
   🎉 Introducing <strong>Kura</strong>: Turn your chat logs into actionable insights! Discover user patterns, extract intents, and understand conversation flows at scale. 
   <a href="https://github.com/567-labs/kura" style="color: #64B5F6; text-decoration: underline;">

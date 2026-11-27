@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import AsyncGenerator, Generator, Iterable
 
 from jiter import from_json
@@ -10,6 +11,7 @@ from jiter import from_json
 
 MAX_JSON_EXTRACTION_CHARS = 1024 * 1024
 MAX_JSON_DEPTH = 128
+_JSON_START = re.compile(r"[\[{]")
 
 
 def extract_json_from_codeblock(content: str) -> str:
@@ -25,54 +27,59 @@ def extract_json_from_codeblock(content: str) -> str:
 
 
 def _last_json_span(content: str, *, skip_incomplete: bool = False) -> str | None:
-    if len(content) > MAX_JSON_EXTRACTION_CHARS:
+    size = len(content)
+    if size > MAX_JSON_EXTRACTION_CHARS:
         raise ValueError("JSON extraction input exceeds the 1 MiB character limit")
     decoder = json.JSONDecoder()
-    last_valid: str | None = None
-    consumed = 0
+    last_span: tuple[int, int] | None = None
+    position = 0
     # A failed decode may inspect the entire remaining suffix (including an
     # unterminated string). Charge that upper bound, not the error position.
     # Successful spans are disjoint. This bounds total decoding work linearly
     # while retaining recovery after malformed brackets or quoted prose.
-    remaining_work = 16 * len(content)
-    for index, char in enumerate(content):
-        if index < consumed or char not in "{[":
-            continue
-        if remaining_work < len(content) - index:
+    remaining_work = 16 * size
+    while match := _JSON_START.search(content, position):
+        index = match.start()
+        if remaining_work < size - index:
             raise ValueError("JSON extraction malformed-input work limit exceeded")
         complete = True
         try:
             value, end = decoder.raw_decode(content, index)
         except json.JSONDecodeError:
-            remaining_work -= len(content) - index
+            remaining_work -= size - index
             if not skip_incomplete:
+                position = index + 1
                 continue
             try:
                 value = from_json(
                     content[index:].encode(), partial_mode="trailing-strings"
                 )
             except ValueError:
+                position = index + 1
                 continue
             # A completed child is not a separate answer inside a truncated root.
             complete = False
-            end = len(content)
+            end = size
         except RecursionError as exc:
             raise ValueError("JSON extraction nesting limit exceeded") from exc
+        # The opener guarantees a container root. Scalars cannot add depth.
         pending = [(value, 1)]
         while pending:
             node, depth = pending.pop()
-            if isinstance(node, (dict, list)):
-                if depth > MAX_JSON_DEPTH:
-                    raise ValueError(
-                        "JSON extraction nesting exceeds the 128 level limit"
-                    )
-                children = node.values() if isinstance(node, dict) else node
-                pending.extend((child, depth + 1) for child in children)
+            if depth > MAX_JSON_DEPTH:
+                raise ValueError("JSON extraction nesting exceeds the 128 level limit")
+            children = node.values() if isinstance(node, dict) else node
+            for child in children:
+                if type(child) is dict or type(child) is list:
+                    pending.append((child, depth + 1))
         if complete:
             remaining_work -= end - index
-            last_valid = content[index:end]
-        consumed = end
-    return last_valid
+            last_span = index, end
+        position = end
+    if last_span is None:
+        return None
+    start, end = last_span
+    return content[start:end]
 
 
 class _SingleModelStream:
@@ -105,7 +112,8 @@ class _SingleModelStream:
 class _MultiModelStream:
     """Separate fenced output from prose while scanning each input character once."""
 
-    def __init__(self, prefer_fenced: bool) -> None:
+    def __init__(self, prefer_fenced: bool, *, group_candidates: bool = False) -> None:
+        self.group_candidates = group_candidates
         self.prefer_fenced = prefer_fenced
         self.in_fence = False
         self.saw_fence = False
@@ -118,6 +126,11 @@ class _MultiModelStream:
         self.last_invalid: str | None = None
         self.has_valid = False
         self.size = 0
+
+    def _parts(self, candidate: str) -> Iterable[str]:
+        # The Iterable scanner can consume a whole candidate. Preserve the
+        # character-sized chunks returned by public extraction by default.
+        return (candidate,) if self.group_candidates else candidate
 
     def feed(self, chunk: str) -> Generator[str, None, None]:
         self.size += len(chunk)
@@ -172,13 +185,13 @@ class _MultiModelStream:
                         self.has_valid = True
                         self.last_invalid = None
                         if self.in_fence or not self.prefer_fenced:
-                            yield from candidate
+                            yield from self._parts(candidate)
                         else:
                             self.deferred.append(candidate)
 
     def finish(self) -> Generator[str, None, None]:
         for candidate in self.deferred:
-            yield from candidate
+            yield from self._parts(candidate)
         if self.buffer:
             yield from self.buffer
         elif not self.has_valid and self.last_invalid is not None:
@@ -186,7 +199,11 @@ class _MultiModelStream:
 
 
 def extract_json_from_stream(
-    chunks: Iterable[str], *, single_model: bool = False, prefer_fenced: bool = True
+    chunks: Iterable[str],
+    *,
+    single_model: bool = False,
+    prefer_fenced: bool = True,
+    _group_candidates: bool = False,
 ) -> Generator[str, None, None]:
     """Prefer fenced Markdown output; set prefer_fenced=False for eager bare JSON."""
     if single_model:
@@ -195,7 +212,9 @@ def extract_json_from_stream(
             selection.append(chunk)
         yield from selection.result()
         return
-    selection_multi = _MultiModelStream(prefer_fenced)
+    selection_multi = _MultiModelStream(
+        prefer_fenced, group_candidates=_group_candidates
+    )
     for chunk in chunks:
         yield from selection_multi.feed(chunk)
     yield from selection_multi.finish()
@@ -206,6 +225,7 @@ async def extract_json_from_stream_async(
     *,
     single_model: bool = False,
     prefer_fenced: bool = True,
+    _group_candidates: bool = False,
 ) -> AsyncGenerator[str, None]:
     """Asynchronous counterpart of extract_json_from_stream."""
     if single_model:
@@ -215,7 +235,9 @@ async def extract_json_from_stream_async(
         for part in selection.result():
             yield part
         return
-    selection_multi = _MultiModelStream(prefer_fenced)
+    selection_multi = _MultiModelStream(
+        prefer_fenced, group_candidates=_group_candidates
+    )
     async for chunk in chunks:
         for part in selection_multi.feed(chunk):
             yield part
