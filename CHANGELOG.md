@@ -22,6 +22,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Anthropic Iterable**: `process_response` routes non-streaming Iterable responses through the given provider.
 - **Templating**: Anthropic and Bedrock string `system` prompts render with context.
 - **GenAI**: Requests without a response model keep generation options, `thinking_config` and `safety_settings`. Tool streams skip thought parts and empty chunks. `gs://` images decode base64 data, and PDF uploads stop polling when processing fails.
+- **GenAI**: `Mode.TOOLS` raises `ResponseParsingError` instead of `AssertionError` for blocked, empty, text-only, multi-call and mismatched-name responses, so `max_retries` reasks them. ([#3100](https://github.com/567-labs/instructor/issues/3100))
 - **OpenAI Responses**: Structured streams ignore commentary-phase message text.
 - **Mistral**: Responses with thinking and text chunks parse in JSON_SCHEMA and MD_JSON modes, and streams skip `None` deltas.
 - **Partial**: Snapshots keep declared defaults for missing nested models, build models inside tuple fields, and async streams close the source when the consumer stops.
