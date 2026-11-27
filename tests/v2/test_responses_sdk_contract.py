@@ -368,3 +368,50 @@ async def test_async_completed_responses_keep_defaults_and_cache(
     for result in results:
         assert isinstance(result, Answer)
         assert result.model_dump() == {"value": 42, "label": "default-label"}
+
+
+@pytest.mark.parametrize("raw", [False, True])
+def test_sync_responses_instructions_templating(responses_endpoint, raw):
+    url, calls = responses_endpoint
+    with openai.OpenAI(
+        api_key="local-only",
+        base_url=url,
+        max_retries=0,
+        http_client=httpx.Client(trust_env=False),
+    ) as sdk:
+        client = instructor.from_openai(sdk, mode=Mode.RESPONSES_TOOLS)
+        client.responses.create(
+            model="local-contract",
+            response_model=None if raw else Answer,
+            messages=[{"role": "user", "content": "{{ name }}"}],
+            instructions="Extract {{ field }}",
+            context={"field": "value", "name": "Ada"},
+            max_retries=1,
+        )
+    assert len(calls) == 1
+    assert calls[0]["body"]["instructions"] == "Extract value"
+    assert calls[0]["body"]["input"][0]["content"] == "Ada"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raw", [False, True])
+async def test_async_responses_instructions_templating(responses_endpoint, raw):
+    url, calls = responses_endpoint
+    async with openai.AsyncOpenAI(
+        api_key="local-only",
+        base_url=url,
+        max_retries=0,
+        http_client=httpx.AsyncClient(trust_env=False),
+    ) as sdk:
+        client = instructor.from_openai(sdk, mode=Mode.RESPONSES_TOOLS)
+        await client.responses.create(
+            model="local-contract",
+            response_model=None if raw else Answer,
+            messages=[{"role": "user", "content": "{{ name }}"}],
+            instructions="Extract {{ field }}",
+            context={"field": "value", "name": "Ada"},
+            max_retries=1,
+        )
+    assert len(calls) == 1
+    assert calls[0]["body"]["instructions"] == "Extract value"
+    assert calls[0]["body"]["input"][0]["content"] == "Ada"
