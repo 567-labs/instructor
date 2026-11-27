@@ -41,7 +41,7 @@ OPENAI_ENDPOINTS = {
         ),
     ),
     Provider.HUBRIS: OpenAIEndpoint(
-        base_url="https://api.hubris.pw/v1",
+        base_url="https://api.hubris.pro/v1",
         key_variables=("HUBRIS_API_KEY",),
         modes=(Mode.TOOLS, Mode.JSON_SCHEMA, Mode.MD_JSON, Mode.PARALLEL_TOOLS),
     ),

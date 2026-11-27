@@ -19,7 +19,7 @@ from instructor.v2.core.registry import mode_registry
 CASES = [
     ("zhipuai", "open.bigmodel.cn", "ZHIPUAI_API_KEY", Mode.TOOLS),
     ("zai", "api.z.ai", "ZAI_API_KEY", Mode.TOOLS),
-    ("hubris", "api.hubris.pw", "HUBRIS_API_KEY", Mode.TOOLS),
+    ("hubris", "api.hubris.pro", "HUBRIS_API_KEY", Mode.TOOLS),
     ("atlascloud", "api.atlascloud.ai", "ATLASCLOUD_API_KEY", Mode.TOOLS),
     ("requesty", "router.requesty.ai", "REQUESTY_API_KEY", Mode.TOOLS),
     ("sarvam", "api.sarvam.ai", "SARVAM_API_KEY", Mode.MD_JSON),
