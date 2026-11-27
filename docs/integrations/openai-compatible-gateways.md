@@ -13,7 +13,7 @@ Use `instructor.from_provider("provider/model")` with a key issued for that prov
 | --- | --- | --- | --- |
 | [ZhipuAI](https://docs.bigmodel.cn/cn/best-practice/case/ai-search-engine) (`zhipuai`) | `https://open.bigmodel.cn/api/paas/v4/` | `ZHIPUAI_API_KEY`, `BIGMODEL_API_KEY` | `TOOLS` |
 | [Z.ai](https://docs.z.ai/guides/overview/quick-start) (`zai`) | `https://api.z.ai/api/paas/v4/` | `ZAI_API_KEY` | `TOOLS` |
-| [Hubris](https://hubris.pw/docs/api/chat-completions) (`hubris`) | `https://api.hubris.pw/v1` | `HUBRIS_API_KEY` | `TOOLS` |
+| [Hubris](https://hubris.pro/docs/api/chat-completions) (`hubris`) | `https://api.hubris.pro/v1` | `HUBRIS_API_KEY` | `TOOLS` |
 | [Atlas Cloud](https://www.atlascloud.ai/docs/llm-protocols) (`atlascloud`) | `https://api.atlascloud.ai/v1` | `ATLASCLOUD_API_KEY` | `TOOLS` |
 | [Requesty](https://docs.requesty.ai/) (`requesty`) | `https://router.requesty.ai/v1` | `REQUESTY_API_KEY` | `TOOLS` |
 | [Sarvam](https://docs.sarvam.ai/api/token-factory) (`sarvam`) | `https://api.sarvam.ai/v2` | `SARVAM_API_KEY` | `MD_JSON` |
