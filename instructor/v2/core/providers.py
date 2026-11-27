@@ -25,6 +25,7 @@ class Provider(Enum):
     ORCAROUTER = "orcarouter"
     MINIMAX = "minimax"
     MANIFEST = "manifest"
+    STRAITLY = "straitly"
     ANYSCALE = "anyscale"
     TOGETHER = "together"
     GROQ = "groq"

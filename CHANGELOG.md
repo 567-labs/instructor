@@ -9,6 +9,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- **Providers**: Add Straitly (`straitly`) OpenAI-compatible gateway support via `instructor.from_provider("straitly/...")` and `instructor.from_straitly`.
+
 ### Fixed
 - **CLI**: `instructor files download` uses `files.content` and writes raw bytes; `files list` reads every page; `files delete` and `jobs cancel` exit nonzero on failure. ([#2979](https://github.com/567-labs/instructor/issues/2979), [#2984](https://github.com/567-labs/instructor/issues/2984))
 - **CLI (Anthropic batch)**: `batch download-file` and `batch results` keep the existing file when the result stream fails.
