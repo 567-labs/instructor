@@ -81,6 +81,25 @@ def _attempt_metadata(
     }
 
 
+def _emit_terminal_error(
+    hooks: Hooks | None,
+    error: Exception,
+    *,
+    attempt_number: int,
+    max_attempts: int | None,
+) -> None:
+    """Report an error that ends the retry loop without another attempt."""
+    if not hooks:
+        return
+    metadata = _attempt_metadata(
+        attempt_number=attempt_number,
+        max_attempts=max_attempts,
+        is_last_attempt=True,
+    )
+    hooks.emit_completion_error(error, **metadata)
+    hooks.emit_completion_last_attempt(error, **metadata)
+
+
 def _finalize_parsed_response(
     parsed: Any,
     response: Any,
@@ -367,7 +386,15 @@ def retry_sync_v2(
                     # Will retry with modified kwargs
                     raise
 
-    except (IncompleteOutputException, TokenBudgetError):
+    except IncompleteOutputException as e:
+        _emit_terminal_error(
+            hooks,
+            e,
+            attempt_number=last_attempt_number,
+            max_attempts=max_attempts,
+        )
+        raise
+    except TokenBudgetError:
         raise
     except Exception as e:
         # Max retries exceeded or non-validation error occurred
@@ -671,7 +698,15 @@ async def retry_async_v2(
                     # Will retry with modified kwargs
                     raise
 
-    except (IncompleteOutputException, TokenBudgetError):
+    except IncompleteOutputException as e:
+        _emit_terminal_error(
+            hooks,
+            e,
+            attempt_number=last_attempt_number,
+            max_attempts=max_attempts,
+        )
+        raise
+    except TokenBudgetError:
         raise
     except Exception as e:
         # Max retries exceeded or non-validation error occurred

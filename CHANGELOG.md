@@ -27,6 +27,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Partial**: Snapshots keep declared defaults for missing nested models, build models inside tuple fields, and async streams close the source when the consumer stops.
 - **Iterable**: Streams ignore sibling keys after a `tasks` wrapper array closes.
 - **Errors**: Instructor exceptions survive pickling.
+- **Hooks**: `completion:error` and `completion:last_attempt` fire when a token-limited response raises `IncompleteOutputException`, as they did before v2.
 - **Multimodal**: `Audio.from_path` accepts platform FLAC, M4A and AAC MIME aliases. `convert_messages` keeps legacy assistant `function_call` turns.
 - **Ollama**: `from_provider("ollama/...")` forwards a caller `api_key`.
 - Anthropic Iterable streams report a `max_tokens` stop between complete items as `IncompleteOutputException` instead of returning a silently truncated list.
