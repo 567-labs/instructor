@@ -21,6 +21,7 @@ from instructor.v2.dsl.parallel import get_types_array
 from instructor.v2.dsl.partial import PartialBase
 from instructor.v2.dsl.simple_type import AdapterBase
 from instructor.v2.core.response_model import prepare_response_model
+from instructor.v2.core.templating import handle_templating
 
 # Ensure handlers are registered (decorators auto-register on import)
 from instructor.v2.providers.xai import handlers
@@ -247,6 +248,13 @@ def from_xai(
         validation_context = call_kwargs.pop(
             "validation_context", call_kwargs.pop("context", None)
         )
+        if validation_context:
+            messages = handle_templating(
+                {"messages": messages},
+                mode=mode,
+                provider=Provider.XAI,
+                context=validation_context,
+            )["messages"]
         call_kwargs.pop("hooks", None)
         if call_kwargs.pop("token_budget", None) is not None:
             raise ValueError("token_budget is not supported for xAI requests")
@@ -415,6 +423,13 @@ def from_xai(
         validation_context = call_kwargs.pop(
             "validation_context", call_kwargs.pop("context", None)
         )
+        if validation_context:
+            messages = handle_templating(
+                {"messages": messages},
+                mode=mode,
+                provider=Provider.XAI,
+                context=validation_context,
+            )["messages"]
         call_kwargs.pop("hooks", None)
         if call_kwargs.pop("token_budget", None) is not None:
             raise ValueError("token_budget is not supported for xAI requests")

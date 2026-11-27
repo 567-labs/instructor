@@ -21,6 +21,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Anthropic**: `Mode.JSON_SCHEMA` sends native `output_config.format` on SDKs that support it instead of falling back to prompt instructions. JSON, JSON_SCHEMA and TOOLS accept `BetaMessage` responses, and forced `tool_choice` uses the declared tool name for custom schema titles.
 - **Anthropic Iterable**: `process_response` routes non-streaming Iterable responses through the given provider.
 - **Templating**: Anthropic and Bedrock string `system` prompts render with context.
+- **Templating (xAI)**: `from_xai` renders message templates with `context` before converting them, in both sync and async calls. ([#3139](https://github.com/567-labs/instructor/issues/3139))
 - **GenAI**: Requests without a response model keep generation options, `thinking_config` and `safety_settings`. Tool streams skip thought parts and empty chunks. `gs://` images decode base64 data, and PDF uploads stop polling when processing fails.
 - **OpenAI Responses**: Structured streams ignore commentary-phase message text.
 - **Mistral**: Responses with thinking and text chunks parse in JSON_SCHEMA and MD_JSON modes, and streams skip `None` deltas.
