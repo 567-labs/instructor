@@ -20,6 +20,7 @@ class Provider(Enum):
     ZAI = "zai"
     HUBRIS = "hubris"
     ATLASCLOUD = "atlascloud"
+    GMICLOUD = "gmicloud"
     REQUESTY = "requesty"
     SARVAM = "sarvam"
     ORCAROUTER = "orcarouter"

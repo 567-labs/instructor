@@ -50,6 +50,11 @@ OPENAI_ENDPOINTS = {
         key_variables=("ATLASCLOUD_API_KEY",),
         modes=(Mode.TOOLS, Mode.JSON_SCHEMA, Mode.MD_JSON, Mode.PARALLEL_TOOLS),
     ),
+    Provider.GMICLOUD: OpenAIEndpoint(
+        base_url="https://api.gmi-serving.com/v1",
+        key_variables=("GMI_API_KEY",),
+        modes=(Mode.TOOLS, Mode.JSON_SCHEMA),
+    ),
     Provider.REQUESTY: OpenAIEndpoint(
         base_url="https://router.requesty.ai/v1",
         key_variables=("REQUESTY_API_KEY",),
